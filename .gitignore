@@ -1,3 +1,8 @@
 .playwright-mcp/
 .idea/
 .DS_Store
+.superpowers/
+apps/backend/data/
+apps/backend/.venv/
+__pycache__/
+.pytest_cache/
