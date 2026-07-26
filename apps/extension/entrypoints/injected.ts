@@ -7,17 +7,22 @@ export default defineUnlistedScript(() => {
   }
 
   // fetch 후킹
+  // 인자를 스프레드로 받으면 new Request(...args)가 TS2556으로 막힌다.
+  // 명시적 시그니처로 받아야 tsc --noEmit이 통과한다.
   const originalFetch = window.fetch;
-  window.fetch = async function (...args: Parameters<typeof fetch>) {
+  window.fetch = async function (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
     const started = Date.now();
-    const request = new Request(...args);
+    const request = new Request(input, init);
     let bodyText: string | null = null;
     try {
       bodyText = await request.clone().text();
     } catch {
       bodyText = null;
     }
-    const response = await originalFetch.apply(this, args);
+    const response = await originalFetch(input, init);
     const clone = response.clone();
     let responseText = "";
     try {
@@ -43,9 +48,16 @@ export default defineUnlistedScript(() => {
   const originalSend = XMLHttpRequest.prototype.send;
   const originalSetHeader = XMLHttpRequest.prototype.setRequestHeader;
 
-  XMLHttpRequest.prototype.open = function (method: string, url: string, ...rest: any[]) {
-    (this as any).__mcp = { method, url, headers: {} as Record<string, string> };
-    return originalOpen.call(this, method, url, ...rest);
+  // fetch와 동일한 이유(TS2556)로 spread 대신 open()의 실제 오버로드 시그니처를 명시적으로 받는다.
+  XMLHttpRequest.prototype.open = function (
+    method: string,
+    url: string | URL,
+    async: boolean = true,
+    username?: string | null,
+    password?: string | null,
+  ): void {
+    (this as any).__mcp = { method, url: String(url), headers: {} as Record<string, string> };
+    return originalOpen.call(this, method, url, async, username, password);
   };
 
   XMLHttpRequest.prototype.setRequestHeader = function (name: string, value: string) {
