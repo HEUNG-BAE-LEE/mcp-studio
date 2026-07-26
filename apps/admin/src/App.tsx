@@ -1,5 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ProjectList from "./pages/ProjectList";
+import SessionList from "./pages/SessionList";
 import SessionDetail from "./pages/SessionDetail";
 import ActionEdit from "./pages/ActionEdit";
 import LlmConsole from "./pages/LlmConsole";
@@ -11,7 +13,8 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/sessions/1" replace />} />
+          <Route path="/" element={<ProjectList />} />
+          <Route path="/projects/:id" element={<SessionList />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
           <Route path="/actions/new" element={<ActionEdit />} />
           <Route path="/console" element={<LlmConsole />} />

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function useToast() {
   const [toast, setToast] = useState("");
@@ -11,6 +11,9 @@ export function useToast() {
     // 나중 메시지를 조기에 지운다.
     timer.current = window.setTimeout(() => setToast(""), 2200);
   }, []);
+
+  // 언마운트 후에 타이머가 남아 setToast를 호출하는 것을 막는다.
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
 
   return { toast, showToast };
 }
