@@ -6,6 +6,7 @@ apps/backend/data/
 apps/backend/.venv/
 __pycache__/
 .pytest_cache/
+node_modules/
 
 # 환경변수 — 실제 키가 들어가므로 절대 커밋 금지
 .env
