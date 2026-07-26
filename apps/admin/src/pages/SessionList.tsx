@@ -61,7 +61,12 @@ export default function SessionList() {
   // 존재하지 않는 프로젝트 id는 세션 목록 엔드포인트가 404 대신 빈 배열을
   // 돌려준다. 그대로 두면 "기록된 세션이 없습니다"가 떠서 프로젝트가
   // 있는 것처럼 보이므로, /api/projects 목록에 없는 id는 따로 구분한다.
-  const notFound = projectExists === false;
+  //
+  // 두 요청이 모두 끝나기 전에는 어느 빈 상태 문구도 띄우지 않는다.
+  // 세션 목록은 없는 id에도 []를 즉시 돌려주므로, 먼저 도착하면
+  // "기록된 세션이 없습니다"가 잠깐 떴다가 "찾을 수 없습니다"로 바뀐다.
+  const settled = rows !== null && projectExists !== null;
+  const notFound = settled && projectExists === false;
 
   return (
     <Shell breadcrumb={["Projects", projectName]} projectId={projectId}>
@@ -80,21 +85,23 @@ export default function SessionList() {
         </div>
       )}
 
-      {!error && notFound && (
+      {notFound && (
         <div className="empty-state">
           <strong>프로젝트 #{projectId}를 찾을 수 없습니다</strong>
           <p>프로젝트 목록으로 돌아가 다시 선택해 주세요.</p>
         </div>
       )}
 
-      {!error && !notFound && rows !== null && rows.length === 0 && (
+      {settled && !notFound && rows.length === 0 && (
         <div className="empty-state">
           <strong>기록된 세션이 없습니다</strong>
           <p>확장 프로그램 사이드 패널에서 기록을 시작해 보세요.</p>
         </div>
       )}
 
-      {!error && !notFound && rows !== null && rows.length > 0 && (
+      {/* 삭제가 실패해도 표는 남긴다. 이미 불러온 목록은 여전히 유효하고,
+          한 행의 삭제 실패로 목록 전체가 사라지면 오히려 혼란스럽다. */}
+      {rows !== null && rows.length > 0 && (
         <article className="panel">
           <div className="project-table table-5col">
             <div className="table-head">
@@ -104,9 +111,11 @@ export default function SessionList() {
               <span>상태</span>
               <span />
             </div>
-            {rows.map((row) => (
+            {rows.map((row, i) => (
               <div className="table-row" key={row.id}>
                 <span>
+                  {/* 아이콘을 앞에 둬 ProjectList와 같은 첫 칸 구조를 쓴다 */}
+                  <i className={`project-icon icon-${i % 3}`}>{String(row.id).padStart(2, "0")}</i>
                   <Link to={`/sessions/${row.id}`}>
                     <b>세션 #{row.id}</b>
                   </Link>

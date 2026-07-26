@@ -138,5 +138,13 @@ select { border: 1px solid #cfd6e2; border-radius: 6px; background: #fff; paddin
 .error-banner p { margin: 4px 0 0; font-size: 12px; color: #7f1d1d; }
 
 /* 표 열 수는 화면마다 다르다. 목업의 4열 고정 그리드를 덮어쓴다. */
+/* 행 안에 중첩된 링크. .table-row의 text-decoration은 행 자체에만 걸리므로
+   행 안쪽 <a>에는 닿지 않아 브라우저 기본 밑줄이 남는다.
+   color는 건드리지 않는다 - .table-row b가 이미 자기 색을 갖는다. */
+.table-row a { text-decoration: none; }
+/* 첫 칸의 링크를 b·small과 같은 열에 놓는다. 첫 칸은 32px 아이콘 + 1fr 본문
+   그리드라, 링크가 자동 배치로 32px 칸에 들어가면 글자가 줄바꿈된다. */
+.table-row > span:first-child > a { grid-column: 2; }
+
 .table-2col .table-head, .table-2col .table-row { grid-template-columns: 1fr 120px; }
 .table-5col .table-head, .table-5col .table-row { grid-template-columns: 2fr 100px 120px 120px 180px; }
