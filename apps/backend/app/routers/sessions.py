@@ -6,7 +6,7 @@ from sqlmodel import Session
 from app.db import get_session
 from app.models import RecordingSession, InteractionEvent, NetworkRequest
 from app.services.body import summarize_response
-from app.services.masking import mask_patterns, mask_deep
+from app.services.masking import mask_patterns, mask_deep, mask_query
 
 router = APIRouter()
 
@@ -69,7 +69,11 @@ def bulk_upload(session_id: int, payload: BulkIn, db: Session = Depends(get_sess
         db.add(NetworkRequest(
             session_id=session_id,
             interaction_id=item.interactionId,
-            request_url=item.url,
+            # 쿼리스트링의 민감 파라미터(sessionId, jumin 등)도 저장 전에
+            # 가려야 한다. 이 값이 그대로 저장되면 schema_infer가 example로
+            # 끌어올리고 tool_registry가 도구 설명에 박아 넣어 Azure로도
+            # 전송된다 (PRD §7.4).
+            request_url=mask_query(item.url),
             request_method=item.method,
             request_headers={k: mask_patterns(v) for k, v in item.requestHeaders.items()},
             request_body=mask_patterns(item.requestBody),

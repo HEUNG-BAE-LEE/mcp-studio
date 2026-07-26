@@ -134,3 +134,60 @@ def test_두_번_호출해도_점수와_요청_건수가_그대로다(client, pr
 
     # 재호출로 새 행이 추가되지 않아야 한다.
     assert len(rows) == 3
+
+
+def test_점수가_같으면_발생_시각_순서로_반환된다(client, project_id):
+    """order_by가 없으면 stable sort 특성상 DB가 돌려주는 행 순서에 기댈 뿐이라,
+    점수가 같은 두 요청의 화면 순서가 실행마다 달라질 수 있었다.
+    분석 대상 요청 자체(getMarker류)는 채점 로직상 동점이 나오기 어려우므로,
+    로그성 API 두 건을 같은 interaction에 묶어 강제로 동점(둘 다 최하위 감점)을
+    만들고 발생 시각 순서를 검증한다.
+    """
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+
+    payload = {
+        "interactions": [
+            {
+                "interactionId": "int-1",
+                "eventType": "click",
+                "pageUrl": "https://rt.molit.go.kr/",
+                "selector": "#btn",
+                "elementText": "조회",
+                "occurredAt": "2026-07-26T01:02:03.000Z",
+            }
+        ],
+        "networks": [
+            {
+                "url": "https://rt.molit.go.kr/pt/main/accesLog.do?id=1",
+                "method": "GET",
+                "requestHeaders": {},
+                "requestBody": None,
+                "status": 200,
+                "responseText": "",
+                "durationMs": 10,
+                "occurredAt": "2026-07-26T01:02:03.100Z",
+                "interactionId": "int-1",
+            },
+            {
+                "url": "https://rt.molit.go.kr/pt/main/accesLog.do?id=2",
+                "method": "GET",
+                "requestHeaders": {},
+                "requestBody": None,
+                "status": 200,
+                "responseText": "",
+                "durationMs": 10,
+                "occurredAt": "2026-07-26T01:02:03.200Z",
+                "interactionId": "int-1",
+            },
+        ],
+    }
+
+    response = client.post(f"/api/recording-sessions/{session_id}/bulk", json=payload)
+    assert response.status_code == 200
+
+    body = client.get(f"/api/recording-sessions/{session_id}/candidates").json()
+    candidates = body[0]["candidates"]
+
+    assert candidates[0]["score"] == candidates[1]["score"]
+    assert candidates[0]["url"].endswith("id=1")
+    assert candidates[1]["url"].endswith("id=2")

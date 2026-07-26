@@ -7,7 +7,7 @@ from openai import AzureOpenAI
 from sqlmodel import Session, select
 from app.db import get_session
 from app.models import Action
-from app.services.tool_registry import action_to_tool
+from app.services.tool_registry import action_to_tool, dedupe_by_tool_name
 from app.services.executor import execute_action
 
 # apps/backend/.env 를 실행 위치와 무관하게 로드한다
@@ -42,6 +42,12 @@ def select_tool(project_id: int, payload: dict, db: Session = Depends(get_sessio
     ).all()
     if not actions:
         raise HTTPException(400, "활성화된 액션이 없습니다")
+
+    # 두 ACTIVE 액션이 같은 tool_name을 쓸 수 있다 (시드 데이터와 촬영 중
+    # 새로 만든 액션이 충돌하는 경우). Azure는 중복 이름의 tools를 그대로
+    # 받아주므로, 여기서 미리 이름별로 하나만 남기지 않으면 by_name 딕셔너리
+    # 구성 시 행 순서에 따라 어느 쪽이 실행될지가 결정돼 버린다.
+    actions = dedupe_by_tool_name(actions)
 
     tools = [action_to_tool(a) for a in actions]
     by_name = {t["function"]["name"]: a for t, a in zip(tools, actions)}

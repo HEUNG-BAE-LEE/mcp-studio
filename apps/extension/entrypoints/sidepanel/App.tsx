@@ -1,5 +1,18 @@
 import { useEffect, useState } from "react";
 
+// URL 파싱 실패가 사이드패널 전체를 날리지 않게 한다.
+// injected.ts가 메타데이터 추출에 실패하면 url이 ""로 남을 수 있고,
+// content.ts는 typeof raw.url === "string" 검사만 하므로 ""도 통과한다.
+// new URL("")은 예외를 던지고, 렌더 중 예외는 컴포넌트 트리를 통째로
+// 없앤다 — 기록 중인 화면이 사라지면 안 된다.
+function safePath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
 const PROJECTS = [
   { id: 1, name: "국토교통부 실거래가" },
   { id: 2, name: "국가통계포털 KOSIS" },
@@ -95,7 +108,7 @@ export default function App() {
           <div key={i} style={{ padding: "6px 0", borderTop: "1px solid #eee", fontFamily: "monospace", fontSize: 11 }}>
             <span style={{ color: "#2563eb" }}>{r.method}</span>{" "}
             <span style={{ color: r.status < 300 ? "#16a34a" : "#dc2626" }}>{r.status}</span>{" "}
-            {new URL(r.url).pathname}
+            {safePath(r.url)}
           </div>
         ))}
       </div>

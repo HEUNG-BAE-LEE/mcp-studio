@@ -20,6 +20,7 @@ def candidates(session_id: int, db: Session = Depends(get_session)) -> list:
             select(NetworkRequest)
             .where(NetworkRequest.session_id == session_id)
             .where(NetworkRequest.interaction_id == interaction.interaction_id)
+            .order_by(NetworkRequest.occurred_at)
         ).all()
 
         # 채점 대상 요청 자신도 형제 URL 목록에 포함해야 한다.

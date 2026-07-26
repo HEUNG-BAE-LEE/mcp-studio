@@ -1,5 +1,22 @@
 # apps/backend/app/services/tool_registry.py
+from typing import List
 from app.models import Action
+
+
+def dedupe_by_tool_name(actions: List[Action]) -> List[Action]:
+    """같은 tool_name을 쓰는 ACTIVE 액션이 둘 이상이면 하나만 남긴다.
+
+    Azure는 이름이 겹치는 tools를 그대로 받아주기 때문에, 여기서 미리
+    정리하지 않으면 어느 액션이 실행되는지가 행 순서에 좌우된다.
+    id가 더 큰(더 나중에 만든) 액션을 남긴다 — 촬영 중 새로 만든 액션이
+    시드 데이터보다 우선해야 하는 데모 의도를 반영한 것이다.
+    """
+    deduped: dict = {}
+    for action in actions:
+        existing = deduped.get(action.tool_name)
+        if existing is None or action.id > existing.id:
+            deduped[action.tool_name] = action
+    return list(deduped.values())
 
 
 def action_to_tool(action: Action) -> dict:

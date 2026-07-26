@@ -237,3 +237,67 @@ def test_응답_본문의_주민등록번호는_response_preview에서_마스킹
 
     assert net.response_preview["sample"]["user"]["ssn"] == "***"
     assert "901231-1234567" not in str(net.response_preview)
+
+
+def test_응답_샘플의_apiKey는_패턴이_아니어도_키_이름으로_마스킹된다(client, project_id, engine):
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+
+    payload = {
+        "interactions": [],
+        "networks": [
+            {
+                "url": "https://example.com/api/token",
+                "method": "GET",
+                "requestHeaders": {},
+                "requestBody": None,
+                "status": 200,
+                "responseText": '{"apiKey":"abcd1234","name":"x"}',
+                "durationMs": 10,
+                "occurredAt": "2026-07-26T01:02:08.000Z",
+                "interactionId": None,
+            }
+        ],
+    }
+
+    client.post(f"/api/recording-sessions/{session_id}/bulk", json=payload)
+
+    with Session(engine) as db:
+        net = db.exec(
+            __import__("sqlmodel").select(NetworkRequest).where(NetworkRequest.session_id == session_id)
+        ).one()
+
+    assert net.response_preview["sample"]["apiKey"] == "***"
+    assert net.response_preview["sample"]["name"] == "x"
+
+
+def test_쿼리스트링의_민감_파라미터는_저장_전에_마스킹된다(client, project_id, engine):
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+
+    payload = {
+        "interactions": [],
+        "networks": [
+            {
+                "url": "https://rt.molit.go.kr/pt/gis/getMarker.do?minX=126.96&sessionId=abc123&jumin=901231-1234567",
+                "method": "GET",
+                "requestHeaders": {},
+                "requestBody": None,
+                "status": 200,
+                "responseText": "",
+                "durationMs": 10,
+                "occurredAt": "2026-07-26T01:02:09.000Z",
+                "interactionId": None,
+            }
+        ],
+    }
+
+    client.post(f"/api/recording-sessions/{session_id}/bulk", json=payload)
+
+    with Session(engine) as db:
+        net = db.exec(
+            __import__("sqlmodel").select(NetworkRequest).where(NetworkRequest.session_id == session_id)
+        ).one()
+
+    assert "abc123" not in net.request_url
+    assert "901231-1234567" not in net.request_url
+    assert "minX=126.96" in net.request_url
+    assert net.request_url.startswith("https://rt.molit.go.kr/pt/gis/getMarker.do?")
