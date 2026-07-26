@@ -13,18 +13,31 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    chrome.runtime.sendMessage({ type: "state" }, (s) => {
-      if (s) { setRecording(s.recording); setCounts(s); setError(s.lastError ?? null); }
-    });
+    function apply(s: any) {
+      if (!s) return;
+      setRecording(s.recording);
+      setCounts({ interactionCount: s.interactionCount, networkCount: s.networkCount });
+      setRecent(s.recent ?? []);
+      setError(s.lastError ?? null);
+    }
+
+    chrome.runtime.sendMessage({ type: "state" }, apply);
+
     const listener = (msg: any) => {
-      if (msg.type !== "state-changed") return;
-      setRecording(msg.recording);
-      setCounts({ interactionCount: msg.interactionCount, networkCount: msg.networkCount });
-      setRecent(msg.recent ?? []);
-      setError(msg.lastError ?? null);
+      if (msg.type === "state-changed") apply(msg);
     };
     chrome.runtime.onMessage.addListener(listener);
-    return () => chrome.runtime.onMessage.removeListener(listener);
+
+    // 서비스 워커가 재시작하면 broadcast가 오지 않아 패널이 낡은 상태로 남는다.
+    // 주기적으로 다시 물어 실제 상태와 맞춘다.
+    const timer = setInterval(() => {
+      chrome.runtime.sendMessage({ type: "state" }, apply);
+    }, 2000);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(listener);
+      clearInterval(timer);
+    };
   }, []);
 
   return (
