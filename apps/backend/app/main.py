@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db import init_db
+from app.seed import seed
 from app.routers import sessions, analysis, actions, llm
 
 app = FastAPI(title="MCP Studio")
@@ -19,6 +20,7 @@ app.include_router(llm.router)
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
+    seed()
 
 @app.get("/health")
 def health() -> dict:
