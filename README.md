@@ -109,7 +109,7 @@ cd apps/extension && npm run build
 확장 없이 30초 안에 핵심 동작을 확인할 수 있습니다. 시드에 액션이 하나 들어 있기
 때문입니다.
 
-브라우저에서 <http://localhost:5173/console> 을 열고 입력창에 이렇게 칩니다:
+브라우저에서 <http://localhost:5173/projects/1/console> 을 열고 입력창에 이렇게 칩니다:
 
 ```
 광화문 근처 아파트 단지 알려줘
@@ -147,25 +147,27 @@ HTTP 200 · 126ms
 
 1. Chrome에서 <https://rt.molit.go.kr/pt/gis/gis.do> (국토교통부 실거래가 지도) 접속
 2. 확장 아이콘을 눌러 사이드 패널을 엽니다
-3. **기록 시작**
+3. 프로젝트 이름란에 텍스트를 입력합니다(기존 이름이면 그 프로젝트에, 새 이름이면
+   새 프로젝트로 세션이 생성됩니다) → **기록 시작**
 4. 지도에서 **확대(+) 버튼을 한 번** 누릅니다
 5. 사이드 패널에 요청이 3건 안팎 잡히는 것을 확인합니다
 6. **기록 종료 및 전송**
 
 ### 4-2. 후보 확인
 
-<http://localhost:5173/sessions/1> 로 이동합니다. 이런 표가 나옵니다:
+기록을 종료하면 Side Panel에 **관리자에서 열기** 버튼이 나타납니다. 이 버튼을
+누르면 해당 세션이 바로 열립니다(세션 번호를 직접 몰라도 됩니다). 이런 표가
+나옵니다:
 
 | 점수 | Method | URL | 추천 사유 |
 |---|---|---|---|
 | ★ 9 | POST | `/pt/gis/getMarker.do` | 변경성 메서드 POST +3, Fetch/XHR 요청 +2, 클릭 후 1초 이내 +2 … |
 | 9 | POST | `/cmm/gis/getCenterLedCdPnu.do` | (동일) |
-| 3 | POST | `/pt/main/accesLog.do` | … **로그 API −5** |
+| 4 | POST | `/pt/main/accesLog.do` | … **로그 API −5** |
 
-로그성 API는 점수가 깎이고 **액션 만들기** 버튼이 비활성화됩니다.
+로그성 API는 점수가 깎여 항상 최하위로 표시됩니다.
 
-`getMarker.do` 행의 **액션 만들기**를 누릅니다. 세션 번호가 `1`이 아니면 URL의
-숫자를 바꿔 주세요.
+`getMarker.do` 행의 **액션 만들기**를 누릅니다.
 
 화면 예시: `docs/screenshots/scene5-session-detail.png`
 
@@ -183,7 +185,7 @@ HTTP 200 · 126ms
 ## 5. 자동 테스트
 
 ```bash
-# 백엔드 — 64개
+# 백엔드 — 81개
 cd apps/backend && .venv/bin/pytest tests/ -v
 
 # 확장 — 13개
@@ -254,8 +256,6 @@ sudo chown -R $(id -u):$(id -g) ~/.npm
 
 ## 8. 알려진 제약
 
-- `/actions/new`는 **열릴 때마다 새 Action 행을 만듭니다.** 리허설로 이 화면을 여러 번
-  열면 DRAFT가 쌓입니다. §6의 초기화로 정리합니다.
 - 대상 API 호출 간격은 최소 1초로 제한됩니다. 공공 서버 부하를 배려한 값이라
   낮추지 마세요.
 - 응답 본문 원문은 저장하지 않습니다. 구조와 샘플 1건만 남깁니다.
@@ -274,7 +274,8 @@ sudo chown -R $(id -u):$(id -g) ~/.npm
 apps/
   extension/   Chrome 확장 (WXT + React) — 클릭·네트워크 기록
   backend/     FastAPI + SQLModel + SQLite — 점수화·스키마 추론·실행·LLM
-  admin/       React + Vite — 후보 목록, 액션 편집, LLM 콘솔
+  admin/       React + Vite — 프로젝트 → 세션 → 액션 계층 화면(사이드바·
+               브레드크럼·5단계 스테퍼), 후보 목록, 액션 편집, LLM 콘솔
 docs/
   demo-script.md        촬영 대본
   screenshots/          화면 예시
