@@ -52,7 +52,14 @@ export default function LlmConsole() {
 
       {selection && (
         <div style={{ marginTop: 20, border: "1px solid #ddd", padding: 16, borderRadius: 6 }}>
-          <div>선택된 Tool: <strong>{selection.selectedTool ?? "없음"}</strong></div>
+          {/* 사람이 붙인 한국어 이름을 앞세운다. tool_name은 모델이 보는 식별자일
+              뿐이라 화면에 그것만 띄우면 무엇을 실행하는지 알아볼 수 없다. */}
+          <div>
+            선택된 액션: <strong>{selection.actionName ?? "없음"}</strong>
+            {selection.selectedTool && (
+              <code style={{ marginLeft: 8, color: "#666", fontSize: 12 }}>{selection.selectedTool}</code>
+            )}
+          </div>
           {selection.reason && <p style={{ color: "#666", fontSize: 13 }}>{selection.reason}</p>}
           {selection.arguments && (
             <pre style={{ background: "#f8f8f8", padding: 12, fontSize: 12, overflowX: "auto" }}>
