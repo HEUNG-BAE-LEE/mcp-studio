@@ -173,7 +173,7 @@ export default function ActionEdit() {
                   <option key={t}>{t}</option>
                 ))}
               </select>
-              <small>{String(def.example)}</small>
+              <small title={String(def.example)}>{String(def.example)}</small>
               <p>
                 <input
                   value={def.description ?? ""}
