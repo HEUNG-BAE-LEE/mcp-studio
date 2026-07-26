@@ -17,12 +17,16 @@ function safePath(url: string): string {
 // chrome.storage.local은 세션과 달리 브라우저를 껐다 켜도 남는다.
 const LAST_PROJECT_NAME_KEY = "mcpStudioLastProjectName";
 
+// 데모 전용. background.ts의 API_BASE와 같은 방식으로 상수에 둔다.
+const ADMIN_BASE = "http://localhost:5173";
+
 export default function App() {
   const [recording, setRecording] = useState(false);
   const [counts, setCounts] = useState({ interactionCount: 0, networkCount: 0 });
   const [recent, setRecent] = useState<any[]>([]);
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [finishedSessionId, setFinishedSessionId] = useState<number | null>(null);
 
   // 열릴 때마다 마지막으로 입력했던 프로젝트 이름을 복원한다 - 매번 다시
   // 타이핑하지 않도록 하기 위함이다.
@@ -62,7 +66,14 @@ export default function App() {
   }, []);
 
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui", fontSize: 13 }}>
+    <div
+      style={{
+        padding: 16,
+        fontFamily: '-apple-system, "Apple SD Gothic Neo", system-ui, sans-serif',
+        fontSize: 13,
+        color: "#172033",
+      }}
+    >
       <h2 style={{ fontSize: 15, margin: "0 0 12px" }}>MCP Studio</h2>
 
       <input
@@ -82,13 +93,14 @@ export default function App() {
               setError("프로젝트 이름을 입력해 주세요");
               return;
             }
+            setFinishedSessionId(null);
             chrome.storage.local.set({ [LAST_PROJECT_NAME_KEY]: trimmed });
             chrome.runtime.sendMessage({ type: "start", projectName: trimmed }, (r) => {
               setRecording(!!r?.ok);
               setError(r?.error ?? null);
             });
           }}
-          style={{ width: "100%", padding: 10, background: "#2563eb", color: "#fff", border: 0, borderRadius: 6 }}
+          style={{ width: "100%", padding: 10, background: "#3157e8", color: "#fff", border: 0, borderRadius: 6 }}
         >
           기록 시작
         </button>
@@ -98,6 +110,8 @@ export default function App() {
             chrome.runtime.sendMessage({ type: "stop" }, (r) => {
               setRecording(false);
               setError(r?.error ?? null);
+              // 전송이 성공했을 때만 링크를 띄운다. 실패하면 관리자에 아무것도 없다.
+              setFinishedSessionId(r?.ok ? (r.sessionId ?? null) : null);
             })
           }
           style={{ width: "100%", padding: 10, background: "#dc2626", color: "#fff", border: 0, borderRadius: 6 }}
@@ -112,6 +126,20 @@ export default function App() {
         </div>
       )}
 
+      {finishedSessionId !== null && (
+        <div style={{ marginTop: 10, padding: 10, background: "#eef2ff", borderRadius: 6, fontSize: 12 }}>
+          <div style={{ marginBottom: 8 }}>세션 #{finishedSessionId} 전송 완료</div>
+          <button
+            onClick={() =>
+              chrome.tabs.create({ url: `${ADMIN_BASE}/sessions/${finishedSessionId}` })
+            }
+            style={{ width: "100%", padding: 8, background: "#3157e8", color: "#fff", border: 0, borderRadius: 6 }}
+          >
+            관리자에서 열기
+          </button>
+        </div>
+      )}
+
       <div style={{ margin: "16px 0", display: "flex", gap: 16 }}>
         <div><strong style={{ fontSize: 22 }}>{counts.interactionCount}</strong><div>클릭</div></div>
         <div><strong style={{ fontSize: 22 }}>{counts.networkCount}</strong><div>API 요청</div></div>
@@ -119,7 +147,7 @@ export default function App() {
 
       <div>
         {recent.map((r, i) => (
-          <div key={i} style={{ padding: "6px 0", borderTop: "1px solid #eee", fontFamily: "monospace", fontSize: 11 }}>
+          <div key={i} style={{ padding: "6px 0", borderTop: "1px solid #e2e7ef", fontFamily: "monospace", fontSize: 11 }}>
             <span style={{ color: "#2563eb" }}>{r.method}</span>{" "}
             <span style={{ color: r.status < 300 ? "#16a34a" : "#dc2626" }}>{r.status}</span>{" "}
             {safePath(r.url)}
