@@ -855,6 +855,14 @@ const MAX_NETWORKS = 5000;
 const RESPONSE_STORE_LIMIT = 32_000;   // 실제 업무 API JSON은 이 안에 들어온다
 const MAX_TOTAL_BYTES = 4_000_000;     // 10MB 할당량에 대한 안전 여유
 
+// 문자 길이가 아니라 실제 UTF-8 바이트로 잰다.
+// 한글은 UTF-8에서 3바이트라, 문자 수로 4백만을 재면 실제로는 12MB가 되어
+// 10MB 할당량을 넘긴다. 대상이 한국 공공기관 API라 이게 예외가 아니라 기본이다.
+const encoder = new TextEncoder();
+function byteSize(value: unknown): number {
+  return encoder.encode(JSON.stringify(value) ?? "").length;
+}
+
 type SessionState = {
   recording: boolean;
   sessionId: number | null;
@@ -923,7 +931,7 @@ export default defineBackground(() => {
         if (!state.recording) return;
         if (state.interactions.length >= MAX_INTERACTIONS) return;
         state.interactions.push(msg.payload);
-        state.approxBytes += 300;
+        state.approxBytes += byteSize(msg.payload);
         if (await saveState(state)) broadcast(state);
       });
       return false;
@@ -949,7 +957,7 @@ export default defineBackground(() => {
               ? msg.payload.responseText.slice(0, RESPONSE_STORE_LIMIT)
               : "",
         };
-        const size = (entry.responseText?.length ?? 0) + (entry.requestBody?.length ?? 0) + entry.url.length + 200;
+        const size = byteSize(entry);
 
         if (state.approxBytes + size > MAX_TOTAL_BYTES) {
           state.recording = false;
