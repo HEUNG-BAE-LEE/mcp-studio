@@ -318,17 +318,22 @@ export default defineUnlistedScript(() => {
   }
 
   // fetch 후킹
+  // 인자를 스프레드로 받으면 new Request(...args)가 TS2556으로 막힌다.
+  // 명시적 시그니처로 받아야 tsc --noEmit이 통과한다.
   const originalFetch = window.fetch;
-  window.fetch = async function (...args: Parameters<typeof fetch>) {
+  window.fetch = async function (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
     const started = Date.now();
-    const request = new Request(...args);
+    const request = new Request(input, init);
     let bodyText: string | null = null;
     try {
       bodyText = await request.clone().text();
     } catch {
       bodyText = null;
     }
-    const response = await originalFetch.apply(this, args);
+    const response = await originalFetch(input, init);
     const clone = response.clone();
     let responseText = "";
     try {
