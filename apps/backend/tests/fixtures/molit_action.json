@@ -1,0 +1,23 @@
+{
+  "toolName": "search_apartment_markers",
+  "description": "지도 영역 안의 아파트 단지 목록을 조회합니다.",
+  "request": {
+    "method": "POST",
+    "urlTemplate": "https://rt.molit.go.kr/pt/gis/getMarker.do",
+    "headers": {
+      "Referer": "https://rt.molit.go.kr/pt/gis/gis.do?srhThingSecd=A&mobileAt=",
+      "X-Requested-With": "XMLHttpRequest"
+    },
+    "querySchema": null,
+    "bodySchema": {
+      "minX": {"type": "number", "required": true, "llmEditable": true, "description": "서쪽 경도"},
+      "minY": {"type": "number", "required": true, "llmEditable": true, "description": "남쪽 위도"},
+      "maxX": {"type": "number", "required": true, "llmEditable": true, "description": "동쪽 경도"},
+      "maxY": {"type": "number", "required": true, "llmEditable": true, "description": "북쪽 위도"},
+      "srhYear": {"type": "integer", "required": true, "llmEditable": true, "description": "조회 연도"},
+      "poiType": {"type": "string", "required": true, "llmEditable": true, "description": "물건 종류"}
+    }
+  },
+  "response": {"successStatus": [200], "schema": {"type": "object"}},
+  "execution": {"authMode": "NONE", "credentialId": null, "requiresConfirmation": false}
+}
