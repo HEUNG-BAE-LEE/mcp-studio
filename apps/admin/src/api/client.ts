@@ -1,5 +1,19 @@
 const BASE = "http://localhost:8000";
 
+/** 서버가 보낸 상태 코드와 한국어 설명을 함께 나르는 오류 */
+export interface ApiError extends Error {
+  status: number;
+  detail: string;
+}
+
+/** 오류에서 화면에 띄울 한국어 문구를 꺼낸다. 서버 설명이 있으면 그것을 쓴다. */
+export function errorMessage(err: unknown): string {
+  if (err && typeof (err as ApiError).detail === "string") {
+    return (err as ApiError).detail;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 async function request(method: string, path: string, body?: unknown) {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -20,7 +34,12 @@ async function request(method: string, path: string, body?: unknown) {
     } catch {
       // JSON이 아니면 본문을 그대로 쓴다
     }
-    throw new Error(`${method} ${path} → ${res.status}: ${detail}`);
+    // 화면에 그대로 띄울 수 있게 서버 설명을 따로 실어 보낸다. message는
+    // 기존 화면들이 그대로 쓰고 있으므로 형식을 바꾸지 않는다.
+    const error = new Error(`${method} ${path} → ${res.status}: ${detail}`) as ApiError;
+    error.status = res.status;
+    error.detail = detail;
+    throw error;
   }
 
   // 204처럼 본문이 없는 응답에서 JSON.parse가 던지지 않게 한다
