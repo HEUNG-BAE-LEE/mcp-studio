@@ -4,7 +4,27 @@ from typing import List, Tuple
 from app.models import NetworkRequest
 
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
-LOG_URL = re.compile(r"(acceslog|accesslog|/log/|/logging|analytics|collect|tracker|stat)", re.I)
+
+# 로그·수집성 API 판별. 넓게 잡으면 진짜 업무 API를 조용히 파묻는다.
+#
+# 걸러야 할 오탐 사례가 실제로 있다.
+#   /statisticsList/selectTreeData.do  ← KOSIS의 주요 조회 API. 'stat' 부분일치 금지
+#   /oneid/cmmn/login/ActiveSessionFind.do ← 'login'에 'log'가 들어간다
+#   /api/catalog, /dialog/open, /blogPosts ← 모두 'log'를 포함한다
+#
+# 그래서 부분일치 대신 경로 경계를 요구한다.
+LOG_URL = re.compile(
+    r"("
+    r"acces{1,2}log"          # accesLog.do (국내 사이트에 흔한 s 하나 오타), accessLog.do
+    r"|/logs?(?:[/?.]|$)"     # /log /logs /log/ /logs.do — 단 /login, /catalog 은 제외
+    r"|/logging"
+    r"|analytics"
+    r"|/collect(?:[/?.]|$)"
+    r"|tracker|tracking"
+    r"|/stats?(?:[/?.]|$)"    # /stat /stats — statistics 는 제외
+    r")",
+    re.I,
+)
 
 def score_request(req: NetworkRequest, click_at: datetime, sibling_urls: List[str]) -> Tuple[int, List[str]]:
     """PRD §7.6 점수 정책. 점수와 추천 사유를 함께 반환한다."""
