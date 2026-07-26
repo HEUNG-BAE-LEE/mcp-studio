@@ -1,35 +1,33 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
+import Shell from "../components/Shell";
+import Stepper from "../components/Stepper";
 
 export default function LlmConsole() {
+  const { id } = useParams();
+  const projectId = Number(id);
+
   const [query, setQuery] = useState("광화문 근처 아파트 단지 알려줘");
   const [selection, setSelection] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
-  const [projectId, setProjectId] = useState<number | null>(null);
+  const [projectName, setProjectName] = useState("");
 
-  // 프로젝트 목록을 불러와 첫 번째 항목을 기본 선택으로 둔다. 확장 프로그램이
-  // 이제 임의 이름으로 프로젝트를 만들 수 있으므로, 콘솔에서 어떤 프로젝트의
-  // 액션을 테스트할지 고를 수 있어야 한다.
+  // 프로젝트 이름은 브레드크럼에만 쓴다 — 경로가 이미 어느 프로젝트인지 정한다.
   useEffect(() => {
-    api
-      .get("/api/projects")
+    api.get("/api/projects")
       .then((rows: { id: number; name: string }[]) => {
-        setProjects(rows);
-        if (rows.length > 0) setProjectId(rows[0].id);
+        const found = rows.find((p) => p.id === projectId);
+        setProjectName(found ? found.name : `#${projectId}`);
       })
       .catch((err) => setError(errorMessage(err)));
-  }, []);
+  }, [projectId]);
 
   // 실패했는데 화면이 그대로면 멈춘 것처럼 보인다. 두 핸들러 모두
   // 오류를 붙잡아 한국어로 띄우고, 실패한 단계의 낡은 결과는 지운다.
   async function ask() {
-    if (projectId == null) {
-      setError("먼저 프로젝트를 선택해 주세요");
-      return;
-    }
     setBusy(true); setResult(null); setError(null);
     try {
       setSelection(await api.post(`/api/projects/${projectId}/llm-test`, { query }));
@@ -51,77 +49,72 @@ export default function LlmConsole() {
   }
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 900 }}>
-      <h1 style={{ fontSize: 20 }}>LLM 테스트 콘솔</h1>
+    <Shell breadcrumb={["Projects", projectName, "테스트 콘솔"]} projectId={projectId}>
+      <section className="heading-row">
+        <div>
+          <p className="eyebrow">테스트</p>
+          <h1>LLM 테스트 콘솔</h1>
+          <p className="subtitle">ACTIVE 상태인 액션만 선택 대상이 됩니다.</p>
+        </div>
+      </section>
 
-      <div style={{ marginTop: 16 }}>
-        <label>
-          프로젝트{" "}
-          <select
-            value={projectId ?? ""}
-            onChange={(e) => setProjectId(Number(e.target.value))}
-            style={{ padding: 6 }}
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <Stepper current={4} />
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <input value={query} onChange={e => setQuery(e.target.value)} style={{ flex: 1, padding: 10 }} />
-        <button onClick={ask} disabled={busy} style={{ padding: "10px 20px" }}>질의</button>
+        <button className="primary" onClick={ask} disabled={busy}>질의</button>
       </div>
 
       {error && (
-        <div style={{
-          marginTop: 20, border: "1px solid #dc2626", background: "#fef2f2",
-          padding: 16, borderRadius: 6, color: "#991b1b",
-        }}>
+        <div className="error-banner">
           <strong>요청을 처리하지 못했습니다</strong>
-          <p style={{ marginTop: 6, fontSize: 14, whiteSpace: "pre-wrap" }}>{error}</p>
+          <p>{error}</p>
         </div>
       )}
 
       {selection && (
-        <div style={{ marginTop: 20, border: "1px solid #ddd", padding: 16, borderRadius: 6 }}>
+        <article className="panel" style={{ marginTop: 20, padding: 16 }}>
           {/* 사람이 붙인 한국어 이름을 앞세운다. tool_name은 모델이 보는 식별자일
               뿐이라 화면에 그것만 띄우면 무엇을 실행하는지 알아볼 수 없다. */}
           <div>
             선택된 액션: <strong>{selection.actionName ?? "없음"}</strong>
-            {selection.selectedTool && (
-              <code style={{ marginLeft: 8, color: "#666", fontSize: 12 }}>{selection.selectedTool}</code>
-            )}
+            {selection.selectedTool && <code style={{ marginLeft: 8 }}>{selection.selectedTool}</code>}
           </div>
-          {selection.reason && <p style={{ color: "#666", fontSize: 13 }}>{selection.reason}</p>}
-          {/* textAlign: 상위 레이아웃의 가운데 정렬을 물려받으면 JSON이 흩어져 읽기 어렵다 */}
+          {selection.reason && <p style={{ color: "var(--muted)", fontSize: 13 }}>{selection.reason}</p>}
           {selection.arguments && (
-            <pre style={{ background: "#f8f8f8", padding: 12, fontSize: 12, overflowX: "auto", textAlign: "left" }}>
+            <pre style={{ background: "var(--soft)", padding: 12, fontSize: 12, overflowX: "auto" }}>
               {JSON.stringify(selection.arguments, null, 2)}
             </pre>
           )}
           {selection.actionId && (
-            <button onClick={run} disabled={busy}
-              style={{ padding: "10px 20px", background: "#16a34a", color: "#fff", border: 0, borderRadius: 6 }}>
-              이 내용으로 실행
-            </button>
+            <button className="primary" onClick={run} disabled={busy}>이 내용으로 실행</button>
           )}
-        </div>
+        </article>
       )}
 
       {result && (
-        <div style={{ marginTop: 20, border: "1px solid #16a34a", padding: 16, borderRadius: 6 }}>
-          <div>HTTP {result.status} · {result.elapsedMs}ms</div>
-          <p style={{ fontSize: 15, marginTop: 8 }}>{result.summary}</p>
-          <details style={{ marginTop: 8 }}>
-            <summary style={{ cursor: "pointer", fontSize: 13 }}>원본 응답 보기</summary>
-            <pre style={{ background: "#f8f8f8", padding: 12, fontSize: 11, maxHeight: 300, overflow: "auto" }}>
-              {result.rawPreview}
-            </pre>
-          </details>
+        <div className="test-layout" style={{ marginTop: 20 }}>
+          <article className="panel test-summary">
+            <div className="metric-grid">
+              <div>
+                <small>HTTP 상태</small>
+                <strong>{result.status}</strong>
+              </div>
+              <div>
+                <small>소요 시간</small>
+                <strong>{result.elapsedMs}ms</strong>
+              </div>
+            </div>
+            <p style={{ fontSize: 15, marginTop: 8 }}>{result.summary}</p>
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13 }}>원본 응답 보기</summary>
+              <pre style={{ background: "var(--soft)", padding: 12, fontSize: 11, maxHeight: 300, overflow: "auto" }}>
+                {result.rawPreview}
+              </pre>
+            </details>
+          </article>
         </div>
       )}
-    </div>
+    </Shell>
   );
 }

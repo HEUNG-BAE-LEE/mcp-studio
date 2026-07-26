@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import { api, errorMessage } from "../api/client";
+import Shell from "../components/Shell";
+import Stepper from "../components/Stepper";
 
 // URL 파싱 실패가 화면 전체를 날리지 않게 한다.
 // new URL()은 상대 경로나 깨진 값에 예외를 던지고, React 렌더 중 예외는
@@ -16,90 +18,105 @@ function safePath(url: string): string {
 export default function SessionDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  // 세션 자체 정보(프로젝트 id/이름)는 브레드크럼을 채우는 데 쓴다.
+  const session = useQuery({
+    queryKey: ["session", id],
+    queryFn: () => api.get(`/api/recording-sessions/${id}`),
+  });
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["candidates", id],
     queryFn: () => api.get(`/api/recording-sessions/${id}/candidates`),
   });
 
-  if (isLoading) return <p style={{ padding: 24 }}>불러오는 중...</p>;
+  const projectId: number | null = session.data?.projectId ?? null;
+  const projectName: string = session.data?.projectName ?? "";
+
+  if (isLoading) {
+    return (
+      <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId}>
+        <p>불러오는 중...</p>
+      </Shell>
+    );
+  }
 
   // 오류를 조용히 삼키면 "클릭이 없는 세션"과 구분되지 않는다.
   // 촬영 중 백엔드가 꺼져 있으면 원인을 화면에서 바로 읽을 수 있어야 한다.
   if (isError) {
     return (
-      <div style={{ padding: 24, fontFamily: "system-ui" }}>
-        <h1 style={{ fontSize: 20 }}>기록 세션 #{id}</h1>
-        <div style={{ marginTop: 16, padding: 12, background: "#fef2f2", color: "#b91c1c", borderRadius: 6 }}>
-          불러오지 못했습니다: {error instanceof Error ? error.message : String(error)}
+      <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId}>
+        <div className="error-banner">
+          <strong>불러오지 못했습니다</strong>
+          <p>{errorMessage(error)}</p>
         </div>
-      </div>
+      </Shell>
     );
   }
 
   const groups = data ?? [];
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: 20 }}>기록 세션 #{id}</h1>
+    <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId}>
+      <section className="heading-row">
+        <div>
+          <p className="eyebrow">API 분석</p>
+          <h1>세션 #{id}</h1>
+          <p className="subtitle">클릭과 연결된 API 후보입니다.</p>
+        </div>
+      </section>
+
+      <Stepper current={2} />
 
       {groups.length === 0 && (
-        <p style={{ marginTop: 16, color: "#666" }}>
-          이 세션에는 클릭과 연결된 요청이 없습니다.
-        </p>
+        <div className="empty-state">
+          <strong>이 세션에는 클릭과 연결된 요청이 없습니다</strong>
+        </div>
       )}
 
       {groups.map((group: any) => (
-        <section key={group.interaction.id} style={{ marginTop: 28 }}>
+        <article className="panel" key={group.interaction.id} style={{ marginTop: 16, padding: 18 }}>
           <div style={{ marginBottom: 8 }}>
             <strong>{group.interaction.text || "(텍스트 없음)"}</strong>
-            <code style={{ marginLeft: 8, color: "#666", fontSize: 12 }}>
-              {group.interaction.selector}
-            </code>
-            <span style={{ marginLeft: 8, color: "#666", fontSize: 12 }}>
+            <code style={{ marginLeft: 8 }}>{group.interaction.selector}</code>
+            <span className="mono" style={{ marginLeft: 8, color: "var(--muted)", fontSize: 12 }}>
               요청 {group.totalRequests}건
             </span>
           </div>
 
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#f5f5f5", textAlign: "left" }}>
-                <th style={{ padding: 8, width: 60 }}>점수</th>
-                <th style={{ padding: 8, width: 70 }}>Method</th>
-                <th style={{ padding: 8 }}>URL</th>
-                <th style={{ padding: 8, width: 60 }}>상태</th>
-                <th style={{ padding: 8 }}>추천 사유</th>
-                <th style={{ padding: 8, width: 90 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.candidates.map((c: any, i: number) => (
-                <tr key={c.id} style={{ borderTop: "1px solid #eee", background: i === 0 ? "#f0f7ff" : undefined }}>
-                  <td style={{ padding: 8, fontWeight: 700 }}>
-                    {i === 0 ? "★ " : ""}
-                    {c.score}
-                  </td>
-                  <td style={{ padding: 8 }}>{c.method}</td>
-                  <td style={{ padding: 8, fontFamily: "monospace", fontSize: 12 }}>
-                    {safePath(c.url)}
-                  </td>
-                  <td style={{ padding: 8, color: c.status < 300 ? "#16a34a" : "#dc2626" }}>{c.status}</td>
-                  <td style={{ padding: 8, fontSize: 11, color: "#666" }}>
-                    {Array.isArray(c.reasons) ? c.reasons.join(", ") : ""}
-                  </td>
-                  <td style={{ padding: 8 }}>
-                    <button
-                      disabled={!c.isJson}
-                      onClick={() => navigate(`/actions/new?requestId=${c.id}`)}
-                    >
-                      액션 만들기
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+          <div className="project-table table-6col">
+            <div className="table-head">
+              <span>점수</span>
+              <span>Method</span>
+              <span>URL</span>
+              <span>상태</span>
+              <span>추천 사유</span>
+              <span />
+            </div>
+            {group.candidates.map((c: any, i: number) => (
+              <div className="table-row" key={c.id}>
+                <span className="mono">
+                  {i === 0 ? "★ " : ""}
+                  {c.score}
+                </span>
+                <span>{c.method}</span>
+                <span className="mono">{safePath(c.url)}</span>
+                <span style={{ color: c.status < 300 ? "var(--green)" : "#dc2626" }}>{c.status}</span>
+                <span>{Array.isArray(c.reasons) ? c.reasons.join(", ") : ""}</span>
+                <span>
+                  <button
+                    className="primary"
+                    disabled={!c.isJson}
+                    onClick={() => navigate(`/actions/new?requestId=${c.id}`)}
+                  >
+                    액션 만들기
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </article>
       ))}
-    </div>
+    </Shell>
   );
 }

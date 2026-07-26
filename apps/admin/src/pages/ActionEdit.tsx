@@ -1,57 +1,90 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { api, errorMessage } from "../api/client";
+import Shell from "../components/Shell";
+import Stepper from "../components/Stepper";
+
+// 백엔드 apps/backend/app/services/masking.py의 SENSITIVE_KEYS와 같은 목록이어야
+// 한다. 값을 바꿀 때는 두 곳을 함께 고친다.
+const MASKED_KEYS = ["password", "token", "apiKey", "sessionId", "ssn", "jumin", "cardNumber", "cvv"];
 
 export default function ActionEdit() {
+  const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+
   const [actionId, setActionId] = useState<number | null>(null);
+  const [projectId, setProjectId] = useState<number | null>(null);
+  const [projectName, setProjectName] = useState("");
   const [spec, setSpec] = useState<any>(null);
   const [name, setName] = useState("아파트 단지 조회");
   const [toolName, setToolName] = useState("search_apartment_markers");
   const [description, setDescription] = useState("지도 영역 안의 아파트 단지 목록을 조회합니다.");
+  const [status, setStatus] = useState("DRAFT");
   const [error, setError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
 
-  // React 18 StrictMode는 개발 모드에서 effect를 두 번 실행한다.
-  // 이 effect는 POST /api/actions를 호출해 Action 행을 하나 만드는데,
-  // 가드 없이는 Action이 두 개 생겨 영상에서 눈에 띄게 된다.
+  // React 18 StrictMode는 개발 모드에서 effect를 두 번 실행한다. 이 가드가
+  // 없으면 POST가 두 번 나가 Action이 두 개 생긴다.
   const requested = useRef(false);
 
   useEffect(() => {
+    // 1) /actions/:id — 이미 만들어진 액션을 읽기만 한다. POST하지 않는다.
+    if (id) {
+      api.get(`/api/actions/${id}`)
+        .then((row) => {
+          setActionId(row.id);
+          setProjectId(row.projectId);
+          setSpec(row.actionSpec);
+          setName(row.name);
+          setToolName(row.toolName);
+          setDescription(row.description);
+          setStatus(row.status);
+        })
+        .catch((err) => setError(errorMessage(err)));
+      return;
+    }
+
+    // 2) /actions/new?requestId=N — 한 번만 만들고 곧바로 /actions/:id로 옮긴다.
+    //    주소가 바뀌므로 새로고침해도 다시 만들어지지 않는다.
     const requestId = params.get("requestId");
     if (!requestId || requested.current) return;
     requested.current = true;
 
-    api
-      .post("/api/actions", {
-        networkRequestId: Number(requestId),
-        name,
-        toolName,
-        description,
+    api.post("/api/actions", { networkRequestId: Number(requestId), name, toolName, description })
+      .then((res) => navigate(`/actions/${res.id}`, { replace: true }))
+      .catch((err) => setError(errorMessage(err)));
+  }, [id, params, navigate, name, toolName, description]);
+
+  // 프로젝트 이름은 브레드크럼에만 쓰이므로 projectId를 알게 된 뒤 조회한다.
+  useEffect(() => {
+    if (projectId == null) return;
+    api.get("/api/projects")
+      .then((list: { id: number; name: string }[]) => {
+        const found = list.find((p) => p.id === projectId);
+        setProjectName(found ? found.name : `#${projectId}`);
       })
-      .then((res) => {
-        setActionId(res.id);
-        setSpec(res.actionSpec);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      .catch((err) => setError(errorMessage(err)));
+  }, [projectId]);
 
   if (error) {
     return (
-      <div style={{ padding: 24, fontFamily: "system-ui" }}>
-        <h1 style={{ fontSize: 20 }}>액션 편집</h1>
-        <div style={{ marginTop: 16, padding: 12, background: "#fef2f2", color: "#b91c1c", borderRadius: 6 }}>
-          ActionSpec 생성에 실패했습니다: {error}
+      <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId}>
+        <div className="error-banner">
+          <strong>요청을 처리하지 못했습니다</strong>
+          <p>{error}</p>
         </div>
-      </div>
+      </Shell>
     );
   }
 
-  if (!spec) return <p style={{ padding: 24 }}>ActionSpec 생성 중...</p>;
+  if (!spec) {
+    return (
+      <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId}>
+        <p>불러오는 중...</p>
+      </Shell>
+    );
+  }
 
   const paramTable = spec.request.bodySchema ?? spec.request.querySchema ?? {};
 
@@ -78,104 +111,101 @@ export default function ActionEdit() {
         description,
         status: "ACTIVE",
       });
-      navigate("/console");
+      setStatus("ACTIVE");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
+    } finally {
       setActivating(false);
     }
   }
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 1000 }}>
-      <h1 style={{ fontSize: 20 }}>액션 편집</h1>
-
-      <fieldset style={{ border: "1px solid #ddd", padding: 16, marginBottom: 20 }}>
-        <legend>기본정보</legend>
-        <label>
-          액션명 <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: 300 }} />
-        </label>
-        <label style={{ marginLeft: 16 }}>
-          Tool 이름 <input value={toolName} onChange={(e) => setToolName(e.target.value)} style={{ width: 300 }} />
-        </label>
-        <div style={{ marginTop: 10 }}>
-          <label>
-            설명 (LLM이 이 도구를 선택할 때 읽는 내용)
-            <input
-              value={description}
-              placeholder="LLM이 언제 이 도구를 골라야 하는지 설명하세요"
-              onChange={(e) => setDescription(e.target.value)}
-              style={{ width: 700, display: "block", marginTop: 4 }}
-            />
-          </label>
+    <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId}>
+      <section className="heading-row">
+        <div>
+          <p className="eyebrow">액션 생성</p>
+          <h1>{name}</h1>
+          <p className="subtitle">
+            <span className={status === "ACTIVE" ? "status" : "status status-1"}>{status}</span>
+          </p>
         </div>
-        <div style={{ marginTop: 10, fontFamily: "monospace", fontSize: 12, color: "#555" }}>
-          {spec.request.method} {spec.request.urlTemplate}
-        </div>
-      </fieldset>
+      </section>
 
-      <fieldset style={{ border: "1px solid #ddd", padding: 16 }}>
-        <legend>요청 파라미터 — 자동 추론됨</legend>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: "#f5f5f5", textAlign: "left" }}>
-              <th style={{ padding: 6, width: 120 }}>이름</th>
-              <th style={{ padding: 6, width: 110 }}>타입</th>
-              <th style={{ padding: 6 }}>설명 (LLM에게 줄 힌트)</th>
-              <th style={{ padding: 6, width: 140 }}>예시값</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(paramTable).map(([key, def]: [string, any]) => (
-              <tr key={key} style={{ borderTop: "1px solid #eee" }}>
-                <td style={{ padding: 6, fontFamily: "monospace" }}>{key}</td>
-                <td style={{ padding: 6 }}>
-                  <select value={def.type} onChange={(e) => updateParam(key, "type", e.target.value)}>
-                    {["string", "integer", "number", "boolean"].map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
-                  </select>
-                </td>
-                <td style={{ padding: 6 }}>
-                  <input
-                    value={def.description ?? ""}
-                    placeholder="이 파라미터에 무엇을 넣어야 하는지 LLM에게 설명하세요"
-                    onChange={(e) => updateParam(key, "description", e.target.value)}
-                    style={{ width: "100%", minWidth: 320, boxSizing: "border-box" }}
-                  />
-                </td>
-                <td style={{ padding: 6, fontFamily: "monospace", fontSize: 12, color: "#666" }}>
-                  {/* 예시값은 읽기 전용이며 기록된 값 그대로 보여준다.
-                      가공/반올림하지 않는다 — Task 14의 LLM이 좌표 생성 시
-                      이 값을 가장 강력한 힌트로 사용한다. */}
-                  {String(def.example)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </fieldset>
+      <Stepper current={3} />
 
-      {error && (
-        <div style={{ marginTop: 16, padding: 12, background: "#fef2f2", color: "#b91c1c", borderRadius: 6 }}>
-          활성화에 실패했습니다: {error}
-        </div>
-      )}
+      <div className="builder-layout">
+        <article className="panel builder-form">
+          <div className="panel-heading">
+            <h2>기본정보</h2>
+          </div>
+          <div className="form-grid">
+            <label>
+              액션명
+              <input value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label>
+              Tool 이름
+              <input value={toolName} onChange={(e) => setToolName(e.target.value)} />
+            </label>
+            <label className="wide">
+              설명 (LLM이 이 도구를 선택할 때 읽는 내용)
+              <textarea
+                value={description}
+                placeholder="LLM이 언제 이 도구를 골라야 하는지 설명하세요"
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </label>
+          </div>
+          <p className="mono" style={{ marginTop: 10, color: "var(--muted)", fontSize: 12 }}>
+            {spec.request.method} {spec.request.urlTemplate}
+          </p>
 
-      <button
-        onClick={activate}
-        disabled={activating}
-        style={{
-          marginTop: 20,
-          padding: "10px 20px",
-          background: activating ? "#86efac" : "#16a34a",
-          color: "#fff",
-          border: 0,
-          borderRadius: 6,
-          cursor: activating ? "default" : "pointer",
-        }}
-      >
-        {activating ? "활성화 중..." : "활성화하고 테스트하기"}
-      </button>
-    </div>
+          <h3 className="subheading">요청 파라미터 — 자동 추론됨</h3>
+          {Object.entries(paramTable).map(([key, def]: [string, any]) => (
+            <div className="schema-row" key={key}>
+              <code>{key}</code>
+              <select value={def.type} onChange={(e) => updateParam(key, "type", e.target.value)}>
+                {["string", "integer", "number", "boolean"].map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
+              <small>{String(def.example)}</small>
+              <p>
+                <input
+                  value={def.description ?? ""}
+                  placeholder="이 파라미터에 무엇을 넣어야 하는지 LLM에게 설명하세요"
+                  onChange={(e) => updateParam(key, "description", e.target.value)}
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+              </p>
+            </div>
+          ))}
+
+          <div className="security-callout">
+            <strong>민감정보 마스킹 {MASKED_KEYS.length} rules</strong>
+            <p>{MASKED_KEYS.join(" · ")}</p>
+            <p>URL 쿼리 · 요청 본문 · 응답 샘플 세 곳에 적용됩니다.</p>
+          </div>
+
+          {error && (
+            <div className="error-banner">
+              <strong>활성화에 실패했습니다</strong>
+              <p>{error}</p>
+            </div>
+          )}
+
+          <button className="primary" style={{ marginTop: 20 }} onClick={activate} disabled={activating || status === "ACTIVE"}>
+            {activating ? "활성화 중..." : status === "ACTIVE" ? "활성화됨" : "활성화하고 테스트하기"}
+          </button>
+        </article>
+
+        <article className="panel code-preview">
+          <div className="panel-heading">
+            <h2>ActionSpec</h2>
+          </div>
+          <pre>{JSON.stringify(spec, null, 2)}</pre>
+        </article>
+      </div>
+    </Shell>
   );
 }
