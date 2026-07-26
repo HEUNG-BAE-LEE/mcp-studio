@@ -2,7 +2,19 @@ from typing import Any, Optional
 from urllib.parse import urlparse, parse_qsl
 
 # 실행 시 재현해야 하는 헤더 (PRD §7.7). WAF가 검사한다.
-PRESERVED_HEADERS = {"user-agent", "referer", "x-requested-with", "accept", "content-type"}
+#
+# 기록된 헤더 이름의 대소문자는 페이지가 보낸 그대로다 — 실제 캡처에
+# Referer, X-Requested-With, content-type 이 뒤섞여 들어온다.
+# 스펙에 쓸 때는 정규 표기로 통일한다. 통일하지 않으면 Task 13의
+# headers.setdefault("User-Agent", ...) 가 기록된 "user-agent"를 못 보고
+# 같은 헤더를 두 번 실어 보낸다.
+PRESERVED_HEADERS = {
+    "user-agent": "User-Agent",
+    "referer": "Referer",
+    "x-requested-with": "X-Requested-With",
+    "accept": "Accept",
+    "content-type": "Content-Type",
+}
 
 def _infer_type(raw: str) -> str:
     try:
@@ -60,8 +72,11 @@ def _walk(value: Any) -> dict:
 def build_action_spec(req, name: str, tool_name: str, description: str) -> dict:
     request_schema = infer_request_schema(req.request_method, req.request_url, req.request_body)
     sample = (req.response_preview or {}).get("sample")
+    # 마스킹된 값("***")은 싣지 않는다. 깨진 인증 헤더를 재현하는 것은
+    # 아예 빼는 것보다 나쁘다.
     headers = {
-        k: v for k, v in (req.request_headers or {}).items()
+        PRESERVED_HEADERS[k.lower()]: v
+        for k, v in (req.request_headers or {}).items()
         if k.lower() in PRESERVED_HEADERS and v != "***"
     }
     return {
