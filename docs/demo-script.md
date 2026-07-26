@@ -99,8 +99,10 @@ LLM 요약 생성 단계가 전체 시간을 지배하며 매 호출 편차가 �
   않으므로, 화면에서 행을 지목할 때는 순서가 아니라 URL로 말한다.
 - 대상 사이트(WAF)는 `PRESERVED_HEADERS`(Referer, X-Requested-With, Accept,
   User-Agent, Content-Type)를 그대로 재현하면 막히지 않았다. 헤더가 하나라도
-  빠지면 400이 재현될 수 있으므로 장면 10 직전에 실행 게이트웨이가 실제로
-  이 헤더들을 싣는지 `apps/backend/app/services/executor.py`의 동작을 신뢰한다.
+  빠지면 400이 재현될 수 있다. 헤더를 골라 ActionSpec에 저장하는 쪽은
+  `apps/backend/app/services/schema_infer.py`의 `PRESERVED_HEADERS`이고,
+  `apps/backend/app/services/executor.py`는 거기에 User-Agent·Accept 기본값만
+  채운다 — 촬영 당일 400이 나면 먼저 볼 곳은 schema_infer 쪽이다.
 
 ---
 

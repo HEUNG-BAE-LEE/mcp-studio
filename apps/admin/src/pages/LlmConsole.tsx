@@ -61,8 +61,9 @@ export default function LlmConsole() {
             )}
           </div>
           {selection.reason && <p style={{ color: "#666", fontSize: 13 }}>{selection.reason}</p>}
+          {/* textAlign: 상위 레이아웃의 가운데 정렬을 물려받으면 JSON이 흩어져 읽기 어렵다 */}
           {selection.arguments && (
-            <pre style={{ background: "#f8f8f8", padding: 12, fontSize: 12, overflowX: "auto" }}>
+            <pre style={{ background: "#f8f8f8", padding: 12, fontSize: 12, overflowX: "auto", textAlign: "left" }}>
               {JSON.stringify(selection.arguments, null, 2)}
             </pre>
           )}
