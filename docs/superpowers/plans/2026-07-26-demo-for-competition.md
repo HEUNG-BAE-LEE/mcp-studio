@@ -1476,6 +1476,7 @@ git commit -m "수집 API와 응답 축약·2차 마스킹 구현"
 
 ```python
 # apps/backend/tests/test_scoring.py
+import pytest
 from datetime import datetime, timedelta
 from app.models import NetworkRequest
 from app.services.scoring import score_request
@@ -1504,6 +1505,42 @@ def test_동일_url_중복_호출은_폴링으로_본다():
     url = "https://kosis.kr/oneid/cmmn/login/ActiveSessionFind.do"
     score, reasons = score_request(make(url), CLICK_AT, [url, url])
     assert "폴링" in " ".join(reasons)
+
+# 로그 판정이 넓으면 진짜 업무 API가 조용히 파묻힌다.
+# 아래 URL들은 모두 log/stat 문자열을 포함하지만 로그 API가 아니다.
+@pytest.mark.parametrize("url", [
+    "https://kosis.kr/statisticsList/selectTreeData.do",   # KOSIS 주요 API
+    "https://kosis.kr/oneid/cmmn/login/ActiveSessionFind.do",
+    "https://x.kr/api/catalog",
+    "https://x.kr/dialog/open",
+    "https://x.kr/blogPosts",
+])
+def test_로그가_아닌데_로그로_오인하지_않는다(url):
+    _, reasons = score_request(make(url), CLICK_AT, [url])
+    assert "로그 API" not in " ".join(reasons), url
+
+@pytest.mark.parametrize("url", [
+    "https://rt.molit.go.kr/pt/main/accesLog.do",   # s 하나 오타
+    "https://x.kr/pt/main/accessLog.do",
+    "https://x.kr/api/logs",
+    "https://x.kr/analytics/collect",
+    "https://x.kr/stats",
+])
+def test_로그_api는_확실히_잡는다(url):
+    _, reasons = score_request(make(url), CLICK_AT, [url])
+    assert "로그 API" in " ".join(reasons), url
+
+def test_실거래가_세_요청의_순위():
+    """영상 장면 5. getMarker가 1위, accesLog가 꼴찌여야 한다."""
+    urls = [
+        "https://rt.molit.go.kr/pt/gis/getMarker.do",
+        "https://rt.molit.go.kr/cmm/gis/getCenterLedCdPnu.do",
+        "https://rt.molit.go.kr/pt/main/accesLog.do",
+    ]
+    scored = [(u, score_request(make(u), CLICK_AT, urls)[0]) for u in urls]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    assert "getMarker.do" in scored[0][0]
+    assert "accesLog.do" in scored[-1][0]
 ```
 
 - [ ] **Step 2: 실패 확인**
@@ -1521,7 +1558,27 @@ from typing import List, Tuple
 from app.models import NetworkRequest
 
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
-LOG_URL = re.compile(r"(acceslog|accesslog|/log/|/logging|analytics|collect|tracker|stat)", re.I)
+
+# 로그·수집성 API 판별. 넓게 잡으면 진짜 업무 API를 조용히 파묻는다.
+#
+# 걸러야 할 오탐 사례가 실제로 있다.
+#   /statisticsList/selectTreeData.do  ← KOSIS의 주요 조회 API. 'stat' 부분일치 금지
+#   /oneid/cmmn/login/ActiveSessionFind.do ← 'login'에 'log'가 들어간다
+#   /api/catalog, /dialog/open, /blogPosts ← 모두 'log'를 포함한다
+#
+# 그래서 부분일치 대신 경로 경계를 요구한다.
+LOG_URL = re.compile(
+    r"("
+    r"acces{1,2}log"          # accesLog.do (국내 사이트에 흔한 s 하나 오타), accessLog.do
+    r"|/logs?(?:[/?.]|$)"     # /log /logs /log/ /logs.do — 단 /login, /catalog 은 제외
+    r"|/logging"
+    r"|analytics"
+    r"|/collect(?:[/?.]|$)"
+    r"|tracker|tracking"
+    r"|/stats?(?:[/?.]|$)"    # /stat /stats — statistics 는 제외
+    r")",
+    re.I,
+)
 
 def score_request(req: NetworkRequest, click_at: datetime, sibling_urls: List[str]) -> Tuple[int, List[str]]:
     """PRD §7.6 점수 정책. 점수와 추천 사유를 함께 반환한다."""
