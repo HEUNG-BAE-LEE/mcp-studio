@@ -26,8 +26,25 @@ export function maskHeaders(headers: Record<string, string>): Record<string, str
 
 export function maskBody(body: string | null): string | null {
   if (!body) return body;
+
+  // JSON 판정은 시작 문자가 아니라 파싱 시도로 한다.
+  //
+  // 시작 문자가 '{'인지만 보면 JSON 배열 본문이 form 분기로 샌다.
+  // 예: [{"password":"a=b"}] 는 '{'로 시작하지 않고 '='를 포함하므로
+  // form 분기로 가고, split("=")의 키가 `[{"password":"a` 가 되어
+  // BODY_KEYS와 일치하지 않는다. 결과적으로 비밀번호가 마스킹되지 않은 채
+  // 서버로 전송된다. 백엔드의 parse_json_body와 같은 원칙을 쓴다.
+  const trimmed = body.trimStart();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      return JSON.stringify(maskObject(JSON.parse(body)));
+    } catch {
+      // JSON이 아니면 아래 form 처리로 내려간다
+    }
+  }
+
   // form-urlencoded
-  if (body.includes("=") && !body.trimStart().startsWith("{")) {
+  if (body.includes("=")) {
     return body
       .split("&")
       .map(pair => {
@@ -36,13 +53,8 @@ export function maskBody(body: string | null): string | null {
       })
       .join("&");
   }
-  // JSON
-  try {
-    const parsed = JSON.parse(body);
-    return JSON.stringify(maskObject(parsed));
-  } catch {
-    return body;
-  }
+
+  return body;
 }
 
 function maskObject(value: unknown): unknown {
