@@ -30,7 +30,7 @@ button { cursor: pointer; }
 .workspace small { color: var(--muted); }
 .workspace .chevron { margin-left: auto; color: var(--muted); }
 nav { display: grid; gap: 3px; }
-.nav-item { width: 100%; height: 42px; display: flex; align-items: center; gap: 11px; border: 0; border-radius: 6px; background: transparent; color: #465064; padding: 0 11px; font-size: 13px; font-weight: 550; text-align: left; text-decoration: none; color: inherit; }
+.nav-item { width: 100%; height: 42px; display: flex; align-items: center; gap: 11px; border: 0; border-radius: 6px; background: transparent; color: #465064; padding: 0 11px; font-size: 13px; font-weight: 550; text-align: left; text-decoration: none; }
 .nav-item:hover { background: #f7f8fb; }
 .nav-item.active { color: #2346ca; background: var(--blue-soft); font-weight: 700; }
 .nav-number { width: 24px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: #8991a2; }
@@ -100,7 +100,7 @@ select { border: 1px solid #cfd6e2; border-radius: 6px; background: #fff; paddin
 .project-table { border-top: 1px solid var(--line); }
 .table-head, .table-row { display: grid; grid-template-columns: 2fr .65fr .55fr .55fr; align-items: center; }
 .table-head { height: 30px; color: #8b93a3; font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
-.table-row { width: 100%; min-height: 54px; border: 0; border-top: 1px solid #edf0f4; background: #fff; text-align: left; color: #596174; font-size: 10px; text-decoration: none; color: inherit; }
+.table-row { width: 100%; min-height: 54px; border: 0; border-top: 1px solid #edf0f4; background: #fff; text-align: left; color: #596174; font-size: 10px; text-decoration: none; }
 .table-row:hover { background: #fafbfc; }
 .table-row > span:first-child { display: grid; grid-template-columns: 32px 1fr; column-gap: 10px; align-items: center; }
 .table-row b, .table-row small { grid-column: 2; display: block; }.table-row b { color: #273044; font-size: 11px; }.table-row small { margin-top: 2px; color: #8991a2; font-size: 9px; }
