@@ -359,9 +359,16 @@ export default defineUnlistedScript(() => {
   const originalSend = XMLHttpRequest.prototype.send;
   const originalSetHeader = XMLHttpRequest.prototype.setRequestHeader;
 
-  XMLHttpRequest.prototype.open = function (method: string, url: string, ...rest: any[]) {
-    (this as any).__mcp = { method, url, headers: {} as Record<string, string> };
-    return originalOpen.call(this, method, url, ...rest);
+  // fetch와 동일한 이유(TS2556)로 spread 대신 open()의 실제 오버로드 시그니처를 명시적으로 받는다.
+  XMLHttpRequest.prototype.open = function (
+    method: string,
+    url: string | URL,
+    async: boolean = true,
+    username?: string | null,
+    password?: string | null,
+  ): void {
+    (this as any).__mcp = { method, url: String(url), headers: {} as Record<string, string> };
+    return originalOpen.call(this, method, url, async, username, password);
   };
 
   XMLHttpRequest.prototype.setRequestHeader = function (name: string, value: string) {
