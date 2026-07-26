@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db import init_db
-from app.routers import sessions, analysis, actions
+from app.routers import sessions, analysis, actions, llm
 
 app = FastAPI(title="MCP Studio")
 app.add_middleware(
@@ -14,6 +14,7 @@ app.add_middleware(
 app.include_router(sessions.router)
 app.include_router(analysis.router)
 app.include_router(actions.router)
+app.include_router(llm.router)
 
 @app.on_event("startup")
 def _startup() -> None:
