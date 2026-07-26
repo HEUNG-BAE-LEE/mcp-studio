@@ -36,6 +36,53 @@ def list_projects(db: Session = Depends(get_session)) -> list:
     rows = db.exec(select(Project).order_by(Project.id)).all()
     return [{"id": p.id, "name": p.name} for p in rows]
 
+@router.get("/api/recording-sessions/{session_id}")
+def get_recording_session(session_id: int, db: Session = Depends(get_session)) -> dict:
+    """브레드크럼이 프로젝트 이름을 필요로 한다.
+
+    /candidates는 요청 목록만 돌려주고 프로젝트 정보가 없다. 이미 리뷰를
+    통과한 그 응답 형태를 바꾸는 대신 단건 조회를 따로 둔다.
+    """
+    row = db.get(RecordingSession, session_id)
+    if row is None:
+        raise HTTPException(404, "해당 기록 세션을 찾을 수 없습니다")
+
+    project = db.get(Project, row.project_id)
+    return {
+        "id": row.id,
+        "projectId": row.project_id,
+        "projectName": project.name if project is not None else "",
+        "startedAt": row.started_at,
+        "endedAt": row.ended_at,
+        "status": row.status,
+    }
+
+@router.get("/api/projects/{project_id}/recording-sessions")
+def list_recording_sessions(project_id: int, db: Session = Depends(get_session)) -> list:
+    """최근 세션이 위로 오게 내림차순으로 준다."""
+    rows = db.exec(
+        select(RecordingSession)
+        .where(RecordingSession.project_id == project_id)
+        .order_by(RecordingSession.id.desc())
+    ).all()
+
+    result = []
+    for row in rows:
+        requests = db.exec(
+            select(NetworkRequest).where(NetworkRequest.session_id == row.id)
+        ).all()
+        scores = [r.score for r in requests if r.score is not None]
+        result.append({
+            "id": row.id,
+            "startedAt": row.started_at,
+            "endedAt": row.ended_at,
+            "status": row.status,
+            "requestCount": len(requests),
+            # 채점 전과 0점을 구분해야 한다. 점수는 /candidates를 부를 때 채워진다.
+            "topScore": max(scores) if scores else None,
+        })
+    return result
+
 # 페이로드를 dict로 받으면 키 누락이 KeyError, 잘못된 시각이 ValueError가 되어
 # 그대로 500이 된다. Pydantic으로 받으면 FastAPI가 422와 함께 어느 필드가
 # 왜 틀렸는지 돌려준다. 검증이 DB 쓰기 전에 끝나는 것도 중요하다.

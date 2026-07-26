@@ -59,6 +59,21 @@ def update_action(action_id: int, payload: dict, db: Session = Depends(get_sessi
     db.commit()
     return {"ok": True}
 
+@router.get("/api/actions/{action_id}")
+def get_action(action_id: int, db: Session = Depends(get_session)) -> dict:
+    action = db.get(Action, action_id)
+    if action is None:
+        raise HTTPException(404, "해당 액션을 찾을 수 없습니다")
+    return {
+        "id": action.id,
+        "projectId": action.project_id,
+        "name": action.name,
+        "toolName": action.tool_name,
+        "description": action.description,
+        "actionSpec": action.action_spec,
+        "status": action.status,
+    }
+
 @router.get("/api/projects/{project_id}/actions")
 def list_actions(project_id: int, db: Session = Depends(get_session)) -> list:
     rows = db.exec(select(Action).where(Action.project_id == project_id)).all()

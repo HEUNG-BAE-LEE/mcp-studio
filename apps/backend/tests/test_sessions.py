@@ -336,3 +336,53 @@ def test_쿼리스트링의_민감_파라미터는_저장_전에_마스킹된다
     assert "901231-1234567" not in net.request_url
     assert "minX=126.96" in net.request_url
     assert net.request_url.startswith("https://rt.molit.go.kr/pt/gis/getMarker.do?")
+
+
+def test_세션_단건_조회는_프로젝트_이름을_함께_돌려준다(client, project_id):
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+
+    body = client.get(f"/api/recording-sessions/{session_id}").json()
+
+    assert body["id"] == session_id
+    assert body["projectId"] == project_id
+    assert isinstance(body["projectName"], str) and body["projectName"] != ""
+    assert body["status"] == "RECORDING"
+
+
+def test_없는_세션_단건_조회는_한국어_404다(client):
+    res = client.get("/api/recording-sessions/9999")
+    assert res.status_code == 404
+    assert res.json()["detail"] == "해당 기록 세션을 찾을 수 없습니다"
+
+
+def test_세션_목록은_요청수와_최고점수를_함께_돌려준다(client, project_id):
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+    client.post(f"/api/recording-sessions/{session_id}/bulk", json={
+        "interactions": [{
+            "interactionId": "i1", "eventType": "click",
+            "pageUrl": "https://example.com/a", "selector": "#go",
+            "elementText": "이동", "occurredAt": "2026-07-26T01:00:00.000Z",
+        }],
+        "networks": [{
+            "url": "https://example.com/api/list", "method": "POST",
+            "requestHeaders": {}, "requestBody": "a=1", "status": 200,
+            "responseText": '{"list":[{"a":1}]}', "durationMs": 12,
+            "occurredAt": "2026-07-26T01:00:01.000Z", "interactionId": "i1",
+        }],
+    })
+
+    rows = client.get(f"/api/projects/{project_id}/recording-sessions").json()
+    row = next(r for r in rows if r["id"] == session_id)
+
+    assert row["requestCount"] == 1
+    # 아직 /candidates를 부르지 않았으므로 채점 전이다
+    assert row["topScore"] is None
+
+    client.get(f"/api/recording-sessions/{session_id}/candidates")
+    row = next(r for r in client.get(f"/api/projects/{project_id}/recording-sessions").json()
+               if r["id"] == session_id)
+    assert isinstance(row["topScore"], int)
+
+
+def test_세션이_없는_프로젝트의_목록은_빈_배열이다(client, project_id):
+    assert client.get(f"/api/projects/{project_id}/recording-sessions").json() == []
