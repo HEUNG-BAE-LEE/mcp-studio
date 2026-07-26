@@ -36,6 +36,8 @@ def test_동일_url_중복_호출은_폴링으로_본다():
     "https://x.kr/api/catalog",
     "https://x.kr/dialog/open",
     "https://x.kr/blogPosts",
+    "https://x.kr/order/trackingNumber.do",      # 배송 조회는 업무 API다
+    "https://x.kr/reports/analyticsSummary.do",  # 분석 리포트 화면도 업무 API다
 ])
 def test_로그가_아닌데_로그로_오인하지_않는다(url):
     _, reasons = score_request(make(url), CLICK_AT, [url])

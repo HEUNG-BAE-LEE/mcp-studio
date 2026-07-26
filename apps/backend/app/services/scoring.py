@@ -18,10 +18,11 @@ LOG_URL = re.compile(
     r"acces{1,2}log"          # accesLog.do (국내 사이트에 흔한 s 하나 오타), accessLog.do
     r"|/logs?(?:[/?.]|$)"     # /log /logs /log/ /logs.do — 단 /login, /catalog 은 제외
     r"|/logging"
-    r"|analytics"
+    r"|/analytics(?:[/?.]|$)"        # analyticsSummary 같은 업무 화면은 제외
+    r"|google-analytics"
     r"|/collect(?:[/?.]|$)"
-    r"|tracker|tracking"
-    r"|/stats?(?:[/?.]|$)"    # /stat /stats — statistics 는 제외
+    r"|/track(?:er|ing)?(?:[/?.]|$)" # trackingNumber 같은 업무 API는 제외
+    r"|/stats?(?:[/?.]|$)"           # /stat /stats — statistics 는 제외
     r")",
     re.I,
 )
