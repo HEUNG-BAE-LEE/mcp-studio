@@ -144,7 +144,7 @@ def test_요청_헤더와_바디는_2차_마스킹을_거친다(client, project_
                 "requestHeaders": {"Authorization": f"Bearer {jwt}"},
                 "requestBody": "card=1234-5678-1234-5678",
                 "status": 200,
-                "responseText": None,
+                "responseText": "",
                 "durationMs": 10,
                 "occurredAt": "2026-07-26T01:02:06.000Z",
                 "interactionId": None,
@@ -162,3 +162,78 @@ def test_요청_헤더와_바디는_2차_마스킹을_거친다(client, project_
     assert jwt not in net.request_headers["Authorization"]
     assert "***" in net.request_headers["Authorization"]
     assert net.request_body == "card=***"
+
+
+def test_필드가_누락되거나_시각이_잘못되면_422를_반환한다(client, project_id):
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+
+    # status 필드 누락
+    payload_missing_status = {
+        "interactions": [],
+        "networks": [
+            {
+                "url": "https://example.com/api",
+                "method": "GET",
+                "requestHeaders": {},
+                "requestBody": None,
+                "responseText": "",
+                "durationMs": 10,
+                "occurredAt": "2026-07-26T01:02:06.000Z",
+                "interactionId": None,
+            }
+        ],
+    }
+    response = client.post(f"/api/recording-sessions/{session_id}/bulk", json=payload_missing_status)
+    assert response.status_code == 422
+
+    # occurredAt이 날짜 형식이 아님
+    payload_bad_date = {
+        "interactions": [],
+        "networks": [
+            {
+                "url": "https://example.com/api",
+                "method": "GET",
+                "requestHeaders": {},
+                "requestBody": None,
+                "status": 200,
+                "responseText": "",
+                "durationMs": 10,
+                "occurredAt": "not-a-date",
+                "interactionId": None,
+            }
+        ],
+    }
+    response = client.post(f"/api/recording-sessions/{session_id}/bulk", json=payload_bad_date)
+    assert response.status_code == 422
+
+
+def test_응답_본문의_주민등록번호는_response_preview에서_마스킹된다(client, project_id, engine):
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+
+    payload = {
+        "interactions": [],
+        "networks": [
+            {
+                "url": "https://example.com/api/user",
+                "method": "GET",
+                "requestHeaders": {},
+                "requestBody": None,
+                "status": 200,
+                "responseText": '{"user":{"ssn":"901231-1234567","name":"홍길동"}}',
+                "durationMs": 10,
+                "occurredAt": "2026-07-26T01:02:07.000Z",
+                "interactionId": None,
+            }
+        ],
+    }
+
+    response = client.post(f"/api/recording-sessions/{session_id}/bulk", json=payload)
+    assert response.status_code == 200
+
+    with Session(engine) as db:
+        net = db.exec(
+            __import__("sqlmodel").select(NetworkRequest).where(NetworkRequest.session_id == session_id)
+        ).one()
+
+    assert net.response_preview["sample"]["user"]["ssn"] == "***"
+    assert "901231-1234567" not in str(net.response_preview)

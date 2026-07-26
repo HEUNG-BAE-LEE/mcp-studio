@@ -25,10 +25,22 @@ def summarize_response(text: Optional[str]) -> dict:
     sample = _shrink(parsed, counts, path="")
     return {"isJson": True, "sample": sample, "counts": counts}
 
+def _escape_segment(key: str) -> str:
+    """counts의 경로 키가 겹치지 않도록 구분자를 이스케이프한다.
+
+    JSON 키에는 '.'이나 '[]'가 그대로 들어갈 수 있다("items[]" 같은 키가 실제로
+    있다). 이스케이프하지 않으면 서로 다른 두 배열이 같은 경로 키를 만들어
+    한쪽 개수가 조용히 덮인다.
+    """
+    return key.replace("\\", "\\\\").replace(".", "\\.").replace("[", "\\[").replace("]", "\\]")
+
 def _shrink(value: Any, counts: dict, path: str) -> Any:
     if isinstance(value, list):
         counts[path or "root"] = len(value)
         return [_shrink(value[0], counts, f"{path}[]")] if value else []
     if isinstance(value, dict):
-        return {k: _shrink(v, counts, k if not path else f"{path}.{k}") for k, v in value.items()}
+        return {
+            k: _shrink(v, counts, _escape_segment(k) if not path else f"{path}.{_escape_segment(k)}")
+            for k, v in value.items()
+        }
     return value
