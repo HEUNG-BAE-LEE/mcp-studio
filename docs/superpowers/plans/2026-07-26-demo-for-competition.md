@@ -13,7 +13,17 @@
 - Python 3.10.11. `match`/`case`는 사용 가능하나 3.11+ 문법(`ExceptionGroup`, `Self` 타입)은 금지.
 - Node v25.8.0, npm workspaces. `pnpm`·`uv`·Docker는 사용 불가.
 - DB는 SQLite 파일 하나(`apps/backend/data/dev.db`). PostgreSQL은 쓰지 않는다.
-- LLM은 **Azure OpenAI**를 사용한다. `openai` 파이썬 SDK의 `AzureOpenAI` 클라이언트로 접근하며, 모델명 자리에는 **배포 이름(deployment name)**을 넣는다. 엔드포인트·키·API 버전·배포명은 모두 환경변수로 읽는다(`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_DEPLOYMENT`). 값을 코드에 적지 않는다.
+- LLM은 **Azure OpenAI**를 사용한다. `openai` 파이썬 SDK의 `AzureOpenAI` 클라이언트로 접근하며, 모델명 자리에는 **배포 이름(deployment name)**을 넣는다.
+- 설정값은 `apps/backend/.env`에서 읽는다. `python-dotenv`로 로드하며, **네 값 모두 기본값을 두지 않는다** — `os.environ["..."]`로 읽어 누락 시 즉시 `KeyError`가 나게 한다. `os.environ.get(..., "기본값")` 형태를 쓰지 않는다.
+
+  | 환경변수 | 용도 |
+  | --- | --- |
+  | `AZURE_OPENAI_API_KEY` | 인증 키 |
+  | `AZURE_OPENAI_ENDPOINT` | 리소스 엔드포인트 |
+  | `AZURE_OPENAI_API_VERSION` | API 버전 |
+  | `AZURE_OPENAI_DEPLOYMENT` | 배포 이름 |
+
+- `.env`는 `.gitignore`에 등록되어 있다. **절대 커밋하지 않는다.** 값을 코드·테스트·문서에 적지 않는다. 형식만 보여줘야 할 때는 `apps/backend/.env.example`을 쓴다.
 - 도구 정의는 OpenAI function calling 형식(`{"type": "function", "function": {...}}`)을 쓴다. 인자는 `tool_calls[i].function.arguments`에 **JSON 문자열**로 오므로 `json.loads`로 파싱해야 한다.
 - `max_tokens`는 4096.
 - 대상 API 호출 시 **호출 간격 최소 1초**. 공공 서버 부하 배려.
@@ -142,6 +152,7 @@ uvicorn[standard]==0.34.0
 sqlmodel==0.0.22
 httpx==0.28.1
 openai==1.59.6
+python-dotenv==1.0.1
 pytest==8.3.4
 EOF
 pip install -r requirements.txt
@@ -2031,6 +2042,8 @@ git commit -m "실행 게이트웨이 구현 — 헤더 재현과 호출 간격 
 # apps/backend/app/routers/llm.py
 import json
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException
 from openai import AzureOpenAI
 from sqlmodel import Session, select
@@ -2039,12 +2052,16 @@ from app.models import Action
 from app.services.tool_registry import action_to_tool
 from app.services.executor import execute_action
 
+# apps/backend/.env 를 실행 위치와 무관하게 로드한다
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
 router = APIRouter()
 
+# 기본값을 두지 않는다. 누락되면 즉시 KeyError로 드러나야 한다.
 client = AzureOpenAI(
     azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
     api_key=os.environ["AZURE_OPENAI_API_KEY"],
-    api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
+    api_version=os.environ["AZURE_OPENAI_API_VERSION"],
 )
 DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]   # 모델명이 아니라 배포 이름
 
@@ -2191,10 +2208,9 @@ export default function LlmConsole() {
 
 - [ ] **Step 3: 수동 검증 — 영상 장면 8~10**
 
+`apps/backend/.env`가 채워져 있어야 한다(`.env.example` 참고). `load_dotenv`가 읽으므로 별도 export는 필요 없다.
+
 ```bash
-export AZURE_OPENAI_ENDPOINT="https://<리소스명>.openai.azure.com/"
-export AZURE_OPENAI_API_KEY=...
-export AZURE_OPENAI_DEPLOYMENT="<배포 이름>"
 cd apps/backend && .venv/bin/uvicorn app.main:app --reload
 ```
 
