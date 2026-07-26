@@ -2,18 +2,52 @@ import { buildSelector } from "../lib/selector";
 import { maskHeaders, maskBody } from "../lib/masking";
 
 const CORRELATION_WINDOW_MS = 5000;
+const MAX_FIELD = 100_000;
+
+// MV3에서 서비스 워커가 잠들어 있으면 sendMessage가 reject한다
+// ("Could not establish connection"). 잡지 않으면 대상 사이트의 콘솔에
+// unhandled rejection이 남는다 — 촬영 중 개발자 도구를 열면 그대로 보인다.
+function post(type: "interaction" | "network", payload: unknown): void {
+  void chrome.runtime.sendMessage({ type, payload }).catch(() => {});
+}
+
+// 이 스크립트는 페이지의 window를 공유한다. 그 페이지에서 이미 돌고 있는
+// 광고·추적 스크립트도 {source:"mcp-studio"} 메시지를 흉내낼 수 있다.
+// 스프레드로 통째로 넘기지 않고 필요한 필드만 타입과 길이를 확인해 추린다.
+function sanitizeNetworkPayload(raw: any): Record<string, unknown> | null {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.url !== "string" || typeof raw.method !== "string") return null;
+  if (typeof raw.status !== "number") return null;
+
+  const headers =
+    raw.requestHeaders && typeof raw.requestHeaders === "object" && !Array.isArray(raw.requestHeaders)
+      ? (raw.requestHeaders as Record<string, string>)
+      : {};
+
+  return {
+    url: raw.url.slice(0, 2000),
+    method: raw.method.slice(0, 16).toUpperCase(),
+    requestHeaders: maskHeaders(headers),
+    requestBody: maskBody(typeof raw.requestBody === "string" ? raw.requestBody.slice(0, MAX_FIELD) : null),
+    status: raw.status,
+    responseText: typeof raw.responseText === "string" ? raw.responseText.slice(0, MAX_FIELD) : "",
+    durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
+    occurredAt: typeof raw.occurredAt === "string" ? raw.occurredAt : new Date().toISOString(),
+  };
+}
 
 export default defineContentScript({
   matches: ["<all_urls>"],
   runAt: "document_start",
   async main(ctx) {
-    // Main-World 스크립트를 주입해 fetch/XHR를 패치한다 (Task 1)
+    // injectScript는 비동기다. 이 await가 끝나기 전에 페이지가 보낸 요청은
+    // 후킹되지 않는다. 기법상 불가피하며, 시나리오는 로딩 후 클릭이므로
+    // 데모에는 영향이 없다.
     await injectScript("/injected.js", { keepInDom: true });
 
     let currentInteractionId: string | null = null;
     let interactionExpiresAt = 0;
 
-    // 클릭을 기록하고 상관관계 창(5초)을 연다
     document.addEventListener(
       "click",
       (event) => {
@@ -24,42 +58,27 @@ export default defineContentScript({
         currentInteractionId = crypto.randomUUID();
         interactionExpiresAt = Date.now() + CORRELATION_WINDOW_MS;
 
-        chrome.runtime.sendMessage({
-          type: "interaction",
-          payload: {
-            interactionId: currentInteractionId,
-            eventType: "click",
-            pageUrl: location.href,
-            selector: buildSelector(el),
-            elementText: (el.textContent || "").trim().slice(0, 50),
-            occurredAt: new Date().toISOString(),
-          },
+        post("interaction", {
+          interactionId: currentInteractionId,
+          eventType: "click",
+          pageUrl: location.href,
+          selector: buildSelector(el),
+          elementText: (el.textContent || "").trim().slice(0, 50),
+          occurredAt: new Date().toISOString(),
         });
       },
       true,
     );
 
-    // Main-World 스크립트가 postMessage로 보낸 네트워크 이벤트를 받아
-    // 가장 최근 클릭과 연결하고 1차 마스킹을 적용한 뒤 백그라운드로 중계한다
     window.addEventListener("message", (event) => {
       if (event.source !== window) return;
       if (event.data?.source !== "mcp-studio" || event.data.type !== "network") return;
 
-      const p = event.data.payload;
-      // 5초 창 안에 도착한 요청만 클릭에 연결한다. 창을 벗어난 요청은
-      // interactionId가 null이 되며, 이는 의도된 동작이다(오래된 클릭에
-      // 임의로 붙이지 않는다).
-      const linked = Date.now() < interactionExpiresAt ? currentInteractionId : null;
+      const payload = sanitizeNetworkPayload(event.data.payload);
+      if (!payload) return;
 
-      chrome.runtime.sendMessage({
-        type: "network",
-        payload: {
-          ...p,
-          interactionId: linked,
-          requestHeaders: maskHeaders(p.requestHeaders ?? {}),
-          requestBody: maskBody(p.requestBody ?? null),
-        },
-      });
+      payload.interactionId = Date.now() < interactionExpiresAt ? currentInteractionId : null;
+      post("network", payload);
     });
   },
 });
