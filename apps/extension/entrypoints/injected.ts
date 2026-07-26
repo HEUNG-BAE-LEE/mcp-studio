@@ -92,7 +92,10 @@ export default defineUnlistedScript(() => {
 
   XMLHttpRequest.prototype.setRequestHeader = function (name: string, value: string) {
     const meta = (this as any).__mcp;
-    if (meta) meta.headers[name] = value;
+    // 시그니처는 string 이지만 런타임에는 페이지가 숫자·불리언을 넘길 수 있다.
+    // 브라우저는 실제 헤더를 만들 때 문자열로 바꾸므로, 기록도 같은 값을 남긴다.
+    // 받은 그대로 두면 서버의 Dict[str, str] 검증에 걸려 배치 전체가 거부된다.
+    if (meta) meta.headers[name] = String(value);
     return originalSetHeader.call(this, name, value);
   };
 

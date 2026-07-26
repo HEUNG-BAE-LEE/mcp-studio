@@ -197,6 +197,34 @@ function isCollectible(url: string): boolean {
 // 서버가 꺼져 있으면 fetch가 던진다. 잡지 않으면 sendResponse가 호출되지
 // 않아 Side Panel의 콜백이 영영 오지 않고 버튼이 멈춘 상태로 남는다.
 // PRD §8.3이 "서버 연결 실패" 상태 표시를 요구하는 것도 이 때문이다.
+/**
+ * 서버가 보낸 실패 이유를 버리지 않는다.
+ *
+ * 상태 코드만 던지면 패널에 "HTTP 422"만 뜬다. 실제로 서버는 어느 필드가 왜
+ * 틀렸는지(예: networks.0.requestHeaders.X-Ts: Input should be a valid string)를
+ * 본문에 실어 보내는데, 그걸 버리면 확장을 다시 빌드해야만 원인을 알 수 있다.
+ * 요청 210건짜리 기록이 이 메시지 하나 없이 통째로 날아간 적이 있다.
+ */
+async function describeFailure(res: Response): Promise<string> {
+  let detail = "";
+  try {
+    const parsed = JSON.parse(await res.text());
+    const d = parsed?.detail;
+    if (typeof d === "string") {
+      detail = d;
+    } else if (Array.isArray(d) && d.length > 0) {
+      // FastAPI 검증 오류는 배열이다. 첫 건의 위치와 사유만 요약한다.
+      const first = d[0];
+      const loc = Array.isArray(first?.loc) ? first.loc.join(".") : "";
+      detail = [loc, first?.msg].filter(Boolean).join(": ");
+      if (d.length > 1) detail += ` (외 ${d.length - 1}건)`;
+    }
+  } catch {
+    // JSON이 아니면 상태 코드만 쓴다
+  }
+  return detail ? `HTTP ${res.status} — ${detail}` : `HTTP ${res.status}`;
+}
+
 async function startSession(projectName: string) {
   const state = await loadState();
   const trimmed = typeof projectName === "string" ? projectName.trim() : "";
@@ -220,13 +248,13 @@ async function startSession(projectName: string) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: trimmed }),
     });
-    if (!projectRes.ok) throw new Error(`HTTP ${projectRes.status}`);
+    if (!projectRes.ok) throw new Error(await describeFailure(projectRes));
     const project = await projectRes.json();
 
     const res = await fetch(`${API_BASE}/api/projects/${project.id}/recording-sessions`, {
       method: "POST",
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error(await describeFailure(res));
     const data = await res.json();
     const next: SessionState = {
       recording: true,
@@ -268,7 +296,7 @@ async function stopSession() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ interactions: state.interactions, networks: state.networks }),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error(await describeFailure(res));
     const data = await res.json();
     state.lastError = null;
     await saveState(state);
