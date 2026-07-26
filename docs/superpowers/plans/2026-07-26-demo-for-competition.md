@@ -1746,6 +1746,7 @@ git commit -m "클릭별 API 후보 분석 엔드포인트 추가"
 
 ```python
 # apps/backend/tests/test_schema_infer.py
+from datetime import datetime
 from app.services.schema_infer import infer_request_schema, infer_response_schema
 
 def test_form_urlencoded_body를_스키마로_추론한다():
@@ -1768,6 +1769,58 @@ def test_배열_응답의_구조를_추론한다():
     assert schema["properties"]["list"]["type"] == "array"
     assert schema["properties"]["list"]["items"]["properties"]["aprpnHsmpNm"]["type"] == "string"
     assert schema["properties"]["list"]["items"]["properties"]["lo"]["type"] == "number"
+
+# 아래 세 가지는 실행 성공/실패를 직접 가르는데 지금까지 테스트가 없었다.
+
+def test_WAF_통과_헤더를_정규_표기로_보존한다():
+    from app.models import NetworkRequest
+    from app.services.schema_infer import build_action_spec
+    req = NetworkRequest(
+        session_id=1,
+        request_url="https://rt.molit.go.kr/pt/gis/getMarker.do",
+        request_method="POST",
+        # 실제 캡처처럼 대소문자가 뒤섞인 상태
+        request_headers={
+            "user-agent": "Mozilla/5.0",
+            "Referer": "https://rt.molit.go.kr/pt/gis/gis.do",
+            "X-REQUESTED-WITH": "XMLHttpRequest",
+            "Cookie": "***",              # 마스킹된 값은 싣지 않는다
+            "Authorization": "***",
+            "X-Custom": "무관한 헤더",       # 보존 대상이 아니다
+        },
+        request_body="minX=126.9&poiType=A",
+        response_status=200,
+        response_preview={"isJson": True, "sample": {"list": [{}]}, "counts": {}},
+        duration_ms=10,
+        occurred_at=datetime(2026, 7, 26, 5, 0, 0),
+    )
+    spec = build_action_spec(req, "아파트 조회", "search_apartments", "설명")
+    headers = spec["request"]["headers"]
+    assert headers["User-Agent"] == "Mozilla/5.0"
+    assert headers["Referer"] == "https://rt.molit.go.kr/pt/gis/gis.do"
+    assert headers["X-Requested-With"] == "XMLHttpRequest"
+    assert "Cookie" not in headers and "Authorization" not in headers
+    assert "X-Custom" not in headers
+
+def test_예시값은_기록된_그대로_보존된다():
+    schema = infer_request_schema(
+        "POST", "https://x.kr/a",
+        "minX=126.9654155&srhYear=2026",
+    )
+    assert schema["bodySchema"]["minX"]["example"] == "126.9654155"
+    assert schema["bodySchema"]["srhYear"]["example"] == "2026"
+
+def test_JSON이_아닌_응답도_스펙_생성은_된다():
+    from app.models import NetworkRequest
+    from app.services.schema_infer import build_action_spec
+    req = NetworkRequest(
+        session_id=1, request_url="https://x.kr/a", request_method="GET",
+        request_headers={}, request_body=None, response_status=200,
+        response_preview={"isJson": False, "sample": None, "counts": {}},
+        duration_ms=1, occurred_at=datetime(2026, 7, 26, 5, 0, 0),
+    )
+    spec = build_action_spec(req, "이름", "tool_name", "설명")
+    assert spec["response"]["schema"] == {"type": "object"}
 ```
 
 - [ ] **Step 2: 실패 확인**
@@ -1783,7 +1836,19 @@ from typing import Any, Optional
 from urllib.parse import urlparse, parse_qsl
 
 # 실행 시 재현해야 하는 헤더 (PRD §7.7). WAF가 검사한다.
-PRESERVED_HEADERS = {"user-agent", "referer", "x-requested-with", "accept", "content-type"}
+#
+# 기록된 헤더 이름의 대소문자는 페이지가 보낸 그대로다 — 실제 캡처에
+# Referer, X-Requested-With, content-type 이 뒤섞여 들어온다.
+# 스펙에 쓸 때는 정규 표기로 통일한다. 통일하지 않으면 Task 13의
+# headers.setdefault("User-Agent", ...) 가 기록된 "user-agent"를 못 보고
+# 같은 헤더를 두 번 실어 보낸다.
+PRESERVED_HEADERS = {
+    "user-agent": "User-Agent",
+    "referer": "Referer",
+    "x-requested-with": "X-Requested-With",
+    "accept": "Accept",
+    "content-type": "Content-Type",
+}
 
 def _infer_type(raw: str) -> str:
     try:
@@ -1841,8 +1906,11 @@ def _walk(value: Any) -> dict:
 def build_action_spec(req, name: str, tool_name: str, description: str) -> dict:
     request_schema = infer_request_schema(req.request_method, req.request_url, req.request_body)
     sample = (req.response_preview or {}).get("sample")
+    # 마스킹된 값("***")은 싣지 않는다. 깨진 인증 헤더를 재현하는 것은
+    # 아예 빼는 것보다 나쁘다.
     headers = {
-        k: v for k, v in (req.request_headers or {}).items()
+        PRESERVED_HEADERS[k.lower()]: v
+        for k, v in (req.request_headers or {}).items()
         if k.lower() in PRESERVED_HEADERS and v != "***"
     }
     return {
@@ -1898,14 +1966,23 @@ def create_action(payload: dict, db: Session = Depends(get_session)) -> dict:
     db.refresh(action)
     return {"id": action.id, "actionSpec": spec}
 
+# Task 14가 status == "ACTIVE" 로 필터한다. 오타("Active", "ACTVE")를 그대로
+# 받으면 액션이 조용히 목록에서 사라지고 아무 오류도 나지 않는다.
+VALID_STATUS = {"DRAFT", "ACTIVE", "ARCHIVED"}
+
 @router.put("/api/actions/{action_id}")
 def update_action(action_id: int, payload: dict, db: Session = Depends(get_session)) -> dict:
     action = db.get(Action, action_id)
     if action is None:
         raise HTTPException(404, "action not found")
+
+    status = payload.get("status", action.status)
+    if status not in VALID_STATUS:
+        raise HTTPException(422, f"status는 {sorted(VALID_STATUS)} 중 하나여야 합니다: {status!r}")
+
     action.action_spec = payload.get("actionSpec", action.action_spec)
     action.description = payload.get("description", action.description)
-    action.status = payload.get("status", action.status)
+    action.status = status
     db.add(action)
     db.commit()
     return {"ok": True}
