@@ -19,6 +19,14 @@ const MAX_NETWORKS = 5000;
 const RESPONSE_STORE_LIMIT = 32_000;   // 실제 업무 API JSON은 이 안에 들어온다
 const MAX_TOTAL_BYTES = 4_000_000;     // 10MB 할당량에 대한 안전 여유
 
+// .length는 UTF-16 코드 유닛 수라 한글(UTF-8 3바이트)이 섞이면 실제 바이트보다
+// 훨씬 작게 잡힌다. 이 프로젝트의 데이터는 대부분 한글 API 응답이라 그 경우가
+// 예외가 아니라 기본값이다. TextEncoder로 실제 UTF-8 바이트 수를 잰다.
+const encoder = new TextEncoder();
+function byteSize(value: unknown): number {
+  return encoder.encode(JSON.stringify(value) ?? "").length;
+}
+
 type SessionState = {
   recording: boolean;
   sessionId: number | null;
@@ -87,7 +95,7 @@ export default defineBackground(() => {
         if (!state.recording) return;
         if (state.interactions.length >= MAX_INTERACTIONS) return;
         state.interactions.push(msg.payload);
-        state.approxBytes += 300;
+        state.approxBytes += byteSize(msg.payload);
         if (await saveState(state)) broadcast(state);
       });
       return false;
@@ -113,7 +121,7 @@ export default defineBackground(() => {
               ? msg.payload.responseText.slice(0, RESPONSE_STORE_LIMIT)
               : "",
         };
-        const size = (entry.responseText?.length ?? 0) + (entry.requestBody?.length ?? 0) + entry.url.length + 200;
+        const size = byteSize(entry);
 
         if (state.approxBytes + size > MAX_TOTAL_BYTES) {
           state.recording = false;
