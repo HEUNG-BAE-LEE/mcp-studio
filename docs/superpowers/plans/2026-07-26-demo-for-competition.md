@@ -2387,8 +2387,10 @@ SPEC = {
         "method": "POST",
         "urlTemplate": "https://rt.molit.go.kr/pt/gis/getMarker.do",
         "bodySchema": {
-            "minX": {"type": "number", "description": "서쪽 경도", "required": True, "llmEditable": True},
-            "poiType": {"type": "string", "description": "물건 종류", "required": True, "llmEditable": True},
+            "minX": {"type": "number", "description": "서쪽 경도", "required": True,
+                     "llmEditable": True, "example": "126.9654155"},
+            "poiType": {"type": "string", "description": "물건 종류", "required": True,
+                        "llmEditable": True, "example": "A"},
         },
     },
 }
@@ -2400,6 +2402,25 @@ def test_openai_function_형식으로_변환한다():
     params = tool["function"]["parameters"]
     assert params["properties"]["minX"]["type"] == "number"
     assert set(params["required"]) == {"minX", "poiType"}
+
+# 기록된 예시값이 LLM에게 닿지 않으면 poiType="A" 같은 사이트 고유 코드는
+# 추측할 방법이 없다. 이 테스트가 그 경로를 지킨다.
+def test_기록된_예시값이_description에_실린다():
+    tool = action_to_tool(Action(project_id=1, name="x", tool_name="t", action_spec=SPEC))
+    props = tool["function"]["parameters"]["properties"]
+    assert props["minX"]["description"] == "서쪽 경도 (예: 126.9654155)"
+    assert props["poiType"]["description"] == "물건 종류 (예: A)"
+
+def test_설명이_비어도_예시값은_실린다():
+    spec = {
+        "toolName": "t", "description": "d",
+        "request": {"bodySchema": {
+            "minY": {"type": "number", "description": "", "required": True,
+                     "llmEditable": True, "example": "37.5606793"},
+        }},
+    }
+    tool = action_to_tool(Action(project_id=1, name="x", tool_name="t", action_spec=spec))
+    assert tool["function"]["parameters"]["properties"]["minY"]["description"] == "minY (예: 37.5606793)"
 ```
 
 - [ ] **Step 2: 구현**
@@ -2419,9 +2440,23 @@ def action_to_tool(action: Action) -> dict:
     for key, definition in schema.items():
         if not definition.get("llmEditable", True):
             continue
+
+        # 기록된 실제 값을 description에 녹인다.
+        #
+        # function calling의 parameters는 순수 JSON Schema이고, 모델이 확실히
+        # 읽도록 학습된 필드는 description이다. 비표준 example 키를 넣어도
+        # 무시될 수 있다.
+        #
+        # 이 힌트가 없으면 모델은 "광화문 근처 아파트"라는 질문만으로 경위도
+        # 바운딩 박스를 지어내야 하고, poiType="A" 같은 사이트 고유 코드는
+        # 아예 추측이 불가능하다.
+        base = definition.get("description") or key
+        example = definition.get("example")
+        description = f"{base} (예: {example})" if example not in (None, "") else base
+
         properties[key] = {
             "type": definition.get("type", "string"),
-            "description": definition.get("description") or key,
+            "description": description,
         }
         if definition.get("required"):
             required.append(key)
