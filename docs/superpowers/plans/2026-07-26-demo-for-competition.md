@@ -2850,7 +2850,23 @@ def seed() -> None:
 
 `main.py`의 `_startup`에서 `init_db()` 다음에 `seed()`를 호출한다.
 
-- [ ] **Step 2: 전체 흐름 리허설**
+- [ ] **Step 2: 촬영 전 DB 초기화 절차 문서화**
+
+`/actions/new?requestId=N`은 열릴 때마다 새 Action을 만든다. 촬영 중 뒤로가기나
+새로고침을 하면 DRAFT가 쌓이고, 같은 흐름을 두 번 완주하면 이름이 같은 ACTIVE
+액션이 둘 생겨 Task 14의 Tool 목록에 중복으로 뜬다.
+
+코드로 막지 않고 촬영 절차로 해결한다. 아래를 `docs/demo-script.md` 맨 앞에 넣는다.
+
+```bash
+# 촬영 시작 전 반드시 실행 — 세션 번호가 #1부터 시작하고 중복 액션이 사라진다
+rm -f apps/backend/data/dev.db
+cd apps/backend && .venv/bin/uvicorn app.main:app   # 기동 시 테이블 생성 + 시드
+```
+
+세션 번호가 `#1`이 되어 화면에 자연스럽게 나오는 부수 효과도 있다.
+
+- [ ] **Step 3: 전체 흐름 리허설**
 
 영상 시나리오 10장면을 처음부터 끝까지 한 번에 수행하고, 각 장면의 소요 시간과 막히는 지점을 기록한다. 특히 확인할 것:
 
@@ -2858,11 +2874,11 @@ def seed() -> None:
 - 세션 상세에서 `accesLog.do`가 최하위인가
 - WAF에 막히지 않는가
 
-- [ ] **Step 3: 촬영 대본 작성**
+- [ ] **Step 4: 촬영 대본 작성**
 
 `docs/demo-script.md`에 장면별 조작·대사·예상 소요를 적는다. 영상에는 이 데모가 **프로토타입**임을 한 줄 표기한다.
 
-- [ ] **Step 4: 커밋**
+- [ ] **Step 5: 커밋**
 
 ```bash
 git add apps/backend/app/seed.py docs/demo-script.md
