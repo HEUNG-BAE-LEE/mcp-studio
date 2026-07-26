@@ -11,12 +11,21 @@ const STATE_KEY = "mcpStudioState";
 const MAX_INTERACTIONS = 1000;
 const MAX_NETWORKS = 5000;
 
+// chrome.storage.session의 할당량은 10MB다. Task 1이 본문을 100KB까지
+// 담아 보내므로 항목 50개만 쌓여도 할당량이 찬다. 초과하면 set()이 reject하고,
+// 그 뒤로는 어떤 이벤트도 저장되지 않는다 — 기록은 계속되는 것처럼 보이는데
+// 데이터만 안 쌓이는, 방금 고친 것과 똑같은 증상이 다른 경로로 재현된다.
+// 항목당 상한과 전체 상한을 함께 건다.
+const RESPONSE_STORE_LIMIT = 32_000;   // 실제 업무 API JSON은 이 안에 들어온다
+const MAX_TOTAL_BYTES = 4_000_000;     // 10MB 할당량에 대한 안전 여유
+
 type SessionState = {
   recording: boolean;
   sessionId: number | null;
   lastError: string | null;
   interactions: any[];
   networks: any[];
+  approxBytes: number;
 };
 
 const EMPTY: SessionState = {
@@ -25,6 +34,7 @@ const EMPTY: SessionState = {
   lastError: null,
   interactions: [],
   networks: [],
+  approxBytes: 0,
 };
 
 async function loadState(): Promise<SessionState> {
@@ -32,8 +42,29 @@ async function loadState(): Promise<SessionState> {
   return (stored[STATE_KEY] as SessionState) ?? EMPTY;
 }
 
-async function saveState(state: SessionState): Promise<void> {
-  await chrome.storage.session.set({ [STATE_KEY]: state });
+// 저장 실패를 삼키지 않는다. 실패하면 기록을 멈추고 사용자에게 보인다.
+// 조용히 넘어가면 "기록 중인데 아무것도 안 쌓이는" 상태가 된다.
+async function saveState(state: SessionState): Promise<boolean> {
+  try {
+    await chrome.storage.session.set({ [STATE_KEY]: state });
+    return true;
+  } catch (e) {
+    const failed: SessionState = {
+      ...state,
+      recording: false,
+      lastError: `저장 실패로 기록을 중단했습니다: ${e instanceof Error ? e.message : String(e)}`,
+    };
+    try {
+      // 데이터는 버리고 상태만이라도 남긴다
+      await chrome.storage.session.set({
+        [STATE_KEY]: { ...failed, interactions: [], networks: [], approxBytes: 0 },
+      });
+    } catch {
+      // 여기까지 실패하면 더 할 수 있는 게 없다
+    }
+    broadcast(failed);
+    return false;
+  }
 }
 
 // 상태 변경은 반드시 직렬화한다. 클릭 한 번에 요청이 여러 건 쏟아지는데,
@@ -56,8 +87,8 @@ export default defineBackground(() => {
         if (!state.recording) return;
         if (state.interactions.length >= MAX_INTERACTIONS) return;
         state.interactions.push(msg.payload);
-        await saveState(state);
-        broadcast(state);
+        state.approxBytes += 300;
+        if (await saveState(state)) broadcast(state);
       });
       return false;
     }
@@ -68,25 +99,58 @@ export default defineBackground(() => {
         if (!state.recording) return;
         if (!isCollectible(msg.payload.url)) return;
         if (state.networks.length >= MAX_NETWORKS) return;
-        state.networks.push(msg.payload);
-        await saveState(state);
-        broadcast(state);
+
+        // 항목당 본문을 줄여 담는다. 백엔드는 스키마 추론과 샘플 1건만
+        // 필요하므로 이 크기면 충분하다.
+        const entry = {
+          ...msg.payload,
+          requestBody:
+            typeof msg.payload.requestBody === "string"
+              ? msg.payload.requestBody.slice(0, RESPONSE_STORE_LIMIT)
+              : msg.payload.requestBody,
+          responseText:
+            typeof msg.payload.responseText === "string"
+              ? msg.payload.responseText.slice(0, RESPONSE_STORE_LIMIT)
+              : "",
+        };
+        const size = (entry.responseText?.length ?? 0) + (entry.requestBody?.length ?? 0) + entry.url.length + 200;
+
+        if (state.approxBytes + size > MAX_TOTAL_BYTES) {
+          state.recording = false;
+          state.lastError = "수집 용량 상한에 도달해 기록을 중단했습니다. 종료 후 전송하세요.";
+          await saveState(state);
+          broadcast(state);
+          return;
+        }
+
+        state.networks.push(entry);
+        state.approxBytes += size;
+        if (await saveState(state)) broadcast(state);
       });
       return false;
     }
 
+    // 실패해도 sendResponse는 반드시 부른다. 부르지 않으면 패널 콜백이
+    // 영영 오지 않고 버튼이 멈춘다.
     if (msg.type === "start") {
-      enqueue(() => startSession(msg.projectId)).then(sendResponse);
+      enqueue(() => startSession(msg.projectId))
+        .catch((e) => ({ ok: false, error: `시작 실패: ${e instanceof Error ? e.message : String(e)}` }))
+        .then(sendResponse);
       return true;
     }
 
     if (msg.type === "stop") {
-      enqueue(() => stopSession()).then(sendResponse);
+      enqueue(() => stopSession())
+        .catch((e) => ({ ok: false, error: `종료 실패: ${e instanceof Error ? e.message : String(e)}` }))
+        .then(sendResponse);
       return true;
     }
 
     if (msg.type === "state") {
-      loadState().then((state) => sendResponse(snapshot(state)));
+      loadState()
+        .then((state) => snapshot(state))
+        .catch(() => snapshot(EMPTY))
+        .then(sendResponse);
       return true;
     }
 
@@ -139,6 +203,7 @@ async function startSession(projectId: number) {
       lastError: null,
       interactions: [],
       networks: [],
+      approxBytes: 0,
     };
     await saveState(next);
     broadcast(next);
