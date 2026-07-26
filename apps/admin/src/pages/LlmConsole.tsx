@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, errorMessage } from "../api/client";
 
 export default function LlmConsole() {
@@ -7,13 +7,32 @@ export default function LlmConsole() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
+  const [projectId, setProjectId] = useState<number | null>(null);
+
+  // 프로젝트 목록을 불러와 첫 번째 항목을 기본 선택으로 둔다. 확장 프로그램이
+  // 이제 임의 이름으로 프로젝트를 만들 수 있으므로, 콘솔에서 어떤 프로젝트의
+  // 액션을 테스트할지 고를 수 있어야 한다.
+  useEffect(() => {
+    api
+      .get("/api/projects")
+      .then((rows: { id: number; name: string }[]) => {
+        setProjects(rows);
+        if (rows.length > 0) setProjectId(rows[0].id);
+      })
+      .catch((err) => setError(errorMessage(err)));
+  }, []);
 
   // 실패했는데 화면이 그대로면 멈춘 것처럼 보인다. 두 핸들러 모두
   // 오류를 붙잡아 한국어로 띄우고, 실패한 단계의 낡은 결과는 지운다.
   async function ask() {
+    if (projectId == null) {
+      setError("먼저 프로젝트를 선택해 주세요");
+      return;
+    }
     setBusy(true); setResult(null); setError(null);
     try {
-      setSelection(await api.post(`/api/projects/1/llm-test`, { query }));
+      setSelection(await api.post(`/api/projects/${projectId}/llm-test`, { query }));
     } catch (err) {
       setSelection(null);   // 실행 버튼이 남아 있으면 안 된다
       setError(errorMessage(err));
@@ -34,6 +53,21 @@ export default function LlmConsole() {
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 900 }}>
       <h1 style={{ fontSize: 20 }}>LLM 테스트 콘솔</h1>
+
+      <div style={{ marginTop: 16 }}>
+        <label>
+          프로젝트{" "}
+          <select
+            value={projectId ?? ""}
+            onChange={(e) => setProjectId(Number(e.target.value))}
+            style={{ padding: 6 }}
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <input value={query} onChange={e => setQuery(e.target.value)} style={{ flex: 1, padding: 10 }} />

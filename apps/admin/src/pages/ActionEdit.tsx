@@ -25,7 +25,6 @@ export default function ActionEdit() {
 
     api
       .post("/api/actions", {
-        projectId: 1,
         networkRequestId: Number(requestId),
         name,
         toolName,

@@ -270,6 +270,41 @@ def test_응답_샘플의_apiKey는_패턴이_아니어도_키_이름으로_마�
     assert net.response_preview["sample"]["name"] == "x"
 
 
+def test_프로젝트_get_or_create는_같은_이름을_두번_호출해도_같은_id를_반환한다(client):
+    first = client.post("/api/projects", json={"name": "새 프로젝트"})
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first_body["name"] == "새 프로젝트"
+
+    second = client.post("/api/projects", json={"name": "새 프로젝트"})
+    assert second.status_code == 200
+    second_body = second.json()
+
+    assert first_body["id"] == second_body["id"]
+
+
+def test_프로젝트_이름이_공백뿐이면_422를_반환한다(client):
+    response = client.post("/api/projects", json={"name": "   "})
+    assert response.status_code == 422
+    assert "detail" in response.json()
+
+
+def test_프로젝트_이름의_앞뒤_공백은_제거된다(client):
+    response = client.post("/api/projects", json={"name": "  공백 프로젝트  "})
+    assert response.status_code == 200
+    assert response.json()["name"] == "공백 프로젝트"
+
+
+def test_프로젝트_목록은_id순으로_정렬된다(client, project_id):
+    client.post("/api/projects", json={"name": "목록용 프로젝트"})
+    response = client.get("/api/projects")
+    assert response.status_code == 200
+    body = response.json()
+    ids = [p["id"] for p in body]
+    assert ids == sorted(ids)
+    assert any(p["name"] == "목록용 프로젝트" for p in body)
+
+
 def test_쿼리스트링의_민감_파라미터는_저장_전에_마스킹된다(client, project_id, engine):
     session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
 

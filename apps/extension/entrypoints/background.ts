@@ -141,7 +141,7 @@ export default defineBackground(() => {
     // 실패해도 sendResponse는 반드시 부른다. 부르지 않으면 패널 콜백이
     // 영영 오지 않고 버튼이 멈춘다.
     if (msg.type === "start") {
-      enqueue(() => startSession(msg.projectId))
+      enqueue(() => startSession(msg.projectName))
         .catch((e) => ({ ok: false, error: `시작 실패: ${e instanceof Error ? e.message : String(e)}` }))
         .then(sendResponse);
       return true;
@@ -197,10 +197,33 @@ function isCollectible(url: string): boolean {
 // 서버가 꺼져 있으면 fetch가 던진다. 잡지 않으면 sendResponse가 호출되지
 // 않아 Side Panel의 콜백이 영영 오지 않고 버튼이 멈춘 상태로 남는다.
 // PRD §8.3이 "서버 연결 실패" 상태 표시를 요구하는 것도 이 때문이다.
-async function startSession(projectId: number) {
+async function startSession(projectName: string) {
   const state = await loadState();
+  const trimmed = typeof projectName === "string" ? projectName.trim() : "";
+  if (!trimmed) {
+    const next: SessionState = {
+      ...state,
+      recording: false,
+      lastError: "프로젝트 이름을 입력해 주세요",
+    };
+    await saveState(next);
+    broadcast(next);
+    return { ok: false, error: next.lastError };
+  }
+
   try {
-    const res = await fetch(`${API_BASE}/api/projects/${projectId}/recording-sessions`, {
+    // 이름 -> id 해석은 백그라운드가 담당한다 (사이드패널은 네트워크 호출을
+    // 하지 않는다). 동일한 이름으로 반복 호출해도 안전한 get-or-create
+    // 엔드포인트라, 기록 시작마다 호출해도 프로젝트가 중복 생성되지 않는다.
+    const projectRes = await fetch(`${API_BASE}/api/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    if (!projectRes.ok) throw new Error(`HTTP ${projectRes.status}`);
+    const project = await projectRes.json();
+
+    const res = await fetch(`${API_BASE}/api/projects/${project.id}/recording-sessions`, {
       method: "POST",
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

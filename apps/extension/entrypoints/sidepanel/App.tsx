@@ -13,17 +13,25 @@ function safePath(url: string): string {
   }
 }
 
-const PROJECTS = [
-  { id: 1, name: "국토교통부 실거래가" },
-  { id: 2, name: "국가통계포털 KOSIS" },
-];
+// 확장 프로그램이 마지막으로 사용한 프로젝트 이름을 기억해 두는 키.
+// chrome.storage.local은 세션과 달리 브라우저를 껐다 켜도 남는다.
+const LAST_PROJECT_NAME_KEY = "mcpStudioLastProjectName";
 
 export default function App() {
   const [recording, setRecording] = useState(false);
   const [counts, setCounts] = useState({ interactionCount: 0, networkCount: 0 });
   const [recent, setRecent] = useState<any[]>([]);
-  const [projectId, setProjectId] = useState(1);
+  const [projectName, setProjectName] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // 열릴 때마다 마지막으로 입력했던 프로젝트 이름을 복원한다 - 매번 다시
+  // 타이핑하지 않도록 하기 위함이다.
+  useEffect(() => {
+    chrome.storage.local.get(LAST_PROJECT_NAME_KEY).then((stored) => {
+      const saved = stored[LAST_PROJECT_NAME_KEY];
+      if (typeof saved === "string" && saved) setProjectName(saved);
+    });
+  }, []);
 
   useEffect(() => {
     function apply(s: any) {
@@ -57,23 +65,29 @@ export default function App() {
     <div style={{ padding: 16, fontFamily: "system-ui", fontSize: 13 }}>
       <h2 style={{ fontSize: 15, margin: "0 0 12px" }}>MCP Studio</h2>
 
-      <select
-        value={projectId}
-        onChange={(e) => setProjectId(Number(e.target.value))}
+      <input
+        type="text"
+        value={projectName}
+        onChange={(e) => setProjectName(e.target.value)}
         disabled={recording}
-        style={{ width: "100%", padding: 6, marginBottom: 12 }}
-      >
-        {PROJECTS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
+        placeholder="프로젝트 이름을 입력하세요"
+        style={{ width: "100%", padding: 6, marginBottom: 12, boxSizing: "border-box" }}
+      />
 
       {!recording ? (
         <button
-          onClick={() =>
-            chrome.runtime.sendMessage({ type: "start", projectId }, (r) => {
+          onClick={() => {
+            const trimmed = projectName.trim();
+            if (!trimmed) {
+              setError("프로젝트 이름을 입력해 주세요");
+              return;
+            }
+            chrome.storage.local.set({ [LAST_PROJECT_NAME_KEY]: trimmed });
+            chrome.runtime.sendMessage({ type: "start", projectName: trimmed }, (r) => {
               setRecording(!!r?.ok);
               setError(r?.error ?? null);
-            })
-          }
+            });
+          }}
           style={{ width: "100%", padding: 10, background: "#2563eb", color: "#fff", border: 0, borderRadius: 6 }}
         >
           기록 시작

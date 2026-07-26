@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import NetworkRequest, Action
+from app.models import NetworkRequest, RecordingSession, Action
 from app.services.schema_infer import build_action_spec
 
 router = APIRouter()
@@ -11,6 +11,14 @@ def create_action(payload: dict, db: Session = Depends(get_session)) -> dict:
     req = db.get(NetworkRequest, payload["networkRequestId"])
     if req is None:
         raise HTTPException(404, "해당 네트워크 요청을 찾을 수 없습니다")
+
+    # projectId는 더 이상 페이로드에서 신뢰하지 않는다. 네트워크 요청이 속한
+    # 기록 세션의 project_id로부터 직접 유도해야, 프론트엔드가 실수로라도
+    # 다른 프로젝트에 액션을 붙일 수 없다.
+    session_row = db.get(RecordingSession, req.session_id)
+    if session_row is None:
+        raise HTTPException(404, "해당 기록 세션을 찾을 수 없습니다")
+
     spec = build_action_spec(
         req,
         name=payload["name"],
@@ -18,7 +26,7 @@ def create_action(payload: dict, db: Session = Depends(get_session)) -> dict:
         description=payload.get("description", ""),
     )
     action = Action(
-        project_id=payload["projectId"],
+        project_id=session_row.project_id,
         name=payload["name"],
         tool_name=payload["toolName"],
         description=payload.get("description", ""),

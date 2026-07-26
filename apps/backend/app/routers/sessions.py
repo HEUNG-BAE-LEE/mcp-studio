@@ -2,13 +2,39 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.db import get_session
-from app.models import RecordingSession, InteractionEvent, NetworkRequest
+from app.models import Project, RecordingSession, InteractionEvent, NetworkRequest
 from app.services.body import summarize_response
 from app.services.masking import mask_patterns, mask_deep, mask_query, mask_body
 
 router = APIRouter()
+
+# 확장 프로그램이 이제 프로젝트 이름을 자유 입력으로 받는다. 기록 시작마다
+# 이 엔드포인트를 호출하므로 반복 호출에 안전해야 한다(get-or-create).
+class ProjectIn(BaseModel):
+    name: str
+
+@router.post("/api/projects")
+def get_or_create_project(payload: ProjectIn, db: Session = Depends(get_session)) -> dict:
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(422, "프로젝트 이름을 입력해 주세요")
+
+    existing = db.exec(select(Project).where(Project.name == name)).first()
+    if existing is not None:
+        return {"id": existing.id, "name": existing.name}
+
+    project = Project(name=name, allowed_origins=[])
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return {"id": project.id, "name": project.name}
+
+@router.get("/api/projects")
+def list_projects(db: Session = Depends(get_session)) -> list:
+    rows = db.exec(select(Project).order_by(Project.id)).all()
+    return [{"id": p.id, "name": p.name} for p in rows]
 
 # 페이로드를 dict로 받으면 키 누락이 KeyError, 잘못된 시각이 ValueError가 되어
 # 그대로 500이 된다. Pydantic으로 받으면 FastAPI가 422와 함께 어느 필드가
