@@ -7,39 +7,69 @@ export default defineUnlistedScript(() => {
   }
 
   // fetch 후킹
-  // 인자를 스프레드로 받으면 new Request(...args)가 TS2556으로 막힌다.
-  // 명시적 시그니처로 받아야 tsc --noEmit이 통과한다.
+  //
+  // 이 코드는 남의 사이트 안에서 돈다. 수집 로직의 어떤 실패도 페이지의
+  // 원래 요청을 깨뜨려서는 안 된다. 두 가지 규칙을 지킨다.
+  //
+  // 1) input이 Request 객체이면 절대 new Request(input, ...)로 감싸지 않는다.
+  //    Request 생성자는 원본의 본문 스트림을 소비(disturbed) 처리하므로,
+  //    뒤이어 originalFetch(input)을 부르면 페이지의 실제 요청이 실패한다.
+  //    본문이 필요하면 clone()으로만 읽는다.
+  // 2) 메타데이터 추출과 emit 전체를 try/catch로 감싼다. 응답은 이미
+  //    성공했는데 수집 코드의 예외 때문에 페이지가 받는 Promise가
+  //    거부되는 일이 없어야 한다.
   const originalFetch = window.fetch;
   window.fetch = async function (
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
     const started = Date.now();
-    const request = new Request(input, init);
-    let bodyText: string | null = null;
+
+    // 요청 메타데이터는 원본을 건드리지 않고 뽑는다
+    let url = "";
+    let method = "GET";
+    let requestHeaders: Record<string, string> = {};
+    let requestBody: string | null = null;
     try {
-      bodyText = await request.clone().text();
+      if (input instanceof Request) {
+        url = input.url;
+        method = input.method;
+        requestHeaders = Object.fromEntries(input.headers.entries());
+        requestBody = await input.clone().text();   // clone만 읽는다
+      } else {
+        url = new URL(String(input), location.href).href;
+        method = (init?.method ?? "GET").toUpperCase();
+        requestHeaders = Object.fromEntries(new Headers(init?.headers).entries());
+        requestBody = typeof init?.body === "string" ? init.body : null;
+      }
     } catch {
-      bodyText = null;
+      // 메타데이터 추출 실패는 무시한다. 요청은 그대로 진행한다.
     }
-    const response = await originalFetch(input, init);
-    const clone = response.clone();
-    let responseText = "";
+
+    // 원본 input/init을 손대지 않고 그대로 넘긴다
+    const response = await originalFetch.call(window, input, init);
+
     try {
-      responseText = (await clone.text()).slice(0, MAX_BODY);
+      let responseText = "";
+      try {
+        responseText = (await response.clone().text()).slice(0, MAX_BODY);
+      } catch {
+        responseText = "";
+      }
+      emit({
+        url,
+        method,
+        requestHeaders,
+        requestBody: requestBody ? requestBody.slice(0, MAX_BODY) : null,
+        status: response.status,
+        responseText,
+        durationMs: Date.now() - started,
+        occurredAt: new Date().toISOString(),
+      });
     } catch {
-      responseText = "";
+      // 수집 실패가 페이지 응답에 영향을 주지 않게 한다
     }
-    emit({
-      url: request.url,
-      method: request.method,
-      requestHeaders: Object.fromEntries(request.headers.entries()),
-      requestBody: bodyText ? bodyText.slice(0, MAX_BODY) : null,
-      status: response.status,
-      responseText,
-      durationMs: Date.now() - started,
-      occurredAt: new Date().toISOString(),
-    });
+
     return response;
   };
 
@@ -69,19 +99,32 @@ export default defineUnlistedScript(() => {
   XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
     const meta = (this as any).__mcp;
     const started = Date.now();
-    this.addEventListener("loadend", () => {
-      if (!meta) return;
-      emit({
-        url: new URL(meta.url, location.href).href,
-        method: meta.method,
-        requestHeaders: meta.headers,
-        requestBody: typeof body === "string" ? body.slice(0, MAX_BODY) : null,
-        status: this.status,
-        responseText: (this.responseText || "").slice(0, MAX_BODY),
-        durationMs: Date.now() - started,
-        occurredAt: new Date().toISOString(),
-      });
-    });
+
+    // once: true 가 핵심이다. XHR 객체를 재사용해 open()+send()를 다시 부르면
+    // 리스너가 쌓이고, 오래된 리스너가 낡은 meta와 새 응답을 섞어 중복 보고한다.
+    this.addEventListener(
+      "loadend",
+      () => {
+        if (!meta) return;
+        try {
+          emit({
+            url: new URL(meta.url, location.href).href,
+            method: meta.method,
+            requestHeaders: meta.headers,
+            requestBody: typeof body === "string" ? body.slice(0, MAX_BODY) : null,
+            status: this.status,
+            responseText: (this.responseText || "").slice(0, MAX_BODY),
+            durationMs: Date.now() - started,
+            occurredAt: new Date().toISOString(),
+          });
+        } catch {
+          // 수집 실패가 페이지 동작에 영향을 주지 않게 한다.
+          // responseType이 json/blob이면 responseText 접근이 예외를 던진다.
+        }
+      },
+      { once: true },
+    );
+
     return originalSend.call(this, body as any);
   };
 });
