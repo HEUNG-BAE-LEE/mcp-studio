@@ -1248,6 +1248,14 @@ def test_배열은_첫_요소만_남기고_개수를_기록한다():
     result = summarize_response(text)
     assert result["sample"]["list"] == [{"nm": "세종"}]
     assert result["counts"]["list"] == 3
+
+def test_키에_대괄호가_들어가도_counts가_겹치지_않는다():
+    # "items[]"라는 키가 실제로 존재하는 API가 있다. 이스케이프하지 않으면
+    # items[] 배열과 items 안의 중첩 배열이 같은 경로 키를 만든다.
+    text = '{"items[]":[1,2],"items":[{"x":[9,9,9]}]}'
+    result = summarize_response(text)
+    assert len(result["counts"]) == 3   # 세 배열이 각각 다른 키를 가진다
+    assert sorted(result["counts"].values()) == [1, 2, 3]
 ```
 
 - [ ] **Step 2: 실패 확인**
@@ -1286,12 +1294,24 @@ def summarize_response(text: Optional[str]) -> dict:
     sample = _shrink(parsed, counts, path="")
     return {"isJson": True, "sample": sample, "counts": counts}
 
+def _escape_segment(key: str) -> str:
+    """counts의 경로 키가 겹치지 않도록 구분자를 이스케이프한다.
+
+    JSON 키에는 '.'이나 '[]'가 그대로 들어갈 수 있다("items[]" 같은 키가 실제로
+    있다). 이스케이프하지 않으면 서로 다른 두 배열이 같은 경로 키를 만들어
+    한쪽 개수가 조용히 덮인다.
+    """
+    return key.replace("\\", "\\\\").replace(".", "\\.").replace("[", "\\[").replace("]", "\\]")
+
 def _shrink(value: Any, counts: dict, path: str) -> Any:
     if isinstance(value, list):
         counts[path or "root"] = len(value)
         return [_shrink(value[0], counts, f"{path}[]")] if value else []
     if isinstance(value, dict):
-        return {k: _shrink(v, counts, k if not path else f"{path}.{k}") for k, v in value.items()}
+        return {
+            k: _shrink(v, counts, _escape_segment(k) if not path else f"{path}.{_escape_segment(k)}")
+            for k, v in value.items()
+        }
     return value
 ```
 
@@ -1313,19 +1333,61 @@ def mask_patterns(text):
     for pattern in PATTERNS:
         text = pattern.sub(MASK, text)
     return text
+
+def mask_deep(value):
+    """중첩 구조 안의 모든 문자열에 2차 마스킹을 적용한다.
+
+    응답 본문에도 개인정보가 들어온다. 요청 헤더·바디만 마스킹하면
+    응답 샘플에 남은 주민번호·카드번호가 그대로 저장된다.
+    """
+    if isinstance(value, str):
+        return mask_patterns(value)
+    if isinstance(value, list):
+        return [mask_deep(v) for v in value]
+    if isinstance(value, dict):
+        return {k: mask_deep(v) for k, v in value.items()}
+    return value
 ```
 
 ```python
 # apps/backend/app/routers/sessions.py
 from datetime import datetime
-from fastapi import APIRouter, Depends
+from typing import Dict, List, Optional
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlmodel import Session
 from app.db import get_session
 from app.models import RecordingSession, InteractionEvent, NetworkRequest
 from app.services.body import summarize_response
-from app.services.masking import mask_patterns
+from app.services.masking import mask_patterns, mask_deep
 
 router = APIRouter()
+
+# 페이로드를 dict로 받으면 키 누락이 KeyError, 잘못된 시각이 ValueError가 되어
+# 그대로 500이 된다. Pydantic으로 받으면 FastAPI가 422와 함께 어느 필드가
+# 왜 틀렸는지 돌려준다. 검증이 DB 쓰기 전에 끝나는 것도 중요하다.
+class InteractionIn(BaseModel):
+    interactionId: str
+    eventType: str
+    pageUrl: str
+    selector: str
+    elementText: str = ""
+    occurredAt: datetime          # JS toISOString()의 Z 접미사를 그대로 파싱한다
+
+class NetworkIn(BaseModel):
+    url: str
+    method: str
+    requestHeaders: Dict[str, str] = Field(default_factory=dict)
+    requestBody: Optional[str] = None
+    status: int
+    responseText: str = ""
+    durationMs: int = 0
+    occurredAt: datetime
+    interactionId: Optional[str] = None
+
+class BulkIn(BaseModel):
+    interactions: List[InteractionIn] = Field(default_factory=list)
+    networks: List[NetworkIn] = Field(default_factory=list)
 
 @router.post("/api/projects/{project_id}/recording-sessions")
 def create_session(project_id: int, db: Session = Depends(get_session)) -> dict:
@@ -1336,44 +1398,46 @@ def create_session(project_id: int, db: Session = Depends(get_session)) -> dict:
     return {"id": row.id}
 
 @router.post("/api/recording-sessions/{session_id}/bulk")
-def bulk_upload(session_id: int, payload: dict, db: Session = Depends(get_session)) -> dict:
-    for item in payload.get("interactions", []):
+def bulk_upload(session_id: int, payload: BulkIn, db: Session = Depends(get_session)) -> dict:
+    session_row = db.get(RecordingSession, session_id)
+    if session_row is None:
+        raise HTTPException(404, "recording session not found")
+
+    for item in payload.interactions:
         db.add(InteractionEvent(
             session_id=session_id,
-            interaction_id=item["interactionId"],
-            event_type=item["eventType"],
-            page_url=item["pageUrl"],
-            element_selector=item["selector"],
-            element_text=item["elementText"],
-            occurred_at=datetime.fromisoformat(item["occurredAt"].replace("Z", "+00:00")),
+            interaction_id=item.interactionId,
+            event_type=item.eventType,
+            page_url=item.pageUrl,
+            element_selector=item.selector,
+            element_text=item.elementText,
+            occurred_at=item.occurredAt,
         ))
 
-    for item in payload.get("networks", []):
-        summary = summarize_response(item.get("responseText"))
+    for item in payload.networks:
+        summary = summarize_response(item.responseText)
+        # 응답 샘플에도 2차 마스킹을 적용한다. 요청만 가리면 응답에 실린
+        # 개인정보가 그대로 저장된다.
+        summary["sample"] = mask_deep(summary["sample"])
         db.add(NetworkRequest(
             session_id=session_id,
-            interaction_id=item.get("interactionId"),
-            request_url=item["url"],
-            request_method=item["method"],
-            request_headers={k: mask_patterns(v) for k, v in (item.get("requestHeaders") or {}).items()},
-            request_body=mask_patterns(item.get("requestBody")),
-            response_status=item["status"],
+            interaction_id=item.interactionId,
+            request_url=item.url,
+            request_method=item.method,
+            request_headers={k: mask_patterns(v) for k, v in item.requestHeaders.items()},
+            request_body=mask_patterns(item.requestBody),
+            response_status=item.status,
             response_preview=summary,
             is_json=summary["isJson"],
-            duration_ms=item.get("durationMs", 0),
-            occurred_at=datetime.fromisoformat(item["occurredAt"].replace("Z", "+00:00")),
+            duration_ms=item.durationMs,
+            occurred_at=item.occurredAt,
         ))
 
-    row = db.get(RecordingSession, session_id)
-    if row:
-        row.ended_at = datetime.utcnow()
-        row.status = "COMPLETED"
-        db.add(row)
+    session_row.ended_at = datetime.utcnow()
+    session_row.status = "COMPLETED"
+    db.add(session_row)
     db.commit()
-    return {
-        "interactions": len(payload.get("interactions", [])),
-        "networks": len(payload.get("networks", [])),
-    }
+    return {"interactions": len(payload.interactions), "networks": len(payload.networks)}
 ```
 
 `main.py`에 라우터를 등록한다. Task 7·8·14에서 라우터가 추가될 때마다 같은 자리에 한 줄씩 늘린다.
