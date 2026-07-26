@@ -21,6 +21,11 @@ export default function ActionEdit() {
   const [toolName, setToolName] = useState("search_apartment_markers");
   const [description, setDescription] = useState("지도 영역 안의 아파트 단지 목록을 조회합니다.");
   const [status, setStatus] = useState("DRAFT");
+  // loadError: /api/actions/:id(또는 생성 POST)가 실패해 그릴 것이 전혀
+  // 없는 경우에만 쓴다 — 이때만 전체 화면 오류로 대체한다.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // error: 브레드크럼용 프로젝트 이름 조회, 활성화 실패처럼 이미 채워진
+  // 폼을 그대로 둬야 하는 경우에 쓴다 — 인라인 배너로만 보여준다.
   const [error, setError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
 
@@ -41,7 +46,7 @@ export default function ActionEdit() {
           setDescription(row.description);
           setStatus(row.status);
         })
-        .catch((err) => setError(errorMessage(err)));
+        .catch((err) => setLoadError(errorMessage(err)));
       return;
     }
 
@@ -53,7 +58,7 @@ export default function ActionEdit() {
 
     api.post("/api/actions", { networkRequestId: Number(requestId), name, toolName, description })
       .then((res) => navigate(`/actions/${res.id}`, { replace: true }))
-      .catch((err) => setError(errorMessage(err)));
+      .catch((err) => setLoadError(errorMessage(err)));
     // name·toolName·description은 일부러 의존성에서 뺀다. 생성 경로에서만
     // 읽는 값이고 그때 필요한 것은 초기 기본값이며, 재실행은 requested 가드가
     // 막는다. 반대로 의존성에 넣으면 /actions/:id 경로에서 응답이 이 값들을
@@ -71,12 +76,12 @@ export default function ActionEdit() {
       .catch((err) => setError(errorMessage(err)));
   }, [projectId]);
 
-  if (error) {
+  if (loadError) {
     return (
       <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId}>
         <div className="error-banner">
           <strong>요청을 처리하지 못했습니다</strong>
-          <p>{error}</p>
+          <p>{loadError}</p>
         </div>
       </Shell>
     );
@@ -111,6 +116,8 @@ export default function ActionEdit() {
     setError(null);
     try {
       await api.put(`/api/actions/${actionId}`, {
+        name,
+        toolName,
         actionSpec: { ...spec, name, toolName, description },
         description,
         status: "ACTIVE",

@@ -52,9 +52,33 @@ def update_action(action_id: int, payload: dict, db: Session = Depends(get_sessi
     if status not in VALID_STATUS:
         raise HTTPException(422, f"status는 {sorted(VALID_STATUS)} 중 하나여야 합니다: {status!r}")
 
+    # name·toolName은 선택 값이다. 키 자체를 보내지 않으면(예: ActionList의
+    # 상태 토글이 {status}만 보낼 때) 기존 값을 그대로 둔다. 키를 보냈는데
+    # 공백뿐이면 액션명을 지워버리는 대신 막는다.
+    name = action.name
+    if "name" in payload:
+        name = (payload.get("name") or "").strip()
+        if not name:
+            raise HTTPException(422, "액션명을 입력해 주세요")
+
+    tool_name = action.tool_name
+    if "toolName" in payload:
+        tool_name = (payload.get("toolName") or "").strip()
+        if not tool_name:
+            raise HTTPException(422, "Tool 이름을 입력해 주세요")
+
     action.action_spec = payload.get("actionSpec", action.action_spec)
     action.description = payload.get("description", action.description)
     action.status = status
+    action.name = name
+    action.tool_name = tool_name
+
+    # actionSpec은 name·toolName을 따로 담고 있고 action_to_tool()이 그 값을
+    # 읽는다. 방금 확정된 이름으로 맞춰두지 않으면 이름을 바꿔도 LLM에게
+    # 노출되는 tool 정의는 예전 이름 그대로 남는다.
+    if isinstance(action.action_spec, dict):
+        action.action_spec = {**action.action_spec, "name": action.name, "toolName": action.tool_name}
+
     db.add(action)
     db.commit()
     return {"ok": True}

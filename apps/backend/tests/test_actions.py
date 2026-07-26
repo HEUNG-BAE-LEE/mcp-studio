@@ -193,3 +193,58 @@ def test_없는_액션_삭제는_한국어_404다(client):
     res = client.delete("/api/actions/9999")
     assert res.status_code == 404
     assert res.json()["detail"] == "해당 액션을 찾을 수 없습니다"
+
+
+def test_이름을_바꾸면_단건_조회와_목록에_모두_반영된다(client, project_id, network_request_id):
+    action_id = client.post("/api/actions", json={
+        "networkRequestId": network_request_id,
+        "name": "단지 조회", "toolName": "search_markers", "description": "",
+    }).json()["id"]
+
+    res = client.put(f"/api/actions/{action_id}", json={"name": "다른 사이트 조회", "toolName": "search_other_site"})
+    assert res.status_code == 200
+
+    body = client.get(f"/api/actions/{action_id}").json()
+    assert body["name"] == "다른 사이트 조회"
+    assert body["toolName"] == "search_other_site"
+    # actionSpec 안의 name·toolName도 함께 갱신되어야 action_to_tool()이
+    # 예전 이름을 돌려주지 않는다.
+    assert body["actionSpec"]["name"] == "다른 사이트 조회"
+    assert body["actionSpec"]["toolName"] == "search_other_site"
+
+    listed = client.get(f"/api/projects/{project_id}/actions").json()
+    row = next(r for r in listed if r["id"] == action_id)
+    assert row["name"] == "다른 사이트 조회"
+    assert row["toolName"] == "search_other_site"
+
+
+def test_status만_보내는_PUT은_이름을_지우지_않는다(client, network_request_id):
+    action_id = client.post("/api/actions", json={
+        "networkRequestId": network_request_id,
+        "name": "단지 조회", "toolName": "search_markers", "description": "",
+    }).json()["id"]
+
+    res = client.put(f"/api/actions/{action_id}", json={"status": "ACTIVE"})
+    assert res.status_code == 200
+
+    body = client.get(f"/api/actions/{action_id}").json()
+    assert body["status"] == "ACTIVE"
+    assert body["name"] == "단지 조회"
+    assert body["toolName"] == "search_markers"
+
+
+def test_빈_이름으로_바꾸면_422를_반환한다(client, network_request_id):
+    action_id = client.post("/api/actions", json={
+        "networkRequestId": network_request_id,
+        "name": "단지 조회", "toolName": "search_markers", "description": "",
+    }).json()["id"]
+
+    res = client.put(f"/api/actions/{action_id}", json={"name": "   "})
+    assert res.status_code == 422
+
+    res2 = client.put(f"/api/actions/{action_id}", json={"toolName": ""})
+    assert res2.status_code == 422
+
+    body = client.get(f"/api/actions/{action_id}").json()
+    assert body["name"] == "단지 조회"
+    assert body["toolName"] == "search_markers"
