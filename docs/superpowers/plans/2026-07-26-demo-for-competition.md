@@ -840,6 +840,7 @@ type Buffered = { interactions: any[]; networks: any[] };
 const buffer: Buffered = { interactions: [], networks: [] };
 let recording = false;
 let sessionId: number | null = null;
+let lastError: string | null = null;
 
 export default defineBackground(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -860,7 +861,7 @@ export default defineBackground(() => {
       stopSession().then(sendResponse);
       return true;
     } else if (msg.type === "state") {
-      sendResponse({ recording, sessionId, ...counts() });
+      sendResponse({ recording, sessionId, lastError, ...counts() });
     }
   });
 });
@@ -870,7 +871,14 @@ function counts() {
 }
 
 function broadcast() {
-  chrome.runtime.sendMessage({ type: "state-changed", ...counts(), recent: buffer.networks.slice(-10) })
+  chrome.runtime
+    .sendMessage({
+      type: "state-changed",
+      recording,
+      lastError,
+      ...counts(),
+      recent: buffer.networks.slice(-10),
+    })
     .catch(() => {});  // Side Panel이 닫혀 있으면 무시
 }
 
@@ -885,30 +893,53 @@ function isCollectible(url: string): boolean {
   return true;
 }
 
+// 서버가 꺼져 있으면 fetch가 던진다. 잡지 않으면 sendResponse가 호출되지
+// 않아 Side Panel의 콜백이 영영 오지 않고 버튼이 멈춘 상태로 남는다.
+// PRD §8.3이 "서버 연결 실패" 상태 표시를 요구하는 것도 이 때문이다.
 async function startSession(projectId: number) {
-  const res = await fetch(`${API_BASE}/api/projects/${projectId}/recording-sessions`, {
-    method: "POST",
-  });
-  const data = await res.json();
-  sessionId = data.id;
-  buffer.interactions = [];
-  buffer.networks = [];
-  recording = true;
-  broadcast();
-  return { sessionId };
+  try {
+    const res = await fetch(`${API_BASE}/api/projects/${projectId}/recording-sessions`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    sessionId = data.id;
+    buffer.interactions = [];
+    buffer.networks = [];
+    recording = true;
+    lastError = null;
+    broadcast();
+    return { ok: true, sessionId };
+  } catch (e) {
+    recording = false;
+    lastError = `서버 연결 실패: ${e instanceof Error ? e.message : String(e)}`;
+    broadcast();
+    return { ok: false, error: lastError };
+  }
 }
 
 async function stopSession() {
   recording = false;
-  if (sessionId === null) return { ok: false };
-  const res = await fetch(`${API_BASE}/api/recording-sessions/${sessionId}/bulk`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buffer),
-  });
-  const data = await res.json();
-  broadcast();
-  return { ok: true, sessionId, ...data };
+  if (sessionId === null) {
+    broadcast();
+    return { ok: false, error: "진행 중인 세션이 없습니다" };
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/recording-sessions/${sessionId}/bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buffer),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    lastError = null;
+    broadcast();
+    return { ok: true, sessionId, ...data };
+  } catch (e) {
+    lastError = `전송 실패: ${e instanceof Error ? e.message : String(e)}`;
+    broadcast();
+    return { ok: false, error: lastError };
+  }
 }
 ```
 
@@ -928,15 +959,18 @@ export default function App() {
   const [counts, setCounts] = useState({ interactionCount: 0, networkCount: 0 });
   const [recent, setRecent] = useState<any[]>([]);
   const [projectId, setProjectId] = useState(1);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: "state" }, (s) => {
-      if (s) { setRecording(s.recording); setCounts(s); }
+      if (s) { setRecording(s.recording); setCounts(s); setError(s.lastError ?? null); }
     });
     const listener = (msg: any) => {
       if (msg.type !== "state-changed") return;
+      setRecording(msg.recording);
       setCounts({ interactionCount: msg.interactionCount, networkCount: msg.networkCount });
       setRecent(msg.recent ?? []);
+      setError(msg.lastError ?? null);
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
@@ -957,18 +991,34 @@ export default function App() {
 
       {!recording ? (
         <button
-          onClick={() => chrome.runtime.sendMessage({ type: "start", projectId }, () => setRecording(true))}
+          onClick={() =>
+            chrome.runtime.sendMessage({ type: "start", projectId }, (r) => {
+              setRecording(!!r?.ok);
+              setError(r?.error ?? null);
+            })
+          }
           style={{ width: "100%", padding: 10, background: "#2563eb", color: "#fff", border: 0, borderRadius: 6 }}
         >
           기록 시작
         </button>
       ) : (
         <button
-          onClick={() => chrome.runtime.sendMessage({ type: "stop" }, () => setRecording(false))}
+          onClick={() =>
+            chrome.runtime.sendMessage({ type: "stop" }, (r) => {
+              setRecording(false);
+              setError(r?.error ?? null);
+            })
+          }
           style={{ width: "100%", padding: 10, background: "#dc2626", color: "#fff", border: 0, borderRadius: 6 }}
         >
           기록 종료 및 전송
         </button>
+      )}
+
+      {error && (
+        <div style={{ marginTop: 10, padding: 8, background: "#fef2f2", color: "#b91c1c", borderRadius: 4, fontSize: 12 }}>
+          {error}
+        </div>
       )}
 
       <div style={{ margin: "16px 0", display: "flex", gap: 16 }}>
