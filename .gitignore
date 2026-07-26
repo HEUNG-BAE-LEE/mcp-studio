@@ -13,3 +13,6 @@ node_modules/
 .env.local
 *.env
 !.env.example
+
+# MCP 서버 설정 — Context7 API 키가 평문으로 들어 있어 커밋 금지
+.mcp.json

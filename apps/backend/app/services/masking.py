@@ -1,3 +1,4 @@
+import json
 import re
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
@@ -55,4 +56,40 @@ def mask_query(url: str) -> str:
         return url
     pairs = parse_qsl(parsed.query, keep_blank_values=True)
     masked_pairs = [(k, MASK if k.lower() in SENSITIVE_KEYS else v) for k, v in pairs]
-    return urlunparse(parsed._replace(query=urlencode(masked_pairs)))
+    # safe="*": 마스크를 %2A%2A%2A로 인코딩하면 화면에 그대로 노출되어
+    # 다른 마스킹 결과(***)와 표기가 어긋난다. 별표는 그대로 남긴다.
+    return urlunparse(parsed._replace(query=urlencode(masked_pairs, safe="*")))
+
+def mask_body(text):
+    """요청 본문의 민감 키 값을 마스킹한다.
+
+    Extension이 1차로 가리지만 서버도 같은 규칙을 적용한다. URL과 응답은
+    서버에서 키 규칙으로 가리면서 본문만 패턴 규칙에 맡기면, 확장을 거치지
+    않고 들어온 본문의 password=... 가 평문으로 저장된다.
+
+    JSON 여부는 Content-Type이 아니라 파싱 시도로 판정한다 —
+    extension/lib/masking.ts와 같은 판정 방식이다.
+    """
+    if not isinstance(text, str) or not text:
+        return mask_patterns(text)
+
+    trimmed = text.lstrip()
+    if trimmed.startswith("{") or trimmed.startswith("["):
+        try:
+            return json.dumps(mask_deep(json.loads(text)), ensure_ascii=False)
+        except (ValueError, TypeError):
+            pass
+
+    if "=" in text:
+        pairs = parse_qsl(text, keep_blank_values=True)
+        if pairs:
+            # 민감 키가 아니어도 값 패턴 마스킹은 그대로 적용한다.
+            # card=1234-5678-... 처럼 키 이름은 목록에 없지만 값이 카드번호인
+            # 경우를 놓치면 기존 mask_patterns 동작에서 후퇴한다.
+            masked = [
+                (k, MASK if k.lower() in SENSITIVE_KEYS else mask_patterns(v))
+                for k, v in pairs
+            ]
+            return urlencode(masked, safe="*")
+
+    return mask_patterns(text)

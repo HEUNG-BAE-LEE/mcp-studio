@@ -1,5 +1,6 @@
+import json
 # apps/backend/tests/test_masking.py
-from app.services.masking import mask_deep, mask_query
+from app.services.masking import mask_deep, mask_query, mask_body
 
 
 # PRD §7.4: password/token/apiKey/sessionId/ssn/jumin/cardNumber/cvv는
@@ -47,3 +48,32 @@ def test_mask_query는_민감하지_않은_파라미터를_온전히_보존한�
     assert "a=1" in masked
     assert "b=hello" in masked
     assert "secret" not in masked
+
+
+def test_mask_body는_form_본문의_민감_키를_가린다():
+    assert mask_body("minX=126.9&password=hunter2") == "minX=126.9&password=***"
+
+
+def test_mask_body는_JSON_본문의_민감_키를_가린다():
+    assert json.loads(mask_body('{"poiType":"A","token":"abc"}')) == {
+        "poiType": "A",
+        "token": "***",
+    }
+
+
+def test_mask_body는_JSON_배열도_form으로_오판하지_않는다():
+    # '{'로 시작하지 않고 '='를 포함해 form 분기로 새면 password가 평문으로 남는다
+    assert json.loads(mask_body('[{"password":"a=b"}]')) == [{"password": "***"}]
+
+
+def test_mask_body는_민감하지_않은_파라미터를_보존한다():
+    assert mask_body("minX=126.9&srhYear=2026") == "minX=126.9&srhYear=2026"
+
+
+def test_mask_body는_평문에도_패턴_마스킹을_적용한다():
+    assert mask_body("주민번호 900101-1234567") == "주민번호 ***"
+
+
+def test_mask_body는_빈_값과_None을_그대로_둔다():
+    assert mask_body("") == ""
+    assert mask_body(None) is None

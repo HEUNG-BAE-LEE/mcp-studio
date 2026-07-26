@@ -6,7 +6,7 @@ from sqlmodel import Session
 from app.db import get_session
 from app.models import RecordingSession, InteractionEvent, NetworkRequest
 from app.services.body import summarize_response
-from app.services.masking import mask_patterns, mask_deep, mask_query
+from app.services.masking import mask_patterns, mask_deep, mask_query, mask_body
 
 router = APIRouter()
 
@@ -76,7 +76,7 @@ def bulk_upload(session_id: int, payload: BulkIn, db: Session = Depends(get_sess
             request_url=mask_query(item.url),
             request_method=item.method,
             request_headers={k: mask_patterns(v) for k, v in item.requestHeaders.items()},
-            request_body=mask_patterns(item.requestBody),
+            request_body=mask_body(item.requestBody),
             response_status=item.status,
             response_preview=summary,
             is_json=summary["isJson"],
