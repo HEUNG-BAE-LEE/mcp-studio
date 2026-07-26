@@ -48,7 +48,7 @@ def create_session(project_id: int, db: Session = Depends(get_session)) -> dict:
 def bulk_upload(session_id: int, payload: BulkIn, db: Session = Depends(get_session)) -> dict:
     session_row = db.get(RecordingSession, session_id)
     if session_row is None:
-        raise HTTPException(404, "recording session not found")
+        raise HTTPException(404, "해당 기록 세션을 찾을 수 없습니다")
 
     for item in payload.interactions:
         db.add(InteractionEvent(

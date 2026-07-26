@@ -86,7 +86,7 @@ def select_tool(project_id: int, payload: dict, db: Session = Depends(get_sessio
 def execute(action_id: int, payload: dict, db: Session = Depends(get_session)) -> dict:
     action = db.get(Action, action_id)
     if action is None:
-        raise HTTPException(404, "action not found")
+        raise HTTPException(404, "해당 액션을 찾을 수 없습니다")
 
     result = execute_action(action, payload["arguments"])
 

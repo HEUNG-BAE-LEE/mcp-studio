@@ -10,7 +10,7 @@ router = APIRouter()
 def create_action(payload: dict, db: Session = Depends(get_session)) -> dict:
     req = db.get(NetworkRequest, payload["networkRequestId"])
     if req is None:
-        raise HTTPException(404, "network request not found")
+        raise HTTPException(404, "해당 네트워크 요청을 찾을 수 없습니다")
     spec = build_action_spec(
         req,
         name=payload["name"],
@@ -38,7 +38,7 @@ VALID_STATUS = {"DRAFT", "ACTIVE", "ARCHIVED"}
 def update_action(action_id: int, payload: dict, db: Session = Depends(get_session)) -> dict:
     action = db.get(Action, action_id)
     if action is None:
-        raise HTTPException(404, "action not found")
+        raise HTTPException(404, "해당 액션을 찾을 수 없습니다")
 
     status = payload.get("status", action.status)
     if status not in VALID_STATUS:

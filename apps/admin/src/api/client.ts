@@ -8,8 +8,12 @@ export interface ApiError extends Error {
 
 /** 오류에서 화면에 띄울 한국어 문구를 꺼낸다. 서버 설명이 있으면 그것을 쓴다. */
 export function errorMessage(err: unknown): string {
-  if (err && typeof (err as ApiError).detail === "string") {
-    return (err as ApiError).detail;
+  // 빈 문자열은 쓰지 않는다. 본문 없는 오류 응답(프록시발 502 등)이면
+  // detail이 ""가 되는데, 그대로 넘기면 배너가 렌더되지 않아 화면이
+  // 멈춘 것처럼 보인다 — 이 파일이 막으려던 바로 그 증상이다.
+  const detail = (err as ApiError)?.detail;
+  if (typeof detail === "string" && detail !== "") {
+    return detail;
   }
   return err instanceof Error ? err.message : String(err);
 }
