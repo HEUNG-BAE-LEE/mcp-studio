@@ -100,7 +100,10 @@ export default function SessionDetail() {
                   {c.score}
                 </span>
                 <span>{c.method}</span>
-                <span className="mono">{safePath(c.url)}</span>
+                {/* .table-row .mono은 넘치는 값을 말줄임표로 자른다. 실제 공공 API
+                    경로는 길어서 화면에서 잘리므로, 호스트·쿼리까지 포함한 원본
+                    URL을 title로 달아 마우스만 올리면 전부 읽을 수 있게 한다. */}
+                <span className="mono" title={c.url}>{safePath(c.url)}</span>
                 <span style={{ color: c.status < 300 ? "var(--green)" : "#dc2626" }}>{c.status}</span>
                 <span>{Array.isArray(c.reasons) ? c.reasons.join(", ") : ""}</span>
                 <span>

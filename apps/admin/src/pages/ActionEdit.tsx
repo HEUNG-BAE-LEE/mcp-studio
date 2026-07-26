@@ -54,7 +54,11 @@ export default function ActionEdit() {
     api.post("/api/actions", { networkRequestId: Number(requestId), name, toolName, description })
       .then((res) => navigate(`/actions/${res.id}`, { replace: true }))
       .catch((err) => setError(errorMessage(err)));
-  }, [id, params, navigate, name, toolName, description]);
+    // name·toolName·description은 일부러 의존성에서 뺀다. 생성 경로에서만
+    // 읽는 값이고 그때 필요한 것은 초기 기본값이며, 재실행은 requested 가드가
+    // 막는다. 반대로 의존성에 넣으면 /actions/:id 경로에서 응답이 이 값들을
+    // 갱신하는 순간 effect가 다시 돌아 같은 액션을 한 번 더 GET하게 된다.
+  }, [id, params, navigate]);
 
   // 프로젝트 이름은 브레드크럼에만 쓰이므로 projectId를 알게 된 뒤 조회한다.
   useEffect(() => {
@@ -156,7 +160,7 @@ export default function ActionEdit() {
               />
             </label>
           </div>
-          <p className="mono" style={{ marginTop: 10, color: "var(--muted)", fontSize: 12 }}>
+          <p className="mono endpoint-line">
             {spec.request.method} {spec.request.urlTemplate}
           </p>
 
@@ -175,7 +179,6 @@ export default function ActionEdit() {
                   value={def.description ?? ""}
                   placeholder="이 파라미터에 무엇을 넣어야 하는지 LLM에게 설명하세요"
                   onChange={(e) => updateParam(key, "description", e.target.value)}
-                  style={{ width: "100%", boxSizing: "border-box" }}
                 />
               </p>
             </div>
@@ -194,7 +197,7 @@ export default function ActionEdit() {
             </div>
           )}
 
-          <button className="primary" style={{ marginTop: 20 }} onClick={activate} disabled={activating || status === "ACTIVE"}>
+          <button className="primary activate-button" onClick={activate} disabled={activating || status === "ACTIVE"}>
             {activating ? "활성화 중..." : status === "ACTIVE" ? "활성화됨" : "활성화하고 테스트하기"}
           </button>
         </article>
