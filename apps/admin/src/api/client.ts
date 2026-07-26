@@ -54,4 +54,5 @@ export const api = {
   get: (path: string) => request("GET", path),
   post: (path: string, body?: unknown) => request("POST", path, body),
   put: (path: string, body?: unknown) => request("PUT", path, body),
+  delete: (path: string) => request("DELETE", path),
 };
