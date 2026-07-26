@@ -6,16 +6,18 @@
 
 **Architecture:** Chrome Extension이 Main World에서 `fetch`/`XMLHttpRequest`를 후킹해 클릭 이벤트와 함께 수집하고, FastAPI 백엔드가 이를 저장·점수화·스키마 추론한 뒤, React 관리자 화면에서 액션으로 확정한다. 확정된 액션은 Claude API의 tool use로 노출되어 자연어 질의에 응답한다. MCP 엔드포인트는 만들지 않는다(PRD 5b, 6단계 이월).
 
-**Tech Stack:** WXT + React + TypeScript (Extension) / FastAPI + SQLModel + SQLite (Backend) / React + Vite + TanStack Query (Admin) / Anthropic Python SDK (LLM)
+**Tech Stack:** WXT + React + TypeScript (Extension) / FastAPI + SQLModel + SQLite (Backend) / React + Vite + TanStack Query (Admin) / Azure OpenAI (`openai` Python SDK)
 
 ## Global Constraints
 
 - Python 3.10.11. `match`/`case`는 사용 가능하나 3.11+ 문법(`ExceptionGroup`, `Self` 타입)은 금지.
 - Node v25.8.0, npm workspaces. `pnpm`·`uv`·Docker는 사용 불가.
 - DB는 SQLite 파일 하나(`apps/backend/data/dev.db`). PostgreSQL은 쓰지 않는다.
-- LLM 모델 ID는 `claude-opus-5`. **`thinking` 파라미터를 명시적으로 끄지 말 것** — Claude Opus 5에서 thinking을 끄면 도구 호출이 `tool_use` 블록이 아니라 본문 텍스트로 나오는 실패 모드가 있고, 이 데모는 전적으로 도구 선택에 의존한다. `output_config={"effort": "medium"}`으로 지연만 조절한다.
-- 비스트리밍 요청의 `max_tokens`는 16000.
+- LLM은 **Azure OpenAI**를 사용한다. `openai` 파이썬 SDK의 `AzureOpenAI` 클라이언트로 접근하며, 모델명 자리에는 **배포 이름(deployment name)**을 넣는다. 엔드포인트·키·API 버전·배포명은 모두 환경변수로 읽는다(`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_DEPLOYMENT`). 값을 코드에 적지 않는다.
+- 도구 정의는 OpenAI function calling 형식(`{"type": "function", "function": {...}}`)을 쓴다. 인자는 `tool_calls[i].function.arguments`에 **JSON 문자열**로 오므로 `json.loads`로 파싱해야 한다.
+- `max_tokens`는 4096.
 - 대상 API 호출 시 **호출 간격 최소 1초**. 공공 서버 부하 배려.
+- **브라우저 의존 태스크(1, 3, 4, 9, 10, 11, 14)는 자동 테스트 없이 수동 검증만으로 완료로 본다.** `chrome.*` API와 페이지 JS 컨텍스트는 단위 테스트로 재현할 수 없다. 이들 태스크에서 "테스트 없음"은 결함이 아니다. 순수 함수로 분리 가능한 로직(Task 2, 5, 6, 8, 12, 13)은 테스트를 반드시 쓴다.
 - 응답 본문은 원문 저장 금지. 구조 + 샘플 1건만(PRD §7.4).
 - JSON 여부는 Content-Type이 아니라 **본문 파싱 시도**로 판정(PRD §7.4).
 - 실행 시 `User-Agent`·`Referer`·`X-Requested-With`·`Accept`를 재현(PRD §7.7). 없으면 WAF가 400으로 차단한다.
@@ -139,7 +141,7 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlmodel==0.0.22
 httpx==0.28.1
-anthropic==0.69.0
+openai==1.59.6
 pytest==8.3.4
 EOF
 pip install -r requirements.txt
@@ -1018,7 +1020,14 @@ def bulk_upload(session_id: int, payload: dict, db: Session = Depends(get_sessio
     }
 ```
 
-`main.py`에 `app.include_router(sessions.router)` 추가.
+`main.py`에 라우터를 등록한다. Task 7·8·14에서 라우터가 추가될 때마다 같은 자리에 한 줄씩 늘린다.
+
+```python
+# apps/backend/app/main.py 에 추가
+from app.routers import sessions
+
+app.include_router(sessions.router)
+```
 
 - [ ] **Step 4: 통과 확인**
 
@@ -1485,7 +1494,33 @@ export const api = {
 
 - [ ] **Step 3: 라우팅**
 
-`App.tsx`에 `/sessions/:id`(SessionDetail), `/actions/:id`(ActionEdit), `/console`(LlmConsole) 3개 라우트만 정의한다.
+```tsx
+// apps/admin/src/App.tsx
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import SessionDetail from "./pages/SessionDetail";
+import ActionEdit from "./pages/ActionEdit";
+import LlmConsole from "./pages/LlmConsole";
+
+const queryClient = new QueryClient();
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/sessions/1" replace />} />
+          <Route path="/sessions/:id" element={<SessionDetail />} />
+          <Route path="/actions/new" element={<ActionEdit />} />
+          <Route path="/console" element={<LlmConsole />} />
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}
+```
+
+Task 10~14에서 세 페이지를 만들기 전까지는 각 파일에 `export default function X() { return null; }` 스텁을 두어 빌드가 통과하게 한다.
 
 - [ ] **Step 4: 커밋**
 
@@ -1730,7 +1765,7 @@ git commit -m "액션 편집 화면 구현"
 - Test: `apps/backend/tests/test_tool_registry.py`
 
 **Interfaces:**
-- Produces: `action_to_tool(action: Action) -> dict` — Anthropic tool 정의 형식
+- Produces: `action_to_tool(action: Action) -> dict` — OpenAI function calling 정의 형식
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -1752,11 +1787,13 @@ SPEC = {
     },
 }
 
-def test_tool_스키마로_변환한다():
+def test_openai_function_형식으로_변환한다():
     tool = action_to_tool(Action(project_id=1, name="x", tool_name="search_apartment_markers", action_spec=SPEC))
-    assert tool["name"] == "search_apartment_markers"
-    assert tool["input_schema"]["properties"]["minX"]["type"] == "number"
-    assert set(tool["input_schema"]["required"]) == {"minX", "poiType"}
+    assert tool["type"] == "function"
+    assert tool["function"]["name"] == "search_apartment_markers"
+    params = tool["function"]["parameters"]
+    assert params["properties"]["minX"]["type"] == "number"
+    assert set(params["required"]) == {"minX", "poiType"}
 ```
 
 - [ ] **Step 2: 구현**
@@ -1766,7 +1803,7 @@ def test_tool_스키마로_변환한다():
 from app.models import Action
 
 def action_to_tool(action: Action) -> dict:
-    """ActionSpec을 Anthropic tool 정의로 변환한다."""
+    """ActionSpec을 OpenAI function calling 정의로 변환한다."""
     spec = action.action_spec
     request = spec.get("request", {})
     schema = request.get("bodySchema") or request.get("querySchema") or {}
@@ -1784,9 +1821,12 @@ def action_to_tool(action: Action) -> dict:
             required.append(key)
 
     return {
-        "name": spec.get("toolName", action.tool_name),
-        "description": spec.get("description", action.description),
-        "input_schema": {"type": "object", "properties": properties, "required": required},
+        "type": "function",
+        "function": {
+            "name": spec.get("toolName", action.tool_name),
+            "description": spec.get("description", action.description),
+            "parameters": {"type": "object", "properties": properties, "required": required},
+        },
     }
 ```
 
@@ -1912,18 +1952,48 @@ def execute_action(action: Action, arguments: dict) -> dict:
 
 `rawPreview`는 영상에서 실제 JSON을 보여주기 위한 것이다. 저장하지 않고 응답에만 싣는다.
 
-- [ ] **Step 3: 통과 확인 및 실제 호출 검증**
+- [ ] **Step 3: 픽스처 작성**
+
+`apps/backend/tests/fixtures/molit_action.json`:
+
+```json
+{
+  "toolName": "search_apartment_markers",
+  "description": "지도 영역 안의 아파트 단지 목록을 조회합니다.",
+  "request": {
+    "method": "POST",
+    "urlTemplate": "https://rt.molit.go.kr/pt/gis/getMarker.do",
+    "headers": {
+      "Referer": "https://rt.molit.go.kr/pt/gis/gis.do?srhThingSecd=A&mobileAt=",
+      "X-Requested-With": "XMLHttpRequest"
+    },
+    "querySchema": null,
+    "bodySchema": {
+      "minX": {"type": "number", "required": true, "llmEditable": true, "description": "서쪽 경도"},
+      "minY": {"type": "number", "required": true, "llmEditable": true, "description": "남쪽 위도"},
+      "maxX": {"type": "number", "required": true, "llmEditable": true, "description": "동쪽 경도"},
+      "maxY": {"type": "number", "required": true, "llmEditable": true, "description": "북쪽 위도"},
+      "srhYear": {"type": "integer", "required": true, "llmEditable": true, "description": "조회 연도"},
+      "poiType": {"type": "string", "required": true, "llmEditable": true, "description": "물건 종류"}
+    }
+  },
+  "response": {"successStatus": [200], "schema": {"type": "object"}},
+  "execution": {"authMode": "NONE", "credentialId": null, "requiresConfirmation": false}
+}
+```
+
+- [ ] **Step 4: 통과 확인 및 실제 호출 검증**
 
 Run: `.venv/bin/pytest tests/test_executor.py -v`
 Expected: PASS
 
-실제 호출도 한 번 확인한다:
+실제 호출도 한 번 확인한다. 네트워크가 필요하므로 pytest가 아닌 스크립트로 돌린다.
 
 ```bash
 cd apps/backend && .venv/bin/python -c "
+import json
 from app.models import Action
 from app.services.executor import execute_action
-import json
 spec = json.load(open('tests/fixtures/molit_action.json'))
 r = execute_action(Action(project_id=1, name='x', tool_name='t', action_spec=spec),
                    {'minX':126.9654155,'minY':37.5606793,'maxX':126.9911647,'maxY':37.5720409,
@@ -1934,7 +2004,7 @@ print(r['status'], r['rawPreview'][:120])
 
 Expected: `200 {"list":[{"aprpnHsmpCode":...`
 
-- [ ] **Step 4: 커밋**
+- [ ] **Step 5: 커밋**
 
 ```bash
 git add apps/backend
@@ -1961,8 +2031,8 @@ git commit -m "실행 게이트웨이 구현 — 헤더 재현과 호출 간격 
 # apps/backend/app/routers/llm.py
 import json
 import os
-from anthropic import Anthropic
 from fastapi import APIRouter, Depends, HTTPException
+from openai import AzureOpenAI
 from sqlmodel import Session, select
 from app.db import get_session
 from app.models import Action
@@ -1970,8 +2040,13 @@ from app.services.tool_registry import action_to_tool
 from app.services.executor import execute_action
 
 router = APIRouter()
-client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-MODEL = "claude-opus-5"
+
+client = AzureOpenAI(
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
+)
+DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]   # 모델명이 아니라 배포 이름
 
 SYSTEM = (
     "너는 사용자의 자연어 요청을 등록된 도구 호출로 변환하는 어시스턴트다. "
@@ -1988,32 +2063,32 @@ def select_tool(project_id: int, payload: dict, db: Session = Depends(get_sessio
         raise HTTPException(400, "활성화된 액션이 없습니다")
 
     tools = [action_to_tool(a) for a in actions]
-    by_name = {t["name"]: a for t, a in zip(tools, actions)}
+    by_name = {t["function"]["name"]: a for t, a in zip(tools, actions)}
 
-    # thinking을 끄지 말 것. Claude Opus 5에서 thinking을 끄면
-    # 도구 호출이 tool_use 블록이 아니라 본문 텍스트로 나오는 실패 모드가 있다.
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=16000,
-        output_config={"effort": "medium"},
-        system=SYSTEM,
+    response = client.chat.completions.create(
+        model=DEPLOYMENT,
+        max_tokens=4096,
+        messages=[
+            {"role": "system", "content": SYSTEM},
+            {"role": "user", "content": payload["query"]},
+        ],
         tools=tools,
-        messages=[{"role": "user", "content": payload["query"]}],
+        tool_choice="auto",
     )
 
-    tool_use = next((b for b in response.content if b.type == "tool_use"), None)
-    text = " ".join(b.text for b in response.content if b.type == "text")
+    message = response.choices[0].message
+    if not message.tool_calls:
+        return {"selectedTool": None, "reason": message.content or "적합한 도구를 찾지 못했습니다."}
 
-    if tool_use is None:
-        return {"selectedTool": None, "reason": text or "적합한 도구를 찾지 못했습니다."}
-
-    action = by_name[tool_use.name]
+    call = message.tool_calls[0]
+    action = by_name[call.function.name]
     return {
-        "selectedTool": tool_use.name,
+        "selectedTool": call.function.name,
         "actionId": action.id,
         "actionName": action.name,
-        "arguments": tool_use.input,
-        "reason": text,
+        # arguments는 JSON 문자열로 온다
+        "arguments": json.loads(call.function.arguments),
+        "reason": message.content or "",
     }
 
 @router.post("/api/actions/{action_id}/execute")
@@ -2024,10 +2099,9 @@ def execute(action_id: int, payload: dict, db: Session = Depends(get_session)) -
 
     result = execute_action(action, payload["arguments"])
 
-    summary_response = client.messages.create(
-        model=MODEL,
-        max_tokens=16000,
-        output_config={"effort": "low"},
+    summary_response = client.chat.completions.create(
+        model=DEPLOYMENT,
+        max_tokens=1024,
         messages=[{
             "role": "user",
             "content": (
@@ -2037,9 +2111,8 @@ def execute(action_id: int, payload: dict, db: Session = Depends(get_session)) -
             ),
         }],
     )
-    summary = " ".join(b.text for b in summary_response.content if b.type == "text")
 
-    return {**result, "summary": summary}
+    return {**result, "summary": summary_response.choices[0].message.content or ""}
 ```
 
 `main.py`에 라우터 3개(`analysis`, `actions`, `llm`)를 모두 등록한다.
@@ -2119,7 +2192,9 @@ export default function LlmConsole() {
 - [ ] **Step 3: 수동 검증 — 영상 장면 8~10**
 
 ```bash
-export ANTHROPIC_API_KEY=...
+export AZURE_OPENAI_ENDPOINT="https://<리소스명>.openai.azure.com/"
+export AZURE_OPENAI_API_KEY=...
+export AZURE_OPENAI_DEPLOYMENT="<배포 이름>"
 cd apps/backend && .venv/bin/uvicorn app.main:app --reload
 ```
 
@@ -2192,5 +2267,6 @@ git commit -m "시드 데이터와 촬영 대본 추가"
 | 지도 이동이 클릭으로 잡히지 않음 | `interactionId`가 `null` | 드래그 대신 확대/축소 버튼 클릭으로 촬영. 그래도 안 되면 상관 시간 창을 클릭 없이도 열어두는 폴백 |
 | 실거래가 WAF 강화 | 실행 시 400 | 브라우저 요청 헤더를 전부 복사해 재현. Task 13의 `PRESERVED_HEADERS` 확장 |
 | LLM이 좌표를 엉뚱하게 생성 | 빈 `list` 반환 | 파라미터 설명에 예시 좌표를 명시. `example` 값을 description에 포함 |
-| Opus 5가 도구를 안 부름 | `tool_use` 블록 없음 | `thinking`을 끄지 않았는지 먼저 확인. 시스템 프롬프트에 "반드시 도구를 호출하라" 유지 |
+| LLM이 도구를 안 부름 | `tool_calls`가 비어 있음 | `tool_choice="auto"`를 `{"type":"function","function":{"name":"..."}}`로 강제. 파라미터 description이 비어 있지 않은지 확인 |
+| Azure 배포명 혼동 | 404 DeploymentNotFound | `model=`에 모델명이 아니라 **배포 이름**을 넣었는지 확인 |
 | 2주 안에 못 끝냄 | 6일차에 Task 10 미완 | Task 11의 파라미터 편집을 읽기 전용으로 축소, Task 14의 요약 생성 생략 |
