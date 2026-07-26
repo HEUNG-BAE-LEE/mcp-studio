@@ -82,3 +82,12 @@ def list_actions(project_id: int, db: Session = Depends(get_session)) -> list:
          "description": a.description, "status": a.status, "actionSpec": a.action_spec}
         for a in rows
     ]
+
+@router.delete("/api/actions/{action_id}")
+def delete_action(action_id: int, db: Session = Depends(get_session)) -> dict:
+    action = db.get(Action, action_id)
+    if action is None:
+        raise HTTPException(404, "해당 액션을 찾을 수 없습니다")
+    db.delete(action)
+    db.commit()
+    return {"ok": True}

@@ -386,3 +386,38 @@ def test_세션_목록은_요청수와_최고점수를_함께_돌려준다(clien
 
 def test_세션이_없는_프로젝트의_목록은_빈_배열이다(client, project_id):
     assert client.get(f"/api/projects/{project_id}/recording-sessions").json() == []
+
+
+def test_세션_삭제는_자식_행도_함께_지운다(client, project_id, engine):
+    from sqlmodel import Session as DbSession, select as db_select
+    from app.models import InteractionEvent, NetworkRequest
+
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+    client.post(f"/api/recording-sessions/{session_id}/bulk", json={
+        "interactions": [{
+            "interactionId": "i1", "eventType": "click",
+            "pageUrl": "https://example.com/a", "selector": "#go",
+            "elementText": "이동", "occurredAt": "2026-07-26T01:00:00.000Z",
+        }],
+        "networks": [{
+            "url": "https://example.com/api/list", "method": "POST",
+            "requestHeaders": {}, "requestBody": "a=1", "status": 200,
+            "responseText": '{"list":[{"a":1}]}', "durationMs": 12,
+            "occurredAt": "2026-07-26T01:00:01.000Z", "interactionId": "i1",
+        }],
+    })
+
+    assert client.delete(f"/api/recording-sessions/{session_id}").json() == {"ok": True}
+
+    assert client.get(f"/api/recording-sessions/{session_id}").status_code == 404
+    with DbSession(engine) as db:
+        assert db.exec(db_select(NetworkRequest)
+                       .where(NetworkRequest.session_id == session_id)).all() == []
+        assert db.exec(db_select(InteractionEvent)
+                       .where(InteractionEvent.session_id == session_id)).all() == []
+
+
+def test_없는_세션_삭제는_한국어_404다(client):
+    res = client.delete("/api/recording-sessions/9999")
+    assert res.status_code == 404
+    assert res.json()["detail"] == "해당 기록 세션을 찾을 수 없습니다"

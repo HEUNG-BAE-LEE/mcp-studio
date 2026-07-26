@@ -162,3 +162,28 @@ def bulk_upload(session_id: int, payload: BulkIn, db: Session = Depends(get_sess
     db.add(session_row)
     db.commit()
     return {"interactions": len(payload.interactions), "networks": len(payload.networks)}
+
+@router.delete("/api/recording-sessions/{session_id}")
+def delete_recording_session(session_id: int, db: Session = Depends(get_session)) -> dict:
+    """세션과 그 자식 행을 지운다.
+
+    SQLite에 ON DELETE CASCADE를 걸지 않았으므로 여기서 명시적으로 지운다.
+    액션은 지우지 않는다 - Action은 네트워크 요청을 참조하지 않고
+    action_spec에 값을 복사해 두므로 세션이 사라져도 그대로 실행된다.
+    """
+    row = db.get(RecordingSession, session_id)
+    if row is None:
+        raise HTTPException(404, "해당 기록 세션을 찾을 수 없습니다")
+
+    for child in db.exec(
+        select(NetworkRequest).where(NetworkRequest.session_id == session_id)
+    ).all():
+        db.delete(child)
+    for child in db.exec(
+        select(InteractionEvent).where(InteractionEvent.session_id == session_id)
+    ).all():
+        db.delete(child)
+
+    db.delete(row)
+    db.commit()
+    return {"ok": True}

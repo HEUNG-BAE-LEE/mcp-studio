@@ -161,3 +161,35 @@ def test_없는_액션_단건_조회는_한국어_404다(client):
     res = client.get("/api/actions/9999")
     assert res.status_code == 404
     assert res.json()["detail"] == "해당 액션을 찾을 수 없습니다"
+
+
+def test_세션을_지워도_액션은_남는다(client, project_id, network_request_id):
+    """액션은 네트워크 요청을 참조하지 않고 스펙에 값을 복사해 둔다."""
+    action_id = client.post("/api/actions", json={
+        "networkRequestId": network_request_id,
+        "name": "단지 조회", "toolName": "search_markers", "description": "",
+    }).json()["id"]
+
+    sessions = client.get(f"/api/projects/{project_id}/recording-sessions").json()
+    for row in sessions:
+        client.delete(f"/api/recording-sessions/{row['id']}")
+
+    body = client.get(f"/api/actions/{action_id}").json()
+    assert body["id"] == action_id
+    assert body["actionSpec"]["request"]["method"] == "POST"
+
+
+def test_액션_삭제(client, network_request_id):
+    action_id = client.post("/api/actions", json={
+        "networkRequestId": network_request_id,
+        "name": "단지 조회", "toolName": "search_markers", "description": "",
+    }).json()["id"]
+
+    assert client.delete(f"/api/actions/{action_id}").json() == {"ok": True}
+    assert client.get(f"/api/actions/{action_id}").status_code == 404
+
+
+def test_없는_액션_삭제는_한국어_404다(client):
+    res = client.delete("/api/actions/9999")
+    assert res.status_code == 404
+    assert res.json()["detail"] == "해당 액션을 찾을 수 없습니다"
