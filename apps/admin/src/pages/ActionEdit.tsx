@@ -17,9 +17,9 @@ export default function ActionEdit() {
   const [projectId, setProjectId] = useState<number | null>(null);
   const [projectName, setProjectName] = useState("");
   const [spec, setSpec] = useState<any>(null);
-  const [name, setName] = useState("아파트 단지 조회");
-  const [toolName, setToolName] = useState("search_apartment_markers");
-  const [description, setDescription] = useState("지도 영역 안의 아파트 단지 목록을 조회합니다.");
+  const [name, setName] = useState("");
+  const [toolName, setToolName] = useState("");
+  const [description, setDescription] = useState("");
   const [status, setStatus] = useState("DRAFT");
   // loadError: /api/actions/:id(또는 생성 POST)가 실패해 그릴 것이 전혀
   // 없는 경우에만 쓴다 — 이때만 전체 화면 오류로 대체한다.
@@ -56,7 +56,9 @@ export default function ActionEdit() {
     if (!requestId || requested.current) return;
     requested.current = true;
 
-    api.post("/api/actions", { networkRequestId: Number(requestId), name, toolName, description })
+    // 이름은 보내지 않는다. 백엔드가 기록된 URL에서 초안을 만든다 —
+    // 하드코딩하면 어떤 사이트를 기록해도 같은 이름을 달고 태어난다.
+    api.post("/api/actions", { networkRequestId: Number(requestId) })
       .then((res) => navigate(`/actions/${res.id}`, { replace: true }))
       .catch((err) => setLoadError(errorMessage(err)));
     // name·toolName·description은 일부러 의존성에서 뺀다. 생성 경로에서만
@@ -110,7 +112,8 @@ export default function ActionEdit() {
     });
   }
 
-  async function activate() {
+  /** 폼 내용을 저장한다. 상태를 넘기지 않으면 서버가 현재 상태를 유지한다. */
+  async function persist(nextStatus?: string) {
     if (!actionId) return;
     setActivating(true);
     setError(null);
@@ -118,16 +121,33 @@ export default function ActionEdit() {
       await api.put(`/api/actions/${actionId}`, {
         name,
         toolName,
+        // 스펙에도 같은 값을 실어 둔다. 도구 정의는 스펙의 toolName을 읽고
+        // 콘솔의 중복 제거는 컬럼을 읽으므로, 둘이 어긋나면 이름이 갈린다.
         actionSpec: { ...spec, name, toolName, description },
         description,
-        status: "ACTIVE",
+        ...(nextStatus ? { status: nextStatus } : {}),
       });
-      setStatus("ACTIVE");
+      setSpec({ ...spec, name, toolName, description });
+      if (nextStatus) setStatus(nextStatus);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setActivating(false);
     }
+  }
+
+  /** 저장만 하고 화면에 머무른다 (이미 활성화된 액션을 고칠 때). */
+  async function save() {
+    await persist();
+  }
+
+  /**
+   * 활성화한 뒤 테스트 콘솔로 넘어간다. 버튼이 "활성화하고 테스트하기"라고
+   * 약속하므로 활성화만 하고 멈추면 약속을 지키지 않는 것이다.
+   */
+  async function activate() {
+    await persist("ACTIVE");
+    if (projectId) navigate(`/projects/${projectId}/console`);
   }
 
   return (
@@ -204,9 +224,27 @@ export default function ActionEdit() {
             </div>
           )}
 
-          <button className="primary activate-button" onClick={activate} disabled={activating || status === "ACTIVE"}>
-            {activating ? "활성화 중..." : status === "ACTIVE" ? "활성화됨" : "활성화하고 테스트하기"}
-          </button>
+          {/* 활성화 뒤에도 설명을 고칠 수 있어야 한다. 예전에는 ACTIVE가 되면
+              버튼이 비활성으로 잠겨, 그 뒤에 입력한 설명을 저장할 방법이 없었다. */}
+          <div className="activate-button">
+            {status === "ACTIVE" ? (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={save} disabled={activating}>
+                  {activating ? "저장 중..." : "저장"}
+                </button>
+                <button
+                  className="primary"
+                  onClick={() => projectId && navigate(`/projects/${projectId}/console`)}
+                >
+                  테스트 콘솔로 이동
+                </button>
+              </div>
+            ) : (
+              <button className="primary" onClick={activate} disabled={activating}>
+                {activating ? "활성화 중..." : "활성화하고 테스트하기"}
+              </button>
+            )}
+          </div>
         </article>
 
         <article className="panel code-preview">

@@ -1,3 +1,5 @@
+import re
+from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db import get_session
@@ -5,6 +7,34 @@ from app.models import NetworkRequest, RecordingSession, Action
 from app.services.schema_infer import build_action_spec
 
 router = APIRouter()
+
+def derive_names(url: str) -> tuple:
+    """기록된 URL에서 액션 이름과 Tool 이름의 초안을 만든다.
+
+    예전에는 프런트엔드가 "아파트 단지 조회" / "search_apartment_markers" 를
+    하드코딩해 보냈다. 어떤 사이트를 기록해도 아파트 이름을 달고 태어났고,
+    설명은 LLM이 도구를 고르는 유일한 근거라 실제와 다르면 모델이 엉뚱한
+    도구를 부른다.
+
+    실제 경로에서 끌어낸다: /cmm/emdList.do -> "emdList" / "emd_list".
+    좋은 이름은 아니지만 **거짓말은 아니다.** 사람이 고쳐 쓰라는 초안이다.
+    """
+    path = urlparse(url or "").path
+    segment = path.rstrip("/").split("/")[-1] if path else ""
+    segment = re.sub(r"\.[A-Za-z0-9]{1,6}$", "", segment)     # .do, .json 등 확장자 제거
+    segment = re.sub(r"[^A-Za-z0-9가-힣_-]", "", segment)
+
+    if not segment:
+        return "새 액션", "new_action"
+
+    # OpenAI 도구 이름은 영숫자·밑줄·하이픈만 허용한다. 한글 경로면 쓸 수 없다.
+    ascii_only = re.sub(r"[^A-Za-z0-9_-]", "", segment)
+    if ascii_only:
+        snake = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", ascii_only).lower()
+        snake = re.sub(r"[-]+", "_", snake).strip("_") or "new_action"
+    else:
+        snake = "new_action"
+    return segment, snake
 
 @router.post("/api/actions")
 def create_action(payload: dict, db: Session = Depends(get_session)) -> dict:
@@ -19,16 +49,22 @@ def create_action(payload: dict, db: Session = Depends(get_session)) -> dict:
     if session_row is None:
         raise HTTPException(404, "해당 기록 세션을 찾을 수 없습니다")
 
+    # 이름을 주지 않으면 기록된 URL에서 초안을 만든다. 하드코딩된 기본값을
+    # 쓰면 어떤 사이트를 기록해도 같은 이름을 달고 태어난다.
+    default_name, default_tool = derive_names(req.request_url)
+    name = (payload.get("name") or "").strip() or default_name
+    tool_name = (payload.get("toolName") or "").strip() or default_tool
+
     spec = build_action_spec(
         req,
-        name=payload["name"],
-        tool_name=payload["toolName"],
+        name=name,
+        tool_name=tool_name,
         description=payload.get("description", ""),
     )
     action = Action(
         project_id=session_row.project_id,
-        name=payload["name"],
-        tool_name=payload["toolName"],
+        name=name,
+        tool_name=tool_name,
         description=payload.get("description", ""),
         action_spec=spec,
         status="DRAFT",

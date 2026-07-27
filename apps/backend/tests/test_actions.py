@@ -248,3 +248,34 @@ def test_빈_이름으로_바꾸면_422를_반환한다(client, network_request_
     body = client.get(f"/api/actions/{action_id}").json()
     assert body["name"] == "단지 조회"
     assert body["toolName"] == "search_markers"
+
+
+def test_이름을_주지_않으면_URL에서_초안을_만든다(client, network_request_id):
+    """하드코딩된 기본값을 쓰면 어떤 사이트를 기록해도 같은 이름을 달고 태어난다."""
+    created = client.post("/api/actions", json={"networkRequestId": network_request_id}).json()
+
+    body = client.get(f"/api/actions/{created['id']}").json()
+    assert body["name"] == "list"
+    assert body["toolName"] == "list"
+    assert body["actionSpec"]["toolName"] == "list"
+
+
+def test_이름을_주면_그대로_쓴다(client, network_request_id):
+    created = client.post("/api/actions", json={
+        "networkRequestId": network_request_id,
+        "name": "내가 정한 이름", "toolName": "my_tool",
+    }).json()
+
+    body = client.get(f"/api/actions/{created['id']}").json()
+    assert body["name"] == "내가 정한 이름"
+    assert body["toolName"] == "my_tool"
+
+
+def test_공백만_준_이름은_초안으로_대체된다(client, network_request_id):
+    created = client.post("/api/actions", json={
+        "networkRequestId": network_request_id, "name": "   ", "toolName": "",
+    }).json()
+
+    body = client.get(f"/api/actions/{created['id']}").json()
+    assert body["name"] == "list"
+    assert body["toolName"] == "list"
