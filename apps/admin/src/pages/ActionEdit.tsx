@@ -78,7 +78,7 @@ export default function ActionEdit() {
 
   if (loadError) {
     return (
-      <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId}>
+      <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId} projectName={projectName}>
         <div className="error-banner">
           <strong>요청을 처리하지 못했습니다</strong>
           <p>{loadError}</p>
@@ -89,7 +89,7 @@ export default function ActionEdit() {
 
   if (!spec) {
     return (
-      <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId}>
+      <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId} projectName={projectName}>
         <p>불러오는 중...</p>
       </Shell>
     );
@@ -131,7 +131,7 @@ export default function ActionEdit() {
   }
 
   return (
-    <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId}>
+    <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">액션 생성</p>

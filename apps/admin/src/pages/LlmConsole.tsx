@@ -49,7 +49,7 @@ export default function LlmConsole() {
   }
 
   return (
-    <Shell breadcrumb={["Projects", projectName, "테스트 콘솔"]} projectId={projectId}>
+    <Shell breadcrumb={["Projects", projectName, "테스트 콘솔"]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">테스트</p>

@@ -35,7 +35,7 @@ export default function SessionDetail() {
 
   if (isLoading) {
     return (
-      <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId}>
+      <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId} projectName={projectName}>
         <p>불러오는 중...</p>
       </Shell>
     );
@@ -45,7 +45,7 @@ export default function SessionDetail() {
   // 촬영 중 백엔드가 꺼져 있으면 원인을 화면에서 바로 읽을 수 있어야 한다.
   if (isError) {
     return (
-      <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId}>
+      <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId} projectName={projectName}>
         <div className="error-banner">
           <strong>불러오지 못했습니다</strong>
           <p>{errorMessage(error)}</p>
@@ -57,7 +57,7 @@ export default function SessionDetail() {
   const groups = data ?? [];
 
   return (
-    <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId}>
+    <Shell breadcrumb={["Projects", projectName, `세션 #${id}`]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">API 분석</p>

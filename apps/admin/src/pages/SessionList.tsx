@@ -69,7 +69,7 @@ export default function SessionList() {
   const notFound = settled && projectExists === false;
 
   return (
-    <Shell breadcrumb={["Projects", projectName]} projectId={projectId}>
+    <Shell breadcrumb={["Projects", projectName]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">RECORDING SESSIONS</p>

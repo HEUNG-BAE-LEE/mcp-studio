@@ -167,3 +167,11 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .table-5col .table-head, .table-5col .table-row { grid-template-columns: 2fr 100px 120px 120px 180px; }
 /* 세션 상세: 점수 / Method / URL / 상태 / 추천 사유 / 액션 버튼 */
 .table-6col .table-head, .table-6col .table-row { grid-template-columns: 64px 70px minmax(0, 1.4fr) 64px minmax(0, 1fr) 120px; }
+
+/* 워크스페이스 칩. 목업은 <div> 전제였으나 여기서는 프로젝트 목록으로 가는
+   링크라 밑줄과 기본 링크색이 붙는다. .workspace 자체는 color 를 정하지
+   않으므로 여기서 명시한다 (strong 이 파랗게 물드는 것을 막는다). */
+.workspace { text-decoration: none; color: var(--ink); }
+.workspace:hover { background: #f7f8fb; }
+.workspace strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace > span:last-child { min-width: 0; }

@@ -78,7 +78,7 @@ export default function ActionList() {
   const notFound = settled && projectExists === false;
 
   return (
-    <Shell breadcrumb={["Projects", projectName, "액션"]} projectId={projectId}>
+    <Shell breadcrumb={["Projects", projectName, "액션"]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">TOOL DEFINITIONS</p>
