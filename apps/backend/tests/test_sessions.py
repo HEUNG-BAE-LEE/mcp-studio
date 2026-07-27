@@ -421,3 +421,59 @@ def test_없는_세션_삭제는_한국어_404다(client):
     res = client.delete("/api/recording-sessions/9999")
     assert res.status_code == 404
     assert res.json()["detail"] == "해당 기록 세션을 찾을 수 없습니다"
+
+
+def test_프로젝트_삭제는_세션과_액션을_모두_지운다(client, project_id, engine):
+    from sqlmodel import Session as DbSession, select as db_select
+    from app.models import Project, RecordingSession, InteractionEvent, NetworkRequest, Action
+
+    session_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+    client.post(f"/api/recording-sessions/{session_id}/bulk", json={
+        "interactions": [{
+            "interactionId": "i1", "eventType": "click",
+            "pageUrl": "https://example.com/a", "selector": "#go",
+            "elementText": "이동", "occurredAt": "2026-07-27T01:00:00.000Z",
+        }],
+        "networks": [{
+            "url": "https://example.com/api/list", "method": "POST",
+            "requestHeaders": {}, "requestBody": "a=1", "status": 200,
+            "responseText": '{"list":[{"a":1}]}', "durationMs": 12,
+            "occurredAt": "2026-07-27T01:00:01.000Z", "interactionId": "i1",
+        }],
+    })
+    request_id = client.get(f"/api/recording-sessions/{session_id}/candidates") \
+        .json()[0]["candidates"][0]["id"]
+    action_id = client.post("/api/actions", json={
+        "networkRequestId": request_id, "name": "조회",
+        "toolName": "search", "description": "",
+    }).json()["id"]
+
+    body = client.delete(f"/api/projects/{project_id}").json()
+
+    assert body["ok"] is True
+    assert body["deletedSessions"] == 1
+    assert body["deletedActions"] == 1
+    assert body["deletedRequests"] == 1
+
+    # 액션은 세션 삭제 때는 살아남지만 프로젝트 삭제 때는 함께 사라진다.
+    # 남겨두면 어디에도 속하지 않은 채 콘솔의 도구 목록에만 뜬다.
+    assert client.get(f"/api/actions/{action_id}").status_code == 404
+    assert client.get(f"/api/recording-sessions/{session_id}").status_code == 404
+    with DbSession(engine) as db:
+        assert db.get(Project, project_id) is None
+        assert db.exec(db_select(NetworkRequest)
+                       .where(NetworkRequest.session_id == session_id)).all() == []
+        assert db.exec(db_select(InteractionEvent)
+                       .where(InteractionEvent.session_id == session_id)).all() == []
+
+
+def test_빈_프로젝트도_삭제된다(client, project_id):
+    body = client.delete(f"/api/projects/{project_id}").json()
+    assert body == {"ok": True, "deletedSessions": 0, "deletedActions": 0, "deletedRequests": 0}
+    assert project_id not in [p["id"] for p in client.get("/api/projects").json()]
+
+
+def test_없는_프로젝트_삭제는_한국어_404다(client):
+    res = client.delete("/api/projects/9999")
+    assert res.status_code == 404
+    assert res.json()["detail"] == "해당 프로젝트를 찾을 수 없습니다"

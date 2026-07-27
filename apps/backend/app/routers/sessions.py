@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import Project, RecordingSession, InteractionEvent, NetworkRequest
+from app.models import Project, RecordingSession, InteractionEvent, NetworkRequest, Action
 from app.services.body import summarize_response
 from app.services.masking import mask_patterns, mask_deep, mask_query, mask_body
 
@@ -82,6 +82,55 @@ def list_recording_sessions(project_id: int, db: Session = Depends(get_session))
             "topScore": max(scores) if scores else None,
         })
     return result
+
+@router.delete("/api/projects/{project_id}")
+def delete_project(project_id: int, db: Session = Depends(get_session)) -> dict:
+    """프로젝트와 그 안의 모든 것을 지운다.
+
+    세션 삭제와 달리 **액션도 함께 지운다.** 액션은 project_id 로 프로젝트에
+    매여 있어서, 프로젝트만 없애면 어디에도 속하지 않은 액션이 남는다. 그러면
+    목록 조회로는 보이지 않는데 콘솔의 도구 목록에는 계속 뜬다.
+
+    SQLite 에 ON DELETE CASCADE 를 걸지 않았으므로 자식부터 순서대로 지운다.
+    되돌릴 수 없으므로 무엇이 지워졌는지 건수를 돌려준다 — 화면이 그대로
+    사용자에게 알려줄 수 있어야 한다.
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "해당 프로젝트를 찾을 수 없습니다")
+
+    sessions = db.exec(
+        select(RecordingSession).where(RecordingSession.project_id == project_id)
+    ).all()
+    session_ids = [s.id for s in sessions]
+
+    request_count = 0
+    if session_ids:
+        for child in db.exec(
+            select(NetworkRequest).where(NetworkRequest.session_id.in_(session_ids))
+        ).all():
+            db.delete(child)
+            request_count += 1
+        for child in db.exec(
+            select(InteractionEvent).where(InteractionEvent.session_id.in_(session_ids))
+        ).all():
+            db.delete(child)
+
+    actions = db.exec(select(Action).where(Action.project_id == project_id)).all()
+    for action in actions:
+        db.delete(action)
+
+    for row in sessions:
+        db.delete(row)
+
+    db.delete(project)
+    db.commit()
+    return {
+        "ok": True,
+        "deletedSessions": len(sessions),
+        "deletedActions": len(actions),
+        "deletedRequests": request_count,
+    }
 
 # 페이로드를 dict로 받으면 키 누락이 KeyError, 잘못된 시각이 ValueError가 되어
 # 그대로 500이 된다. Pydantic으로 받으면 FastAPI가 422와 함께 어느 필드가
