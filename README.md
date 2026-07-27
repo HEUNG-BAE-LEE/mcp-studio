@@ -246,6 +246,12 @@ curl -s http://localhost:8000/openapi.json | python3 -c \
 메시지와 `tool_choice="required"`를 함께 보내야 합니다 — 둘 다 필요하며
 `apps/backend/app/routers/llm.py`에 이미 반영돼 있습니다.
 
+**확장을 다시 로드한 뒤 클릭이 하나도 안 잡힙니다.**
+확장을 새로고침하면 이미 열려 있던 페이지의 콘텐츠 스크립트는 고아가 됩니다.
+`chrome://extensions`에 `Extension context invalidated` 오류가 쌓이고, 그 페이지에서는
+클릭도 요청도 전달되지 않습니다. **대상 페이지를 새로고침한 뒤** 기록을 시작하세요.
+확장 코드를 고칠 때마다 매번 해당됩니다.
+
 **`npm install`이 권한 오류로 실패합니다.**
 
 ```bash

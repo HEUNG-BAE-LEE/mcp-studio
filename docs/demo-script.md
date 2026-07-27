@@ -59,7 +59,12 @@ cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
 3. 관리자 화면(`apps/admin`, 5173번 포트)이 떠 있는지, `http://localhost:5173/`(프로젝트
    목록)과 `http://localhost:5173/projects/1/console`이 에러 없이 열리는지 확인한다.
 
-4. 실거래가 사이트(`https://rt.molit.go.kr`)와 Azure OpenAI 호출은 모두 **실측·과금
+4. **확장을 새로 빌드했거나 `chrome://extensions`에서 새로고침했다면, 대상 페이지도
+   반드시 새로고침한다.** 이미 열려 있던 탭의 콘텐츠 스크립트는 고아가 되어 클릭이
+   하나도 잡히지 않는다. 화면에는 오류 없이 "0 클릭"만 보이므로 촬영 중에는
+   알아채기 어렵다.
+
+5. 실거래가 사이트(`https://rt.molit.go.kr`)와 Azure OpenAI 호출은 모두 **실측·과금
    대상**이다. 리허설 중 반복 호출을 최소화하고, 최종 테이크 직전 1회만 정식으로 돌린다.
 
 ---

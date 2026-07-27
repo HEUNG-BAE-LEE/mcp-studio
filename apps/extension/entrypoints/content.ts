@@ -6,8 +6,30 @@ const CORRELATION_WINDOW_MS = 5000;
 // MV3에서 서비스 워커가 잠들어 있으면 sendMessage가 reject한다
 // ("Could not establish connection"). 잡지 않으면 대상 사이트의 콘솔에
 // unhandled rejection이 남는다 — 촬영 중 개발자 도구를 열면 그대로 보인다.
+// 확장을 다시 로드하면 이미 주입돼 있던 이 스크립트는 고아가 된다.
+// chrome.runtime 자체가 undefined 가 되어 sendMessage 에 접근하는 순간
+// 동기 TypeError 가 나고, .catch() 를 붙이기도 전에 페이지로 새어나간다
+// ("Extension context invalidated", "Cannot read properties of undefined").
+// 이 상태에서는 클릭도 요청도 전달되지 않으므로 페이지를 새로고침해야 한다.
+let orphanWarned = false;
+
 function post(type: "interaction" | "network", payload: unknown): void {
-  void chrome.runtime.sendMessage({ type, payload }).catch(() => {});
+  try {
+    if (!chrome.runtime?.id) {
+      if (!orphanWarned) {
+        orphanWarned = true;
+        console.warn(
+          "[MCP Studio] 확장이 다시 로드되어 이 페이지의 기록이 끊겼습니다. " +
+            "페이지를 새로고침한 뒤 다시 기록을 시작하세요.",
+        );
+      }
+      return;
+    }
+    void chrome.runtime.sendMessage({ type, payload }).catch(() => {});
+  } catch {
+    // 확인과 호출 사이에 무효화될 수도 있다. 여기서 삼키지 않으면 대상
+    // 사이트의 콘솔에 예외가 그대로 남는다.
+  }
 }
 
 export default defineContentScript({
