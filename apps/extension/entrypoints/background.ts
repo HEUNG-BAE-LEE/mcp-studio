@@ -333,10 +333,18 @@ async function retryUpload() {
     if (check.ok) {
       const info = await check.json();
       if (info.status === "COMPLETED") {
-        state.lastError = null;
-        await saveState(state);
-        broadcast(state);
-        return { ok: true, sessionId: state.sessionId, alreadyUploaded: true };
+        // 서버가 이미 갖고 있으니 재전송 대비로 들고 있을 이유가 없다.
+        // uploadPending 의 성공 경로와 같은 정리를 한다.
+        const next: SessionState = {
+          ...state,
+          lastError: null,
+          interactions: [],
+          networks: [],
+          approxBytes: 0,
+        };
+        await saveState(next);
+        broadcast(next);
+        return { ok: true, sessionId: next.sessionId, alreadyUploaded: true };
       }
     }
   } catch {
@@ -347,7 +355,14 @@ async function retryUpload() {
   return uploadPending(state);
 }
 
-/** 모아둔 기록을 서버로 올린다. 최초 전송과 재전송이 같은 경로를 쓴다. */
+/**
+ * 모아둔 기록을 서버로 올린다. 최초 전송과 재전송이 같은 경로를 쓴다.
+ *
+ * 전송에 성공하면 수집 데이터를 비운다. 남겨두는 이유는 재전송뿐인데, 서버가
+ * 이미 받았으면 다시 보낼 일이 없다. 비우지 않으면 다음 기록을 시작할 때까지
+ * 이전 세션의 클릭·요청 수가 초기 화면에 그대로 떠 새 기록의 것처럼 보인다.
+ * 실패 경로에서는 그대로 남으므로 "전송 재시도"는 영향받지 않는다.
+ */
 async function uploadPending(state: SessionState) {
   try {
     const res = await fetch(`${API_BASE}/api/recording-sessions/${state.sessionId}/bulk`, {
@@ -357,10 +372,16 @@ async function uploadPending(state: SessionState) {
     });
     if (!res.ok) throw new Error(await describeFailure(res));
     const data = await res.json();
-    state.lastError = null;
-    await saveState(state);
-    broadcast(state);
-    return { ok: true, sessionId: state.sessionId, ...data };
+    const next: SessionState = {
+      ...state,
+      lastError: null,
+      interactions: [],
+      networks: [],
+      approxBytes: 0,
+    };
+    await saveState(next);
+    broadcast(next);
+    return { ok: true, sessionId: next.sessionId, ...data };
   } catch (e) {
     state.lastError = `전송 실패: ${e instanceof Error ? e.message : String(e)}`;
     await saveState(state);
