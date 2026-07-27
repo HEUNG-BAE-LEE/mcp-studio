@@ -28,7 +28,7 @@ cd apps/extension && npm test           # vitest
 cd apps/extension && npm run compile    # tsc --noEmit
 ```
 
-백엔드를 재시작할 때는 `lsof -ti :8000 | xargs kill` 을 쓴다. `/tmp/backend.pid` 는
+백엔드를 재시작할 때는 `lsof -ti tcp:8000 -sTCP:LISTEN | xargs kill` 을 쓴다. `/tmp/backend.pid` 는
 낡아 있을 수 있고, 그러면 이전 커밋의 코드를 문 uvicorn 이 포트를 계속 쥔 채
 조용히 낡은 라우트를 서빙한다.
 

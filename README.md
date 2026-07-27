@@ -208,7 +208,7 @@ cd apps/extension && npm run compile
 
 ```bash
 rm -f apps/backend/data/dev.db
-lsof -ti :8000 | xargs kill     # 아래 "문제가 생기면" 참고
+lsof -ti tcp:8000 -sTCP:LISTEN | xargs kill     # 아래 "문제가 생기면" 참고
 cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
 ```
 
@@ -221,8 +221,12 @@ cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
 `kill $(cat /tmp/backend.pid)`는 pid 파일이 낡아 실패할 수 있으니 이렇게 잡습니다:
 
 ```bash
-lsof -ti :8000 | xargs kill
+lsof -ti tcp:8000 -sTCP:LISTEN | xargs kill
 ```
+
+`-sTCP:LISTEN`을 빼면 안 됩니다. 그러면 8000번에 **접속한** 프로세스까지 잡히는데,
+관리자 화면을 열어둔 Chrome이 거기 포함됩니다(실측 3개 중 2개가 Chrome이었습니다).
+브라우저가 통째로 닫힙니다.
 
 서버가 최신 코드를 서빙하는지는 라우트 존재로 확인합니다:
 
