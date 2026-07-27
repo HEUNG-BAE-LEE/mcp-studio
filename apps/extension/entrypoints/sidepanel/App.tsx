@@ -27,6 +27,8 @@ export default function App() {
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [finishedSessionId, setFinishedSessionId] = useState<number | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   // 열릴 때마다 마지막으로 입력했던 프로젝트 이름을 복원한다 - 매번 다시
   // 타이핑하지 않도록 하기 위함이다.
@@ -44,6 +46,7 @@ export default function App() {
       setCounts({ interactionCount: s.interactionCount, networkCount: s.networkCount });
       setRecent(s.recent ?? []);
       setError(s.lastError ?? null);
+      setCanRetry(!!s.canRetry);
     }
 
     chrome.runtime.sendMessage({ type: "state" }, apply);
@@ -94,6 +97,7 @@ export default function App() {
               return;
             }
             setFinishedSessionId(null);
+            setCanRetry(false);
             chrome.storage.local.set({ [LAST_PROJECT_NAME_KEY]: trimmed });
             chrome.runtime.sendMessage({ type: "start", projectName: trimmed }, (r) => {
               setRecording(!!r?.ok);
@@ -124,6 +128,25 @@ export default function App() {
         <div style={{ marginTop: 10, padding: 8, background: "#fef2f2", color: "#b91c1c", borderRadius: 4, fontSize: 12 }}>
           {error}
         </div>
+      )}
+
+      {/* 전송이 실패해도 기록은 남아 있다. 다시 보낼 길이 없으면 그대로 사라진다. */}
+      {canRetry && !recording && (
+        <button
+          disabled={retrying}
+          onClick={() => {
+            setRetrying(true);
+            chrome.runtime.sendMessage({ type: "retry" }, (r) => {
+              setRetrying(false);
+              setError(r?.error ?? null);
+              setFinishedSessionId(r?.ok ? (r.sessionId ?? null) : null);
+            });
+          }}
+          style={{ width: "100%", marginTop: 8, padding: 9, background: "#fff", color: "#3157e8",
+                   border: "1px solid #3157e8", borderRadius: 6 }}
+        >
+          {retrying ? "재전송 중…" : "전송 재시도"}
+        </button>
       )}
 
       {finishedSessionId !== null && (

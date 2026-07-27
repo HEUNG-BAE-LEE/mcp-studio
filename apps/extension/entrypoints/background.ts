@@ -154,6 +154,13 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (msg.type === "retry") {
+      enqueue(() => retryUpload())
+        .catch((e) => ({ ok: false, error: `재전송 실패: ${e instanceof Error ? e.message : String(e)}` }))
+        .then(sendResponse);
+      return true;
+    }
+
     if (msg.type === "state") {
       loadState()
         .then((state) => snapshot(state))
@@ -174,6 +181,13 @@ function snapshot(state: SessionState) {
     interactionCount: state.interactions.length,
     networkCount: state.networks.length,
     recent: state.networks.slice(-10),
+    // 전송이 실패하면 기록은 storage.session 에 그대로 남는다. 그 상태에서만
+    // 재시도를 제안한다 — 성공하면 lastError 가 null 이 되어 사라진다.
+    canRetry:
+      !state.recording &&
+      state.sessionId !== null &&
+      state.lastError !== null &&
+      state.interactions.length + state.networks.length > 0,
   };
 }
 
@@ -290,6 +304,51 @@ async function stopSession() {
     return { ok: false, error: state.lastError };
   }
 
+  return uploadPending(state);
+}
+
+/**
+ * 전송이 실패해도 기록은 storage.session 에 그대로 남는다. 예전에는 다시 보낼
+ * 길이 없어 클릭 13건·요청 210건이 그대로 사라졌다. 저장된 것을 그대로 다시
+ * 올린다 — 새로 수집하지 않는다.
+ */
+async function retryUpload() {
+  const state = await loadState();
+
+  if (state.recording) {
+    return { ok: false, error: "기록 중에는 재전송할 수 없습니다" };
+  }
+  if (state.sessionId === null) {
+    return { ok: false, error: "재전송할 세션이 없습니다" };
+  }
+  if (state.interactions.length + state.networks.length === 0) {
+    return { ok: false, error: "재전송할 기록이 없습니다" };
+  }
+
+  // 서버가 이미 처리했는데 응답만 유실된 경우가 있다. 그대로 다시 올리면 같은
+  // 요청이 두 벌 저장된다(실측: 1건 -> 2건). 세션 상태로 구분한다 - 전송이
+  // 성공하면 서버가 COMPLETED 로 바꾼다.
+  try {
+    const check = await fetch(`${API_BASE}/api/recording-sessions/${state.sessionId}`);
+    if (check.ok) {
+      const info = await check.json();
+      if (info.status === "COMPLETED") {
+        state.lastError = null;
+        await saveState(state);
+        broadcast(state);
+        return { ok: true, sessionId: state.sessionId, alreadyUploaded: true };
+      }
+    }
+  } catch {
+    // 확인 자체가 실패하면 그대로 재전송을 시도한다. 서버가 꺼져 있다면
+    // 아래에서 같은 오류가 다시 날 뿐이다.
+  }
+
+  return uploadPending(state);
+}
+
+/** 모아둔 기록을 서버로 올린다. 최초 전송과 재전송이 같은 경로를 쓴다. */
+async function uploadPending(state: SessionState) {
   try {
     const res = await fetch(`${API_BASE}/api/recording-sessions/${state.sessionId}/bulk`, {
       method: "POST",
