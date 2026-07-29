@@ -79,6 +79,10 @@ export default function App() {
   const [detection, setDetection] = useState<SpecDetection | null>(null);
   const [collecting, setCollecting] = useState(false);
   const [specResult, setSpecResult] = useState<SpecResult | null>(null);
+  // detection 이 null 인 이유는 둘이다 — 아직 안 물어봤거나, 물어봤는데
+  // 콘텐츠 스크립트가 없어 실패했거나. 뒤쪽은 확장을 새로고침한 직후에
+  // 반드시 생기는 상태이므로 구분해서 안내해야 한다.
+  const [probeFailed, setProbeFailed] = useState(false);
 
   // 열릴 때마다 마지막으로 입력했던 프로젝트 이름을 복원한다 - 매번 다시
   // 타이핑하지 않도록 하기 위함이다.
@@ -128,11 +132,16 @@ export default function App() {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab?.id) return;
         const result = await chrome.tabs.sendMessage(tab.id, { type: "detect-spec" });
-        if (alive) setDetection(result ?? null);
+        if (alive) {
+          setDetection(result ?? null);
+          setProbeFailed(!result);
+        }
       } catch {
         // 콘텐츠 스크립트가 없는 탭(chrome:// 등)이거나 확장 재로드 직후다.
-        // 감지 실패는 일반 페이지와 같게 취급한다.
-        if (alive) setDetection(null);
+        if (alive) {
+          setDetection(null);
+          setProbeFailed(true);
+        }
       }
     }
 
@@ -209,11 +218,15 @@ export default function App() {
               </>
             ) : (
               <>
-                <strong>일반 페이지</strong>
-                {/* 왜 안 되는지만 말하면 사용자는 다음에 뭘 해야 할지 모른다.
-                    자격 조건과 대안을 함께 준다. 판정 기준은 lib/spec-detect.ts 와
-                    같아야 한다 — 여기만 고치면 두 설명이 갈린다. */}
-                <div style={{ marginTop: 2 }}>공개 명세 표가 감지되지 않았습니다</div>
+                {/* 판정을 못 한 것과 판정해서 아니라고 한 것은 다르다. 둘을 같은
+                    문구로 묶으면 확장을 새로고침한 직후에도 "일반 페이지"라고 말해
+                    페이지 탓을 하게 된다 — 실제 원인은 고아가 된 콘텐츠 스크립트다. */}
+                <strong>{probeFailed ? "이 페이지를 확인할 수 없습니다" : "일반 페이지"}</strong>
+                <div style={{ marginTop: 2 }}>
+                  {probeFailed
+                    ? "확장을 새로고침했다면 이 페이지도 새로고침해야 합니다"
+                    : "공개 명세 표가 감지되지 않았습니다"}
+                </div>
                 <div style={{ marginTop: 6, color: "#64748b", lineHeight: 1.55 }}>
                   공공데이터포털의 <strong>오픈API 상세페이지</strong>에서만 감지됩니다
                   (<code>요청주소</code>와 <code>요청변수</code> 표가 함께 있는 화면).
