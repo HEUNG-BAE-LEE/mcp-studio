@@ -227,20 +227,27 @@ export default function App() {
                     ? "확장을 새로고침했다면 이 페이지도 새로고침해야 합니다"
                     : "공개 명세 표가 감지되지 않았습니다"}
                 </div>
-                <div style={{ marginTop: 6, color: "#64748b", lineHeight: 1.55 }}>
-                  공공데이터포털의 <strong>오픈API 상세페이지</strong>에서만 감지됩니다
-                  (<code>요청주소</code>와 <code>요청변수</code> 표가 함께 있는 화면).
-                  목록·검색 페이지는 대상이 아닙니다.
-                </div>
-                <button
-                  onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sources` })}
-                  style={{
-                    marginTop: 7, padding: "5px 9px", fontSize: 11, borderRadius: 5,
-                    border: "1px solid #cbd5e1", background: "#fff", color: "#475569",
-                  }}
-                >
-                  목록 URL 하나로 일괄 수집하기
-                </button>
+                {/* 판정 실패일 때는 할 일이 "페이지 새로고침" 하나로 분명하다.
+                    자격 조건과 대안을 함께 띄우면 그 하나가 희석된다. 판정이
+                    끝난 뒤(명세 아님)에만 어디서 되는지와 대안을 보여준다. */}
+                {!probeFailed && (
+                  <>
+                    <div style={{ marginTop: 6, color: "#64748b", lineHeight: 1.55 }}>
+                      공공데이터포털의 <strong>오픈API 상세페이지</strong>에서만 감지됩니다
+                      (<code>요청주소</code>와 <code>요청변수</code> 표가 함께 있는 화면).
+                      목록·검색 페이지는 대상이 아닙니다.
+                    </div>
+                    <button
+                      onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sources` })}
+                      style={{
+                        marginTop: 7, padding: "5px 9px", fontSize: 11, borderRadius: 5,
+                        border: "1px solid #cbd5e1", background: "#fff", color: "#475569",
+                      }}
+                    >
+                      목록 URL 하나로 일괄 수집하기
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
