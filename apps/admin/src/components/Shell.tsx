@@ -20,17 +20,46 @@ type Props = {
 export default function Shell({ breadcrumb, projectId, projectName, children }: Props) {
   const { pathname } = useLocation();
 
+  // 번호를 붙이지 않는다. 상단 스테퍼가 이미 STEP 1~5 로 순서를 말하고 있어서,
+  // 사이드바에도 01~05 를 달면 다섯 개짜리 번호 순서가 화면에 둘이 된다.
+  // 게다가 3·4·5 는 뜻이 맞아떨어지고 1·2 는 전혀 달라서, 부분적으로만 맞는
+  // 대응 관계를 학습시켰다. 순서는 스테퍼가, 위치는 사이드바가 맡는다.
+  //
+  // 수집 엔진을 프로젝트보다 위에 둔다. 처음 쓰는 사람에게 프로젝트 목록은
+  // 비어 있고, 그 빈 상태가 "확장에서 시작하세요"라며 다른 곳을 가리킨다.
+  // 시작 방법이 담긴 화면이 이미 한 일보다 아래에 있으면 순서가 뒤집힌 것이다.
+  // 정확 일치(to)와 접두사(prefixes)를 따로 둔다. 하나의 목록에 섞어 담고
+  // 끝의 슬래시로 구분하려 했더니 루트("/")가 모든 경로의 접두사여서
+  // 프로젝트 항목이 항상 활성으로 잡혔다.
   const items = [
-    { label: "프로젝트", number: "01", to: "/" },
-    { label: "수집 엔진", number: "02", to: "/sources" },
+    { label: "수집 엔진", to: "/sources", prefixes: [] as string[] },
+    { label: "프로젝트", to: "/", prefixes: [] as string[] },
     ...(projectId
       ? [
-          { label: "수집 세션", number: "03", to: `/projects/${projectId}` },
-          { label: "액션", number: "04", to: `/projects/${projectId}/actions` },
-          { label: "테스트 콘솔", number: "05", to: `/projects/${projectId}/console` },
+          {
+            label: "수집 세션",
+            to: `/projects/${projectId}`,
+            // 세션 상세는 /sessions/:id · /spec-sessions/:id 로 빠진다. 정확 일치만
+            // 보면 정작 작업하는 화면에서 사이드바가 통째로 꺼져 위치를 잃는다.
+            prefixes: ["/sessions/", "/spec-sessions/"],
+          },
+          {
+            label: "액션",
+            to: `/projects/${projectId}/actions`,
+            prefixes: ["/actions/"],
+          },
+          {
+            label: "테스트 콘솔",
+            to: `/projects/${projectId}/console`,
+            prefixes: [] as string[],
+          },
         ]
       : []),
   ];
+
+  function isActive(item: { to: string; prefixes: string[] }): boolean {
+    return pathname === item.to || item.prefixes.some((p) => pathname.startsWith(p));
+  }
 
   // 이름을 아직 못 불러왔으면 칩을 띄우지 않는다. 빈 칩이 잠깐 스쳤다가
   // 채워지는 것보다 조금 늦게 나타나는 편이 낫다.
@@ -62,9 +91,8 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
             <Link
               to={item.to}
               key={item.label}
-              className={pathname === item.to ? "nav-item active" : "nav-item"}
+              className={isActive(item) ? "nav-item active" : "nav-item"}
             >
-              <span className="nav-number">{item.number}</span>
               {item.label}
             </Link>
           ))}
