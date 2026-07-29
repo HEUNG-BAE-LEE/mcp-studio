@@ -56,8 +56,8 @@ export default function CredentialPanel({ projectId }: { projectId: number }) {
 
   return (
     <article className="panel panel-pad">
-      <div className="cluster" style={{ justifyContent: "space-between" }}>
-        <span className="field-label" style={{ margin: 0 }}>
+      <div className="cluster between">
+        <span className="field-label m0">
           포털 인증키
         </span>
         {registered ? (
@@ -90,11 +90,11 @@ export default function CredentialPanel({ projectId }: { projectId: number }) {
 
       {expanded && (
         <>
-          <p className="field-help" style={{ marginTop: 12 }}>
+          <p className="field-help mt-3">
             포털 공개 기반 수집으로 만든 액션은 인증키를 LLM 에게 숨기고 실행 시점에 주입합니다. 키가 없으면
             호출 전에 막힙니다.
           </p>
-          <div className="cred-row" style={{ marginTop: 10 }}>
+          <div className="cred-row mt-3">
             <input
               className="input input-mono"
               style={{ width: 150, flex: "0 0 150px" }}

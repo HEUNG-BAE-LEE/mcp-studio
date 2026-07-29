@@ -1111,7 +1111,14 @@
 @layer utilities {
   .stack { display: grid; gap: var(--sp-2); }
   .cluster { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+  .between { justify-content: space-between; }
   .push { margin-left: auto; }
+  /* 표 열 폭처럼 그 자리에서만 의미를 갖는 값은 인라인으로 두지만, 반복되는
+     간격과 크기는 여기로 회수한다. */
+  .mt-2 { margin-top: var(--sp-2); }
+  .mt-3 { margin-top: var(--sp-3); }
+  .xs { font-size: 11.5px; }
+  .m0 { margin: 0; }
   .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .t2 { color: var(--tx-2); }
