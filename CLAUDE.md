@@ -64,10 +64,24 @@ COLUMN ... DEFAULT ...` 로 컬럼만 더한다 (SQLite 는 기존 행에 기본
 **포털 공개 수집 경로.** 확장 `lib/spec-detect.ts` 가 페이지를 판정하고,
 `content.ts` 의 `capture-spec` 핸들러가 현재 DOM 을 통째로 넘긴다.
 `background.ts:collectSpec` → `POST /api/projects/{id}/spec-sessions` →
-`services/spec_parser.py:parse` → `SpecOperation`. **서버는 포털에 직접 접속하지 않는다** —
-data.go.kr robots.txt 가 목록 페이지(/tcs/dss/selectDataSetList.do)를 Disallow 하고 있고,
-사용자가 이미 연 페이지를 파싱하는 것과 서버가 긁는 것은 성격이 다르다.
+`services/spec_parser.py:parse` → `SpecOperation`. **이 경로에서는 서버가 포털에
+접속하지 않는다** — 사용자가 이미 연 페이지의 DOM 만 확장이 넘긴다.
 포털을 늘리려면 `spec_parser.PARSERS` 에 함수 하나만 등록하면 된다.
+
+**포털 일괄 수집 경로는 서버가 직접 접속한다** (`services/portal_crawler.py`,
+`crawl_runner.py`). 목록 URL 하나로 상세페이지들을 열고, 상세기능 전환이
+`POST /tcs/dss/selectApiDetailFunction.do` 로 조각 HTML 을 주는 점을 이용해 서비스당
+오퍼레이션 전부를 모은다. 수십 초가 걸려 `CrawlJob` 에 진행 상태를 남기고 화면이 폴링한다.
+
+앞서 이 문서는 "서버는 포털에 직접 접속하지 않는다"고 적고 근거로 robots.txt 를 들었다.
+**그 근거는 실제보다 셌다.** `data.go.kr/robots.txt` 는 목록 페이지를
+`User-agent: Googlebot` 에 대해서만 Disallow 하며 `User-agent: *` 그룹이 없다 —
+Googlebot 이 아닌 수집은 그 규칙의 대상이 아니다. 원본을 확인하지 않고 이 문서만 읽으면
+일괄 수집을 "설계 위반"으로 오판한다.
+
+로봇 규칙과 별개로 상대는 공공 서버다. `portal_crawler.py` 가 지키는 것을 낮추지 않는다 —
+요청 간 `MIN_INTERVAL_SEC = 1.0` (실행기와 같은 기준), `MAX_LIMIT = 60`, 스케줄러 없음,
+사용자가 URL 을 등록했을 때만 동작.
 
 상세페이지는 상세기능을 select 로 전환하므로 **초기 HTML 에는 하나의 명세만 있다.**
 그래서 같은 서비스를 다시 수집하면 새 세션을 만들지 않고 직전 세션에 누적한다
