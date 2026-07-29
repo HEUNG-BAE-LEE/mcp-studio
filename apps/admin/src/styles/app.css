@@ -249,3 +249,41 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .guide-note > strong:first-child { display: block; margin-bottom: 3px; color: #573f0f; }
 .guide-note strong { color: #573f0f; }
 .guide-note + .guide-note { margin-top: 7px; }
+
+/* ── 포털 일괄 수집 ────────────────────────────────────────────
+   목록 URL 하나로 API 를 모으는 패널. 수집은 수십 초가 걸리므로 진행 상황을
+   숫자와 막대로 함께 보여준다. 막대만 두면 어디까지 왔는지 감이 오지 않고,
+   숫자만 두면 살아 있는지 알기 어렵다. */
+.crawl-panel { margin: 0 18px 14px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfe; }
+.crawl-head strong { display: block; font-size: 12.5px; color: var(--ink); }
+.crawl-head span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.crawl-presets { display: flex; gap: 5px; flex-wrap: wrap; margin: 10px 0 8px; }
+.crawl-presets button { border: 1px solid var(--line); background: #fff; color: #596174; border-radius: 99px; padding: 3px 11px; font-size: 11px; }
+.crawl-presets button.on { border-color: #0d9488; background: #e6f6f2; color: #0b6e5c; font-weight: 650; }
+.crawl-form { display: flex; gap: 6px; flex-wrap: wrap; }
+.crawl-form input { flex: 1; min-width: 200px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 11.5px; }
+.crawl-form select { padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 11.5px; }
+.crawl-progress { margin-top: 12px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.crawl-progress.is-done { border-color: #b7e3d8; background: #f2fbf8; }
+.crawl-bar { height: 5px; border-radius: 99px; background: #e9edf3; overflow: hidden; }
+.crawl-bar span { display: block; height: 100%; background: #0d9488; border-radius: 99px; transition: width .4s ease; }
+.crawl-stat { display: flex; align-items: baseline; gap: 5px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.crawl-stat b { font-size: 15px; color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.crawl-stat b + span { margin-right: 10px; }
+.crawl-stat em { margin-left: auto; font-style: normal; color: #0b6e5c; font-weight: 650; }
+.crawl-current { margin-top: 6px; font-size: 10px; color: #8b93a3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.crawl-done { display: flex; align-items: center; gap: 10px; margin-top: 9px; font-size: 12px; color: #0b6e5c; flex-wrap: wrap; }
+.crawl-done button { margin-left: auto; }
+.crawl-target { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.crawl-target label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.crawl-target select { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 11.5px; }
+/* 카드 셋의 높이를 맞춘다. 가운데만 길면 나머지가 미완성처럼 보인다. */
+.method-grid { align-items: stretch; }
+
+/* 일괄 수집 결과 — 몇 개를 어디서 모았는지, 그리고 한 번에 만들 수 있는지 */
+.bulk-bar { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 11px 14px; border: 1px solid #b7e3d8; background: #f2fbf8; border-radius: 8px; flex-wrap: wrap; }
+.bulk-bar strong { font-size: 13px; color: var(--ink); }
+.bulk-bar span { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+.bulk-bar button { margin-left: auto; }
+.bulk-result { font-style: normal; font-size: 12px; color: #0b6e5c; font-weight: 650; }
+.op-service { display: block; font-size: 10.5px; color: #0b6e5c; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

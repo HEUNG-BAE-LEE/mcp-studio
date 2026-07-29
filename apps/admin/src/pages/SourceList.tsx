@@ -1,4 +1,8 @@
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { api } from "../api/client";
 import Shell from "../components/Shell";
+import PortalCrawlPanel from "../components/PortalCrawlPanel";
 
 /**
  * 수집 엔진 화면.
@@ -112,8 +116,32 @@ function Guide({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default function SourceList() {
+  // 일괄 수집은 프로젝트에 속한다. 사이드바에서 바로 들어오면 프로젝트가 없으므로
+  // 첫 프로젝트를 기본으로 잡아준다 — 여기까지 와서 "프로젝트를 고르세요"만
+  // 보여주면 한 걸음이 더 늘어난다.
+  const [params] = useSearchParams();
+  const [projectId, setProjectId] = useState<number | null>(
+    params.get("project") ? Number(params.get("project")) : null,
+  );
+  const [projectName, setProjectName] = useState("");
+
+  useEffect(() => {
+    api.get("/api/projects").then((list: { id: number; name: string }[]) => {
+      if (!list.length) return;
+      // 포털 수집이니 포털 프로젝트를 먼저 고른다. 없으면 첫 프로젝트.
+      const found =
+        (projectId && list.find((p) => p.id === projectId)) ||
+        list.find((p) => p.name.includes("공공데이터포털")) ||
+        list[0];
+      if (found) {
+        setProjectId(found.id);
+        setProjectName(found.name);
+      }
+    }).catch(() => {});
+  }, [projectId]);
+
   return (
-    <Shell breadcrumb={["수집 엔진"]}>
+    <Shell breadcrumb={["수집 엔진"]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">수집</p>
@@ -168,6 +196,7 @@ export default function SourceList() {
               {PORTAL_SOURCES.filter((s) => s.live).length} / {PORTAL_SOURCES.length} 사용 가능
             </span>
           </div>
+          <PortalCrawlPanel projectId={projectId} onProjectChange={setProjectId} />
           <div className="method-sources">
             <h4>기관 포털</h4>
             {PORTAL_SOURCES.map((source) => (
