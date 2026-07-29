@@ -1,10 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>admin</title>
+    <title>MCP Studio</title>
+
+    <!-- 본문에 바로 쓰이는 두 폰트만 미리 받는다. 가변 폰트라 굵기별 요청이
+         따로 생기지 않는다. crossorigin 을 빼면 preload 가 무시되고 다시 받는다. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/fonts/WantedSansVariable.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/fonts/JetBrainsMono-Regular.woff2" />
+
+    <!-- 테마를 첫 페인트 전에 정한다. React 가 뜬 뒤에 적용하면 어두운 화면을
+         기대한 사용자가 흰 화면을 한 번 보게 된다. -->
+    <script>
+      try {
+        if (localStorage.getItem("mcpStudioTheme") === "light") {
+          document.documentElement.dataset.theme = "light";
+        }
+      } catch (e) {
+        /* 시크릿 모드 등에서 localStorage 접근이 막히면 기본값(다크)으로 둔다 */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
