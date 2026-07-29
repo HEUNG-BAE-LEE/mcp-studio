@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import Shell from "../components/Shell";
 import PortalCrawlPanel from "../components/PortalCrawlPanel";
@@ -115,6 +115,41 @@ function Guide({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+type Harvest = { kind: string; sessions: number; candidates: number; projects: number };
+
+/**
+ * 이 엔진으로 무엇을 모았는지.
+ *
+ * 엔진은 프로젝트가 아니라 **수집 사건**의 속성이다(RecordingSession.kind).
+ * 그래서 프로젝트를 엔진별로 쪼개지 않는다 — 한 프로젝트에 트래픽 세션과 포털
+ * 세션이 함께 있는 것이 정상이고("미세먼지" 주제를 두 경로로 모을 수 있다),
+ * 쪼개면 "어느 방식으로 수집했든 이후는 같다"는 이 제품의 주장이 화면에서 사라진다.
+ *
+ * 대신 엔진별로 산출물만 되짚어 준다. 수집만 시켜놓고 어디로 갔는지 말해주지
+ * 않으면 되돌아오는 길이 없다.
+ */
+function HarvestBlock({ harvest, unit }: { harvest?: Harvest; unit: string }) {
+  if (!harvest) return null;
+
+  return (
+    <div className="method-harvest">
+      <h4>이 방식으로 수집한 것</h4>
+      {harvest.sessions === 0 ? (
+        <p className="harvest-empty">아직 없습니다</p>
+      ) : (
+        <>
+          <p className="harvest-counts">
+            세션 <strong>{harvest.sessions}</strong>건 · {unit}{" "}
+            <strong>{harvest.candidates}</strong>
+            {harvest.projects > 1 && <span> · 프로젝트 {harvest.projects}개에 걸쳐</span>}
+          </p>
+          <Link to={`/engines/${harvest.kind}`}>수집 목록 보기 →</Link>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function SourceList() {
   // 일괄 수집은 프로젝트에 속한다. 사이드바에서 바로 들어오면 프로젝트가 없으므로
   // 첫 프로젝트를 기본으로 잡아준다 — 여기까지 와서 "프로젝트를 고르세요"만
@@ -124,6 +159,15 @@ export default function SourceList() {
     params.get("project") ? Number(params.get("project")) : null,
   );
   const [projectName, setProjectName] = useState("");
+  const [harvest, setHarvest] = useState<Record<string, Harvest>>({});
+
+  useEffect(() => {
+    api.get("/api/collection-engines")
+      .then((rows: Harvest[]) =>
+        setHarvest(Object.fromEntries(rows.map((r) => [r.kind, r]))))
+      // 요약을 못 불러와도 카드 자체는 보여야 한다. 산출물 블록만 빠진다.
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get("/api/projects").then((list: { id: number; name: string }[]) => {
@@ -164,6 +208,7 @@ export default function SourceList() {
             <h4>대상</h4>
             <SourceRow source={{ name: "공공 · 민간 · 사내 시스템", live: true, state: "제한 없음" }} />
           </div>
+          <HarvestBlock harvest={harvest.traffic} unit="요청" />
           <Guide label="이 방식으로 시작하는 방법">
             <ol className="guide-steps">
               <li>확장 프로그램을 로드합니다 — <code>chrome://extensions</code> → 개발자 모드 →
@@ -203,6 +248,7 @@ export default function SourceList() {
               <SourceRow key={source.name} source={source} />
             ))}
           </div>
+          <HarvestBlock harvest={harvest.portal} unit="오퍼레이션" />
           <Guide label="이 방식으로 시작하는 방법">
             <ol className="guide-steps">
               <li><a href="https://www.data.go.kr" target="_blank" rel="noreferrer">공공데이터포털</a>에서

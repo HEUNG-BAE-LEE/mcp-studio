@@ -477,3 +477,51 @@ def test_없는_프로젝트_삭제는_한국어_404다(client):
     res = client.delete("/api/projects/9999")
     assert res.status_code == 404
     assert res.json()["detail"] == "해당 프로젝트를 찾을 수 없습니다"
+
+
+def test_엔진별_요약은_수집_방식마다_한_줄이다(client, project_id):
+    rows = client.get("/api/collection-engines").json()
+
+    assert [r["kind"] for r in rows] == ["traffic", "portal", "document"]
+    for r in rows:
+        assert r["sessions"] == 0 and r["candidates"] == 0 and r["projects"] == 0
+
+
+def test_엔진별_세션은_프로젝트_경계를_넘어_모인다(client, project_id, engine):
+    """엔진은 프로젝트가 아니라 수집 사건의 속성이다(RecordingSession.kind).
+
+    한 프로젝트에 트래픽·포털 세션이 함께 있는 것이 정상이므로, 엔진별 목록은
+    프로젝트로 가르지 않고 kind 로 가른다.
+    """
+    from sqlmodel import Session as DbSession
+    from app.models import RecordingSession
+
+    other = client.post("/api/projects", json={"name": "다른 프로젝트"}).json()["id"]
+    a = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+    b = client.post(f"/api/projects/{other}/recording-sessions").json()["id"]
+
+    # 같은 프로젝트에 포털 세션을 하나 더 둔다 — 섞이는 것이 정상임을 전제로 한다
+    with DbSession(engine) as db:
+        row = db.get(RecordingSession, b)
+        row.kind = "portal"
+        db.add(row)
+        db.commit()
+
+    traffic = client.get("/api/collection-engines/traffic/sessions").json()
+    portal = client.get("/api/collection-engines/portal/sessions").json()
+
+    assert [r["id"] for r in traffic] == [a]
+    assert [r["id"] for r in portal] == [b]
+    # 엔진별 목록에서는 어느 프로젝트 것인지가 핵심 정보다
+    assert traffic[0]["projectName"] and portal[0]["projectName"]
+
+    summary = {r["kind"]: r for r in client.get("/api/collection-engines").json()}
+    assert summary["traffic"]["sessions"] == 1
+    assert summary["portal"]["sessions"] == 1
+    assert summary["portal"]["projects"] == 1
+
+
+def test_알_수_없는_수집_방식은_한국어_422다(client):
+    res = client.get("/api/collection-engines/whatever/sessions")
+    assert res.status_code == 422
+    assert "알 수 없는 수집 방식" in res.json()["detail"]

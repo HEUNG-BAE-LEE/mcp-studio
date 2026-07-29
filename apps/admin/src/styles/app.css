@@ -297,3 +297,14 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .credential-hint code { font-size: 11px; }
 .credential-hint a { color: var(--blue); font-weight: 650; text-decoration: none; }
 .credential-hint a:hover { text-decoration: underline; }
+
+/* 엔진 카드의 산출물 블록. 수집만 시켜놓고 어디로 갔는지 말해주지 않으면
+   되돌아오는 길이 없다. */
+.method-harvest { border-top: 1px dashed var(--line); padding: 11px 16px 13px; background: #fbfcfe; }
+.method-harvest h4 { margin: 0 0 6px; font-size: 10px; letter-spacing: .06em; color: #8991a2; font-weight: 700; }
+.harvest-counts { margin: 0 0 7px; font-size: 12px; color: #465064; }
+.harvest-counts strong { color: var(--ink); }
+.harvest-counts span { color: var(--muted); }
+.harvest-empty { margin: 0; font-size: 12px; color: #98a1b0; }
+.method-harvest a { font-size: 12px; font-weight: 650; color: var(--blue); text-decoration: none; }
+.method-harvest a:hover { text-decoration: underline; }
