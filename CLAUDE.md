@@ -22,13 +22,19 @@ cd apps/backend && .venv/bin/pytest tests/test_masking.py -k 마스킹 -v   # �
 
 # 관리자 화면 (:5173)
 cd apps/admin && npm run dev
-cd apps/admin && npx tsc --noEmit
+cd apps/admin && npx tsc -b               # --noEmit 은 파일 0개를 검사한다
 
 # 확장 프로그램
 cd apps/extension && npm run build      # .output/chrome-mv3 를 압축해제 확장으로 로드
 cd apps/extension && npm test           # vitest
 cd apps/extension && npm run compile    # tsc --noEmit
 ```
+
+`apps/admin` 의 타입체크는 `tsc -b` 다. `tsc --noEmit` 은 `tsconfig.json` 이
+`"files": []` + `references` 인 Vite 기본 구조라 **파일 0개를 검사하고 통과한다**
+(`npx tsc --noEmit --listFiles` 가 빈 출력이다). 이 차이로 `Cannot find name` 오류가
+타입체크를 통과해 런타임까지 갔다. `apps/extension` 의 `npm run compile` 은
+`.wxt/tsconfig.json` 을 extends 해 소스를 실제로 검사하므로 그대로 쓴다.
 
 백엔드를 재시작할 때는 `lsof -ti tcp:8000 -sTCP:LISTEN | xargs kill` 을 쓴다. `/tmp/backend.pid` 는
 낡아 있을 수 있고, 그러면 이전 커밋의 코드를 문 uvicorn 이 포트를 계속 쥔 채

@@ -248,16 +248,21 @@ HTTP 200 · 126ms
 ## 5. 자동 테스트
 
 ```bash
-# 백엔드 — 119개
+# 백엔드 — 122개
 cd apps/backend && .venv/bin/pytest tests/ -v
 
 # 확장 — 22개
 cd apps/extension && npm test
 
 # 타입체크
-cd apps/admin && npx tsc --noEmit
+cd apps/admin && npx tsc -b          # --noEmit 은 아무것도 검사하지 않는다 (아래 참고)
 cd apps/extension && npm run compile
 ```
+
+`apps/admin` 에서는 **`tsc -b`** 를 써야 합니다. `tsc --noEmit` 은 파일 **0개**를
+검사하고 통과합니다 — `tsconfig.json` 이 `"files": []` 에 `references` 만 둔 Vite 기본
+구조라, 참조를 따라가지 않는 명령은 아무것도 보지 않습니다. 실제로 이 차이 때문에
+`Cannot find name` 오류가 타입체크를 통과해 런타임까지 갔습니다.
 
 브라우저가 필요한 부분(확장의 기록 동작, 화면 렌더)은 자동 테스트가 없습니다.
 §3~4의 수동 절차로 확인합니다.
