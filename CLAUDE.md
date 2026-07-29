@@ -44,6 +44,13 @@ apps/admin/      React + Vite — 프로젝트 → 세션 → 액션 계층 화�
 
 DB 는 `apps/backend/data/dev.db` 파일 하나다. 마이그레이션은 없고 기동 시 생성된다.
 
+`init_db()` 는 없는 **테이블**만 만들고 **컬럼** 추가는 못 한다. 모델에 필드를
+더한 커밋을 받으면 낡은 `dev.db` 로는 서버가 뜨는 순간 깨진다
+(`sqlite3.OperationalError: no such column`). 기동 시 `seed()` 가 그 테이블을
+읽으므로 테스트까지 전부 실패한다 — 실제로 48건이 났다. 데이터가 아깝지 않으면
+`rm -f apps/backend/data/dev.db` 가 가장 빠르고, 아까우면 `ALTER TABLE ... ADD
+COLUMN ... DEFAULT ...` 로 컬럼만 더한다 (SQLite 는 기존 행에 기본값을 채워준다).
+
 ## 여러 파일을 읽어야 보이는 것
 
 **기록 경로.** `entrypoints/injected.ts` 가 Main World 에서 `fetch`/`XHR` 을 후킹해
@@ -64,8 +71,21 @@ data.go.kr robots.txt 가 목록 페이지(/tcs/dss/selectDataSetList.do)를 Dis
 
 상세페이지는 상세기능을 select 로 전환하므로 **초기 HTML 에는 하나의 명세만 있다.**
 그래서 같은 서비스를 다시 수집하면 새 세션을 만들지 않고 직전 세션에 누적한다
-(`routers/spec.py`). 화면은 "전체 5개 중 2개 수집됨"을 밝힌다 — 밝히지 않으면
-사용자가 이것을 버그로 읽는다.
+(`routers/spec.py`).
+
+"전체 5개 중 2개 수집됨"을 밝히는 곳은 **확장 사이드 패널**이다. 수집 응답의
+`availableTotal`·`collected` 을 그 자리에서 쓴다 — 개수가 가장 필요한 순간이
+수집 직후이기 때문이다. 전체 개수는 그 순간 HTML 의 select 에서만 알 수 있고
+**저장하지 않으므로**, 관리자 세션 상세에는 숫자가 없다. 대신 "상세기능을 목록에서
+하나씩 보여줍니다"라는 문구로 이유를 밝힌다. 관리자에도 숫자를 띄우려면
+`RecordingSession` 에 컬럼을 더해야 하고, 마이그레이션이 없으므로 기존 `dev.db` 가
+깨진다.
+
+**세션 상세는 수집 방식별로 경로가 다르다** — 트래픽은 `/sessions/:id`,
+포털은 `/spec-sessions/:id`. 포털 세션을 `/sessions/:id` 로 열면 트래픽 화면이
+뜨고 클릭·요청을 찾으므로 "클릭과 연결된 요청이 없습니다"만 보인다. 오퍼레이션이
+멀쩡히 수집돼 있는데도 실패로 읽힌다 (확장의 "관리자에서 열기" 가 실제로 이 버그를
+냈다).
 
 **인증키.** 포털 공개 수집 액션은 `serviceKey` 를 `llmEditable=False` 로 두어
 LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
