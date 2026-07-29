@@ -169,9 +169,55 @@ export default defineBackground(() => {
       return true;
     }
 
+    // 포털 공개 기반 수집. 기록 세션과 달리 상태를 들고 있지 않아도 되므로
+    // enqueue 를 거치지 않는다 — 한 번의 요청으로 끝나는 작업이다.
+    if (msg.type === "collect-spec") {
+      collectSpec(msg.projectName)
+        .catch((e) => ({ ok: false, error: `수집 실패: ${e instanceof Error ? e.message : String(e)}` }))
+        .then(sendResponse);
+      return true;
+    }
+
     return false;
   });
 });
+
+async function activeTabId(): Promise<number> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) throw new Error("활성 탭을 찾지 못했습니다");
+  return tab.id;
+}
+
+async function collectSpec(projectName: string) {
+  const trimmed = (projectName ?? "").trim();
+  if (!trimmed) return { ok: false, error: "프로젝트 이름을 입력해 주세요" };
+
+  // 현재 탭의 DOM 을 받아온다. 서버가 포털에 접속하지 않고, 사용자가 이미 연
+  // 페이지만 파싱하는 구조를 유지하기 위한 경로다.
+  const captured: { url: string; html: string } = await chrome.tabs.sendMessage(
+    await activeTabId(),
+    { type: "capture-spec" },
+  );
+  if (!captured?.html) {
+    throw new Error("페이지 내용을 읽지 못했습니다. 페이지를 새로고침한 뒤 다시 시도하세요");
+  }
+
+  const projectRes = await fetch(`${API_BASE}/api/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: trimmed }),
+  });
+  if (!projectRes.ok) throw new Error(await describeFailure(projectRes));
+  const project = await projectRes.json();
+
+  const res = await fetch(`${API_BASE}/api/projects/${project.id}/spec-sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(captured),
+  });
+  if (!res.ok) throw new Error(await describeFailure(res));
+  return { ok: true, ...(await res.json()) };
+}
 
 function snapshot(state: SessionState) {
   return {

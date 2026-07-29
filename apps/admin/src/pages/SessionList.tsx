@@ -3,12 +3,18 @@ import { Link, useParams } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
 import Toast, { useToast } from "../components/Toast";
+import CollectionBadge from "../components/CollectionMark";
 
 type SessionRow = {
   id: number;
+  kind: string;
+  sourceLabel: string;
   startedAt: string;
   endedAt: string | null;
   status: string;
+  // 후보의 정체는 수집 방식마다 다르다(트래픽=요청, 포털=오퍼레이션).
+  // 표를 둘로 쪼개지 않도록 세는 단위를 한 필드로 통일한다.
+  candidateCount: number;
   requestCount: number;
   topScore: number | null;
 };
@@ -72,9 +78,9 @@ export default function SessionList() {
     <Shell breadcrumb={["Projects", projectName]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
-          <p className="eyebrow">RECORDING SESSIONS</p>
-          <h1>기록 세션</h1>
-          <p className="subtitle">확장 프로그램에서 전송한 클릭과 API 호출입니다.</p>
+          <p className="eyebrow">COLLECTION SESSIONS</p>
+          <h1>수집 세션</h1>
+          <p className="subtitle">트래픽 기반·포털 공개 기반 수집이 한 목록에 모입니다.</p>
         </div>
       </section>
 
@@ -94,8 +100,8 @@ export default function SessionList() {
 
       {settled && !notFound && rows.length === 0 && (
         <div className="empty-state">
-          <strong>기록된 세션이 없습니다</strong>
-          <p>확장 프로그램 사이드 패널에서 기록을 시작해 보세요.</p>
+          <strong>수집된 세션이 없습니다</strong>
+          <p>확장 사이드 패널에서 트래픽 기록을 시작하거나, 포털 명세 페이지에서 공개 명세를 수집해 보세요.</p>
         </div>
       )}
 
@@ -106,9 +112,9 @@ export default function SessionList() {
           <div className="project-table table-5col">
             <div className="table-head">
               <span>세션</span>
-              <span>요청</span>
+              <span>수집 방식</span>
+              <span>후보</span>
               <span>최고 점수</span>
-              <span>상태</span>
               <span />
             </div>
             {rows.map((row, i) => (
@@ -116,16 +122,24 @@ export default function SessionList() {
                 <span>
                   {/* 아이콘을 앞에 둬 ProjectList와 같은 첫 칸 구조를 쓴다 */}
                   <i className={`project-icon icon-${i % 3}`}>{String(row.id).padStart(2, "0")}</i>
-                  <Link to={`/sessions/${row.id}`}>
+                  {/* 수집 방식마다 후보 화면이 다르다. 링크도 그에 맞춰 갈라진다. */}
+                  <Link to={row.kind === "portal" ? `/spec-sessions/${row.id}` : `/sessions/${row.id}`}>
                     <b>세션 #{row.id}</b>
                   </Link>
-                  <small>{formatTime(row.startedAt)}</small>
+                  <small>{row.sourceLabel || formatTime(row.startedAt)}</small>
                 </span>
-                <span className="mono">{row.requestCount}건</span>
+                <span><CollectionBadge kind={row.kind} /></span>
                 <span className="mono">
-                  {row.topScore === null ? "분석 전" : `★ ${row.topScore}`}
+                  {row.candidateCount ?? row.requestCount}
+                  {row.kind === "portal" ? " op" : "건"}
                 </span>
-                <span>{row.status}</span>
+                <span className="mono">
+                  {row.kind === "portal"
+                    ? "—"
+                    : row.topScore === null
+                      ? "분석 전"
+                      : `★ ${row.topScore}`}
+                </span>
                 <span>
                   {confirming === row.id ? (
                     <span className="confirm-inline">

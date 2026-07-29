@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
+import CollectionBadge from "../components/CollectionMark";
 import Toast, { useToast } from "../components/Toast";
 
 type ActionRow = {
@@ -17,6 +18,13 @@ function paramCount(spec: any): number {
   const request = spec?.request ?? {};
   const schema = request.bodySchema ?? request.querySchema ?? {};
   return Object.keys(schema).length;
+}
+
+// 액션이 어느 수집 방식에서 왔는지는 스펙에 남아 있다. 포털 공개 수집은
+// 인증키를 실행 시점에 주입하므로 authMode 를 CREDENTIAL 로 적어둔다.
+// 별도 컬럼을 DB에 두지 않아도 되고, 기존 액션(트래픽)은 자동으로 traffic 이 된다.
+function kindOf(spec: any): string {
+  return spec?.execution?.authMode === "CREDENTIAL" ? "portal" : "traffic";
 }
 
 export default function ActionList() {
@@ -112,13 +120,13 @@ export default function ActionList() {
 
       {rows !== null && rows.length > 0 && (
         <article className="panel">
-          <div className="project-table table-5col">
+          <div className="project-table table-5col action-table">
             <div className="table-head">
               <span>액션</span>
+              <span>수집 방식</span>
               <span>Tool 이름</span>
               <span>파라미터</span>
               <span>상태</span>
-              <span />
             </div>
             {rows.map((row, i) => (
               <div className="table-row" key={row.id}>
@@ -127,6 +135,7 @@ export default function ActionList() {
                   <Link to={`/actions/${row.id}`}><b>{row.name}</b></Link>
                   <small>{row.description}</small>
                 </span>
+                <span><CollectionBadge kind={kindOf(row.actionSpec)} /></span>
                 <span className="mono" title={row.toolName}>{row.toolName}</span>
                 <span className="mono">{paramCount(row.actionSpec)}개</span>
                 <span>

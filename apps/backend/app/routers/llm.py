@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from openai import AzureOpenAI
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import Action
+from app.models import Action, Project
 from app.services.tool_registry import action_to_tool, dedupe_by_tool_name
 from app.services.executor import execute_action
 
@@ -94,7 +94,11 @@ def execute(action_id: int, payload: dict, db: Session = Depends(get_session)) -
     if action is None:
         raise HTTPException(404, "해당 액션을 찾을 수 없습니다")
 
-    result = execute_action(action, payload["arguments"])
+    # 포털 공개 기반 수집으로 만든 액션은 serviceKey 를 LLM에게 숨겨두었다.
+    # 실행 직전에 프로젝트에 등록된 인증키를 넘겨 executor 가 채우게 한다.
+    project = db.get(Project, action.project_id)
+    credentials = (project.credentials if project else None) or {}
+    result = execute_action(action, payload["arguments"], credentials)
 
     summary_response = client.chat.completions.create(
         model=DEPLOYMENT,

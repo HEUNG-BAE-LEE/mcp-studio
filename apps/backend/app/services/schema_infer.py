@@ -96,3 +96,59 @@ def build_action_spec(req, name: str, tool_name: str, description: str) -> dict:
         },
         "execution": {"authMode": "NONE", "credentialId": None, "requiresConfirmation": False},
     }
+
+
+# 포털 공개 기반 수집이 인증키를 다루는 방식.
+#
+# 트래픽 수집은 기록된 URL에 키가 이미 박혀 있지만, 포털이 게시한 명세에는
+# "여기에 발급받은 키를 넣으세요"라고만 적혀 있다. 그래서 이 파라미터들은
+# llmEditable=False 로 두어 LLM에게 보이지 않게 하고(tool_registry가 제외한다),
+# 실행 시점에 프로젝트에 등록된 키를 주입한다(executor).
+CREDENTIAL_PARAMS = {"servicekey", "authkey", "apikey", "api_key", "key"}
+
+
+def build_action_spec_from_spec(op, name: str, tool_name: str, description: str) -> dict:
+    """포털에서 파싱한 오퍼레이션을 액션 스펙으로.
+
+    build_action_spec(트래픽 경로)과 **같은 형태**를 만드는 것이 요점이다.
+    그래야 tool_registry·executor·LLM 콘솔이 수집 방식을 몰라도 된다.
+    """
+    query_schema = {}
+    for param in op.params:
+        raw = param if isinstance(param, dict) else param.__dict__
+        key = raw["name"]
+        is_credential = key.lower() in CREDENTIAL_PARAMS
+        query_schema[key] = {
+            "type": raw.get("type", "string"),
+            "description": raw.get("description", ""),
+            "required": bool(raw.get("required")),
+            "example": raw.get("example"),
+            "llmEditable": not is_credential,
+        }
+
+    url = f"{op.base_url if not isinstance(op, dict) else op['base_url']}" \
+          f"{op.path if not isinstance(op, dict) else op['path']}"
+    method = (op.method if not isinstance(op, dict) else op["method"]).upper()
+
+    return {
+        "name": name,
+        "toolName": tool_name,
+        "description": description,
+        "trigger": {"pageUrlPattern": urlparse(url).path},
+        "request": {
+            "method": method,
+            "urlTemplate": url,
+            # 포털 명세대로 호출하므로 브라우저 흉내가 필요 없다. WAF 헤더는
+            # executor 의 기본값(User-Agent/Accept)으로 충분하다.
+            "headers": {},
+            "querySchema": query_schema or None,
+            "bodySchema": None,
+        },
+        "response": {
+            # 응답 스키마는 실제 호출 전까지 알 수 없다. 포털 표의 출력결과는
+            # 필드 이름만 주고 중첩 구조는 알려주지 않아서, 지어내지 않고 비워둔다.
+            "successStatus": [200],
+            "schema": {"type": "object"},
+        },
+        "execution": {"authMode": "CREDENTIAL", "credentialId": None, "requiresConfirmation": False},
+    }
