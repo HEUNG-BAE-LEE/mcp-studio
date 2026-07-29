@@ -20,10 +20,6 @@ const LAST_PROJECT_NAME_KEY = "mcpStudioLastProjectName";
 // 데모 전용. background.ts의 API_BASE와 같은 방식으로 상수에 둔다.
 const ADMIN_BASE = "http://localhost:5173";
 
-// 수집 방식별 색. 관리자 화면(app.css)의 방식 배지와 같은 계열을 쓴다.
-const PORTAL_COLOR = "#0d9488";
-const TRAFFIC_COLOR = "#3157e8";
-
 type SpecDetection = {
   supported: boolean;
   isSpecPage: boolean;
@@ -43,10 +39,19 @@ type SpecResult = {
 };
 
 // 라인 아이콘. 이모지는 OS마다 모양이 달라 촬영 화면에서 튄다.
-function MarkPortal({ color = "currentColor" }: { color?: string }) {
+// 관리자 화면(components/CollectionMark.tsx)과 같은 격자·같은 path 를 쓴다 —
+// 도형이 갈리면 사용자는 두 화면을 다른 도구로 읽는다.
+function MarkPortal({ size = 15 }: { size?: number }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke={color}
-         strokeWidth="1.5" style={{ flexShrink: 0 }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      style={{ flexShrink: 0 }}
+    >
       <path d="M2 7.6 L7.6 4 L13.2 7.6" strokeLinejoin="round" />
       <path d="M4 8.6v5.8M7.6 8.6v5.8M11.2 8.6v5.8M2.4 15.4h10.4" strokeLinecap="round" />
       <rect x="14.4" y="6.4" width="4.2" height="8" rx="1" />
@@ -55,13 +60,20 @@ function MarkPortal({ color = "currentColor" }: { color?: string }) {
   );
 }
 
-function MarkTraffic({ color = "currentColor" }: { color?: string }) {
+function MarkTraffic({ size = 15 }: { size?: number }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke={color}
-         strokeWidth="1.5" style={{ flexShrink: 0 }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      style={{ flexShrink: 0 }}
+    >
       <rect x="2" y="3.5" width="11" height="9" rx="1.6" />
       <path d="M2 6.4h11" />
-      <path d="M6.4 9v6l1.9-1.9 1.3 2.6 1.4-.7-1.3-2.5 2.4-.3z" fill={color} stroke="none" />
+      <path d="M6.4 9v6l1.9-1.9 1.3 2.6 1.4-.7-1.3-2.5 2.4-.3z" fill="currentColor" stroke="none" />
       <path d="M14.6 8.6c2 0 1.7 2.4 3.6 2.4" strokeDasharray="1.8 1.8" />
     </svg>
   );
@@ -167,206 +179,226 @@ export default function App() {
     });
   }
 
+  function startRecording() {
+    const trimmed = projectName.trim();
+    if (!trimmed) {
+      setError("프로젝트 이름을 입력해 주세요");
+      return;
+    }
+    setFinishedSessionId(null);
+    setSpecResult(null);
+    setCanRetry(false);
+    chrome.storage.local.set({ [LAST_PROJECT_NAME_KEY]: trimmed });
+    chrome.runtime.sendMessage({ type: "start", projectName: trimmed }, (r) => {
+      setRecording(!!r?.ok);
+      setError(r?.error ?? null);
+    });
+  }
+
   return (
-    <div
-      style={{
-        padding: 16,
-        fontFamily: '-apple-system, "Apple SD Gothic Neo", system-ui, sans-serif',
-        fontSize: 13,
-        color: "#172033",
-      }}
-    >
-      <h2 style={{ fontSize: 15, margin: "0 0 12px" }}>MCP Studio</h2>
-
-      <input
-        type="text"
-        value={projectName}
-        onChange={(e) => setProjectName(e.target.value)}
-        disabled={recording}
-        placeholder="프로젝트 이름을 입력하세요"
-        style={{ width: "100%", padding: 6, marginBottom: 12, boxSizing: "border-box" }}
-      />
-
-      {/* 현재 페이지 판정. 어느 수집 방식이 맞는지 사용자가 고르지 않아도 되게 한다. */}
-      {!recording && (
-        <div
-          style={{
-            display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10,
-            padding: "9px 11px", borderRadius: 8, fontSize: 11.5,
-            background: specMode ? "#ecfdf5" : "#f1f5f9",
-            border: `1px solid ${specMode ? "#a7f3d0" : "#e2e8f0"}`,
-            color: specMode ? "#0f766e" : "#64748b",
-          }}
-        >
-          {specMode ? <MarkPortal color={PORTAL_COLOR} /> : <MarkTraffic color="#94a3b8" />}
-          <div>
-            {specMode ? (
-              <>
-                <strong>공개 명세 페이지 감지</strong>
-                <div style={{ marginTop: 2 }}>
-                  {detection?.portalLabel} · 상세기능 {detection?.operationCount} · 요청변수 {detection?.paramCount}
-                </div>
-              </>
-            ) : (
-              <>
-                <strong>일반 페이지</strong>
-                <div style={{ marginTop: 2 }}>공개 명세 표가 감지되지 않았습니다</div>
-              </>
-            )}
+    <>
+      {recording ? (
+        <div className="rec-bar">
+          <span className="dot dot-signal" />
+          <strong>기록 중</strong>
+          <span className="push mono" style={{ fontSize: 11.5, color: "var(--tx-2)" }}>
+            {counts.networkCount} 요청
+          </span>
+        </div>
+      ) : (
+        <div className="panel-head">
+          <div className="row">
+            <span className="mark" aria-hidden="true">
+              M
+            </span>
+            <strong>MCP Studio</strong>
           </div>
         </div>
       )}
 
-      {!recording ? (
-        <>
-          {/* 두 버튼을 항상 함께 둔다. 페이지 판정에 따라 주/보조만 뒤바꾼다. */}
-          <button
-            onClick={specMode ? collectSpec : undefined}
-            disabled={!specMode || collecting}
-            style={{
-              width: "100%", padding: 10, borderRadius: 6, marginBottom: 7,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-              border: specMode ? 0 : "1px solid #cbd5e1",
-              background: specMode ? PORTAL_COLOR : "#fff",
-              color: specMode ? "#fff" : "#94a3b8",
-              cursor: specMode ? "pointer" : "default",
-              order: specMode ? 0 : 1,
-            }}
-          >
-            <MarkPortal color={specMode ? "#fff" : "#94a3b8"} />
-            {collecting ? "수집 중…" : specMode ? "공개 명세 수집" : "공개 명세 수집 (감지 안 됨)"}
-          </button>
+      <div className="panel-body">
+        <label className="label" htmlFor="project-name">
+          프로젝트
+        </label>
+        <input
+          id="project-name"
+          className="input"
+          type="text"
+          value={projectName}
+          onChange={(e) => setProjectName(e.target.value)}
+          disabled={recording}
+          placeholder="프로젝트 이름을 입력하세요"
+        />
 
-          <button
-            onClick={() => {
-              const trimmed = projectName.trim();
-              if (!trimmed) {
-                setError("프로젝트 이름을 입력해 주세요");
-                return;
+        {recording ? (
+          <div style={{ marginTop: 12 }}>
+            {/* 되돌릴 수 없는 조작이라 시그널 색을 쓰는 유일한 버튼이다. */}
+            <button
+              type="button"
+              className="btn btn-signal"
+              onClick={() =>
+                chrome.runtime.sendMessage({ type: "stop" }, (r) => {
+                  setRecording(false);
+                  setError(r?.error ?? null);
+                  // 전송이 성공했을 때만 링크를 띄운다. 실패하면 관리자에 아무것도 없다.
+                  setFinishedSessionId(r?.ok ? (r.sessionId ?? null) : null);
+                })
               }
-              setFinishedSessionId(null);
-              setSpecResult(null);
-              setCanRetry(false);
-              chrome.storage.local.set({ [LAST_PROJECT_NAME_KEY]: trimmed });
-              chrome.runtime.sendMessage({ type: "start", projectName: trimmed }, (r) => {
-                setRecording(!!r?.ok);
+            >
+              기록 종료 및 전송
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* 두 수집 방식을 카드로 나눈다. 페이지 판정에 따라 어느 쪽이
+                주버튼을 갖는지만 달라진다 — order 로 뒤집지 않는다. */}
+            <section className={specMode ? "card card-portal method" : "card method is-idle"}>
+              <div className="row">
+                <span style={{ color: specMode ? "var(--kind-portal)" : "var(--tx-3)" }}>
+                  <MarkPortal />
+                </span>
+                <h2>공개 명세 페이지</h2>
+                {specMode && <span className="badge push">권장</span>}
+              </div>
+              {specMode ? (
+                <p className="mono" style={{ marginTop: 6, fontSize: 11.5, color: "var(--tx-3)" }}>
+                  {detection?.portalLabel} · op {detection?.operationCount} · param {detection?.paramCount}
+                </p>
+              ) : (
+                <p className="help" style={{ marginTop: 6 }}>
+                  이 페이지에서 공개 명세 표가 감지되지 않았습니다
+                </p>
+              )}
+              <button
+                type="button"
+                className={specMode ? "btn btn-primary" : "btn"}
+                onClick={collectSpec}
+                disabled={!specMode || collecting}
+              >
+                {collecting ? "수집 중…" : "공개 명세 수집"}
+              </button>
+            </section>
+
+            <section className={specMode ? "card method is-idle" : "card method"}>
+              <div className="row">
+                <span style={{ color: specMode ? "var(--tx-3)" : "var(--kind-traffic)" }}>
+                  <MarkTraffic />
+                </span>
+                <h2>트래픽 기록</h2>
+              </div>
+              <p className="help" style={{ marginTop: 6 }}>
+                화면을 조작하는 동안 오가는 API 호출을 기록합니다
+              </p>
+              <button
+                type="button"
+                className={specMode ? "btn" : "btn btn-primary"}
+                onClick={startRecording}
+              >
+                기록 시작
+              </button>
+            </section>
+          </>
+        )}
+
+        {error && (
+          <p className="alert" role="alert">
+            {error}
+          </p>
+        )}
+
+        {/* 전송이 실패해도 기록은 남아 있다. 다시 보낼 길이 없으면 그대로 사라진다. */}
+        {canRetry && !recording && (
+          <button
+            type="button"
+            className="btn"
+            style={{ marginTop: 8 }}
+            disabled={retrying}
+            onClick={() => {
+              setRetrying(true);
+              chrome.runtime.sendMessage({ type: "retry" }, (r) => {
+                setRetrying(false);
                 setError(r?.error ?? null);
+                setFinishedSessionId(r?.ok ? (r.sessionId ?? null) : null);
               });
             }}
-            style={{
-              width: "100%", padding: 10, borderRadius: 6,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-              border: specMode ? "1px solid #cbd5e1" : 0,
-              background: specMode ? "#fff" : TRAFFIC_COLOR,
-              color: specMode ? "#475569" : "#fff",
-            }}
           >
-            <MarkTraffic color={specMode ? "#475569" : "#fff"} />
-            트래픽 기록 시작
+            {retrying ? "재전송 중…" : "전송 재시도"}
           </button>
+        )}
 
-          <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
-            {specMode
-              ? "이 페이지의 명세를 읽어 액션을 만듭니다"
-              : "화면을 조작하면 API 호출을 기록합니다"}
-          </div>
-        </>
-      ) : (
-        <button
-          onClick={() =>
-            chrome.runtime.sendMessage({ type: "stop" }, (r) => {
-              setRecording(false);
-              setError(r?.error ?? null);
-              // 전송이 성공했을 때만 링크를 띄운다. 실패하면 관리자에 아무것도 없다.
-              setFinishedSessionId(r?.ok ? (r.sessionId ?? null) : null);
-            })
-          }
-          style={{ width: "100%", padding: 10, background: "#dc2626", color: "#fff", border: 0, borderRadius: 6 }}
-        >
-          기록 종료 및 전송
-        </button>
-      )}
-
-      {error && (
-        <div style={{ marginTop: 10, padding: 8, background: "#fef2f2", color: "#b91c1c", borderRadius: 4, fontSize: 12 }}>
-          {error}
-        </div>
-      )}
-
-      {/* 전송이 실패해도 기록은 남아 있다. 다시 보낼 길이 없으면 그대로 사라진다. */}
-      {canRetry && !recording && (
-        <button
-          disabled={retrying}
-          onClick={() => {
-            setRetrying(true);
-            chrome.runtime.sendMessage({ type: "retry" }, (r) => {
-              setRetrying(false);
-              setError(r?.error ?? null);
-              setFinishedSessionId(r?.ok ? (r.sessionId ?? null) : null);
-            });
-          }}
-          style={{ width: "100%", marginTop: 8, padding: 9, background: "#fff", color: "#3157e8",
-                   border: "1px solid #3157e8", borderRadius: 6 }}
-        >
-          {retrying ? "재전송 중…" : "전송 재시도"}
-        </button>
-      )}
-
-      {/* 포털 상세페이지는 상세기능을 목록으로 전환하는 구조라, 한 번에 하나만 실린다.
-          몇 개 중 몇 개를 수집했는지 밝혀야 사용자가 나머지를 가져올 수 있다. */}
-      {specResult && (
-        <div style={{ marginTop: 10, padding: 10, background: "#ecfdf5", border: "1px solid #a7f3d0",
-                      borderRadius: 6, fontSize: 12, color: "#0f766e" }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>
-            {specResult.added > 0 ? `오퍼레이션 ${specResult.added}개 수집` : "이미 수집된 오퍼레이션입니다"}
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            {specResult.serviceName}
-            <br />
-            전체 {specResult.availableTotal}개 중 <strong>{specResult.collected}개</strong> 수집됨
+        {/* 포털 상세페이지는 상세기능을 목록으로 전환하는 구조라, 한 번에 하나만 실린다.
+            몇 개 중 몇 개를 수집했는지 밝혀야 사용자가 나머지를 가져올 수 있다. */}
+        {specResult && (
+          <div className="result">
+            <strong>
+              {specResult.added > 0
+                ? `오퍼레이션 ${specResult.added}개 수집`
+                : "이미 수집된 오퍼레이션입니다"}
+            </strong>
+            <p className="help">
+              {specResult.serviceName}
+              <br />
+              전체 <span className="mono">{specResult.availableTotal}</span>개 중{" "}
+              <strong className="mono">{specResult.collected}</strong>개 수집됨
+            </p>
             {specResult.collected < specResult.availableTotal && (
-              <div style={{ marginTop: 3, color: "#475569" }}>
+              <p className="help" style={{ marginTop: 5 }}>
                 페이지의 상세기능 목록에서 다른 항목을 고른 뒤 다시 누르면 이어서 수집됩니다
-              </div>
+              </p>
             )}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sessions/${specResult.sessionId}` })}
+            >
+              관리자에서 열기
+            </button>
           </div>
-          <button
-            onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sessions/${specResult.sessionId}` })}
-            style={{ width: "100%", padding: 8, background: PORTAL_COLOR, color: "#fff", border: 0, borderRadius: 6 }}
-          >
-            관리자에서 열기
-          </button>
-        </div>
-      )}
+        )}
 
-      {finishedSessionId !== null && (
-        <div style={{ marginTop: 10, padding: 10, background: "#eef2ff", borderRadius: 6, fontSize: 12 }}>
-          <div style={{ marginBottom: 8 }}>세션 #{finishedSessionId} 전송 완료</div>
-          <button
-            onClick={() =>
-              chrome.tabs.create({ url: `${ADMIN_BASE}/sessions/${finishedSessionId}` })
-            }
-            style={{ width: "100%", padding: 8, background: "#3157e8", color: "#fff", border: 0, borderRadius: 6 }}
-          >
-            관리자에서 열기
-          </button>
-        </div>
-      )}
-
-      <div style={{ margin: "16px 0", display: "flex", gap: 16 }}>
-        <div><strong style={{ fontSize: 22 }}>{counts.interactionCount}</strong><div>클릭</div></div>
-        <div><strong style={{ fontSize: 22 }}>{counts.networkCount}</strong><div>API 요청</div></div>
-      </div>
-
-      <div>
-        {recent.map((r, i) => (
-          <div key={i} style={{ padding: "6px 0", borderTop: "1px solid #e2e7ef", fontFamily: "monospace", fontSize: 11 }}>
-            <span style={{ color: "#2563eb" }}>{r.method}</span>{" "}
-            <span style={{ color: r.status < 300 ? "#16a34a" : "#dc2626" }}>{r.status}</span>{" "}
-            {safePath(r.url)}
+        {finishedSessionId !== null && (
+          <div className="card" style={{ marginTop: 10 }}>
+            <strong style={{ fontSize: 12 }}>세션 #{finishedSessionId} 전송 완료</strong>
+            <button
+              type="button"
+              className="btn"
+              style={{ marginTop: 10 }}
+              onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sessions/${finishedSessionId}` })}
+            >
+              관리자에서 열기
+            </button>
           </div>
-        ))}
+        )}
+
+        <div className="hair" />
+
+        <div className="stats">
+          <div>
+            <b>{counts.interactionCount}</b>
+            <small>클릭</small>
+          </div>
+          <div>
+            <b>{counts.networkCount}</b>
+            <small>API 요청</small>
+          </div>
+        </div>
+
+        {recent.length === 0 ? (
+          <p className="help" style={{ marginTop: 10 }}>
+            기록을 시작하면 여기에 요청이 쌓입니다
+          </p>
+        ) : (
+          <div className="recent" style={{ marginTop: 10 }}>
+            {recent.map((r, i) => (
+              <div key={i}>
+                <span className="method-name">{r.method}</span>
+                <span className={r.status < 300 ? "ok" : "bad"}>{r.status}</span>
+                <span className="path">{safePath(r.url)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }
