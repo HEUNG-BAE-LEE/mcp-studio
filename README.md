@@ -80,7 +80,18 @@ cd apps/backend && .venv/bin/python -c \
 
 ## 2. 실행
 
-터미널 두 개가 필요합니다.
+```bash
+./start.sh
+```
+
+백엔드(:8000)와 관리자 화면(:5173)을 함께 띄웁니다. 같은 포트를 쓰는 프로세스가
+있으면 먼저 종료하고 실행하며, `Ctrl+C` 한 번으로 둘 다 내려갑니다.
+로그는 `$TMPDIR/mcp-studio-{backend,admin}.log` 에 남습니다.
+
+포트를 바꾸려면 `BACKEND_PORT=8001 ADMIN_PORT=5174 ./start.sh` 처럼 넘깁니다.
+
+<details>
+<summary>따로 띄우기 (터미널 두 개)</summary>
 
 ```bash
 # 터미널 1 — 백엔드 (:8000)
@@ -94,6 +105,8 @@ cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
 # 터미널 2 — 관리자 화면 (:5173)
 cd apps/admin && npm run dev
 ```
+
+</details>
 
 ### Chrome 확장 로드
 
