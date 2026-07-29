@@ -95,6 +95,22 @@ function DocumentIllustration() {
   );
 }
 
+/**
+ * 시작 안내.
+ *
+ * 수집은 브라우저(확장 프로그램)에서 일어나므로 관리자가 직접 시작할 수 없다.
+ * 그래서 "시작" 버튼을 만들지 않는다 — 눌러도 아무것도 시작되지 않는 버튼은
+ * 안내가 없는 것보다 나쁘다. 대신 무엇을 해야 하는지 순서대로 펼친다.
+ */
+function Guide({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <details className="method-guide">
+      <summary>{label}</summary>
+      <div className="guide-body">{children}</div>
+    </details>
+  );
+}
+
 export default function SourceList() {
   return (
     <Shell breadcrumb={["수집 엔진"]}>
@@ -120,6 +136,27 @@ export default function SourceList() {
             <h4>대상</h4>
             <SourceRow source={{ name: "공공 · 민간 · 사내 시스템", live: true, state: "제한 없음" }} />
           </div>
+          <Guide label="이 방식으로 시작하는 방법">
+            <ol className="guide-steps">
+              <li>확장 프로그램을 로드합니다 — <code>chrome://extensions</code> → 개발자 모드 →
+                  <code>apps/extension/.output/chrome-mv3</code></li>
+              <li>대상 사이트를 열고 확장 아이콘을 눌러 사이드 패널을 엽니다</li>
+              <li>프로젝트 이름을 넣고 <strong>트래픽 기록 시작</strong></li>
+              <li>버튼·필터·확대축소처럼 <strong>페이지가 넘어가지 않는 조작</strong>을 클릭합니다</li>
+              <li><strong>기록 종료 및 전송</strong> → <strong>관리자에서 열기</strong></li>
+            </ol>
+            <p className="guide-note">
+              <strong>확장을 새로고침했다면 대상 페이지도 새로고침하세요</strong>
+              이미 열려 있던 탭의 스크립트는 고아가 되어 클릭이 하나도 잡히지 않습니다.
+              화면에는 오류 없이 “0 클릭”만 보여 알아채기 어렵습니다.
+            </p>
+            <p className="guide-note">
+              <strong>페이지가 넘어가는 클릭은 연결되지 않습니다</strong>
+              링크를 눌러 이동하면 그 뒤 요청은 새 페이지에서 발생해 이전 클릭과 묶이지 않습니다.
+              맞는 사이트인지 미리 보려면 <code>F12</code> → Network → <code>Fetch/XHR</code> 로 걸러
+              클릭해 보세요. 새 항목이 뜨고 목록이 초기화되지 않으면 맞습니다.
+            </p>
+          </Guide>
         </section>
 
         <section className="method-card is-live">
@@ -137,6 +174,29 @@ export default function SourceList() {
               <SourceRow key={source.name} source={source} />
             ))}
           </div>
+          <Guide label="이 방식으로 시작하는 방법">
+            <ol className="guide-steps">
+              <li><a href="https://www.data.go.kr" target="_blank" rel="noreferrer">공공데이터포털</a>에서
+                  쓰려는 오픈API 를 찾습니다</li>
+              <li><strong>활용신청</strong>을 하면 승인 후 <code>serviceKey</code> 가 발급됩니다</li>
+              <li>그 API 의 <strong>상세페이지</strong>를 엽니다 — <code>요청주소</code> 와
+                  <code>요청변수</code> 표가 함께 있는 화면입니다. 목록·검색 페이지는 인식되지 않습니다</li>
+              <li>사이드 패널에 <strong>공개 명세 페이지 감지</strong> 가 뜨는지 확인하고,
+                  프로젝트 이름을 넣어 <strong>공개 명세 수집</strong></li>
+              <li><strong>관리자에서 열기</strong> → 오퍼레이션의 <strong>액션 만들기</strong></li>
+              <li>테스트 콘솔 상단 <strong>포털 인증키</strong> 에 <code>serviceKey</code> 를 등록한 뒤 질의합니다</li>
+            </ol>
+            <p className="guide-note">
+              <strong>수집은 인증키 없이 됩니다</strong>
+              명세만 읽으므로 키가 없어도 3~5 단계를 먼저 해볼 수 있습니다. 키는 <strong>실행할 때</strong>
+              필요하고, 없으면 호출 전에 막힙니다.
+            </p>
+            <p className="guide-note">
+              <strong>상세기능은 한 번에 하나씩 수집됩니다</strong>
+              상세페이지가 상세기능을 목록에서 하나씩 보여주기 때문입니다. 다른 기능도 필요하면
+              그 페이지에서 목록을 바꾼 뒤 다시 누르면 같은 세션에 누적됩니다.
+            </p>
+          </Guide>
         </section>
 
         <section className="method-card">
