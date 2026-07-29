@@ -1,0 +1,166 @@
+@import "../ui.css";
+
+/* 사이드패널은 폭이 사용자가 끄는 대로 바뀐다(대략 320~480px). 고정 폭을
+   가정하지 않고 전부 유동으로 둔다. */
+
+.panel-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 13px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.panel-head .row {
+  min-width: 0;
+}
+
+.panel-body {
+  padding: 13px;
+}
+
+/* 기록 중임을 상단에 붙잡아 둔다. 이전에는 버튼 색만 바뀌어서 스크롤하면
+   기록 중이라는 사실이 화면에서 사라졌다. */
+.rec-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--signal-tint);
+  background: var(--signal-tint);
+}
+
+.rec-bar strong {
+  color: var(--signal);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rec-bar .dot::before {
+    animation: rec-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes rec-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* 수집 방식 두 가지를 카드로 나눈다. 이전에는 버튼 두 개의 우선순위를
+   CSS order 로 뒤집어, 어느 쪽이 주버튼인지 코드에서만 알 수 있었다. */
+.method {
+  margin-top: 11px;
+}
+
+.method h2 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tx-1);
+}
+
+.method.is-idle h2 {
+  color: var(--tx-2);
+}
+
+.method .btn {
+  margin-top: 10px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.stats > div {
+  padding: 10px 12px;
+  border-right: 1px solid var(--line);
+}
+
+.stats > div:last-child {
+  border-right: 0;
+}
+
+.stats b {
+  display: block;
+  font-family: var(--mono);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--tx-1);
+}
+
+.stats small {
+  font-size: 11px;
+  color: var(--tx-3);
+}
+
+/* 최근 요청 — 기계가 만든 값이므로 전부 모노다. */
+.recent {
+  display: grid;
+  gap: 2px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.recent div {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  color: var(--tx-3);
+}
+
+.recent .method-name {
+  color: var(--kind-traffic);
+  flex-shrink: 0;
+}
+
+.recent .ok {
+  color: var(--ok);
+  flex-shrink: 0;
+}
+
+.recent .bad {
+  color: var(--danger);
+  flex-shrink: 0;
+}
+
+.recent .path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result {
+  margin-top: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--kind-portal-line);
+  border-radius: var(--r-card);
+  background: var(--kind-portal-tint);
+}
+
+.result strong {
+  font-size: 12px;
+  color: var(--kind-portal);
+}
+
+.result .help {
+  margin-top: 5px;
+}
+
+.result .btn {
+  margin-top: 10px;
+}

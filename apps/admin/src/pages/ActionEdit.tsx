@@ -3,6 +3,8 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
 import Stepper from "../components/Stepper";
+import Toast, { useToast } from "../components/Toast";
+import { ErrorBox, SkeletonRows } from "../components/States";
 
 // 백엔드 apps/backend/app/services/masking.py의 SENSITIVE_KEYS와 같은 목록이어야
 // 한다. 값을 바꿀 때는 두 곳을 함께 고친다.
@@ -24,10 +26,10 @@ export default function ActionEdit() {
   // loadError: /api/actions/:id(또는 생성 POST)가 실패해 그릴 것이 전혀
   // 없는 경우에만 쓴다 — 이때만 전체 화면 오류로 대체한다.
   const [loadError, setLoadError] = useState<string | null>(null);
-  // error: 브레드크럼용 프로젝트 이름 조회, 활성화 실패처럼 이미 채워진
-  // 폼을 그대로 둬야 하는 경우에 쓴다 — 인라인 배너로만 보여준다.
+  // error: 활성화 실패처럼 이미 채워진 폼을 그대로 둬야 하는 경우에 쓴다.
   const [error, setError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
+  const { toasts, showToast, dismiss } = useToast();
 
   // React 18 StrictMode는 개발 모드에서 effect를 두 번 실행한다. 이 가드가
   // 없으면 POST가 두 번 나가 Action이 두 개 생긴다.
@@ -80,19 +82,16 @@ export default function ActionEdit() {
 
   if (loadError) {
     return (
-      <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId} projectName={projectName}>
-        <div className="error-banner">
-          <strong>요청을 처리하지 못했습니다</strong>
-          <p>{loadError}</p>
-        </div>
+      <Shell breadcrumb={["프로젝트", projectName, name]} projectId={projectId} projectName={projectName}>
+        <ErrorBox message={loadError} />
       </Shell>
     );
   }
 
   if (!spec) {
     return (
-      <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId} projectName={projectName}>
-        <p>불러오는 중...</p>
+      <Shell breadcrumb={["프로젝트", projectName, name]} projectId={projectId} projectName={projectName}>
+        <SkeletonRows rows={2} />
       </Shell>
     );
   }
@@ -129,8 +128,10 @@ export default function ActionEdit() {
       });
       setSpec({ ...spec, name, toolName, description });
       if (nextStatus) setStatus(nextStatus);
+      return true;
     } catch (err) {
       setError(errorMessage(err));
+      return false;
     } finally {
       setActivating(false);
     }
@@ -138,7 +139,7 @@ export default function ActionEdit() {
 
   /** 저장만 하고 화면에 머무른다 (이미 활성화된 액션을 고칠 때). */
   async function save() {
-    await persist();
+    if (await persist()) showToast("저장했습니다");
   }
 
   /**
@@ -146,114 +147,170 @@ export default function ActionEdit() {
    * 약속하므로 활성화만 하고 멈추면 약속을 지키지 않는 것이다.
    */
   async function activate() {
-    await persist("ACTIVE");
-    if (projectId) navigate(`/projects/${projectId}/console`);
+    const ok = await persist("ACTIVE");
+    if (ok && projectId) navigate(`/projects/${projectId}/console`);
   }
 
   return (
-    <Shell breadcrumb={["Projects", projectName, name]} projectId={projectId} projectName={projectName}>
-      <section className="heading-row">
+    <Shell breadcrumb={["프로젝트", projectName, name]} projectId={projectId} projectName={projectName}>
+      <div className="page-head">
         <div>
-          <p className="eyebrow">액션 생성</p>
+          <span className="eyebrow">action</span>
           <h1>{name}</h1>
-          <p className="subtitle">
-            <span className={status === "ACTIVE" ? "status" : "status status-1"}>{status}</span>
+          <p className="page-sub">
+            <span className={status === "ACTIVE" ? "dot dot-ok" : "dot"}>
+              {status === "ACTIVE" ? "활성" : "초안"}
+            </span>
           </p>
         </div>
-      </section>
+      </div>
 
       <Stepper current={3} />
 
-      <div className="builder-layout">
-        <article className="panel builder-form">
-          <div className="panel-heading">
-            <h2>기본정보</h2>
+      <div className="edit-grid">
+        <article className="panel panel-pad">
+          <div className="panel-head">
+            <h2>기본 정보</h2>
           </div>
           <div className="form-grid">
-            <label>
-              액션명
-              <input value={name} onChange={(e) => setName(e.target.value)} />
+            <label className="field">
+              <span className="field-label">액션명</span>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
-            <label>
-              Tool 이름
-              <input value={toolName} onChange={(e) => setToolName(e.target.value)} />
+            <label className="field">
+              <span className="field-label">Tool 이름</span>
+              <input
+                className="input input-mono"
+                value={toolName}
+                onChange={(e) => setToolName(e.target.value)}
+              />
             </label>
-            <label className="wide">
-              설명 (LLM이 이 도구를 선택할 때 읽는 내용)
+            <label className="field wide">
+              <span className="field-label">설명</span>
               <textarea
+                className="textarea"
                 value={description}
                 placeholder="LLM이 언제 이 도구를 골라야 하는지 설명하세요"
                 onChange={(e) => setDescription(e.target.value)}
               />
+              <span className="field-help">LLM 이 도구를 고를 때 읽는 유일한 근거입니다</span>
             </label>
           </div>
-          <p className="mono endpoint-line">
-            {spec.request.method} {spec.request.urlTemplate}
-          </p>
 
-          <h3 className="subheading">요청 파라미터 — 자동 추론됨</h3>
-          {Object.entries(paramTable).map(([key, def]: [string, any]) => (
-            <div className="schema-row" key={key}>
-              <code>{key}</code>
-              <select value={def.type} onChange={(e) => updateParam(key, "type", e.target.value)}>
-                {["string", "integer", "number", "boolean"].map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-              <small title={String(def.example)}>{String(def.example)}</small>
-              <p>
-                <input
-                  value={def.description ?? ""}
-                  placeholder="이 파라미터에 무엇을 넣어야 하는지 LLM에게 설명하세요"
-                  onChange={(e) => updateParam(key, "description", e.target.value)}
-                />
-              </p>
-            </div>
-          ))}
+          <div className="endpoint">
+            <strong>{spec.request.method}</strong>
+            <span className="truncate">{spec.request.urlTemplate}</span>
+          </div>
 
-          <div className="security-callout">
-            <strong>민감정보 마스킹 {MASKED_KEYS.length} rules</strong>
+          <div className="panel-head" style={{ marginTop: 24 }}>
+            <h2>요청 파라미터</h2>
+            <span className="tag">자동 추론 {Object.keys(paramTable).length}</span>
+          </div>
+
+          {Object.entries(paramTable).map(([key, def]: [string, any]) => {
+            // llmEditable=false 인 파라미터는 인증키다. 실행 직전에 서버가
+            // 채우므로 LLM 도, 사용자도 여기서 값을 넣지 않는다. 왜 다른지가
+            // 화면에서 읽혀야 한다 — 이전에는 일반 파라미터와 똑같이 그려졌다.
+            const credential = def.llmEditable === false;
+            return (
+              <div className={credential ? "param-card is-credential" : "param-card"} key={key}>
+                <div className="param-head">
+                  <code className="param-key">{key}</code>
+                  {credential ? (
+                    <span className="kind-badge kind-portal">LLM 에게 숨김</span>
+                  ) : (
+                    <>
+                      {def.required && <span className="tag tag-danger">필수</span>}
+                      <select
+                        className="select param-type"
+                        aria-label={`${key} 타입`}
+                        value={def.type}
+                        onChange={(e) => updateParam(key, "type", e.target.value)}
+                      >
+                        {["string", "integer", "number", "boolean"].map((t) => (
+                          <option key={t}>{t}</option>
+                        ))}
+                      </select>
+                      {def.example !== undefined && def.example !== null && (
+                        <span className="param-example" title={String(def.example)}>
+                          예시 <b>{String(def.example)}</b>
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {credential ? (
+                  <p className="field-help">
+                    실행 직전 프로젝트 인증키에서 주입됩니다. 키가 없으면 호출 전에 막힙니다.
+                  </p>
+                ) : (
+                  <input
+                    className="input"
+                    style={{ marginTop: 9 }}
+                    aria-label={`${key} 설명`}
+                    value={def.description ?? ""}
+                    placeholder="이 파라미터에 무엇을 넣어야 하는지 LLM에게 설명하세요"
+                    onChange={(e) => updateParam(key, "description", e.target.value)}
+                  />
+                )}
+              </div>
+            );
+          })}
+
+          <div className="callout">
+            <strong>민감정보 마스킹 {MASKED_KEYS.length}종 적용 중</strong>
             <p>{MASKED_KEYS.join(" · ")}</p>
             <p>URL 쿼리 · 요청 본문 · 응답 샘플 세 곳에 적용됩니다.</p>
           </div>
 
-          {error && (
-            <div className="error-banner">
-              <strong>활성화에 실패했습니다</strong>
-              <p>{error}</p>
-            </div>
-          )}
+          {error && <ErrorBox title="저장하지 못했습니다" message={error} />}
 
           {/* 활성화 뒤에도 설명을 고칠 수 있어야 한다. 예전에는 ACTIVE가 되면
               버튼이 비활성으로 잠겨, 그 뒤에 입력한 설명을 저장할 방법이 없었다. */}
-          <div className="activate-button">
+          <div className="edit-actions">
             {status === "ACTIVE" ? (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={save} disabled={activating}>
-                  {activating ? "저장 중..." : "저장"}
+              <>
+                <button type="button" className="btn" onClick={save} disabled={activating}>
+                  {activating ? "저장 중…" : "저장"}
                 </button>
                 <button
-                  className="primary"
+                  type="button"
+                  className="btn btn-primary"
                   onClick={() => projectId && navigate(`/projects/${projectId}/console`)}
                 >
                   테스트 콘솔로 이동
                 </button>
-              </div>
+              </>
             ) : (
-              <button className="primary" onClick={activate} disabled={activating}>
-                {activating ? "활성화 중..." : "활성화하고 테스트하기"}
+              <button type="button" className="btn btn-primary" onClick={activate} disabled={activating}>
+                {activating ? "활성화 중…" : "활성화하고 테스트하기"}
               </button>
             )}
           </div>
         </article>
 
-        <article className="panel code-preview">
-          <div className="panel-heading">
-            <h2>ActionSpec</h2>
+        <article className="code">
+          <div className="code-head">
+            <span>ActionSpec</span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                navigator.clipboard
+                  ?.writeText(JSON.stringify(spec, null, 2))
+                  .then(() => showToast("ActionSpec 을 복사했습니다"))
+                  .catch(() => showToast("복사하지 못했습니다", "error"));
+              }}
+            >
+              복사
+            </button>
           </div>
           <pre>{JSON.stringify(spec, null, 2)}</pre>
         </article>
       </div>
+
+      <Toast items={toasts} onDismiss={dismiss} />
     </Shell>
   );
 }

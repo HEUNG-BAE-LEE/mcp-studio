@@ -1,0 +1,286 @@
+/* ============================================================================
+   확장 프로그램 공용 스타일 — 팝업과 사이드패널이 함께 쓴다.
+   ----------------------------------------------------------------------------
+   토큰 값은 apps/admin/src/styles/app.css 의 tokens 레이어와 **같아야 한다.**
+   확장과 관리자는 번들이 분리돼 있어 import 로 공유할 수 없으므로, 값을 바꿀
+   때는 두 파일을 함께 고친다. 색을 하나만 고쳐도 확장과 관리자의 수집 방식
+   배지 색이 갈리고, 그러면 사용자는 둘을 다른 도구로 읽는다.
+
+   폰트도 같은 이유로 public/fonts/ 에 복제해 둔다.
+   ========================================================================== */
+
+:root {
+  --bg: #0c0b0a;
+  --surface: #131211;
+  --raised: #191817;
+  --well: #201e1c;
+  --line: #2a2725;
+  --line-2: #3a3633;
+  --tx-1: #f2eeea;
+  --tx-2: #a79e97;
+  --tx-3: #7c746e;
+
+  --signal: #ff5c1a;
+  --signal-press: #c7430f;
+  --signal-tint: rgba(255, 92, 26, 0.11);
+
+  --danger: #ff4d3d;
+  --danger-tint: rgba(255, 77, 61, 0.12);
+  --danger-line: rgba(255, 77, 61, 0.3);
+  --warn: #e3a73c;
+  --ok: #2fbf9e;
+
+  --kind-traffic: #5b8def;
+  --kind-portal: #2fbf9e;
+  --kind-portal-tint: rgba(47, 191, 158, 0.13);
+  --kind-portal-line: rgba(47, 191, 158, 0.26);
+
+  --r-ctl: 4px;
+  --r-card: 10px;
+  --r-pill: 999px;
+
+  --sans: "Wanted Sans", -apple-system, "Apple SD Gothic Neo", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --dur-1: 110ms;
+  --ease: cubic-bezier(0.2, 0.9, 0.25, 1);
+
+  color-scheme: dark;
+}
+
+@font-face {
+  font-family: "Wanted Sans";
+  src: url("/fonts/WantedSansVariable.woff2") format("woff2-variations");
+  font-weight: 400 1000;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--tx-2);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 430;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--signal);
+  border-radius: var(--r-ctl);
+}
+
+strong {
+  color: var(--tx-1);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── 공통 컴포넌트 ── 관리자와 같은 어휘를 쓴다. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-ctl);
+  background: var(--raised);
+  color: var(--tx-1);
+  font-size: 12.5px;
+  font-weight: 550;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.btn:hover:not(:disabled) {
+  background: var(--well);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* 주버튼은 바닥에서 가장 먼 값이다. 시그널 오렌지는 주버튼에 쓰지 않는다. */
+.btn-primary {
+  background: var(--tx-1);
+  border-color: var(--tx-1);
+  color: var(--bg);
+  font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--tx-2);
+  border-color: var(--tx-2);
+}
+/* 되돌릴 수 없는 순간에만 (기록 종료). */
+.btn-signal {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #160800;
+  font-weight: 600;
+}
+.btn-signal:hover:not(:disabled) {
+  background: var(--signal-press);
+  border-color: var(--signal-press);
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 12px;
+  background: var(--surface);
+}
+.card + .card {
+  margin-top: 8px;
+}
+.card-portal {
+  border-color: var(--kind-portal-line);
+  background: var(--kind-portal-tint);
+}
+
+.label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--tx-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-ctl);
+  background: var(--well);
+  color: var(--tx-1);
+  font-size: 12.5px;
+  outline: none;
+}
+.input::placeholder {
+  color: var(--tx-3);
+}
+.input:focus {
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-tint);
+}
+.input:disabled {
+  opacity: 0.55;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1px solid var(--kind-portal-line);
+  border-radius: var(--r-pill);
+  background: var(--kind-portal-tint);
+  color: var(--kind-portal);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--tx-3);
+  white-space: nowrap;
+}
+.dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.dot-ok {
+  color: var(--ok);
+}
+.dot-signal {
+  color: var(--signal);
+}
+.dot-signal::before {
+  box-shadow: 0 0 0 3px var(--signal-tint);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.push {
+  margin-left: auto;
+}
+.hair {
+  height: 1px;
+  background: var(--line);
+  margin: 12px 0;
+}
+.help {
+  font-size: 11.5px;
+  color: var(--tx-3);
+  line-height: 1.5;
+}
+.mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--signal);
+  color: #160800;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.alert {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--danger-line);
+  border-radius: var(--r-ctl);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: 11.5px;
+}
