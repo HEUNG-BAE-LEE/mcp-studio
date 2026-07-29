@@ -75,3 +75,22 @@ class Action(SQLModel, table=True):
     description: str = ""
     action_spec: dict = Field(default_factory=dict, sa_column=Column(JSON))
     status: str = "DRAFT"
+
+class CrawlJob(SQLModel, table=True):
+    """포털 일괄 수집 한 건. 수십 초가 걸리는 작업이라 상태를 남겨야
+    화면이 진행 상황을 물어볼 수 있다."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    list_url: str = ""
+    limit: int = 30
+    status: str = "running"          # running | completed | failed
+    phase: str = ""
+    services_found: int = 0
+    services_done: int = 0
+    operations: int = 0
+    current: str = ""
+    message: str = ""
+    session_id: Optional[int] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+

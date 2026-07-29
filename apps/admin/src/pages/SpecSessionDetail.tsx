@@ -42,6 +42,7 @@ export default function SpecSessionDetail() {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
 
   const session = useQuery({
     queryKey: ["session", id],
@@ -51,6 +52,14 @@ export default function SpecSessionDetail() {
   const operations = useQuery<SpecOperationRow[]>({
     queryKey: ["spec-operations", id],
     queryFn: () => api.get(`/api/recording-sessions/${id}/spec-operations`),
+  });
+
+  // 일괄 수집은 한 번에 수십 개를 모은다. 액션을 하나씩 만들게 하면 수집을
+  // 자동화한 의미가 사라진다.
+  const createAll = useMutation({
+    mutationFn: () => api.post(`/api/recording-sessions/${id}/spec-actions`, { status: "ACTIVE" }),
+    onSuccess: (result: { message: string }) => setBulkResult(result.message),
+    onError: (err) => setError(errorMessage(err)),
   });
 
   const createAction = useMutation({
@@ -84,6 +93,10 @@ export default function SpecSessionDetail() {
 
   const rows = operations.data ?? [];
   const serviceName = rows[0]?.serviceName ?? session.data?.sourceLabel ?? "";
+  const serviceCount = new Set(rows.map((row) => row.serviceName)).size;
+  // 일괄 수집이면 세션 하나에 여러 서비스가 섞인다. 서비스명을 접두로 보여주지
+  // 않으면 무엇을 모았는지 화면에서 읽을 수 없다.
+  const bulkCollected = serviceCount > 1;
 
   return (
     <Shell breadcrumb={breadcrumb} projectId={projectId} projectName={projectName}>
@@ -104,12 +117,43 @@ export default function SpecSessionDetail() {
         </div>
       )}
 
-      {/* 포털은 상세기능을 목록에서 하나씩만 렌더한다. 이 사실을 밝히지 않으면
-          사용자는 "5개 중 1개만 잡혔다"를 버그로 읽는다. */}
+      {/* 안내는 어떻게 수집했는지에 따라 달라야 한다. 일괄 수집인데 "확장에서
+          다시 누르세요"라고 하면 하지 않아도 될 일을 시키는 셈이다. */}
       <p className="spec-note">
-        <MarkPortal /> 포털 상세페이지는 상세기능을 목록에서 하나씩 보여줍니다. 다른 기능도 수집하려면
-        그 페이지에서 목록을 바꾼 뒤 확장에서 <strong>공개 명세 수집</strong>을 다시 누르세요.
+        <MarkPortal />
+        {bulkCollected ? (
+          <>
+            목록 URL 하나로 <strong>서비스 {serviceCount}개 · 오퍼레이션 {rows.length}개</strong>를 모았습니다.
+            아래에서 한 번에 액션으로 만들 수 있습니다.
+          </>
+        ) : (
+          <>
+            포털 상세페이지는 상세기능을 목록에서 하나씩 보여줍니다. 다른 기능도 수집하려면
+            그 페이지에서 목록을 바꾼 뒤 확장에서 <strong>공개 명세 수집</strong>을 다시 누르세요.
+          </>
+        )}
       </p>
+
+      {rows.length > 0 && (
+        <div className="bulk-bar">
+          <div>
+            <strong>{rows.length}개 오퍼레이션</strong>
+            <span>{serviceCount}개 서비스에서 수집됨</span>
+          </div>
+          {bulkResult && <em className="bulk-result">{bulkResult}</em>}
+          <button
+            className="primary"
+            disabled={createAll.isPending}
+            onClick={() => {
+              setError(null);
+              setBulkResult(null);
+              createAll.mutate();
+            }}
+          >
+            {createAll.isPending ? "만드는 중…" : "전체를 액션으로 만들기"}
+          </button>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div className="empty-state">
@@ -131,6 +175,11 @@ export default function SpecSessionDetail() {
               <div key={row.id}>
                 <div className="table-row">
                   <span>
+                    {bulkCollected && (
+                      <span className="op-service" title={row.serviceName}>
+                        {row.provider ? `${row.provider} · ` : ""}{row.serviceName}
+                      </span>
+                    )}
                     <strong className="op-name">{row.opName}</strong>
                     <span className="mono op-url" title={row.url}>{row.url}</span>
                     {row.warnings.length > 0 && <span className="op-warning">{row.warnings[0]}</span>}
