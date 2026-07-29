@@ -331,7 +331,10 @@ export default function App() {
             )}
           </div>
           <button
-            onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sessions/${specResult.sessionId}` })}
+            // 포털 세션은 /spec-sessions/:id 다. /sessions/:id 로 열면 트래픽 화면이
+            // 나와 "클릭과 연결된 요청이 없습니다"만 보인다 — 오퍼레이션이 멀쩡히
+            // 있는데도 수집이 실패한 것처럼 읽힌다.
+            onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/spec-sessions/${specResult.sessionId}` })}
             style={{ width: "100%", padding: 8, background: PORTAL_COLOR, color: "#fff", border: 0, borderRadius: 6 }}
           >
             관리자에서 열기
