@@ -98,7 +98,15 @@ def execute(action_id: int, payload: dict, db: Session = Depends(get_session)) -
     # 실행 직전에 프로젝트에 등록된 인증키를 넘겨 executor 가 채우게 한다.
     project = db.get(Project, action.project_id)
     credentials = (project.credentials if project else None) or {}
-    result = execute_action(action, payload["arguments"], credentials)
+    try:
+        result = execute_action(action, payload["arguments"], credentials)
+    except ValueError as exc:
+        # executor 는 인증키가 없거나 스펙과 method 가 어긋나면 ValueError 를 낸다.
+        # 잡지 않으면 FastAPI 가 맨 "Internal Server Error" 를 내보내고, 공들여
+        # 쓴 한국어 안내("인증키가 등록되어 있지 않습니다...")가 화면에 닿지 않는다.
+        # 인증 없이 나간 호출의 400 을 스펙 문제로 오해하는 것을 막으려고 만든
+        # 게이트인데, 메시지가 사라지면 그 목적이 무너진다.
+        raise HTTPException(422, str(exc)) from exc
 
     summary_response = client.chat.completions.create(
         model=DEPLOYMENT,

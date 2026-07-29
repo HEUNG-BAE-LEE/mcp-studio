@@ -187,3 +187,24 @@ def test_등록된_인증키는_마스킹해서_돌려준다(client, project_id)
                json={"portal": "data.go.kr", "value": "SECRET-VALUE-XYZ"})
     rows = client.get(f"/api/projects/{project_id}/credentials").json()
     assert rows == [{"portal": "data.go.kr", "masked": "SECR****"}]
+
+
+def test_인증키가_없으면_실행이_한국어_422로_막힌다(client, project_id, page_html):
+    """게이트가 낸 안내가 화면까지 닿아야 한다.
+
+    executor 는 ValueError 를 내는데, 라우터가 잡지 않으면 FastAPI 가 맨
+    "Internal Server Error" 를 내보낸다. 그러면 인증 없이 나간 400 을 스펙
+    문제로 오해하지 말라고 만든 게이트의 목적 자체가 무너진다.
+    """
+    body = client.post(f"/api/projects/{project_id}/spec-sessions",
+                       json={"url": SOURCE_URL, "html": page_html}).json()
+    op = client.get(f"/api/recording-sessions/{body['sessionId']}/spec-operations").json()[0]
+    action = client.post(f"/api/spec-operations/{op['id']}/actions",
+                         json={"status": "ACTIVE"}).json()
+
+    res = client.post(f"/api/actions/{action['id']}/execute", json={"arguments": {}})
+
+    assert res.status_code == 422, res.text
+    detail = res.json()["detail"]
+    assert "serviceKey" in detail
+    assert "인증키" in detail
