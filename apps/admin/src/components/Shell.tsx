@@ -22,11 +22,12 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
 
   const items = [
     { label: "프로젝트", number: "01", to: "/" },
+    { label: "수집 엔진", number: "02", to: "/sources" },
     ...(projectId
       ? [
-          { label: "기록 세션", number: "02", to: `/projects/${projectId}` },
-          { label: "액션", number: "03", to: `/projects/${projectId}/actions` },
-          { label: "테스트 콘솔", number: "04", to: `/projects/${projectId}/console` },
+          { label: "수집 세션", number: "03", to: `/projects/${projectId}` },
+          { label: "액션", number: "04", to: `/projects/${projectId}/actions` },
+          { label: "테스트 콘솔", number: "05", to: `/projects/${projectId}/console` },
         ]
       : []),
   ];

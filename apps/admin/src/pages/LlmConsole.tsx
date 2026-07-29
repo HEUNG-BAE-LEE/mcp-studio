@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
 import Stepper from "../components/Stepper";
+import CredentialPanel from "../components/CredentialPanel";
 
 export default function LlmConsole() {
   const { id } = useParams();
@@ -59,6 +60,8 @@ export default function LlmConsole() {
       </section>
 
       <Stepper current={4} />
+
+      <CredentialPanel projectId={projectId} />
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <input value={query} onChange={e => setQuery(e.target.value)} style={{ flex: 1, padding: 10 }} />

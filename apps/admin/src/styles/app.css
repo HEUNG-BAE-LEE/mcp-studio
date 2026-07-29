@@ -176,3 +176,52 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .workspace:hover { background: #f7f8fb; }
 .workspace strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace > span:last-child { min-width: 0; }
+
+/* ── 수집 방식 (트래픽 / 포털 공개 / 문서) ─────────────────────────
+   세 방식은 같은 위계다. 색만 다르고 형태·크기는 동일하게 두어
+   "다른 도구"가 아니라 "같은 흐름의 다른 입구"로 읽히게 한다. */
+.kind-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.kind-traffic { background: var(--blue-soft); color: #2346ca; }
+.kind-portal { background: #e6f6f2; color: #0b6e5c; }
+.kind-document { background: #fdf3e0; color: #92610a; }
+
+/* 수집 엔진 화면 */
+.method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 4px; }
+@media (max-width: 1080px) { .method-grid { grid-template-columns: 1fr; } }
+.method-card { border: 1px solid var(--line); border-radius: 12px; background: #fff; display: flex; flex-direction: column; overflow: hidden; }
+.method-card.is-live { border-color: #b7e3d8; }
+.method-illu { padding: 18px 18px 6px; display: flex; justify-content: center; }
+.method-illu svg { width: 100%; max-width: 190px; height: auto; }
+.method-body { padding: 4px 18px 16px; }
+.method-body h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; }
+.method-body p { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.55; }
+.method-sources { margin-top: auto; border-top: 1px dashed var(--line); background: #fafbfd; padding: 11px 14px 13px; }
+.method-sources h4 { margin: 0 0 8px; font-size: 10px; letter-spacing: .06em; color: #8991a2; font-weight: 700; }
+.source-row { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 7px; font-size: 12px; border: 1px solid transparent; }
+.source-row + .source-row { margin-top: 4px; }
+.source-row.is-live { background: #e6f6f2; border-color: #b7e3d8; color: #0b6e5c; font-weight: 650; }
+.source-row.is-soon { color: #98a1b0; }
+.source-row .source-name { flex: 1; min-width: 0; }
+.source-row .source-host { display: block; font-size: 10.5px; opacity: .75; font-weight: 400; }
+.source-row .source-state { font-size: 10.5px; font-weight: 700; }
+.source-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.source-dot.on { background: #0d9488; box-shadow: 0 0 0 3px #0d948826; }
+.source-dot.off { background: #d5dae2; }
+
+/* 오퍼레이션 목록 (포털 공개 수집 후보) */
+.op-warning { margin-top: 4px; font-size: 11.5px; color: #92610a; }
+.spec-note { margin: 0 0 14px; padding: 11px 14px; border: 1px solid #b7e3d8; background: #e6f6f2; border-radius: 8px; font-size: 12.5px; color: #0b6e5c; }
+
+/* 오퍼레이션 표. 기존 .table-row 첫 칸은 32px 아이콘 자리를 전제하는데
+   여기엔 아이콘이 없다. 그 규칙만 되돌리고 나머지 표 스타일은 그대로 쓴다. */
+.spec-table .table-head, .spec-table .table-row { grid-template-columns: minmax(0, 2.2fr) 70px 90px 70px 90px 190px; }
+.spec-table .table-row > span:first-child { display: block; }
+.spec-table .table-row > span { padding: 10px 0; }
+.spec-table .table-row .op-name { font-size: 12px; color: var(--ink); }
+.spec-table .table-row .op-url { display: block; font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spec-params .table-head, .spec-params .table-row { grid-template-columns: 150px 80px 70px 120px minmax(0, 1fr); }
+.spec-params .table-row > span:first-child { display: block; }
+
+/* 액션 표에 '수집 방식' 열이 늘어 6칸이 됐다. .table-5col 그대로 두면
+   마지막 칸(삭제)이 줄바꿈돼 아래로 밀린다. */
+.action-table .table-head, .action-table .table-row { grid-template-columns: minmax(0, 2fr) 110px minmax(0, 1fr) 90px 110px 120px; }

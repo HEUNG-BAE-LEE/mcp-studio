@@ -4,8 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트
 
-브라우저에서 사용자의 클릭과 그 클릭이 유발한 API 호출을 기록하고, 그중 하나를 골라
-LLM이 호출할 수 있는 액션으로 바꾸는 도구다. 대회 제출 영상용 프로토타입이며,
+브라우저에서 API를 수집해 LLM이 호출할 수 있는 액션으로 바꾸는 도구다.
+수집 방식은 traffic(화면이 부른 호출 관측) / portal(포털이 공개한 명세 파싱) /
+document(문서 변환, 미구현) 셋이며, RecordingSession.kind 로 갈린다.
+후보를 만드는 방식만 다르고 Action 이후(실행·LLM 콘솔)는 전부 공유한다. 대회 제출 영상용 프로토타입이며,
 로그인·프로젝트 CRUD·MCP 엔드포인트는 아직 없다.
 
 사용자 안내 문서는 `README.md`, 촬영 절차는 `docs/demo-script.md`에 있다.
@@ -35,7 +37,7 @@ cd apps/extension && npm run compile    # tsc --noEmit
 ## 구조
 
 ```
-apps/extension/  Chrome 확장 (WXT + React) — 클릭·네트워크 기록
+apps/extension/  Chrome 확장 (WXT + React) — 트래픽 기록 + 포털 명세 감지·전송
 apps/backend/    FastAPI + SQLModel + SQLite — 점수화·스키마 추론·실행·LLM
 apps/admin/      React + Vite — 프로젝트 → 세션 → 액션 계층 화면
 ```
@@ -51,6 +53,24 @@ DB 는 `apps/backend/data/dev.db` 파일 하나다. 마이그레이션은 없고
 동시 read-modify-write 가 이벤트를 덮어쓰기 때문이다. 바이트 계산은
 `TextEncoder` 를 쓴다. 한글은 UTF-8 로 3바이트라 문자 수 기준 상한은 10MB 할당량을
 넘긴다.
+
+**포털 공개 수집 경로.** 확장 `lib/spec-detect.ts` 가 페이지를 판정하고,
+`content.ts` 의 `capture-spec` 핸들러가 현재 DOM 을 통째로 넘긴다.
+`background.ts:collectSpec` → `POST /api/projects/{id}/spec-sessions` →
+`services/spec_parser.py:parse` → `SpecOperation`. **서버는 포털에 직접 접속하지 않는다** —
+data.go.kr robots.txt 가 목록 페이지(/tcs/dss/selectDataSetList.do)를 Disallow 하고 있고,
+사용자가 이미 연 페이지를 파싱하는 것과 서버가 긁는 것은 성격이 다르다.
+포털을 늘리려면 `spec_parser.PARSERS` 에 함수 하나만 등록하면 된다.
+
+상세페이지는 상세기능을 select 로 전환하므로 **초기 HTML 에는 하나의 명세만 있다.**
+그래서 같은 서비스를 다시 수집하면 새 세션을 만들지 않고 직전 세션에 누적한다
+(`routers/spec.py`). 화면은 "전체 5개 중 2개 수집됨"을 밝힌다 — 밝히지 않으면
+사용자가 이것을 버그로 읽는다.
+
+**인증키.** 포털 공개 수집 액션은 `serviceKey` 를 `llmEditable=False` 로 두어
+LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
+`executor._inject_credentials` 가 `Project.credentials` 에서 채우고, 없으면
+호출 전에 막는다 — 인증 없이 나간 400 을 스펙 문제로 오해하는 편이 더 비싸다.
 
 **액션 생성 경로.** `NetworkRequest` → `services/schema_infer.py:build_action_spec`
 → `Action.action_spec`. 액션은 요청을 **참조하지 않고 값을 복사해 둔다.** 그래서

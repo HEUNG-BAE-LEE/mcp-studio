@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import Project, RecordingSession, InteractionEvent, NetworkRequest, Action
+from app.models import Project, RecordingSession, InteractionEvent, NetworkRequest, Action, SpecOperation
 from app.services.body import summarize_response
 from app.services.masking import mask_patterns, mask_deep, mask_query, mask_body
 
@@ -55,6 +55,8 @@ def get_recording_session(session_id: int, db: Session = Depends(get_session)) -
         "startedAt": row.started_at,
         "endedAt": row.ended_at,
         "status": row.status,
+        "kind": row.kind,
+        "sourceLabel": row.source_label,
     }
 
 @router.get("/api/projects/{project_id}/recording-sessions")
@@ -68,18 +70,36 @@ def list_recording_sessions(project_id: int, db: Session = Depends(get_session))
 
     result = []
     for row in rows:
-        requests = db.exec(
-            select(NetworkRequest).where(NetworkRequest.session_id == row.id)
-        ).all()
-        scores = [r.score for r in requests if r.score is not None]
+        # 수집 방식마다 후보의 정체가 다르다. 트래픽은 네트워크 요청, 포털은 오퍼레이션.
+        # 화면이 세는 단위를 한 필드(candidateCount)로 통일해 표를 하나로 유지한다.
+        if row.kind == "portal":
+            operations = db.exec(
+                select(SpecOperation).where(SpecOperation.session_id == row.id)
+            ).all()
+            candidate_count = len(operations)
+            top_score = None
+            label = row.source_label or (operations[0].service_name if operations else "")
+        else:
+            requests = db.exec(
+                select(NetworkRequest).where(NetworkRequest.session_id == row.id)
+            ).all()
+            scores = [r.score for r in requests if r.score is not None]
+            candidate_count = len(requests)
+            # 채점 전과 0점을 구분해야 한다. 점수는 /candidates를 부를 때 채워진다.
+            top_score = max(scores) if scores else None
+            label = row.source_label
+
         result.append({
             "id": row.id,
+            "kind": row.kind,
+            "sourceLabel": label,
             "startedAt": row.started_at,
             "endedAt": row.ended_at,
             "status": row.status,
-            "requestCount": len(requests),
-            # 채점 전과 0점을 구분해야 한다. 점수는 /candidates를 부를 때 채워진다.
-            "topScore": max(scores) if scores else None,
+            "candidateCount": candidate_count,
+            # 기존 화면이 쓰던 이름을 남겨둔다 (트래픽 경로 호환)
+            "requestCount": candidate_count,
+            "topScore": top_score,
         })
     return result
 
