@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
 import Stepper from "../components/Stepper";
@@ -98,6 +98,12 @@ export default function ActionEdit() {
   }
 
   const paramTable = spec.request.bodySchema ?? spec.request.querySchema ?? {};
+
+  // LLM 에게 감춘 파라미터 = 실행 시점에 서버가 채워야 하는 값. 기관마다 이름이
+  // 달라(serviceKey / ServiceKey) 하드코딩하지 않고 스펙에서 읽는다.
+  const hiddenParams = Object.entries(paramTable)
+    .filter(([, def]: [string, any]) => def?.llmEditable === false)
+    .map(([key]) => key);
 
   function updateParam(key: string, field: string, value: unknown) {
     setSpec((prev: any) => {
@@ -216,6 +222,23 @@ export default function ActionEdit() {
             <p>{MASKED_KEYS.join(" · ")}</p>
             <p>URL 쿼리 · 요청 본문 · 응답 샘플 세 곳에 적용됩니다.</p>
           </div>
+
+          {/* 인증키는 액션이 아니라 프로젝트에 붙고(Project.credentials) 입력란은
+              테스트 콘솔에 있다. 액션 편집 화면에서 키를 찾으면 없으므로 길을
+              알려준다. authMode 로 갈라 트래픽 액션(NONE)에는 띄우지 않는다. */}
+          {spec.execution?.authMode === "CREDENTIAL" && (
+            <div className="credential-hint">
+              <strong>이 액션은 포털 인증키가 필요합니다</strong>
+              <p>
+                {hiddenParams.length > 0 && <code>{hiddenParams.join(", ")}</code>}
+                {hiddenParams.length > 0 && " 는 "}
+                LLM 에게 넘기지 않고 실행 직전에 서버가 채웁니다. 등록되지 않았으면 호출 전에 막힙니다.
+              </p>
+              {projectId && (
+                <Link to={`/projects/${projectId}/console`}>테스트 콘솔에서 인증키 등록 →</Link>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="error-banner">

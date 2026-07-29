@@ -210,7 +210,24 @@ export default function App() {
             ) : (
               <>
                 <strong>일반 페이지</strong>
+                {/* 왜 안 되는지만 말하면 사용자는 다음에 뭘 해야 할지 모른다.
+                    자격 조건과 대안을 함께 준다. 판정 기준은 lib/spec-detect.ts 와
+                    같아야 한다 — 여기만 고치면 두 설명이 갈린다. */}
                 <div style={{ marginTop: 2 }}>공개 명세 표가 감지되지 않았습니다</div>
+                <div style={{ marginTop: 6, color: "#64748b", lineHeight: 1.55 }}>
+                  공공데이터포털의 <strong>오픈API 상세페이지</strong>에서만 감지됩니다
+                  (<code>요청주소</code>와 <code>요청변수</code> 표가 함께 있는 화면).
+                  목록·검색 페이지는 대상이 아닙니다.
+                </div>
+                <button
+                  onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sources` })}
+                  style={{
+                    marginTop: 7, padding: "5px 9px", fontSize: 11, borderRadius: 5,
+                    border: "1px solid #cbd5e1", background: "#fff", color: "#475569",
+                  }}
+                >
+                  목록 URL 하나로 일괄 수집하기
+                </button>
               </>
             )}
           </div>

@@ -287,3 +287,13 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .bulk-bar button { margin-left: auto; }
 .bulk-result { font-style: normal; font-size: 12px; color: #0b6e5c; font-weight: 650; }
 .op-service { display: block; font-size: 10.5px; color: #0b6e5c; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 인증키가 필요한 액션에만 뜨는 안내. 키는 액션이 아니라 프로젝트에 붙고
+   입력란은 테스트 콘솔에 있어, 액션 화면에서 찾으면 없다. */
+.credential-hint { margin-top: 14px; padding: 12px 14px; border: 1px solid #cfe0f7;
+  background: #f3f8ff; border-radius: 8px; font-size: 12px; line-height: 1.6; }
+.credential-hint strong { display: block; margin-bottom: 4px; color: #1d4ed8; font-size: 12.5px; }
+.credential-hint p { margin: 0 0 8px; color: #465064; }
+.credential-hint code { font-size: 11px; }
+.credential-hint a { color: var(--blue); font-weight: 650; text-decoration: none; }
+.credential-hint a:hover { text-decoration: underline; }
