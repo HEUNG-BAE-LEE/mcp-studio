@@ -9,9 +9,9 @@
 // 표시는 66px 카드 띠에서 한 줄 궤적으로 낮췄다. 진행 표시가 본문만큼 무거울
 // 이유가 없다. 현재 단계만 시그널 색을 얻고 나머지는 무채색이다.
 const STEPS_BY_KIND: Record<string, string[]> = {
-  traffic: ["기록 시작", "클릭 기록", "API 분석", "액션 생성", "테스트"],
-  portal: ["페이지 열기", "명세 감지", "명세 파싱", "액션 생성", "테스트"],
-  document: ["문서 업로드", "텍스트 추출", "구조화", "액션 생성", "테스트"],
+  traffic: ["기록 시작", "클릭 기록", "API 분석", "MCP 생성", "테스트"],
+  portal: ["페이지 열기", "명세 감지", "명세 파싱", "MCP 생성", "테스트"],
+  document: ["문서 업로드", "텍스트 추출", "구조화", "MCP 생성", "테스트"],
 };
 
 export default function Stepper({ current, kind = "traffic" }: { current: number; kind?: string }) {

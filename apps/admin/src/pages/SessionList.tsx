@@ -116,7 +116,7 @@ export default function SessionList() {
         <div>
           <p className="eyebrow">COLLECTION</p>
           <h1>수집현황</h1>
-          <p className="page-sub">수집 방식별로 무엇을 모았는지 확인하고, 액션으로 만들 후보를 고릅니다.</p>
+          <p className="page-sub">수집 방식별로 무엇을 모았는지 확인하고, MCP 로 만들 후보를 고릅니다.</p>
         </div>
         {/* 수집은 프로젝트 안에서 시작한다. 예전에는 여기서 팝업을 띄웠는데,
             포털 폼이 다시 CrawlPreviewDialog 를 열어 팝업이 두 겹이 됐다.

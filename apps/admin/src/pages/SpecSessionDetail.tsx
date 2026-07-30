@@ -54,7 +54,7 @@ export default function SpecSessionDetail() {
     queryFn: () => api.get(`/api/recording-sessions/${id}/spec-operations`),
   });
 
-  // 일괄 수집은 한 번에 수십 개를 모은다. 액션을 하나씩 만들게 하면 수집을
+  // 일괄 수집은 한 번에 수십 개를 모은다. MCP 를 하나씩 만들게 하면 수집을
   // 자동화한 의미가 사라진다.
   const createAll = useMutation({
     mutationFn: () => api.post(`/api/recording-sessions/${id}/spec-actions`, { status: "ACTIVE" }),
@@ -118,7 +118,7 @@ export default function SpecSessionDetail() {
 
       {error && (
         <div className="error-box">
-          <strong>액션을 만들지 못했습니다</strong>
+          <strong>MCP 를 만들지 못했습니다</strong>
           <p>{error}</p>
         </div>
       )}
@@ -130,12 +130,12 @@ export default function SpecSessionDetail() {
         {fromDocument ? (
           <>
             문서에서 읽은 명세입니다. 엔드포인트·파라미터가 문서와 맞는지 확인한 뒤
-            액션으로 만들고, <strong>Playground</strong> 에서 한 번 호출해 보세요.
+            MCP 로 만들고, <strong>Playground</strong> 에서 한 번 호출해 보세요.
           </>
         ) : bulkCollected ? (
           <>
             목록 URL 하나로 <strong>서비스 {serviceCount}개 · 오퍼레이션 {rows.length}개</strong>를 모았습니다.
-            아래에서 한 번에 액션으로 만들 수 있습니다.
+            아래에서 한 번에 MCP 로 만들 수 있습니다.
           </>
         ) : (
           <>
@@ -161,7 +161,7 @@ export default function SpecSessionDetail() {
               createAll.mutate();
             }}
           >
-            {createAll.isPending ? "만드는 중…" : "전체를 액션으로 만들기"}
+            {createAll.isPending ? "만드는 중…" : "전체를 MCP 로 만들기"}
           </button>
         </div>
       )}
@@ -214,7 +214,7 @@ export default function SpecSessionDetail() {
                         createAction.mutate(row.id);
                       }}
                     >
-                      액션 만들기
+                      MCP 만들기
                     </button>
                   </span>
                 </div>

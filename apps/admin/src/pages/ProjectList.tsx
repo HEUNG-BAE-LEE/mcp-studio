@@ -83,7 +83,7 @@ export default function ProjectList() {
       // "지웠습니다" 만으로는 무엇을 잃었는지 알 수 없다.
       const also = [
         r.deletedSessions ? `세션 ${r.deletedSessions}건` : "",
-        r.deletedActions ? `액션 ${r.deletedActions}건` : "",
+        r.deletedActions ? `MCP ${r.deletedActions}건` : "",
       ].filter(Boolean).join(", ");
       showToast(`${project.name}을(를) 지웠습니다`, "ok", also ? `${also} 함께 삭제` : undefined);
       load();
@@ -243,7 +243,7 @@ export default function ProjectList() {
                 description="되돌릴 수 없습니다. 함께 사라지는 것:"
                 facts={[
                   { label: "수집 세션", value: String(project.sessions) },
-                  { label: "액션", value: String(project.actions) },
+                  { label: "MCP", value: String(project.actions) },
                 ]}
                 onConfirm={() => remove(project)}
                 onCancel={() => setConfirming(null)}
@@ -266,13 +266,13 @@ export default function ProjectList() {
           </div>
           <div>
             <i aria-hidden="true">2</i>
-            <strong>후보에서 액션 만들기</strong>
+            <strong>후보에서 MCP 만들기</strong>
             <p>수집된 후보 중 쓸 것을 고르고, LLM 이 읽을 설명과 파라미터를 다듬습니다.</p>
           </div>
           <div>
             <i aria-hidden="true">3</i>
             <strong>콘솔에서 테스트</strong>
-            <p>활성화한 액션을 질의로 호출해 도구 선택과 실행 결과를 확인합니다.</p>
+            <p>활성화한 MCP 를 질의로 호출해 도구 선택과 실행 결과를 확인합니다.</p>
           </div>
         </section>
       )}
