@@ -97,7 +97,9 @@ export default function ProjectList() {
         <div>
           <p className="eyebrow">WEB ACTION MCP BUILDER</p>
           <h1>프로젝트</h1>
-          <p className="subtitle">확장 프로그램에서 기록한 내용이 프로젝트별로 모입니다.</p>
+          <p className="subtitle">
+            수집한 API 는 프로젝트로 모입니다. 어떤 방식으로 모았는지가 배지로 보입니다.
+          </p>
         </div>
         <div className="new-project">
           <input
