@@ -1227,10 +1227,315 @@
     font-size: 11.5px;
     color: var(--tx-3);
   }
+
+  /* ── 수집 시작 모달 ──
+     실제로 떠 있는 것이라 그림자를 얻는 몇 안 되는 표면이다. */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: var(--sp-6);
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(3px);
+    animation: pop-in var(--dur-2) var(--ease);
+  }
+  .modal-card {
+    width: min(680px, 100%);
+    max-height: min(88vh, 900px);
+    overflow-y: auto;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-shell);
+    background: var(--sheen);
+    box-shadow: var(--shadow-pop);
+  }
+  .modal-head {
+    position: sticky;
+    top: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    padding: var(--sp-5) var(--sp-6);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .modal-head strong { display: block; font-size: 16px; letter-spacing: -0.02em; }
+  .modal-head span { display: block; margin-top: 4px; font-size: 12.5px; color: var(--tx-3); }
+  .modal-head button {
+    width: var(--h-ctl-sm);
+    height: var(--h-ctl-sm);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-ctl);
+    background: var(--sheen-ctl);
+    box-shadow: var(--edge);
+    color: var(--tx-2);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .modal-head button:hover { background: var(--sheen-ctl-hover); color: var(--tx-1); }
+
+  /* 수집 방식 고르기. 카드처럼 큼직하게 두어 무엇을 고르는지가 먼저 읽히게 한다. */
+  .engine-picker {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-2);
+    padding: var(--sp-5) var(--sp-6) 0;
+  }
+  @media (max-width: 620px) { .engine-picker { grid-template-columns: 1fr; } }
+  .engine-picker button {
+    display: grid;
+    justify-items: start;
+    gap: 6px;
+    padding: var(--sp-4);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-card);
+    background: var(--sheen-ctl);
+    box-shadow: var(--edge);
+    color: var(--tx-3);
+    text-align: left;
+    transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease),
+      color var(--dur-1) var(--ease);
+  }
+  .engine-picker button:hover:not(:disabled) { background: var(--sheen-ctl-hover); border-color: var(--line-3); }
+  .engine-picker button.on {
+    border-color: var(--brand);
+    background: var(--brand-tint);
+    color: var(--brand-soft);
+  }
+  .engine-picker button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .engine-picker button b { display: block; font-size: 13.5px; color: var(--tx-1); letter-spacing: -0.015em; }
+  .engine-picker button.on b { color: var(--brand-soft); }
+  .engine-picker button span { font-size: 12px; color: var(--tx-3); }
+
+  .engine-body { padding: var(--sp-5) var(--sp-6) var(--sp-6); }
+  .engine-body .crawl-panel { border: 0; background: none; padding: 0; box-shadow: none; }
+
+  /* 안내 문구. 본문이 아니라 곁다리라 왼쪽 규칙선으로만 구분한다. */
+  .guide-note {
+    padding: var(--sp-4) var(--sp-5);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--line-3);
+    border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+    background: var(--surface);
+    font-size: 12.5px;
+    color: var(--tx-3);
+    line-height: 1.7;
+  }
+  .guide-note + .guide-note { margin-top: var(--sp-2); }
+  .guide-note strong { display: inline; color: var(--tx-2); }
+  .guide-note > strong:first-child { display: block; margin-bottom: 5px; color: var(--tx-1); font-size: 13px; }
+  .guide-note code {
+    padding: 1px 6px;
+    border: 1px solid var(--line-2);
+    border-radius: 4px;
+    background: var(--well);
+    font-size: 11.5px;
+    color: var(--brand-soft);
+  }
+  .guide-steps {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 13px;
+    color: var(--tx-2);
+    line-height: 1.75;
+  }
+  .guide-steps li + li { margin-top: 7px; }
+  .guide-steps code {
+    padding: 1px 6px;
+    border: 1px solid var(--line-2);
+    border-radius: 4px;
+    background: var(--well);
+    font-size: 11.5px;
+    color: var(--brand-soft);
+  }
+
+  /* 수집 엔진 화면의 접이식 안내 */
+  .method-guide { border-top: 1px solid var(--line); }
+  .method-guide > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-3) var(--sp-5);
+    font-size: 12.5px;
+    color: var(--tx-3);
+    cursor: pointer;
+    list-style: none;
+  }
+  .method-guide > summary::-webkit-details-marker { display: none; }
+  .method-guide > summary::after { content: "＋"; color: var(--tx-4); }
+  .method-guide[open] > summary::after { content: "－"; }
+  .method-guide > summary:hover { color: var(--tx-1); background: var(--raised); }
+  .method-guide .guide-body { padding: 0 var(--sp-5) var(--sp-5); }
+  .method-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--brand-soft);
+  }
+  .method-link:hover { text-decoration: underline; }
+
+  /* ── 포털 일괄 수집 ── */
+  .crawl-panel {
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--sheen);
+    box-shadow: var(--edge);
+    padding: var(--sp-5);
+  }
+  .crawl-head strong { display: block; font-size: 14px; letter-spacing: -0.015em; }
+  .crawl-head span { display: block; margin-top: 5px; font-size: 12.5px; color: var(--tx-3); line-height: 1.6; }
+  .crawl-target { margin-top: var(--sp-4); }
+  .crawl-target-label,
+  .crawl-target label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--tx-4);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .crawl-target select {
+    width: 100%;
+    height: var(--h-ctl);
+    padding: 0 12px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-ctl);
+    background: var(--well);
+    color: var(--tx-1);
+    font-size: 13px;
+  }
+  .crawl-fixed-project {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 11px;
+    border: 1px solid var(--brand-line);
+    border-radius: var(--r-ctl);
+    background: var(--brand-tint);
+    color: var(--brand-soft);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .crawl-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: var(--sp-4); }
+  .crawl-presets button {
+    height: var(--h-ctl-sm);
+    padding: 0 11px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: var(--tx-3);
+    font-size: 12.5px;
+    transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  }
+  .crawl-presets button:hover { background: var(--raised); color: var(--tx-1); }
+  .crawl-presets button.on {
+    background: var(--brand-tint);
+    border-color: var(--brand-line);
+    color: var(--brand-soft);
+    font-weight: 600;
+  }
+  .crawl-form { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-4); }
+  .crawl-form input {
+    flex: 1;
+    min-width: 200px;
+    height: var(--h-ctl);
+    padding: 0 12px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-ctl);
+    background: var(--well);
+    color: var(--tx-1);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    outline: none;
+  }
+  .crawl-form input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-tint); }
+  .crawl-form select {
+    height: var(--h-ctl);
+    padding: 0 10px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-ctl);
+    background: var(--well);
+    color: var(--tx-1);
+    font-size: 12.5px;
+  }
+  .crawl-progress {
+    margin-top: var(--sp-4);
+    padding: var(--sp-4);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface);
+  }
+  .crawl-progress.is-done { border-color: var(--ok-line); }
+  .crawl-bar {
+    height: 6px;
+    border-radius: var(--r-pill);
+    background: var(--well);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .crawl-bar span {
+    display: block;
+    height: 100%;
+    background: var(--brand);
+    transition: width var(--dur-2) var(--ease);
+  }
+  .crawl-progress.is-done .crawl-bar span { background: var(--ok); }
+  .crawl-stat { display: flex; gap: var(--sp-5); flex-wrap: wrap; margin-top: var(--sp-3); font-size: 12.5px; }
+  .crawl-stat b {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--tx-1);
+  }
+  .crawl-stat b + span { margin-left: 5px; color: var(--tx-4); font-size: 11.5px; }
+  .crawl-stat em { font-style: normal; color: var(--tx-3); }
+  .crawl-current {
+    margin-top: var(--sp-3);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--tx-4);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .crawl-done { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-3); }
+
+  /* ── 일괄 액션 생성 (포털 세션 상세) ── */
+  .bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    padding: var(--sp-4) var(--sp-5);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--sheen);
+    box-shadow: var(--edge);
+    margin-bottom: var(--sp-3);
+  }
+  .bulk-bar strong { font-size: 13.5px; }
+  .bulk-bar span { font-size: 12.5px; color: var(--tx-3); }
+  .bulk-result {
+    margin-top: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--ok-line);
+    border-radius: var(--r-ctl);
+    background: var(--ok-tint);
+    color: var(--ok);
+    font-size: 12.5px;
+  }
+  .op-service { display: block; margin-bottom: 3px; font-size: 11.5px; color: var(--brand-soft); }
+  .op-warning { display: block; margin-top: 5px; font-size: 12px; color: var(--warn); }
+  .spec-params { margin: 0; }
 }
 
 /* ───────────────────────────────────────────────────────── utilities ── */
 @layer utilities {
+  .field { display: block; }
   .stack { display: grid; gap: var(--sp-3); }
   .cluster { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
   .between { justify-content: space-between; }

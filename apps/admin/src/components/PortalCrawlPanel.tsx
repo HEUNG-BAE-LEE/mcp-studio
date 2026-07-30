@@ -179,7 +179,7 @@ export default function PortalCrawlPanel({
           <option value={50}>50개</option>
         </select>
         <button
-          className="primary"
+          className="btn btn-primary"
           onClick={start}
           disabled={starting || (!!job && job.status === "running")}
         >
@@ -188,7 +188,7 @@ export default function PortalCrawlPanel({
       </div>
 
       {error && (
-        <div className="error-banner" style={{ marginTop: 10 }}>
+        <div className="error-box" style={{ marginTop: 10 }}>
           <p>{error}</p>
         </div>
       )}
@@ -212,7 +212,7 @@ export default function PortalCrawlPanel({
             <div className="crawl-done">
               <span>{job.message}</span>
               {job.sessionId && (
-                <button className="primary" onClick={() => navigate(`/spec-sessions/${job.sessionId}`)}>
+                <button className="btn btn-primary" onClick={() => navigate(`/spec-sessions/${job.sessionId}`)}>
                   수집 결과 보기
                 </button>
               )}
