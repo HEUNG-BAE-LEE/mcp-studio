@@ -93,9 +93,11 @@ export default function PortalCrawlPanel({
 
   // 무엇을 수집할지는 팝업에서 확정한다. 여기서 바로 시작하면 엉뚱한 API 가
   // 섞여 들어오고, 그걸 나중에 지우는 편이 더 번거롭다.
-  async function startSelected(selected: string[], purpose: string) {
+  async function startSelected(selected: string[], purpose: string, searchedUrl: string) {
     await api.post(`/api/projects/${projectId}/portal-crawls`, {
-      listUrl: url.trim(),
+      // 미리보기가 읽은 주소로 수집한다. 용도를 적으면 서버가 거기서 검색어를
+      // 뽑아 다시 찾으므로, 입력란의 원래 주소와 다르다.
+      listUrl: searchedUrl || url.trim(),
       limit,
       publicDataPks: selected,
       purpose,

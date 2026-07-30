@@ -1653,7 +1653,12 @@
   .spinner { width: 18px; height: 18px; border: 2px solid #d9e1ea; border-top-color: var(--kind-portal); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
   .dlg-listhead { display: flex; align-items: center; gap: 10px; margin: 16px 0 8px; font-size: 12px; color: var(--tx-3); }
   .dlg-checkall { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; color: var(--tx-1); }
+  /* 개수 표시는 왼쪽 묶음 끝에, 시작 버튼은 오른쪽 끝에 붙인다. 목록이 길면
+     아래 버튼이 스크롤 밖으로 나가므로 같은 버튼을 여기에도 둔다. */
   .dlg-listhead span { margin-left: auto; }
+  .dlg-listhead .btn { margin-left: var(--sp-3); }
+  /* 목록만 스크롤한다. 머리줄(전체 선택·시작)은 늘 보여야 한다. */
+  .preview-body .dlg-list { max-height: min(38vh, 340px); overflow-y: auto; }
   .dlg-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; }
   .dlg-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--well); }
   .dlg-list li:last-child { border-bottom: none; }

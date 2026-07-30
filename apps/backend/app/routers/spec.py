@@ -425,9 +425,9 @@ def create_actions_bulk(session_id: int, payload: BulkActionIn,
         "skipped": skipped,
         "total": len(operations),
         "message": (
-            f"액션 {len(created)}개를 만들었습니다"
+            f"MCP 도구 {len(created)}개를 만들었습니다"
             + (f" (이미 있는 {skipped}개는 건너뜀)" if skipped else "")
-        ) if created else f"새로 만들 액션이 없습니다 (이미 있는 {skipped}개)",
+        ) if created else f"새로 만들 MCP 도구가 없습니다 (이미 있는 {skipped}개)",
     }
 
 
