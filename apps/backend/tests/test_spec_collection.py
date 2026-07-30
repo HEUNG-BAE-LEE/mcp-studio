@@ -186,7 +186,12 @@ def test_등록된_인증키는_마스킹해서_돌려준다(client, project_id)
     client.put(f"/api/projects/{project_id}/credentials",
                json={"portal": "data.go.kr", "value": "SECRET-VALUE-XYZ"})
     rows = client.get(f"/api/projects/{project_id}/credentials").json()
-    assert rows == [{"portal": "data.go.kr", "masked": "SECR****"}]
+    # 응답에는 "무슨 키가 필요한지"(usedBy 등)가 함께 실린다. 여기서 지켜야 할
+    # 것은 값이 그대로 나가지 않는다는 사실이므로 그 부분만 본다.
+    assert len(rows) == 1
+    assert rows[0]["portal"] == "data.go.kr"
+    assert rows[0]["masked"] == "SECR****"
+    assert "SECRET-VALUE-XYZ" not in str(rows)
 
 
 def test_인증키가_없으면_실행이_한국어_422로_막힌다(client, project_id, page_html):
