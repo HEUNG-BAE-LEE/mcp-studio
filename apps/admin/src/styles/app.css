@@ -625,3 +625,8 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
   background: #fafbfc; font: 10.5px/1.6 ui-monospace, monospace; color: #6b7484;
   white-space: pre-wrap; word-break: break-all; max-height: 230px; overflow: auto; }
 .pg-tools-label { margin: 0 0 9px; color: #a3abb8; font-size: 11px; }
+/* 끝났지만 하나도 못 모은 잡. 성공과 같은 초록으로 두면 잘 된 줄 알고
+   왜 액션이 안 생겼는지 엉뚱한 데서 찾게 된다. */
+.job-card.is-empty { border-color: #e7dcc4; background: #fffdf7; }
+.job-state.empty { background: #fdf3e0; color: #8a6a1f; }
+.job-card.is-empty .job-bar span { background: #d9c9a4; }

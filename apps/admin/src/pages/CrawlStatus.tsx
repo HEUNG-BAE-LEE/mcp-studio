@@ -109,17 +109,24 @@ export default function CrawlStatus() {
 
       {(jobs ?? []).map((job) => {
         const done = job.status !== "running";
+        // 끝났는데 하나도 못 모은 것은 성공이 아니다. "완료" 에 100% 초록 막대까지
+        // 채우면 잘 된 것처럼 보여, 왜 액션이 안 생겼는지 다른 데서 찾게 된다.
+        const empty = done && job.status === "completed" && job.operations === 0;
         // 진행 중에는 목표 대비 비율을 쓴다. 끝났으면 100% 로 채운다 —
         // 선택 수집은 목표(limit)보다 적게 모으는 것이 정상인데, 비율을 그대로
         // 두면 "완료"인 잡의 막대가 4분의 1만 차서 멈춘 것처럼 보인다.
-        const percent = done
-          ? 100
-          : Math.min(100, Math.round((job.operations / Math.max(1, job.limit)) * 100));
+        const percent = empty
+          ? 0
+          : done
+            ? 100
+            : Math.min(100, Math.round((job.operations / Math.max(1, job.limit)) * 100));
         return (
-          <article className={`job-card ${done ? "is-done" : "is-running"}`} key={job.id}>
+          <article className={`job-card ${empty ? "is-empty" : done ? "is-done" : "is-running"}`} key={job.id}>
             <div className="job-head">
-              <span className={`job-state ${job.status}`}>
-                {job.status === "running" ? "수집 중" : job.status === "completed" ? "완료" : "실패"}
+              <span className={`job-state ${empty ? "empty" : job.status}`}>
+                {job.status === "running" ? "수집 중"
+                  : empty ? "결과 없음"
+                  : job.status === "completed" ? "완료" : "실패"}
               </span>
               <strong>
                 <MarkPortal /> {keywordOf(job.listUrl)}
