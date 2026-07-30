@@ -1579,13 +1579,13 @@
   .crawl-running-link { margin-left: auto; font-size: 12px; color: var(--kind-portal); font-weight: 650; }
   /* 수집 진행현황 화면 */
 .job-card { border: 1px solid var(--line); border-radius: var(--r-card); padding: 15px 17px; margin-bottom: 12px; background: var(--surface); }
-  .job-card.is-running { border-color: var(--kind-portal-line); background: #f8fdfb; }
+  .job-card.is-running { border-color: var(--kind-portal-line); background: var(--raised); }
   .job-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
   .job-head strong { font-size: 14px; color: var(--tx-1); display: inline-flex; align-items: center; gap: 6px; }
   .job-state { font-size: 12px; font-weight: 800; border-radius: 99px; padding: 2px 9px; }
   .job-state.running { background: var(--kind-portal-tint); color: var(--kind-portal); }
   .job-state.completed { background: var(--kind-traffic-tint); color: var(--kind-traffic); }
-  .job-state.failed { background: #fdeeec; color: var(--danger); }
+  .job-state.failed { background: var(--danger-tint); color: var(--danger); }
   .job-meta { font-size: 12px; color: var(--tx-3); }
   .job-link { margin-left: auto; font-size: 12px; font-weight: 650; color: var(--kind-traffic); }
   .job-bar { height: 6px; border-radius: 99px; background: var(--well); overflow: hidden; }
@@ -1601,7 +1601,7 @@
   .kind-tabs button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 9px 14px; font-size: 13px; font-weight: 650; color: var(--tx-3); border-bottom: 2px solid transparent; }
   .kind-tabs button:hover { color: var(--tx-1); }
   .kind-tabs button.on { color: var(--kind-portal); border-bottom-color: var(--kind-portal); }
-  .kind-tabs em { font-style: normal; font-size: 12px; font-weight: 700; background: #f2f5f9; color: var(--tx-3); border-radius: 99px; padding: 1px 7px; }
+  .kind-tabs em { font-style: normal; font-size: 12px; font-weight: 700; background: var(--raised); color: var(--tx-3); border-radius: var(--r-pill); padding: 1px 7px; }
   .kind-tabs button.on em { background: var(--kind-portal-tint); color: var(--kind-portal); }
   /* 상태 토글 — 지금 상태와 누르면 될 일을 함께 읽히게 한다 */
 .state-toggle { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line2); background: var(--surface); border-radius: 99px; padding: 3px 11px 3px 9px; font-size: 12px; font-weight: 650; color: var(--tx-3); }
@@ -1705,7 +1705,7 @@
   .cred-chip:hover { border-color: var(--line-2); }
   .cred-chip svg { color: var(--tx-3); }
   .cred-chip code { font-size: 12px; color: var(--tx-1); }
-  .cred-chip.is-missing { border-color: #f0d9a8; background: #fffaf0; color: #8a6a1f; }
+  .cred-chip.is-missing { border-color: var(--warn-line); background: var(--warn-tint); color: var(--warn); }
   .cred-chip.is-missing svg { color: #c79a34; }
   .cred-form { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: 480px;
   padding: 16px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface);
@@ -1743,9 +1743,9 @@
   .pg-avatar.is-error { display: grid; place-items: center; background: var(--danger-tint); color: var(--danger);
   font-weight: 800; font-size: 12px; }
   .pg-bubble { flex: 1; min-width: 0; padding: 13px 16px; border: 1px solid var(--line);
-  border-radius: 16px 16px 16px 5px; background: #fbfcfd; }
-  .pg-bubble.is-error { border-color: #f4d3ce; background: #fdf4f3; }
-  .pg-bubble.is-error p { color: #96271a; }
+  border-radius: 16px 16px 16px 5px; background: var(--surface); }
+  .pg-bubble.is-error { border-color: var(--danger-line); background: var(--danger-tint); }
+  .pg-bubble.is-error p { color: var(--danger); }
   /* 어떤 도구를 거쳤는지. 누르면 오른쪽 로그가 그 호출로 펼쳐진다. */
 .pg-used { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 11px;
   padding-bottom: 11px; border-bottom: 1px solid var(--line); }
@@ -1755,7 +1755,7 @@
   .pg-used-chip:hover { border-color: var(--line-2); }
   .pg-used-chip.on { border-color: var(--kind-traffic); background: var(--kind-traffic-tint); }
   .pg-used-chip.on .mono { color: #24379e; }
-  .pg-used-chip.bad { border-color: #f0c9c4; background: #fdf6f5; }
+  .pg-used-chip.bad { border-color: var(--danger-line); background: var(--danger-tint); }
   .pg-used-count { margin-left: auto; color: var(--tx-3); font-size: 12px; }
   .pg-truncated { margin-top: 10px !important; padding: 8px 12px; border-radius: var(--r-card);
   background: var(--warn-tint); color: #8a6a1f; font-size: 12px !important; }
@@ -1821,7 +1821,7 @@
   .pg-call-caret { color: #b6bfcd; transition: transform .15s; }
   .pg-call.is-open .pg-call-caret { transform: rotate(180deg); }
   .pg-call-body { padding: 2px 12px 14px; }
-  .pg-why { margin: 0 0 12px; padding: 9px 12px; border-radius: var(--r-card); background: #f5f7ff;
+  .pg-why { margin: 0 0 12px; padding: 9px 12px; border-radius: var(--r-card); background: var(--brand-tint);
   color: #3a4763; font-size: 12px; line-height: 1.62; }
   .pg-io { margin-top: 12px; }
   .pg-io h4 { margin: 0 0 5px; font-size: 12px; letter-spacing: .07em; text-transform: uppercase;
@@ -1843,9 +1843,9 @@
   .pg-tools-label { margin: 0 0 9px; color: #a3abb8; font-size: 12px; }
   /* 끝났지만 하나도 못 모은 잡. 성공과 같은 초록으로 두면 잘 된 줄 알고
    왜 액션이 안 생겼는지 엉뚱한 데서 찾게 된다. */
-.job-card.is-empty { border-color: #e7dcc4; background: #fffdf7; }
-  .job-state.empty { background: var(--warn-tint); color: #8a6a1f; }
-  .job-card.is-empty .job-bar span { background: #d9c9a4; }
+.job-card.is-empty { border-color: var(--warn-line); background: var(--raised); }
+  .job-state.empty { background: var(--warn-tint); color: var(--warn); }
+  .job-card.is-empty .job-bar span { background: var(--warn); }
   @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
   @keyframes pulse { 50% { box-shadow: 0 0 0 5px rgba(13,148,136,.16); } }
   @keyframes spin { to { transform: rotate(360deg); } }
