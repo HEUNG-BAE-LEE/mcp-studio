@@ -5,6 +5,9 @@ from sqlmodel import SQLModel, Field, Column, JSON
 class Project(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
+    # 목록 카드에 두 줄까지 보인다. 이름만으로는 무엇을 모아 둔 프로젝트인지
+    # 알 수 없어, 시간이 지나면 자기가 만든 것도 구분하지 못한다.
+    description: str = ""
     allowed_origins: list = Field(default_factory=list, sa_column=Column(JSON))
     status: str = "ACTIVE"
     # 포털별 인증키. 포털 공개 기반 수집은 명세만 읽어서 키가 없기 때문에 따로 받아둔다.

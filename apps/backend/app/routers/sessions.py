@@ -14,6 +14,13 @@ router = APIRouter()
 # 이 엔드포인트를 호출하므로 반복 호출에 안전해야 한다(get-or-create).
 class ProjectIn(BaseModel):
     name: str
+    description: str = ""
+
+
+class ProjectPatch(BaseModel):
+    """이름·설명 수정. 보낸 항목만 바꾼다."""
+    name: Optional[str] = None
+    description: Optional[str] = None
 
 @router.post("/api/projects")
 def get_or_create_project(payload: ProjectIn, db: Session = Depends(get_session)) -> dict:
@@ -25,11 +32,11 @@ def get_or_create_project(payload: ProjectIn, db: Session = Depends(get_session)
     if existing is not None:
         return {"id": existing.id, "name": existing.name}
 
-    project = Project(name=name, allowed_origins=[])
+    project = Project(name=name, description=payload.description.strip(), allowed_origins=[])
     db.add(project)
     db.commit()
     db.refresh(project)
-    return {"id": project.id, "name": project.name}
+    return {"id": project.id, "name": project.name, "description": project.description}
 
 @router.get("/api/projects")
 def list_projects(db: Session = Depends(get_session)) -> list:
@@ -56,12 +63,43 @@ def list_projects(db: Session = Depends(get_session)) -> list:
         out.append({
             "id": p.id,
             "name": p.name,
+            "description": p.description or "",
             "kinds": kinds,
             "sessions": len(sessions),
             "actions": action_count,
             "lastCollectedAt": max(started) if started else None,
         })
     return out
+
+@router.patch("/api/projects/{project_id}")
+def update_project(project_id: int, payload: ProjectPatch,
+                   db: Session = Depends(get_session)) -> dict:
+    """이름·설명을 고친다. 보낸 항목만 바꾼다 — 설명만 고치려다 이름이 비는 일이 없게."""
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "해당 프로젝트를 찾을 수 없습니다")
+
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(422, "프로젝트 이름을 입력해 주세요")
+        # 이름은 확장이 프로젝트를 찾는 열쇠이기도 하다(같은 이름이면 같은 프로젝트).
+        # 다른 프로젝트가 이미 쓰고 있으면 두 개가 한 이름을 갖게 된다.
+        taken = db.exec(
+            select(Project).where(Project.name == name).where(Project.id != project_id)
+        ).first()
+        if taken is not None:
+            raise HTTPException(409, f"'{name}' 은(는) 다른 프로젝트가 쓰고 있습니다")
+        project.name = name
+
+    if payload.description is not None:
+        project.description = payload.description.strip()
+
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return {"id": project.id, "name": project.name, "description": project.description}
+
 
 @router.get("/api/recording-sessions/{session_id}")
 def get_recording_session(session_id: int, db: Session = Depends(get_session)) -> dict:

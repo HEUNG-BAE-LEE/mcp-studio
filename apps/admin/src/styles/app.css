@@ -647,3 +647,101 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 /* 새 프로젝트 인라인 폼 */
 .new-project { display: flex; gap: 8px; align-items: center; }
 .new-project input { padding: 8px 10px; min-width: 220px; }
+
+/* ── 프로젝트 카드 ─────────────────────────────────────────
+   표로 두면 이름·숫자만 나열되어 "무엇을 모아 둔 프로젝트인지" 는 열어 봐야
+   알 수 있었다. 카드로 바꾸고 설명·수집 방식·도구 수를 함께 둔다. */
+/* align-items 를 건드리지 않는다(기본 stretch). 수집 방식 배지가 있는 카드와
+   없는 카드의 높이가 달라 같은 줄이 들쭉날쭉해 보였다. */
+.pj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px; margin-top: 18px; }
+
+.pj-card { position: relative; display: flex; flex-direction: column; padding: 18px;
+  border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.pj-card:hover { border-color: #c8d2e6; }
+
+.pj-top { display: flex; align-items: flex-start; gap: 11px; }
+.pj-avatar { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid;
+  place-items: center; color: #fff; font-size: 13px; font-weight: 800;
+  background: linear-gradient(140deg, #4f6ef0, #0d9488); }
+.pj-avatar.tone-1 { background: linear-gradient(140deg, #f0a04f, #e8683f); }
+.pj-avatar.tone-2 { background: linear-gradient(140deg, #7b6ef0, #b44fd0); }
+.pj-avatar.tone-3 { background: linear-gradient(140deg, #3fb1e8, #0d9488); }
+
+.pj-title { flex: 1; min-width: 0; }
+.pj-title a { display: block; font-size: 14px; font-weight: 700; color: var(--ink);
+  text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-title a:hover { color: var(--blue); }
+/* 두 줄 고정. 설명 길이에 따라 카드 높이가 흔들리면 그리드가 어긋나 보인다. */
+.pj-title p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  min-height: 37px; }
+.pj-title p.is-empty { color: #b6bfcd; }
+
+.pj-menu-wrap { position: relative; flex: none; }
+.pj-menu-btn { width: 26px; height: 26px; border: 0; border-radius: 8px; background: transparent;
+  color: #98a1b0; font-size: 15px; line-height: 1; }
+.pj-menu-btn:hover { background: var(--soft); color: #5b6577; }
+.pj-menu { position: absolute; right: 0; top: 30px; z-index: 30; width: 172px; padding: 5px;
+  border: 1px solid var(--line); border-radius: 11px; background: #fff;
+  box-shadow: 0 12px 30px rgba(20, 28, 46, .13); }
+.pj-menu button { display: block; width: 100%; padding: 8px 11px; border: 0; border-radius: 7px;
+  background: transparent; text-align: left; font-size: 12.5px; color: #344054; }
+.pj-menu button:hover { background: var(--soft); }
+.pj-menu button.danger { color: #c0392b; }
+.pj-menu button.danger:hover { background: #fdecec; }
+.pj-menu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--line); }
+
+.pj-card .kind-row { margin-top: 12px; }
+.pj-stats { display: flex; gap: 18px; margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--line); }
+.pj-stats b { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
+.pj-stats span { font-size: 10.5px; color: var(--muted); }
+.pj-when { margin: 11px 0 0; color: #a3abb8; font-size: 11px; }
+
+/* 카드 높이가 달라도 버튼 줄은 바닥에 맞춘다 */
+.pj-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 14px; }
+/* 수집이 이 화면의 목적이다. 카드에서 가장 눈에 띄어야 한다. */
+.pj-collect { display: inline-flex; align-items: center; gap: 6px; flex: 1; justify-content: center;
+  border: 0; border-radius: 9px; padding: 9px 14px; background: var(--blue); color: #fff;
+  font-size: 12.5px; font-weight: 650; }
+.pj-collect:hover { background: #2748cf; }
+.pj-open { flex: none; padding: 9px 14px; border: 1px solid var(--line2); border-radius: 9px;
+  font-size: 12.5px; font-weight: 650; color: #344054; text-decoration: none; }
+.pj-open:hover { border-color: #b9c1cf; background: #fafbfc; }
+
+.pj-confirm { display: flex; align-items: center; gap: 7px; margin-top: auto; padding: 9px 11px;
+  border: 1px solid #f0c9c4; border-radius: 9px; background: #fdf6f5; font-size: 11.5px; color: #96271a; }
+.pj-confirm span { flex: 1; }
+
+.pj-new { align-items: center; justify-content: center; gap: 5px; text-align: center;
+  border-style: dashed; color: var(--muted); min-height: 232px; }
+.pj-new:hover { border-color: var(--blue); color: var(--blue); }
+.pj-new > span { font-size: 22px; color: #c3ccd9; }
+.pj-new b { font-size: 12.5px; color: inherit; }
+.pj-new small { font-size: 11px; color: #a3abb8; }
+
+/* ── 수집 시작 팝업 · 방식 탭 ── */
+.collect-dlg { max-width: 760px; }
+.engine-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.engine-tabs button { display: flex; align-items: flex-start; gap: 8px; padding: 12px;
+  border: 1px solid var(--line); border-radius: 11px; background: #fff; text-align: left; }
+.engine-tabs button:hover { border-color: #b9c1cf; }
+.engine-tabs button.on { border-color: var(--blue); background: var(--blue-soft); }
+.engine-tabs button svg { flex: none; margin-top: 1px; }
+.engine-tabs b { display: block; font-size: 12.5px; color: var(--ink); }
+.engine-tabs small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.engine-tabs button.on b { color: #24379e; }
+.engine-body { margin-top: 16px; }
+/* 팝업 안에서는 패널이 이미 카드 안이라 테두리를 한 겹 더 두르지 않는다. */
+.collect-dlg .engine-body .crawl-panel,
+.collect-dlg .engine-body .panel { border: 0; padding: 0; }
+
+/* ── 이름·설명 수정 창 ── */
+.edit-dlg { max-width: 460px; }
+.fld { display: block; margin-bottom: 14px; }
+.fld > span { display: block; margin-bottom: 5px; font-size: 11px; color: #98a1b0; }
+.fld input, .fld textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line2);
+  border-radius: 8px; font: inherit; font-size: 13px; resize: vertical; }
+.fld input:focus, .fld textarea:focus { outline: none; border-color: #0d9488; }
+.fld-note { margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.6; }
+.fld-error { margin: 10px 0 0; color: #c0392b; font-size: 12px; }

@@ -31,7 +31,14 @@ function sizeText(bytes: number): string {
     : `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
-export default function DocumentCollectPanel({ projectId }: { projectId: number | null }) {
+export default function DocumentCollectPanel({
+  projectId,
+  onStarted,
+}: {
+  projectId: number | null;
+  /** 결과 화면으로 넘어갈 때. 팝업 안이면 스스로 닫는다. */
+  onStarted?: () => void;
+}) {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -162,7 +169,7 @@ export default function DocumentCollectPanel({ projectId }: { projectId: number 
             ))}
           </ul>
           {result.sessionId && (
-            <button className="primary" onClick={() => navigate(`/spec-sessions/${result.sessionId}`)}>
+            <button className="primary" onClick={() => { onStarted?.(); navigate(`/spec-sessions/${result.sessionId}`); }}>
               수집 결과 보기
             </button>
           )}
