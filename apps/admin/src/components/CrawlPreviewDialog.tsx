@@ -27,6 +27,8 @@ type PreviewResult = {
   reason: string | null;
   items: Candidate[];
   keyword: string;
+  /** 서버가 실제로 검색한 주소. 용도를 적으면 검색어가 바뀌므로 원래 주소와 다르다. */
+  listUrl: string;
 };
 
 const PURPOSE_EXAMPLES = [
@@ -46,7 +48,7 @@ export default function CrawlPreviewDialog({
   limit: number;
   projectName: string;
   onClose: () => void;
-  onStart: (selected: string[], purpose: string) => Promise<void>;
+  onStart: (selected: string[], purpose: string, searchedUrl: string) => Promise<void>;
 }) {
   const [purpose, setPurpose] = useState("");
   const [result, setResult] = useState<PreviewResult | null>(null);
@@ -104,7 +106,9 @@ export default function CrawlPreviewDialog({
     setStarting(true);
     setError(null);
     try {
-      await onStart([...checked], purpose.trim());
+      // 미리보기가 실제로 읽은 주소를 그대로 넘긴다. 원래 주소로 수집하면
+      // 화면에서 고른 API 가 그 검색 결과에 없어 아무것도 안 모인다.
+      await onStart([...checked], purpose.trim(), result?.listUrl || listUrl);
     } catch (err) {
       setError(errorMessage(err));
       setStarting(false);
@@ -217,6 +221,14 @@ export default function CrawlPreviewDialog({
                   {result?.keyword && <>검색어 <b>{result.keyword}</b> · </>}
                   후보 {items.length}개 중 <b>{checked.size}개</b> 선택
                 </span>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={start}
+                  disabled={starting || checked.size === 0}
+                >
+                  {starting ? "시작 중…" : `${checked.size}개 수집 시작`}
+                </button>
               </div>
 
               <ul className="dlg-list">

@@ -166,17 +166,36 @@ def _available_operations(page_html: str) -> list:
     ]
 
 
+# 라벨은 '요청주소' 가 표준이다. 그것으로 하나도 못 찾았을 때만 다른 이름을 본다.
+# 둘을 한꺼번에 훑으면, 같은 주소를 두 라벨로 적어 둔 페이지에서 오퍼레이션이
+# 두 번 세어진다(에어코리아 실측: 1개가 2개로).
+_ENDPOINT_LABELS = ("요청주소", "서비스URL", r"End\s*Point")
+
+
+def _endpoint_matches(page_html: str):
+    for label in _ENDPOINT_LABELS:
+        found = list(re.finditer(rf"{label}\s*</strong>\s*([^<\s]+)", page_html))
+        if found:
+            return found
+    return []
+
+
 def parse_datagokr(page_html: str, source_url: str = "") -> ParsedPage:
     """공공데이터포털(data.go.kr) 오픈API 상세페이지 → 수집 결과.
 
     '요청주소'가 오퍼레이션의 시작점이고, 요청변수·출력결과 표가 그 뒤에 따라온다.
     같은 요청주소가 마크업에 두 번 실리는 페이지가 있어 엔드포인트 기준으로 중복을 제거한다.
+
+    기관이 서식을 조금씩 다르게 쓴다. '요청주소' 를 비워 두고 바로 다음 항목인
+    '서비스URL' 에 주소를 적는 페이지가 있다(우정사업본부 도로명주소 등). 라벨
+    하나만 보면 그런 서비스는 통째로 0개가 되어, 목록에서 골랐는데 아무것도
+    안 모이는 일이 생긴다.
     """
     service_name, provider = _service_and_provider(page_html)
 
     operations = []
     seen = set()
-    for m in re.finditer(r"요청주소\s*</strong>\s*([^<\s]+)", page_html):
+    for m in _endpoint_matches(page_html):
         endpoint = html_lib.unescape(m.group(1)).strip()
         if endpoint in seen:
             continue

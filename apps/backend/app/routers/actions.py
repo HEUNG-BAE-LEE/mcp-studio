@@ -82,7 +82,7 @@ VALID_STATUS = {"DRAFT", "ACTIVE", "ARCHIVED"}
 def update_action(action_id: int, payload: dict, db: Session = Depends(get_session)) -> dict:
     action = db.get(Action, action_id)
     if action is None:
-        raise HTTPException(404, "해당 액션을 찾을 수 없습니다")
+        raise HTTPException(404, "해당 MCP 도구를 찾을 수 없습니다")
 
     status = payload.get("status", action.status)
     if status not in VALID_STATUS:
@@ -95,7 +95,7 @@ def update_action(action_id: int, payload: dict, db: Session = Depends(get_sessi
     if "name" in payload:
         name = (payload.get("name") or "").strip()
         if not name:
-            raise HTTPException(422, "액션명을 입력해 주세요")
+            raise HTTPException(422, "MCP 도구 이름을 입력해 주세요")
 
     tool_name = action.tool_name
     if "toolName" in payload:
@@ -123,7 +123,7 @@ def update_action(action_id: int, payload: dict, db: Session = Depends(get_sessi
 def get_action(action_id: int, db: Session = Depends(get_session)) -> dict:
     action = db.get(Action, action_id)
     if action is None:
-        raise HTTPException(404, "해당 액션을 찾을 수 없습니다")
+        raise HTTPException(404, "해당 MCP 도구를 찾을 수 없습니다")
     return {
         "id": action.id,
         "projectId": action.project_id,
@@ -148,7 +148,7 @@ def list_actions(project_id: int, db: Session = Depends(get_session)) -> list:
 def delete_action(action_id: int, db: Session = Depends(get_session)) -> dict:
     action = db.get(Action, action_id)
     if action is None:
-        raise HTTPException(404, "해당 액션을 찾을 수 없습니다")
+        raise HTTPException(404, "해당 MCP 도구를 찾을 수 없습니다")
     db.delete(action)
     db.commit()
     return {"ok": True}
