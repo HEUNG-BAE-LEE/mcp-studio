@@ -525,3 +525,40 @@ def test_알_수_없는_수집_방식은_한국어_422다(client):
     res = client.get("/api/collection-engines/whatever/sessions")
     assert res.status_code == 422
     assert "알 수 없는 수집 방식" in res.json()["detail"]
+
+
+def test_프로젝트_목록이_엔진과_개수를_함께_준다(client):
+    """프로젝트 목록이 이름만 주면 내 작업에 대해 아무것도 답하지 못한다.
+
+    테스트는 매번 새 인메모리 DB를 쓰므로(운영 dev.db의 seed() 와는 무관하다),
+    앱 시작 시의 시드 대신 이 테스트 안에서 프로젝트를 만들어 존재를 보장한다.
+    """
+    client.post("/api/projects", json={"name": "요약테스트-목록"})
+    rows = client.get("/api/projects").json()
+    assert rows, "프로젝트가 있어야 한다"
+    for row in rows:
+        # 기존 필드는 그대로 — 이 응답을 읽는 화면이 이미 셋 있다
+        assert "id" in row and "name" in row
+        assert isinstance(row["kinds"], list)
+        assert isinstance(row["sessions"], int)
+        assert isinstance(row["actions"], int)
+        assert "lastCollectedAt" in row
+
+
+def test_배지_순서는_호출마다_같다(client):
+    """set 을 그대로 내보내면 순서가 흔들려 배지가 매번 자리를 바꾼다."""
+    first = client.get("/api/projects").json()
+    second = client.get("/api/projects").json()
+    assert [r["kinds"] for r in first] == [r["kinds"] for r in second]
+    for row in first:
+        assert row["kinds"] == [k for k in ("traffic", "portal", "document") if k in row["kinds"]]
+
+
+def test_세션이_없는_프로젝트는_빈_배지와_None_을_준다(client):
+    body = client.post("/api/projects", json={"name": "요약테스트-빈프로젝트"}).json()
+    rows = client.get("/api/projects").json()
+    row = next(r for r in rows if r["id"] == body["id"])
+    assert row["kinds"] == []
+    assert row["sessions"] == 0
+    assert row["actions"] == 0
+    assert row["lastCollectedAt"] is None
