@@ -10,6 +10,9 @@
       않는다. 검정 위에서만 헤어라인과 표면 단차가 제 값으로 보인다.
    ② 레이어 구분은 **1px 헤어라인과 표면 명도차**로 한다. 그림자로 띄우지
       않는다 — 실제로 떠 있는 것(팝오버·토스트)만 예외다.
+      헤어라인이 배경과 너무 가까우면 그 구분이 통째로 사라진다. 경계·표면·
+      보조 텍스트는 업계 다크 테마(GitHub #30363d · Linear #23252a) 수준까지
+      올려 둔다. 캔버스만 순수 검정을 지킨다.
    ③ 라디우스는 **6 / 16 / 24** 세 값뿐이다. 섞지 않는다.
 
    tokens     색·타입·간격·모션. 여기 외의 곳에 리터럴 색/px 을 쓰지 않는다.
@@ -29,16 +32,16 @@
        well 이 surface 보다 어두운 것은 입력란을 '파인 곳'으로 읽히게 하려는
        것이다. 검정 캔버스에서는 밝게 띄우는 것보다 이쪽이 자연스럽다. */
     --bg: #000000;
-    --surface: #0a0a0b;
-    --raised: #131316;
+    --surface: #101013;
+    --raised: #191a1e;
     --well: #08080a;
-    --line: #1e2022;
-    --line-2: #2a2d30;
-    --line-3: #3a3e44;
+    --line: #2b2e34;
+    --line-2: #3a3e45;
+    --line-3: #4d525a;
     --tx-1: #f5f5f6;
-    --tx-2: #a8abb0;
-    --tx-3: #6e7278;
-    --tx-4: #4a4e54;
+    --tx-2: #b5b9c0;
+    --tx-3: #8b9099;
+    --tx-4: #6a6f78;
 
     /* 표면 광택. 검정 위 카드에 아주 약한 세로 그라데이션을 넣으면 평면
        사각형이 '판'으로 읽힌다. 8% 이상 올리면 싸구려로 보인다. */
@@ -1678,9 +1681,11 @@
   box-shadow: 0 12px 32px rgba(20, 28, 46, .12); }
   .cred-form > p { margin: 0 0 12px; color: var(--tx-3); font-size: 12px; line-height: 1.65; }
   .cred-error { margin: 10px 0 0; color: var(--danger); font-size: 12px; }
-  .pg-layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; margin-top: 18px;
-  align-items: start; }
-  .pg-layout { grid-template-columns: minmax(0, 1fr); }
+  /* 왼쪽 대화, 오른쪽 호출 로그. 좁은 화면에서만 아래로 내린다 — 미디어쿼리를
+     잃은 1열 규칙이 뒤에 남아 있으면 넓은 화면에서도 로그가 대화 밑으로 밀린다. */
+  .pg-layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: var(--sp-4);
+    margin-top: var(--sp-5); align-items: start; }
+  @media (max-width: 1120px) { .pg-layout { grid-template-columns: minmax(0, 1fr); } }
   /* 대화 */
 .pg-chat { display: flex; flex-direction: column; height: 620px; border: 1px solid var(--line);
   border-radius: var(--r-card); background: var(--surface); overflow: hidden; }
