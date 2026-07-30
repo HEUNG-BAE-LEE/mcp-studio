@@ -63,6 +63,31 @@ function cleanDescription(text: string): string {
     .trim();
 }
 
+/** 예시로 보여줄 도구를 고른다.
+ *
+ *  한 서비스는 오퍼레이션이 여럿이라(에어코리아 대기오염정보만 5개) 앞에서부터
+ *  자르면 예시 네 개가 전부 같은 서비스가 된다. 실제로 27개를 수집한 프로젝트에서
+ *  "미세먼지"만 네 줄 뜨는 바람에, 다른 것도 물어볼 수 있다는 사실이 가려졌다.
+ *
+ *  같은 이름으로 묶이는 것은 하나만 남긴다 — cleanDescription 이 오퍼레이션명을
+ *  떼고 나면 같은 서비스는 같은 이름이 된다. 문서로 수집한 도구는 뒤쪽에 있으므로,
+ *  겹치지 않는 것부터 담으면 자연스럽게 여러 기관이 섞인다. */
+function pickVaried(items: { label: string; toolName: string }[], limit = 4) {
+  const seen = new Set<string>();
+  const picked: typeof items = [];
+  for (const item of items) {
+    const key = item.label.trim();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(item);
+  }
+  if (picked.length <= limit) return picked;
+  // 앞쪽만 쓰면 먼저 수집한 주제에 쏠린다. 처음과 **끝**을 포함해 고르게 집는다 —
+  // 나중에 다른 기관 API 를 더한 프로젝트에서 그것이 예시에 나타나야 한다.
+  return Array.from({ length: limit },
+    (_, i) => picked[Math.round((i * (picked.length - 1)) / (limit - 1))]);
+}
+
 function pretty(value: unknown): string {
   if (value === undefined || value === null) return "";
   if (typeof value === "string") return value;
@@ -97,6 +122,7 @@ export default function LlmConsole() {
   // 보여줘야 한다. 질문 예시를 코드에 박아 두면 수집한 API 가 바뀐 프로젝트에서
   // 엉뚱한 예시가 뜨고, 눌러 본 사람은 "안 되는 기능"으로 오해한다.
   const [tools, setTools] = useState<{ label: string; toolName: string }[]>([]);
+  const [toolCount, setToolCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [maxCalls, setMaxCalls] = useState(DEFAULT_MAX_CALLS);
@@ -115,11 +141,14 @@ export default function LlmConsole() {
       .catch((err) => setError(errorMessage(err)));
 
     api.get(`/api/projects/${projectId}/actions`)
-      .then((rows: any[]) => setTools(
-        rows.filter((r) => r.status === "ACTIVE").map((r) => ({
+      .then((rows: any[]) => {
+        const active = rows.filter((r) => r.status === "ACTIVE");
+        setToolCount(active.length);
+        setTools(pickVaried(active.map((r) => ({
           label: readable(r.name) ? r.name : cleanDescription(r.description) || r.name,
           toolName: r.toolName,
-        }))))
+        }))));
+      })
       .catch(() => {});
   }, [projectId]);
 
@@ -202,7 +231,7 @@ export default function LlmConsole() {
                 <span className="pg-orb" aria-hidden="true" />
                 <h2>무엇이든 물어보세요</h2>
                 <p>
-                  {tools.length === 0 ? "수집한" : <><b>{tools.length}개</b>의</>} MCP 도구 중에서 골라
+                  {toolCount === 0 ? "수집한" : <><b>{toolCount}개</b>의</>} MCP 도구 중에서 골라
                   실제 공공 API 를 호출해 답합니다.
                 </p>
                 {tools.length > 0 && (
