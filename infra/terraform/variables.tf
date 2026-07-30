@@ -60,6 +60,19 @@ variable "github_repository" {
   default     = "HEUNG-BAE-LEE/mcp-studio"
 }
 
+# 이름이 아니라 숫자 ID 다. `gh api repos/<owner>/<repo> --jq '.owner.id, .id'`
+variable "github_owner_id" {
+  description = "GitHub 소유자의 불변 숫자 ID (OIDC subject 에 들어간다)"
+  type        = string
+  default     = "23379622"
+}
+
+variable "github_repository_id" {
+  description = "GitHub 저장소의 불변 숫자 ID (OIDC subject 에 들어간다)"
+  type        = string
+  default     = "1312471061"
+}
+
 variable "github_deploy_branch" {
   description = "이 브랜치의 워크플로만 Azure 에 로그인할 수 있다."
   type        = string
