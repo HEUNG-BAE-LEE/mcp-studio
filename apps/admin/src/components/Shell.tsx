@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
+import CollectModal from "./CollectModal";
 
 type Props = {
   breadcrumb: string[];
@@ -20,14 +22,15 @@ type Props = {
  */
 export default function Shell({ breadcrumb, projectId, projectName, children }: Props) {
   const { pathname } = useLocation();
+  const [collecting, setCollecting] = useState(false);
 
   // 사이드바 번호는 "이 순서로 하면 된다"를 말한다. 수집 방식이 셋(트래픽·포털·
   // 문서)으로 늘면서 어디서 시작해 어디서 확인하는지가 한눈에 안 잡혀, 화면
   // 이름과 함께 순서를 붙였다.
   //
-  // 수집은 **프로젝트 안에서** 시작한다. "API 수집하기"(02)를 전역 /sources 가
-  // 아니라 /projects/:id/collect 로 두는 이유다 — 전역 페이지에 두면 어느
-  // 프로젝트에 담을지 되묻게 되고, 그 되묻기가 프로젝트 드롭다운이었다.
+  // 수집은 **프로젝트 안에서** 시작하고, 시작 지점은 팝업 하나다. 전에는
+  // 전용 화면과 팝업이 함께 있어서 같은 "수집 시작" 이 어디서 누르느냐에 따라
+  // 페이지가 되기도 팝업이 되기도 했다.
   // /sources 는 프로젝트 없이도 볼 수 있는 방식 소개로 맨 아래 남긴다.
   // 정확 일치(to)와 접두사(prefixes)를 따로 둔다. 하나의 목록에 섞어 담고
   // 끝의 슬래시로 구분하려 했더니 루트("/")가 모든 경로의 접두사여서
@@ -38,12 +41,8 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
     { label: "프로젝트", number: "01", to: "/", prefixes: [] as string[] },
     ...(projectId
       ? [
-          {
-            label: "API 수집하기",
-            number: "02",
-            to: `/projects/${projectId}/collect`,
-            prefixes: [] as string[],
-          },
+          // 수집하기는 이동이 아니라 팝업이라 to 가 비어 있다.
+          { label: "API 수집하기", number: "02", to: "", prefixes: [] as string[] },
           {
             label: "수집현황",
             number: "03",
@@ -130,17 +129,38 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
           <div className="ctx-group">프로젝트</div>
           <div className="ctx-list">
             {projectItems.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={isActive(item) ? "nav-item active" : "nav-item"}
-              >
-                <span className="nav-no">{item.number}</span>
-                {item.label}
-              </Link>
+              // 수집하기만 팝업을 연다. 나머지는 화면 이동이다.
+              item.to === "" ? (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="nav-item"
+                  onClick={() => setCollecting(true)}
+                >
+                  <span className="nav-no">{item.number}</span>
+                  {item.label}
+                </button>
+              ) : (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={isActive(item) ? "nav-item active" : "nav-item"}
+                >
+                  <span className="nav-no">{item.number}</span>
+                  {item.label}
+                </Link>
+              )
             ))}
           </div>
         </aside>
+      )}
+
+      {collecting && projectId != null && (
+        <CollectModal
+          projectId={projectId}
+          projectName={projectName || `#${projectId}`}
+          onClose={() => setCollecting(false)}
+        />
       )}
 
       <main className="main">
