@@ -166,7 +166,6 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .table-row > span:first-child > a { grid-column: 2; }
 
 .table-2col .table-head, .table-2col .table-row { grid-template-columns: 1fr 120px; }
-.table-3col .table-head, .table-3col .table-row { grid-template-columns: 1fr 120px 220px; }
 .table-5col .table-head, .table-5col .table-row { grid-template-columns: 2fr 100px 120px 120px 180px; }
 /* 세션 상세: 점수 / Method / URL / 상태 / 추천 사유 / 액션 버튼 */
 .table-6col .table-head, .table-6col .table-row { grid-template-columns: 64px 70px minmax(0, 1.4fr) 64px minmax(0, 1fr) 120px; }
