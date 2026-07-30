@@ -89,11 +89,17 @@ export default function SessionList() {
         )}
       </section>
 
+      {/* 닫을 때 목록을 다시 읽는다. 팝업 안에서 일괄 수집이 끝났을 수 있고,
+          "수집 결과 보기" 로 나가면 화면이 옮겨가지만 Esc·배경 클릭으로 닫으면
+          목록이 낡은 채 남아 "수집된 세션이 없습니다" 가 그대로 보인다. */}
       {starting && projectId != null && (
         <CollectStartModal
           projectId={projectId}
           projectName={projectName}
-          onClose={() => setStarting(false)}
+          onClose={() => {
+            setStarting(false);
+            load();
+          }}
         />
       )}
 
