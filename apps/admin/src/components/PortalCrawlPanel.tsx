@@ -105,6 +105,20 @@ export default function PortalCrawlPanel({
       onStarted?.();
   }
 
+  // 후보 고르기는 같은 자리에서 이어진다. 팝업 위에 팝업을 겹치면 뒤엣것이
+  // 비쳐 무엇을 조작하는지 알 수 없다.
+  if (preview) {
+    return (
+      <CrawlPreviewDialog
+        listUrl={url.trim()}
+        limit={limit}
+        projectName={projects.find((p) => p.id === projectId)?.name ?? ""}
+        onClose={() => setPreview(false)}
+        onStart={startSelected}
+      />
+    );
+  }
+
   return (
     <div className="crawl-panel">
       <div className="crawl-head">
@@ -185,15 +199,6 @@ export default function PortalCrawlPanel({
         </div>
       )}
 
-      {preview && (
-        <CrawlPreviewDialog
-          listUrl={url.trim()}
-          limit={limit}
-          projectName={projects.find((p) => p.id === projectId)?.name ?? ""}
-          onClose={() => setPreview(false)}
-          onStart={startSelected}
-        />
-      )}
 
       <p className="guide-note" style={{ marginTop: 12 }}>
         <strong>수집 시작을 누르면 무엇을 모을지 먼저 확인합니다</strong>
