@@ -1,0 +1,13 @@
+# 이 파일을 terraform.tfvars 로 복사해서 쓴다. terraform.tfvars 는 커밋하지 않는다.
+#
+# 기본값만으로 apply 가 되고, 그 상태에서도 수집·액션 화면은 전부 동작한다.
+# 아래 네 값을 채우면 LLM 콘솔까지 켜진다. 단, Container Apps 는 공용
+# 인터넷으로 나가므로 private endpoint 전용 리소스는 쓸 수 없다.
+
+# azure_openai_endpoint    = "https://<리소스>.openai.azure.com/"
+# azure_openai_api_key     = "<키>"
+# azure_openai_deployment  = "<배포 이름>"
+# azure_openai_api_version = "2025-04-01-preview"
+
+# 촬영 직전처럼 첫 요청 지연이 거슬리면 1 로 올린다(대기 중에도 과금).
+# min_replicas = 1

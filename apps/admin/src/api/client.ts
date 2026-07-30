@@ -1,4 +1,7 @@
-const BASE = "http://localhost:8000";
+// vite 개발 서버(:5173)에서만 백엔드를 8000 으로 가리킨다. 컨테이너 배포에서는
+// 백엔드가 이 화면까지 함께 서빙하므로 같은 오리진(빈 문자열)이 맞다.
+// ponytail: 포트 판정으로 끝낸다. 오리진이 더 늘면 VITE_API_BASE 빌드 인자로 바꾼다.
+const BASE = window.location.port === "5173" ? "http://localhost:8000" : "";
 
 /** 서버가 보낸 상태 코드와 한국어 설명을 함께 나르는 오류 */
 export interface ApiError extends Error {

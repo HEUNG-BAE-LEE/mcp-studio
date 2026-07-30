@@ -1,5 +1,6 @@
 import json
 import os
+from functools import lru_cache
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,13 +16,27 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 router = APIRouter()
 
-# 기본값을 두지 않는다. 누락되면 즉시 KeyError로 드러나야 한다.
-client = AzureOpenAI(
-    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-    api_key=os.environ["AZURE_OPENAI_API_KEY"],
-    api_version=os.environ["AZURE_OPENAI_API_VERSION"],
-)
-DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]   # 모델명이 아니라 배포 이름
+# 기본값을 두지 않는다. 누락은 드러나야 한다. 다만 드러나는 시점을 import 에서
+# 첫 호출로 옮긴다 — 모듈을 읽는 것만으로 죽으면 컨테이너 배포에서 앱 전체가
+# 기동하지 못해 LLM 과 무관한 수집·액션 화면까지 함께 사라진다.
+def _require(name: str) -> str:
+    try:
+        return os.environ[name]
+    except KeyError:
+        raise HTTPException(503, f"Azure OpenAI 설정이 없습니다: {name}") from None
+
+
+@lru_cache(maxsize=1)
+def _client() -> AzureOpenAI:
+    return AzureOpenAI(
+        azure_endpoint=_require("AZURE_OPENAI_ENDPOINT"),
+        api_key=_require("AZURE_OPENAI_API_KEY"),
+        api_version=_require("AZURE_OPENAI_API_VERSION"),
+    )
+
+
+def _deployment() -> str:
+    return _require("AZURE_OPENAI_DEPLOYMENT")   # 모델명이 아니라 배포 이름
 
 # 실측 결과: tools만 넘기면 finish_reason="stop"으로 도구를 호출하지 않고
 # 한국어로 되묻는다(예: "지도 범위를 알려주세요"). 시스템 메시지와
@@ -52,8 +67,8 @@ def select_tool(project_id: int, payload: dict, db: Session = Depends(get_sessio
     tools = [action_to_tool(a) for a in actions]
     by_name = {t["function"]["name"]: a for t, a in zip(tools, actions)}
 
-    response = client.chat.completions.create(
-        model=DEPLOYMENT,
+    response = _client().chat.completions.create(
+        model=_deployment(),
         max_completion_tokens=4096,
         messages=[
             {"role": "system", "content": SYSTEM},
@@ -108,8 +123,8 @@ def execute(action_id: int, payload: dict, db: Session = Depends(get_session)) -
         # 게이트인데, 메시지가 사라지면 그 목적이 무너진다.
         raise HTTPException(422, str(exc)) from exc
 
-    summary_response = client.chat.completions.create(
-        model=DEPLOYMENT,
+    summary_response = _client().chat.completions.create(
+        model=_deployment(),
         max_completion_tokens=1024,
         messages=[{
             "role": "user",
