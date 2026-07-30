@@ -273,7 +273,17 @@ def chat(project_id: int, payload: dict, db: Session = Depends(get_session)) -> 
                         "body": result["body"],
                         "rawPreview": result["rawPreview"],
                     })
-                    tool_output = json.dumps(result["body"], ensure_ascii=False)[:4000]
+                    # 상태 코드를 함께 넘긴다. 본문만 주면 401 응답을 받고도
+                    # 모델이 "측정소명이 틀렸나" 같은 엉뚱한 원인을 추측한다.
+                    status = result["status"]
+                    if status == 401 or status == 403:
+                        tool_output = (f"HTTP {status} 인증 실패. 프로젝트에 등록된 공공데이터포털"
+                                       " 인증키가 유효하지 않습니다. 파라미터 문제가 아닙니다.")
+                    elif status >= 400:
+                        tool_output = (f"HTTP {status} 호출 실패. 응답: "
+                                       + json.dumps(result["body"], ensure_ascii=False)[:1500])
+                    else:
+                        tool_output = json.dumps(result["body"], ensure_ascii=False)[:4000]
                 except ValueError as exc:
                     # 인증키 누락 등 호출 전에 막힌 경우. 대화를 끊지 않고 모델에게
                     # 실패 사실을 넘겨, 사용자에게 무엇이 필요한지 말하게 한다.

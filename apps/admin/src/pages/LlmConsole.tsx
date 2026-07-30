@@ -16,15 +16,6 @@ import { KindMark } from "../components/CollectionMark";
  * 정작 알고 싶은 것은 "이번에 무엇이 돌았는가"이기 때문이다.
  */
 
-// 수집해 둔 공공데이터포털 API 로 실제로 답이 나오는 질문들.
-// 예시가 실제 도구와 맞지 않으면 처음 쓰는 사람이 "안 되는 기능"으로 오해한다.
-const EXAMPLES = [
-  "서울 종로구 지금 미세먼지 알려줘",
-  "내일 대기질 예보가 어때?",
-  "부산 대기질 측정소 목록 보여줘",
-  "미세먼지 경보가 발령된 곳이 있어?",
-];
-
 // 한 질문에 쓸 수 있는 도구 호출 수. 서버(MAX_TOOL_CALLS)와 같은 값이며,
 // 응답에 실린 maxToolCalls 로 덮어쓴다.
 const DEFAULT_MAX_CALLS = 3;
@@ -53,6 +44,24 @@ type Turn = {
   /** 호출 상한에 걸려 더 부르지 못한 채 답했는지 */
   truncated: boolean;
 };
+
+/** 사람이 읽는 이름인가. 포털 수집은 요약이 없으면 영문 오퍼레이션명을 그대로
+ *  이름으로 쓴다(getUlfptcaAlarmInfo). 그런 이름을 "이렇게 물어보세요"로 내밀면
+ *  무엇을 하는 도구인지 알 수 없다. */
+function readable(name: string): boolean {
+  return /[가-힣]/.test(name || "");
+}
+
+/** 설명에 붙은 제공기관 접두와 끝의 오퍼레이션명을 떼어 본문만 남긴다.
+ *  "한국환경공단] 한국환경공단_에어코리아_미세먼지 경보 발령 현황 — getUlfptca…" */
+function cleanDescription(text: string): string {
+  return (text || "")
+    .replace(/^[^\]]*\]\s*/, "")
+    .replace(/\s*—\s*\w+$/, "")
+    .replace(/^[^_]+_/, "")
+    .replace(/_/g, " ")
+    .trim();
+}
 
 function pretty(value: unknown): string {
   if (value === undefined || value === null) return "";
@@ -84,7 +93,10 @@ export default function LlmConsole() {
   const [projectName, setProjectName] = useState("");
   const [query, setQuery] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [toolCount, setToolCount] = useState<number | null>(null);
+  // 빈 화면에 무엇을 물어볼 수 있는지 알려주려면 이 프로젝트가 실제로 가진 도구를
+  // 보여줘야 한다. 질문 예시를 코드에 박아 두면 수집한 API 가 바뀐 프로젝트에서
+  // 엉뚱한 예시가 뜨고, 눌러 본 사람은 "안 되는 기능"으로 오해한다.
+  const [tools, setTools] = useState<{ label: string; toolName: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [maxCalls, setMaxCalls] = useState(DEFAULT_MAX_CALLS);
@@ -102,9 +114,12 @@ export default function LlmConsole() {
       })
       .catch((err) => setError(errorMessage(err)));
 
-    // 몇 개 중에서 고르는지는 숫자 하나면 충분하다. 목록까지 늘어놓을 필요는 없다.
     api.get(`/api/projects/${projectId}/actions`)
-      .then((rows: any[]) => setToolCount(rows.filter((r) => r.status === "ACTIVE").length))
+      .then((rows: any[]) => setTools(
+        rows.filter((r) => r.status === "ACTIVE").map((r) => ({
+          label: readable(r.name) ? r.name : cleanDescription(r.description) || r.name,
+          toolName: r.toolName,
+        }))))
       .catch(() => {});
   }, [projectId]);
 
@@ -142,7 +157,6 @@ export default function LlmConsole() {
           : t
       )));
       if (res.maxToolCalls) setMaxCalls(res.maxToolCalls);
-      if (res.pool?.length) setToolCount(res.pool.length);
       // 방금 돈 호출을 펼쳐 둔다. 로그를 보려고 한 번 더 누르게 만들 이유가 없다.
       if (res.steps?.length) setOpenStep(`${turnId}-0`);
     } catch (err) {
@@ -188,16 +202,26 @@ export default function LlmConsole() {
                 <span className="pg-orb" aria-hidden="true" />
                 <h2>무엇이든 물어보세요</h2>
                 <p>
-                  {toolCount === null ? "수집한" : <><b>{toolCount}개</b>의</>} MCP 도구 중에서 골라
+                  {tools.length === 0 ? "수집한" : <><b>{tools.length}개</b>의</>} MCP 도구 중에서 골라
                   실제 공공 API 를 호출해 답합니다.
                 </p>
-                <div className="pg-examples">
-                  {EXAMPLES.map((example) => (
-                    <button key={example} onClick={() => ask(example)} disabled={busy}>
-                      {example}
-                    </button>
-                  ))}
-                </div>
+                {tools.length > 0 && (
+                  <>
+                    <p className="pg-tools-label">이런 것을 물어볼 수 있습니다</p>
+                    <div className="pg-examples">
+                      {tools.slice(0, 4).map((tool) => (
+                        <button
+                          key={tool.toolName}
+                          onClick={() => { setQuery(tool.label); inputRef.current?.focus(); }}
+                          disabled={busy}
+                          title={tool.toolName}
+                        >
+                          {tool.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -257,7 +281,7 @@ export default function LlmConsole() {
                 ref={inputRef}
                 rows={1}
                 value={query}
-                placeholder="예: 서울 종로구 지금 미세먼지 알려줘"
+                placeholder={tools[0] ? `예: ${tools[0].label}` : "무엇이 궁금하세요?"}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
                   // Enter 로 보내고 Shift+Enter 로 줄바꿈. 채팅에서 기대되는 동작이다.

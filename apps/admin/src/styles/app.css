@@ -624,3 +624,4 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .pg-raw pre { margin-top: 7px; padding: 10px 12px; border: 1px solid #eef1f5; border-radius: 9px;
   background: #fafbfc; font: 10.5px/1.6 ui-monospace, monospace; color: #6b7484;
   white-space: pre-wrap; word-break: break-all; max-height: 230px; overflow: auto; }
+.pg-tools-label { margin: 0 0 9px; color: #a3abb8; font-size: 11px; }
