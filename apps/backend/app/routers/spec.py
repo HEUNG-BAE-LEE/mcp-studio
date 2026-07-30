@@ -331,6 +331,27 @@ def get_crawl_job(job_id: int, db: Session = Depends(get_session)) -> dict:
     return _job_view(job)
 
 
+@router.delete("/api/crawl-jobs/{job_id}")
+def delete_crawl_job(job_id: int, db: Session = Depends(get_session)) -> dict:
+    """진행현황에서 잡 기록을 지운다.
+
+    수집물(세션·오퍼레이션)은 건드리지 않는다 — 지우는 것은 "이런 수집을 돌렸다"
+    는 기록뿐이다. 실패했거나 결과가 0인 시도가 쌓이면 정작 봐야 할 잡이 묻힌다.
+
+    도는 중인 잡은 지우지 않는다. 스레드는 계속 돌면서 없는 행을 갱신하려 하고,
+    화면에서는 사라졌는데 요청은 나가는 상태가 된다.
+    """
+    job = db.get(CrawlJob, job_id)
+    if job is None:
+        raise HTTPException(404, "해당 수집 작업을 찾을 수 없습니다")
+    if job.status == "running":
+        raise HTTPException(409, "아직 도는 중입니다. 끝난 뒤에 지울 수 있습니다")
+
+    db.delete(job)
+    db.commit()
+    return {"deleted": True, "keptSession": job.session_id}
+
+
 @router.get("/api/projects/{project_id}/portal-crawls")
 def list_portal_crawls(project_id: int, db: Session = Depends(get_session)) -> list:
     rows = db.exec(

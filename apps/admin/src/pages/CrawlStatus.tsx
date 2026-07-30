@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
+import ConfirmPopover from "../components/ConfirmPopover";
 import { MarkPortal } from "../components/CollectionMark";
 
 /**
@@ -53,6 +54,7 @@ export default function CrawlStatus() {
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<number | null>(null);
 
   const load = useCallback(() => {
     api.get(`/api/projects/${projectId}/portal-crawls`)
@@ -77,6 +79,17 @@ export default function CrawlStatus() {
     const timer = window.setInterval(load, 1500);
     return () => window.clearInterval(timer);
   }, [running, load]);
+
+  async function remove(job: Job) {
+    setConfirming(null);
+    try {
+      await api.delete(`/api/crawl-jobs/${job.id}`);
+      // 수집물은 그대로 두고 기록만 지운다. 목록만 다시 읽으면 된다.
+      load();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
 
   return (
     <Shell breadcrumb={["Projects", projectName, "수집 진행현황"]} projectId={projectId} projectName={projectName}>
@@ -132,6 +145,27 @@ export default function CrawlStatus() {
                 <MarkPortal /> {keywordOf(job.listUrl)}
               </strong>
               <span className="job-meta">최대 {job.limit}개 · 경과 {elapsed(job)}</span>
+              {done && (
+                <ConfirmPopover
+                  open={confirming === job.id}
+                  title="이 기록을 지울까요?"
+                  description="수집한 API 는 그대로 남고, 실행 기록만 사라집니다."
+                  facts={[
+                    { label: "수집한 API", value: String(job.operations) },
+                    { label: "결과 세션", value: job.sessionId ? `#${job.sessionId}` : "없음" },
+                  ]}
+                  onConfirm={() => remove(job)}
+                  onCancel={() => setConfirming(null)}
+                >
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm job-remove"
+                    aria-label="이 수집 기록 지우기"
+                    onClick={() => setConfirming(confirming === job.id ? null : job.id)}
+                  >지우기</button>
+                </ConfirmPopover>
+              )}
+
               {job.sessionId && (
                 <Link className="job-link" to={`/spec-sessions/${job.sessionId}`}>수집 결과 보기</Link>
               )}

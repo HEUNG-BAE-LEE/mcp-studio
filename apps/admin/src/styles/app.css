@@ -2155,6 +2155,11 @@
     background: var(--surface);
   }
   .field-help.is-error { color: var(--danger); }
+
+  /* 잡 기록 지우기와 결과 보기는 헤더 오른쪽 끝에 함께 둔다. margin-left 를
+     버튼에 주면 팝오버 앵커(부모)가 아니라 버튼만 밀려 자리가 어긋난다. */
+  .job-head .pop-anchor { margin-left: auto; }
+  .job-head .pop-anchor + .job-link { margin-left: var(--sp-3); }
 }
 
 /* ───────────────────────────────────────────────────────── utilities ── */
