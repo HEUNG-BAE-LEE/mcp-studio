@@ -545,33 +545,39 @@ def test_프로젝트_목록이_엔진과_개수를_함께_준다(client):
         assert "lastCollectedAt" in row
 
 
-def test_한_프로젝트에_트래픽과_포털이_섞이면_고정_순서_배지와_실제_개수를_준다(client, project_id, engine):
+def test_한_프로젝트에_세_방식이_섞이면_고정_순서_배지와_실제_개수를_준다(client, project_id, engine):
     """kinds 는 set 이 아니라 고정 순서 리스트여야 한다.
 
-    포털 세션을 먼저 만들고 트래픽 세션을 나중에 만든다 — 삽입 순서와
-    기대 순서(traffic, portal)를 어긋나게 둬서, kinds = list(present) 처럼
-    set 순서를 그대로 내보내는 회귀를 이 테스트가 실제로 잡게 한다.
+    기대 순서(traffic, portal, document)와 어긋나게 **역순으로** 만든다.
+    이렇게 두면 kinds = list(present) 처럼 set 순서를 그대로 내보내는 회귀를
+    이 테스트가 잡는다.
+
+    셋 다 쓰는 이유: 파이썬은 PYTHONHASHSEED 를 무작위화하므로 set 순서가
+    실행마다 달라진다. 둘만 쓰면 우연히 맞는 순서가 나올 확률이 1/2 라 회귀를
+    절반만 잡는다(실측: 5회 중 2회 실패). 셋이면 순열이 6가지가 되어 5/6 을
+    잡는다. 정상 코드에서는 항상 통과하므로 이 테스트 자체는 flaky 하지 않다 —
+    특정 오구현을 잡을 확률만 달라진다.
     """
     from sqlmodel import Session as DbSession
     from app.models import RecordingSession
 
-    portal_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
-    with DbSession(engine) as db:
-        row = db.get(RecordingSession, portal_id)
-        row.kind = "portal"
-        db.add(row)
-        db.commit()
-
-    traffic_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+    made = []
+    for kind in ("document", "portal", "traffic"):   # 기대 순서의 역순
+        sid = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+        with DbSession(engine) as db:
+            row = db.get(RecordingSession, sid)
+            row.kind = kind
+            db.add(row)
+            db.commit()
+        made.append(sid)
 
     rows = client.get("/api/projects").json()
     row = next(r for r in rows if r["id"] == project_id)
 
-    assert row["kinds"] == ["traffic", "portal"]
-    assert row["sessions"] == 2
+    assert row["kinds"] == ["traffic", "portal", "document"]
+    assert row["sessions"] == 3
     assert row["lastCollectedAt"] is not None
-
-    assert traffic_id != portal_id  # 두 세션이 실제로 따로 만들어졌는지 확인
+    assert len(set(made)) == 3, "세 세션이 실제로 따로 만들어져야 한다"
 
 
 def test_세션이_없는_프로젝트는_빈_배지와_None_을_준다(client):
