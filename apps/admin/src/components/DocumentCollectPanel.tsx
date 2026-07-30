@@ -31,6 +31,12 @@ function sizeText(bytes: number): string {
     : `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
+/** 확장자를 배지로 쓴다. 이름이 길면 앞부분만 보이므로 형식은 따로 세워 둔다. */
+function extText(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toUpperCase().slice(0, 4) : "FILE";
+}
+
 export default function DocumentCollectPanel({
   projectId,
   onStarted,
@@ -105,7 +111,11 @@ export default function DocumentCollectPanel({
           드래그가 어려운 환경(키보드·보조기기)에서는 그것이 유일한 길이다.
           그래서 영역 자체를 button 으로 두고 드롭 핸들러를 함께 건다. */}
       <div
-        className={dragging ? "doc-drop is-over" : "doc-drop"}
+        className={[
+          "doc-drop",
+          dragging ? "is-over" : "",
+          files.length > 0 ? "has-files" : "",
+        ].filter(Boolean).join(" ")}
         onDragEnter={(e) => {
           e.preventDefault();
           setDragDepth((d) => d + 1);
@@ -128,12 +138,44 @@ export default function DocumentCollectPanel({
             <path d="M12 15V4m0 0L8 8m4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" strokeLinecap="round" />
           </svg>
-          <strong>{dragging ? "여기에 놓으세요" : "문서를 끌어다 놓으세요"}</strong>
+          <strong>
+            {dragging
+              ? "여기에 놓으세요"
+              : files.length > 0
+                ? `문서 ${files.length}개 담김`
+                : "문서를 끌어다 놓으세요"}
+          </strong>
           <span>
-            또는 <u>클릭해서 찾아보기</u> · 여러 개 한꺼번에 가능
+            {files.length > 0 ? (
+              <>더 끌어다 놓거나 <u>클릭해서 추가</u></>
+            ) : (
+              <>또는 <u>클릭해서 찾아보기</u> · 여러 개 한꺼번에 가능</>
+            )}
           </span>
           <em>PDF · TXT · MD · JSON · YAML · HTML · DOCX · CSV</em>
         </button>
+
+        {/* 담은 문서는 드롭 영역 **안에** 둔다. 밖에 두면 문서를 골라도 영역은
+            "끌어다 놓으세요" 그대로라 아무 일도 일어나지 않은 것처럼 보인다.
+            중첩 버튼은 만들 수 없으므로(제거 버튼) 목록은 hit 영역의 형제다. */}
+        {files.length > 0 && (
+          <ul className="doc-files">
+            {files.map((file) => (
+              <li key={`${file.name}-${file.size}`}>
+                <i className="doc-ext" aria-hidden="true">{extText(file.name)}</i>
+                <span className="doc-name" title={file.name}>{file.name}</span>
+                <span className="doc-size">{sizeText(file.size)}</span>
+                <button
+                  className="btn-icon"
+                  onClick={() => setFiles(files.filter((f) => f !== file))}
+                  disabled={busy}
+                  aria-label={`${file.name} 목록에서 제거`}
+                >✕</button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <input
           ref={inputRef}
           type="file"
@@ -144,9 +186,11 @@ export default function DocumentCollectPanel({
         />
       </div>
 
+      {/* 고른 것을 확인한 다음에 실행한다. 목록보다 위에 두면 무엇을 수집하는지
+          모르는 채로 누르는 순서가 된다. */}
       <div className="doc-actions">
         <span className="doc-pick-note">
-          {files.length === 0 ? "선택된 문서 없음" : `${files.length}개 선택됨`}
+          {files.length === 0 ? "선택된 문서 없음" : `문서 ${files.length}개 · 준비됨`}
         </span>
         {files.length > 0 && (
           <button type="button" className="btn-quiet" onClick={() => setFiles([])} disabled={busy}>
@@ -157,23 +201,6 @@ export default function DocumentCollectPanel({
           {busy ? "분석 중…" : "수집하기"}
         </button>
       </div>
-
-      {files.length > 0 && (
-        <ul className="doc-files">
-          {files.map((file) => (
-            <li key={`${file.name}-${file.size}`}>
-              <span className="doc-name" title={file.name}>{file.name}</span>
-              <span className="doc-size">{sizeText(file.size)}</span>
-              <button
-                className="btn-icon"
-                onClick={() => setFiles(files.filter((f) => f !== file))}
-                disabled={busy}
-                aria-label="목록에서 제거"
-              >✕</button>
-            </li>
-          ))}
-        </ul>
-      )}
 
       {busy && (
         <div className="doc-loading">
