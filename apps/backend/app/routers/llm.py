@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException
+import httpx
 from openai import AzureOpenAI
 from sqlmodel import Session, select
 from app.db import get_session
@@ -285,10 +286,23 @@ def chat(project_id: int, payload: dict, db: Session = Depends(get_session)) -> 
                     else:
                         tool_output = json.dumps(result["body"], ensure_ascii=False)[:4000]
                 except ValueError as exc:
-                    # 인증키 누락 등 호출 전에 막힌 경우. 대화를 끊지 않고 모델에게
-                    # 실패 사실을 넘겨, 사용자에게 무엇이 필요한지 말하게 한다.
+                    # 인증키 누락 등 호출 전에 막힌 경우. 이 메시지는 이미 사람이 읽고
+                    # 조치할 수 있는 문장이므로 그대로 쓴다. 대화를 끊지 않고 모델에게
+                    # 넘겨, 사용자에게 무엇이 필요한지 말하게 한다.
                     step["error"] = str(exc)
                     tool_output = f"호출 실패: {exc}"
+                except httpx.TimeoutException as exc:
+                    # executor 는 전송 계층이라 httpx 예외를 그대로 올린다. 화면에
+                    # "ReadTimeout: timed out" 이 그대로 나가면 읽는 사람이 무엇을
+                    # 해야 할지 알 수 없으므로, 여기서 사람 말로 바꾼다.
+                    step["error"] = ("공공 API 가 제한 시간 안에 응답하지 않았습니다."
+                                     " 서버가 붐비거나 네트워크가 느린 상태입니다."
+                                     " 잠시 후 다시 시도해 주세요.")
+                    tool_output = f"호출 실패(응답 지연): {exc.__class__.__name__}"
+                except httpx.HTTPError as exc:
+                    step["error"] = (f"공공 API 를 호출하지 못했습니다 ({exc.__class__.__name__})."
+                                     " 네트워크·VPN 상태를 확인해 주세요.")
+                    tool_output = step["error"]
                 except Exception as exc:  # noqa: BLE001
                     step["error"] = f"{exc.__class__.__name__}: {exc}"
                     tool_output = step["error"]
