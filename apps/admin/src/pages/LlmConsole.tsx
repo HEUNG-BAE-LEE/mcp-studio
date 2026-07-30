@@ -10,10 +10,10 @@ import { KindMark } from "../components/CollectionMark";
  *
  * 대화만 보여주면 "그럴듯한 답"과 "실제 API 를 호출해서 얻은 답"을 구분할 수
  * 없다. 그래서 왼쪽은 대화, 오른쪽은 그 답이 어떻게 만들어졌는지를 둔다 —
- * 어떤 도구를 왜 골랐고, 무엇을 보냈고, 무엇이 돌아왔는지.
+ * 무엇을 호출했고, 무엇을 보냈고, 무엇이 돌아왔는지.
  *
- * 대상은 이 프로젝트에서 **사용 중**인 도구뿐이다. 미사용 도구까지 후보에
- * 넣으면 화면에서 끈 도구가 호출되어 혼란스럽다.
+ * 오른쪽에 후보 도구 목록을 늘어놓지는 않는다. 스물몇 개를 나열해 봐야 읽지 않고,
+ * 정작 알고 싶은 것은 "이번에 무엇이 돌았는가"이기 때문이다.
  */
 
 // 수집해 둔 공공데이터포털 API 로 실제로 답이 나오는 질문들.
@@ -22,9 +22,12 @@ const EXAMPLES = [
   "서울 종로구 지금 미세먼지 알려줘",
   "내일 대기질 예보가 어때?",
   "부산 대기질 측정소 목록 보여줘",
-  "경기도 초미세먼지 주간예보 알려줘",
   "미세먼지 경보가 발령된 곳이 있어?",
 ];
+
+// 한 질문에 쓸 수 있는 도구 호출 수. 서버(MAX_TOOL_CALLS)와 같은 값이며,
+// 응답에 실린 maxToolCalls 로 덮어쓴다.
+const DEFAULT_MAX_CALLS = 3;
 
 type Step = {
   toolName: string;
@@ -41,8 +44,6 @@ type Step = {
   error?: string;
 };
 
-type PoolItem = { toolName: string; actionId: number; name: string; sourceKind: string };
-
 type Turn = {
   id: number;
   question: string;
@@ -52,10 +53,6 @@ type Turn = {
   /** 호출 상한에 걸려 더 부르지 못한 채 답했는지 */
   truncated: boolean;
 };
-
-// 한 질문에 쓸 수 있는 도구 호출 수. 서버(MAX_TOOL_CALLS)와 같은 값이며,
-// 응답에 실린 maxToolCalls 로 덮어쓴다.
-const DEFAULT_MAX_CALLS = 3;
 
 function pretty(value: unknown): string {
   if (value === undefined || value === null) return "";
@@ -68,9 +65,16 @@ function pretty(value: unknown): string {
 }
 
 /** 2xx 는 초록, 그 밖은 빨강. 호출이 성공했는지가 한눈에 보여야 한다. */
-function statusClass(status?: number): string {
-  if (status === undefined) return "";
-  return status >= 200 && status < 300 ? "ok" : "bad";
+function tone(step: Step): "ok" | "bad" {
+  if (step.error !== undefined) return "bad";
+  if (step.status !== undefined && (step.status < 200 || step.status >= 300)) return "bad";
+  return "ok";
+}
+
+/** 긴 URL 은 쿼리 앞에서 끊어 보여준다. 전체는 title 로 남겨 둔다. */
+function shortUrl(url: string): string {
+  const [base] = url.split("?");
+  return base.replace(/^https?:\/\//, "");
 }
 
 export default function LlmConsole() {
@@ -80,12 +84,12 @@ export default function LlmConsole() {
   const [projectName, setProjectName] = useState("");
   const [query, setQuery] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [pool, setPool] = useState<PoolItem[]>([]);
+  const [toolCount, setToolCount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 오른쪽에 무엇을 띄울지. null 이면 도구 목록(무엇 중에서 고르는지)을 보여준다.
-  const [picked, setPicked] = useState<{ turn: number; index: number } | null>(null);
   const [maxCalls, setMaxCalls] = useState(DEFAULT_MAX_CALLS);
+  // 오른쪽에서 펼쳐 둔 호출. `${turnId}-${index}` 형태.
+  const [openStep, setOpenStep] = useState<string | null>(null);
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -98,14 +102,9 @@ export default function LlmConsole() {
       })
       .catch((err) => setError(errorMessage(err)));
 
-    // 대화를 시작하기 전에도 무엇이 후보인지 보여준다. 빈 오른쪽 패널은
-    // 이 화면이 무엇을 대상으로 도는지 감추는 셈이다.
+    // 몇 개 중에서 고르는지는 숫자 하나면 충분하다. 목록까지 늘어놓을 필요는 없다.
     api.get(`/api/projects/${projectId}/actions`)
-      .then((rows: any[]) => setPool(
-        rows.filter((r) => r.status === "ACTIVE").map((r) => ({
-          toolName: r.toolName, actionId: r.id, name: r.name, sourceKind: r.sourceKind || "traffic",
-        })),
-      ))
+      .then((rows: any[]) => setToolCount(rows.filter((r) => r.status === "ACTIVE").length))
       .catch(() => {});
   }, [projectId]);
 
@@ -142,11 +141,10 @@ export default function LlmConsole() {
           ? { ...t, answer: res.answer, steps: res.steps ?? [], truncated: !!res.truncated }
           : t
       )));
-      if (res.pool?.length) setPool(res.pool);
       if (res.maxToolCalls) setMaxCalls(res.maxToolCalls);
-      // 방금 호출한 도구를 바로 펼쳐 준다. 로그를 보려고 한 번 더 클릭하게
-      // 만들 이유가 없다.
-      if (res.steps?.length) setPicked({ turn: turnId, index: 0 });
+      if (res.pool?.length) setToolCount(res.pool.length);
+      // 방금 돈 호출을 펼쳐 둔다. 로그를 보려고 한 번 더 누르게 만들 이유가 없다.
+      if (res.steps?.length) setOpenStep(`${turnId}-0`);
     } catch (err) {
       const message = errorMessage(err);
       setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, error: message } : t)));
@@ -156,20 +154,22 @@ export default function LlmConsole() {
     }
   }
 
-  const pickedStep = picked ? turns[picked.turn]?.steps[picked.index] : undefined;
+  // 오른쪽은 지금까지 실제로 돈 호출만 시간순으로 쌓는다.
+  const calls = turns.flatMap((turn) =>
+    turn.steps.map((step, index) => ({ turn, step, index, key: `${turn.id}-${index}` })));
 
   return (
     <Shell breadcrumb={["Projects", projectName, "Playground"]} projectId={projectId} projectName={projectName}>
-      <section className="heading-row">
+      <section className="heading-row pg-head">
         <div>
           <p className="eyebrow">PLAYGROUND</p>
           <h1>Playground</h1>
           <p className="subtitle">
-            물으면 이 프로젝트에서 <b>사용 중</b>인 MCP 도구를 골라 실제로 호출하고, 결과가 모자라면
-            최대 <b>{maxCalls}번</b>까지 이어서 부른 뒤 답합니다.
-            오른쪽에서 호출마다 왜 그 도구였는지, 무엇을 주고받았는지 볼 수 있습니다.
+            물으면 수집한 MCP 도구를 골라 실제로 호출합니다. 결과가 모자라면 최대 {maxCalls}번까지
+            이어서 부른 뒤 답하며, 오른쪽에 무엇을 주고받았는지 남습니다.
           </p>
         </div>
+        <CredentialPanel projectId={projectId} />
       </section>
 
       {error && (
@@ -179,21 +179,24 @@ export default function LlmConsole() {
         </div>
       )}
 
-      <CredentialPanel projectId={projectId} />
-
       <div className="pg-layout">
         {/* ── 왼쪽: 대화 ── */}
-        <section className="pg-chat panel">
+        <section className="pg-chat">
           <div className="pg-thread">
             {turns.length === 0 && (
               <div className="pg-welcome">
-                <span className="pg-avatar">MCP</span>
-                <div>
-                  <strong>수집한 도구로 답해 드립니다</strong>
-                  <p>
-                    지금 사용 중인 도구는 <b>{pool.length}개</b>입니다. 아래 예시를 누르거나
-                    직접 물어보세요.
-                  </p>
+                <span className="pg-orb" aria-hidden="true" />
+                <h2>무엇이든 물어보세요</h2>
+                <p>
+                  {toolCount === null ? "수집한" : <><b>{toolCount}개</b>의</>} MCP 도구 중에서 골라
+                  실제 공공 API 를 호출해 답합니다.
+                </p>
+                <div className="pg-examples">
+                  {EXAMPLES.map((example) => (
+                    <button key={example} onClick={() => ask(example)} disabled={busy}>
+                      {example}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -203,51 +206,41 @@ export default function LlmConsole() {
                 <div className="pg-msg is-user"><p>{turn.question}</p></div>
 
                 {turn.error ? (
-                  <div className="pg-msg is-bot is-error">
-                    <span className="pg-avatar">!</span>
-                    <div><p>{turn.error}</p></div>
+                  <div className="pg-msg is-bot">
+                    <span className="pg-avatar is-error" aria-hidden="true">!</span>
+                    <div className="pg-bubble is-error"><p>{turn.error}</p></div>
                   </div>
                 ) : turn.answer === null ? (
                   <div className="pg-msg is-bot">
-                    <span className="pg-avatar">MCP</span>
-                    <div className="pg-typing"><i /><i /><i /></div>
+                    <span className="pg-avatar" aria-hidden="true" />
+                    <div className="pg-bubble">
+                      <div className="pg-typing"><i /><i /><i /></div>
+                    </div>
                   </div>
                 ) : (
                   <div className="pg-msg is-bot">
-                    <span className="pg-avatar">MCP</span>
-                    <div>
+                    <span className="pg-avatar" aria-hidden="true" />
+                    <div className="pg-bubble">
                       {turn.steps.length > 0 && (
-                        <div className="pg-steps">
-                          <span className="pg-steps-count">
-                            도구 {turn.steps.length}/{maxCalls}회
-                          </span>
-                          {turn.steps.map((step, index) => {
-                            const on = picked?.turn === turn.id && picked?.index === index;
-                            const failed = step.error !== undefined
-                              || (step.status !== undefined && step.status >= 400);
-                            return (
-                              <button
-                                key={`${step.toolName}-${index}`}
-                                className={`pg-step ${on ? "on" : ""} ${failed ? "failed" : ""}`}
-                                onClick={() => setPicked({ turn: turn.id, index })}
-                                title="이 호출의 입력·출력 보기"
-                              >
-                                <b>{index + 1}</b>
-                                <KindMark kind={step.sourceKind} size={12} />
-                                <span className="mono">{step.toolName}</span>
-                                {step.status !== undefined && (
-                                  <em className={statusClass(step.status)}>{step.status}</em>
-                                )}
-                                {step.error !== undefined && <em className="bad">실패</em>}
-                              </button>
-                            );
-                          })}
+                        <div className="pg-used">
+                          {turn.steps.map((step, index) => (
+                            <button
+                              key={`${step.toolName}-${index}`}
+                              className={`pg-used-chip ${tone(step)} ${openStep === `${turn.id}-${index}` ? "on" : ""}`}
+                              onClick={() => setOpenStep(`${turn.id}-${index}`)}
+                              title="오른쪽에서 이 호출의 입력·출력 보기"
+                            >
+                              <KindMark kind={step.sourceKind} size={11} />
+                              <span className="mono">{step.toolName}</span>
+                            </button>
+                          ))}
+                          <span className="pg-used-count">{turn.steps.length}/{maxCalls}</span>
                         </div>
                       )}
                       <p>{turn.answer}</p>
                       {turn.truncated && (
                         <p className="pg-truncated">
-                          도구 호출 상한({maxCalls}회)에 닿아 더 확인하지 않고 답했습니다.
+                          호출 상한({maxCalls}회)에 닿아 더 확인하지 않고 답했습니다.
                         </p>
                       )}
                     </div>
@@ -259,13 +252,6 @@ export default function LlmConsole() {
           </div>
 
           <div className="pg-composer">
-            {turns.length === 0 && (
-              <div className="pg-examples">
-                {EXAMPLES.map((example) => (
-                  <button key={example} onClick={() => ask(example)} disabled={busy}>{example}</button>
-                ))}
-              </div>
-            )}
             <div className="pg-input">
               <textarea
                 ref={inputRef}
@@ -282,118 +268,117 @@ export default function LlmConsole() {
                 }}
                 disabled={busy}
               />
-              <button className="primary" onClick={() => ask(query)} disabled={busy || !query.trim()}>
-                {busy ? "호출 중…" : "보내기"}
+              <button
+                className="pg-send"
+                onClick={() => ask(query)}
+                disabled={busy || !query.trim()}
+                aria-label="보내기"
+              >
+                {busy ? (
+                  <span className="pg-spin" />
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                       strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 13V3M8 3 3.6 7.4M8 3l4.4 4.4" />
+                  </svg>
+                )}
               </button>
             </div>
+            <p className="pg-hint">Enter 로 전송 · Shift+Enter 로 줄바꿈</p>
           </div>
         </section>
 
-        {/* ── 오른쪽: 호출 로그 ── */}
-        <aside className="pg-log panel">
+        {/* ── 오른쪽: 실제로 돈 호출 ── */}
+        <aside className="pg-log">
           <header className="pg-log-head">
-            <strong>
-              {pickedStep
-                ? `호출 로그 ${(picked?.index ?? 0) + 1}/${turns[picked!.turn]?.steps.length ?? 1}`
-                : "대상 MCP 도구"}
-            </strong>
-            {pickedStep && (
-              <button className="btn-quiet" onClick={() => setPicked(null)}>도구 목록</button>
-            )}
+            <strong>호출 로그</strong>
+            {calls.length > 0 && <span className="pg-log-count">{calls.length}건</span>}
           </header>
 
-          {!pickedStep ? (
-            <div className="pg-pool">
-              <p className="pg-log-note">
-                사용 중인 <b>{pool.length}개</b> 중에서 고릅니다. 미사용 도구는 후보에서 빠지며,
-                한 질문에 최대 <b>{maxCalls}번</b>까지 이어서 부릅니다.
-              </p>
-              <ul>
-                {pool.map((item) => (
-                  <li key={item.actionId}>
-                    <KindMark kind={item.sourceKind} size={12} />
-                    <span className="mono">{item.toolName}</span>
-                    <small>{item.name}</small>
-                  </li>
-                ))}
-              </ul>
-              {pool.length === 0 && (
-                <p className="pg-log-note">
-                  사용 중인 도구가 없습니다. <b>MCP 조회하기</b>에서 도구를 켜 주세요.
-                </p>
-              )}
+          {calls.length === 0 ? (
+            <div className="pg-log-empty">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
+                <path d="M4 6h16M4 12h10M4 18h13" strokeLinecap="round" />
+              </svg>
+              <strong>아직 호출된 도구가 없습니다</strong>
+              <small>질문하면 어떤 MCP 를 왜 골랐고, 무엇을 주고받았는지 여기에 쌓입니다.</small>
             </div>
           ) : (
-            <div className="pg-detail">
-              <div className="pg-detail-top">
-                <KindMark kind={pickedStep.sourceKind} size={13} />
-                <b className="mono">{pickedStep.toolName}</b>
-                {pickedStep.status !== undefined && (
-                  <span className={`pg-status ${statusClass(pickedStep.status)}`}>
-                    {pickedStep.status}
-                  </span>
-                )}
-                {pickedStep.elapsedMs !== undefined && (
-                  <span className="pg-ms">{pickedStep.elapsedMs}ms</span>
-                )}
-              </div>
-              <p className="pg-detail-name">{pickedStep.actionName}</p>
+            <div className="pg-log-list">
+              {calls.map(({ turn, step, index, key }, flat) => {
+                const open = openStep === key;
+                return (
+                  <article key={key} className={`pg-call ${tone(step)} ${open ? "is-open" : ""}`}>
+                    {/* 질문이 바뀌는 지점에만 붙여, 어느 물음에서 나온 호출인지 구분한다 */}
+                    {index === 0 && <p className="pg-call-q">{turn.question}</p>}
 
-              {(turns[picked!.turn]?.steps.length ?? 0) > 1 && (
-                <div className="pg-step-nav">
-                  {turns[picked!.turn].steps.map((step, index) => (
-                    <button
-                      key={`${step.toolName}-${index}`}
-                      className={index === picked!.index ? "on" : ""}
-                      onClick={() => setPicked({ turn: picked!.turn, index })}
-                      title={step.toolName}
-                    >
-                      {index + 1}
+                    <button className="pg-call-head" onClick={() => setOpenStep(open ? null : key)}>
+                      <span className="pg-call-no">{flat + 1}</span>
+                      <span className="pg-call-title">
+                        <b className="mono">
+                          <KindMark kind={step.sourceKind} size={11} />
+                          <span>{step.toolName}</span>
+                        </b>
+                        <small>{step.actionName}</small>
+                      </span>
+                      <span className="pg-call-meta">
+                        {step.error !== undefined
+                          ? <em className="pg-status bad">실패</em>
+                          : step.status !== undefined && (
+                            <em className={`pg-status ${tone(step)}`}>{step.status}</em>
+                          )}
+                        {step.elapsedMs !== undefined && <span>{step.elapsedMs}ms</span>}
+                      </span>
+                      <svg className="pg-call-caret" width="12" height="12" viewBox="0 0 16 16"
+                           fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                        <path d="m5 6.5 3 3 3-3" />
+                      </svg>
                     </button>
-                  ))}
-                </div>
-              )}
 
-              <section className="pg-block">
-                <h4>선택 이유</h4>
-                <p className="pg-why">
-                  {pickedStep.why || "모델이 이유를 남기지 않았습니다. 도구 설명만 보고 골랐습니다."}
-                </p>
-              </section>
+                    {open && (
+                      <div className="pg-call-body">
+                        {step.why && <p className="pg-why">{step.why}</p>}
 
-              <section className="pg-block">
-                <h4>INPUT · 모델이 채운 인자</h4>
-                <pre>{pretty(pickedStep.arguments) || "{}"}</pre>
-              </section>
+                        <div className="pg-io">
+                          <h4>Input</h4>
+                          <pre>{pretty(step.arguments) || "{}"}</pre>
+                        </div>
 
-              {pickedStep.request && (
-                <section className="pg-block">
-                  <h4>요청</h4>
-                  <pre>{`${pickedStep.request.method} ${pickedStep.request.url}`}</pre>
-                  <p className="pg-log-note">인증키는 실행 시점에 주입되며 값은 표시하지 않습니다.</p>
-                </section>
-              )}
+                        {step.request && (
+                          <div className="pg-io">
+                            <h4>Request</h4>
+                            <p className="pg-req" title={step.request.url}>
+                              <em>{step.request.method}</em>
+                              <span>{shortUrl(step.request.url)}</span>
+                            </p>
+                          </div>
+                        )}
 
-              {pickedStep.error && (
-                <section className="pg-block is-error">
-                  <h4>실패</h4>
-                  <p>{pickedStep.error}</p>
-                </section>
-              )}
+                        {step.error && (
+                          <div className="pg-io is-error">
+                            <h4>Error</h4>
+                            <p>{step.error}</p>
+                          </div>
+                        )}
 
-              {pickedStep.body !== undefined && (
-                <section className="pg-block">
-                  <h4>OUTPUT · 응답 요약</h4>
-                  <pre>{pretty(pickedStep.body)}</pre>
-                </section>
-              )}
+                        {step.body !== undefined && (
+                          <div className="pg-io">
+                            <h4>Output</h4>
+                            <pre>{pretty(step.body)}</pre>
+                          </div>
+                        )}
 
-              {pickedStep.rawPreview && (
-                <details className="pg-raw">
-                  <summary>원문 응답 보기</summary>
-                  <pre>{pickedStep.rawPreview}</pre>
-                </details>
-              )}
+                        {step.rawPreview && (
+                          <details className="pg-raw">
+                            <summary>원문 응답</summary>
+                            <pre>{step.rawPreview}</pre>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           )}
         </aside>
