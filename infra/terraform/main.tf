@@ -63,6 +63,9 @@ locals {
   }
 
   openai_key_set = var.azure_openai_api_key != ""
+
+  github_owner     = split("/", var.github_repository)[0]
+  github_repo_name = split("/", var.github_repository)[1]
 }
 
 resource "azurerm_container_app" "app" {
@@ -158,12 +161,37 @@ resource "azurerm_user_assigned_identity" "github" {
   tags                = var.tags
 }
 
+# GitHub 이 토큰에 싣는 subject 형식이 두 가지다.
+#
+#   이름 기반   repo:<owner>/<repo>:ref:refs/heads/<branch>
+#   불변 ID 기반 repo:<owner>@<ownerId>/<repo>@<repoId>:ref:refs/heads/<branch>
+#
+# 이 저장소는 불변 ID 형식으로 발급한다(실측: 이름 기반만 등록한 상태에서
+# AADSTS700213 No matching federated identity record). 저장소·소유자 이름을
+# 바꿔도 ID 는 그대로라 이쪽이 더 튼튼하다. 형식이 되돌아가는 경우까지 덮으려고
+# 둘 다 등록한다 — 자격 증명이 하나 더 있는 비용은 없고, 배포가 인증에서
+# 멈추면 원인을 찾는 데 드는 비용은 크다.
 resource "azurerm_federated_identity_credential" "github_branch" {
   name                      = "github-${var.github_deploy_branch}"
   user_assigned_identity_id = azurerm_user_assigned_identity.github.id
   audience                  = ["api://AzureADTokenExchange"]
   issuer                    = "https://token.actions.githubusercontent.com"
   subject                   = "repo:${var.github_repository}:ref:refs/heads/${var.github_deploy_branch}"
+}
+
+resource "azurerm_federated_identity_credential" "github_branch_immutable" {
+  name                      = "github-${var.github_deploy_branch}-id"
+  user_assigned_identity_id = azurerm_user_assigned_identity.github.id
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = "https://token.actions.githubusercontent.com"
+  subject = format(
+    "repo:%s@%s/%s@%s:ref:refs/heads/%s",
+    local.github_owner,
+    var.github_owner_id,
+    local.github_repo_name,
+    var.github_repository_id,
+    var.github_deploy_branch,
+  )
 }
 
 # `az acr build` 는 레지스트리에서 빌드 작업을 예약하므로 푸시 권한만으로는 모자라다.
