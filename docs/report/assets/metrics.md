@@ -27,7 +27,12 @@
 
 ## 일괄 수집
 
-(Task 2에서 기록)
+- 실행 일시: 2026-07-30 14:04:08 ~ 14:05:40 KST — **총 92초** (CrawlJob #1 `started_at`/`finished_at` 기준)
+- 입력: 키워드 "미세먼지" 검색 결과 URL (`data.go.kr/tcs/dss/selectDataSetList.do?dType=API&keyword=미세먼지`), 요청 개수 30
+- 결과: 목록에서 서비스 후보 40개 발견 → 상세페이지 34개 순회 → **서비스 16개에서 오퍼레이션 30개 수집** (상한 30 도달로 종료), 상태 `completed`
+- 수집 산출물: 세션 #2 (한국환경공단 에어코리아, 기후에너지환경부 국립환경과학원, 제주특별자치도 IoT 센서 등 — GET 오퍼레이션, 파라미터 4~8개·응답 필드 8~32개 자동 추출)
+- 준수 사항: 요청 간 1초 간격, 상한 60건 이하(30 설정), 재시도 없음 — `portal_crawler.py` 기본값 그대로
+- 캡처: `capture-crawl-progress.png`(진행 중), `capture-crawl-result.png`(결과 목록)
 
 ## LLM 콘솔
 
