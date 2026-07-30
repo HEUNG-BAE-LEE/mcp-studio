@@ -6,6 +6,9 @@ from app.models import Action
 from app.services.body import summarize_response
 
 MIN_INTERVAL_SEC = 1.0   # 공공 서버 부하 배려 (PRD 대상 사이트 설계 §4)
+
+# 한 번의 호출을 기다리는 한도. 공공 API 는 붐빌 때 응답이 10초를 넘긴다.
+REQUEST_TIMEOUT_SEC = 30.0
 DEFAULT_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
@@ -106,7 +109,9 @@ def execute_action(action: Action, arguments: dict, credentials: Optional[dict] 
 
     started = time.monotonic()
     try:
-        with httpx.Client(timeout=20.0) as client:
+        # 공공 API 는 느릴 때 응답 하나에 10초를 넘기기도 한다(사내 VPN 을 거치면
+        # 더 늘어난다). 20초로는 정상 응답까지 끊겨 "서버가 죽었나" 로 보인다.
+        with httpx.Client(timeout=REQUEST_TIMEOUT_SEC) as client:
             response = client.request(
                 prepared["method"], prepared["url"],
                 headers=prepared["headers"], content=prepared["content"],

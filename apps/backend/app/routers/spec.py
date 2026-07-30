@@ -7,7 +7,7 @@
 import re
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -176,6 +176,7 @@ def create_action_from_spec(operation_id: int, payload: dict, db: Session = Depe
         description=description,
         action_spec=spec,
         status=payload.get("status", "DRAFT"),
+        source_kind=session_row.kind or "portal",
     )
     db.add(action)
     db.commit()
@@ -219,6 +220,9 @@ def list_credentials(project_id: int, db: Session = Depends(get_session)) -> lis
 class PortalCrawlIn(BaseModel):
     listUrl: str
     limit: int = 30
+    # 미리보기에서 사용자가 고른 서비스만 수집한다. 비우면 목록 순서대로 전부.
+    publicDataPks: list = []
+    purpose: str = ""
 
 
 @router.post("/api/projects/{project_id}/portal-crawls")
@@ -243,7 +247,8 @@ def start_portal_crawl(project_id: int, payload: PortalCrawlIn,
     if payload.limit > MAX_LIMIT:
         raise HTTPException(422, f"한 번에 수집할 수 있는 최대 개수는 {MAX_LIMIT}개입니다")
 
-    job_id = crawl_runner.start(project_id, url, payload.limit)
+    job_id = crawl_runner.start(project_id, url, payload.limit,
+                                only_pks=payload.publicDataPks, purpose=payload.purpose)
     return {"jobId": job_id, "status": "running"}
 
 
@@ -332,6 +337,7 @@ def create_actions_bulk(session_id: int, payload: BulkActionIn,
             action_spec=build_action_spec_from_spec(op, name=name, tool_name=tool_name,
                                                     description=description),
             status=payload.status,
+            source_kind=session_row.kind or "portal",
         )
         db.add(action)
         created.append(action)
@@ -345,4 +351,135 @@ def create_actions_bulk(session_id: int, payload: BulkActionIn,
             f"액션 {len(created)}개를 만들었습니다"
             + (f" (이미 있는 {skipped}개는 건너뜀)" if skipped else "")
         ) if created else f"새로 만들 액션이 없습니다 (이미 있는 {skipped}개)",
+    }
+
+
+class PreviewIn(BaseModel):
+    listUrl: str
+    purpose: str = ""
+    pages: int = 3
+
+
+@router.post("/api/portal-crawls/preview")
+def preview_portal_candidates(payload: PreviewIn) -> dict:
+    """수집 전 후보를 보여주고, 적어 준 용도에 맞는 것만 추려 표시한다."""
+    from app.services.api_matcher import extract_keyword, match
+    from app.services.portal_crawler import (PortalUnreachable, is_supported_list_url,
+                                              keyword_of, preview_candidates, replace_keyword)
+
+    url = payload.listUrl.strip()
+    if not is_supported_list_url(url):
+        raise HTTPException(422, "아직 공공데이터포털(data.go.kr) 주소만 수집할 수 있습니다")
+
+    # 사용자는 이 입력란을 검색창으로 쓴다. 적어 준 용도에서 검색어를 뽑아 포털을
+    # 다시 검색한다 — 바깥 URL 의 검색어 결과를 좁히기만 하면 "날씨"라고 적어도
+    # 미세먼지 목록 안에서만 고르게 되어 아무것도 안 나온다.
+    keyword = extract_keyword(payload.purpose) if payload.purpose.strip() else ""
+    search_url = replace_keyword(url, keyword) if keyword else url
+
+    try:
+        candidates = preview_candidates(search_url, pages=max(1, min(payload.pages, 5)))
+    except PortalUnreachable as exc:
+        # 502 로 구분한다. 사용자가 고쳐야 할 곳이 URL(422)이 아니라 네트워크다.
+        raise HTTPException(502, str(exc)) from exc
+
+    used = keyword or keyword_of(url)
+    if not candidates:
+        raise HTTPException(
+            422,
+            f"'{used}' 로 찾은 API 가 없습니다. 다른 표현으로 적어 보세요"
+            if keyword else
+            "이 주소에서 API 를 찾지 못했습니다. 검색 결과가 있는 목록 주소인지 확인해 주세요",
+        )
+
+    result = match(candidates, payload.purpose)
+    # 어떤 낱말로 검색했는지 화면에 보여줘야 한다. 사용자가 적은 문장과 실제
+    # 검색어가 다르면, 결과가 왜 이렇게 나왔는지 알 수 없다.
+    result["keyword"] = used
+    result["listUrl"] = search_url
+    return result
+
+
+# ── 문서 기반 수집 ───────────────────────────────────────────
+
+
+@router.post("/api/projects/{project_id}/document-collections")
+async def collect_documents(project_id: int, files: list[UploadFile] = File(...),
+                            db: Session = Depends(get_session)) -> dict:
+    """활용가이드 문서에서 API 명세를 뽑아 수집 세션으로 만든다.
+
+    문서마다 결과를 따로 알려준다. 다섯 개를 올렸는데 하나가 실패했을 때
+    "실패했습니다" 한 줄이면 어느 파일이 문제인지 알 수 없다.
+    """
+    from app.services.doc_collector import collect_from_document
+
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "해당 프로젝트를 찾을 수 없습니다")
+    if not files:
+        raise HTTPException(422, "분석할 문서를 선택해 주세요")
+
+    now = datetime.utcnow()
+    session_row = RecordingSession(
+        project_id=project_id,
+        started_at=now,
+        ended_at=now,
+        status="COMPLETED",
+        kind="document",
+        source_label=(files[0].filename or "문서") if len(files) == 1
+                     else f"문서 {len(files)}개",
+    )
+    db.add(session_row)
+    db.commit()
+    db.refresh(session_row)
+
+    reports, total = [], 0
+    for upload in files:
+        data = await upload.read()
+        # 너무 큰 파일은 받지 않는다. 활용가이드는 보통 수백 KB 다.
+        if len(data) > 12 * 1024 * 1024:
+            reports.append({"file": upload.filename, "operations": 0,
+                            "warnings": ["파일이 너무 큽니다 (12MB 초과)"]})
+            continue
+
+        result = collect_from_document(upload.filename or "문서", data)
+        for op in result.operations:
+            db.add(SpecOperation(
+                session_id=session_row.id,
+                portal="document",
+                service_name=result.service_name,
+                provider=result.provider,
+                op_name=op["opName"],
+                summary=op["summary"],
+                method=op["method"],
+                base_url=op["baseUrl"],
+                path=op["path"],
+                params=op["params"],
+                response_fields=[],
+                warnings=op["warnings"],
+                source_url=upload.filename or "",
+                parsed_at=now,
+            ))
+        total += len(result.operations)
+        reports.append({
+            "file": upload.filename,
+            "serviceName": result.service_name,
+            "provider": result.provider,
+            "operations": len(result.operations),
+            "warnings": result.warnings,
+        })
+    db.commit()
+
+    # 아무것도 못 뽑았으면 빈 세션을 남기지 않는다. 목록만 지저분해진다.
+    if total == 0:
+        db.delete(session_row)
+        db.commit()
+        return {"sessionId": None, "operations": 0, "reports": reports,
+                "message": "문서에서 API 명세를 찾지 못했습니다"}
+
+    return {
+        "sessionId": session_row.id,
+        "operations": total,
+        "reports": reports,
+        "message": f"문서 {len(files)}개에서 API {total}개를 찾았습니다",
     }

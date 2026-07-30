@@ -70,6 +70,9 @@ class NetworkRequest(SQLModel, table=True):
 class Action(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="project.id")
+    # 어느 수집 방식에서 왔는지. traffic | portal | document.
+    # 기존 액션은 traffic 이 되어 그대로 동작한다.
+    source_kind: str = "traffic"
     name: str
     tool_name: str
     description: str = ""
