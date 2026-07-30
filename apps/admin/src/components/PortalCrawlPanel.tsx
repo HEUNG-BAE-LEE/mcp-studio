@@ -121,16 +121,22 @@ export default function PortalCrawlPanel({
 
       <div className="crawl-target">
         <label htmlFor="crawl-project">수집 결과를 담을 프로젝트</label>
-        <select
-          id="crawl-project"
-          value={projectId ?? ""}
-          onChange={(e) => onProjectChange?.(Number(e.target.value))}
-          disabled={!!job && job.status === "running"}
-        >
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>{project.name}</option>
-          ))}
-        </select>
+        {onProjectChange ? (
+          <select
+            id="crawl-project"
+            value={projectId ?? ""}
+            onChange={(e) => onProjectChange(Number(e.target.value))}
+            disabled={!!job && job.status === "running"}
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>{project.name}</option>
+            ))}
+          </select>
+        ) : (
+          <strong className="crawl-fixed-project">
+            {projects.find((p) => p.id === projectId)?.name ?? `#${projectId}`}
+          </strong>
+        )}
       </div>
 
       <div className="crawl-presets">
