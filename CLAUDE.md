@@ -57,6 +57,16 @@ DB 는 `apps/backend/data/dev.db` 파일 하나다. 마이그레이션은 없고
 `rm -f apps/backend/data/dev.db` 가 가장 빠르고, 아까우면 `ALTER TABLE ... ADD
 COLUMN ... DEFAULT ...` 로 컬럼만 더한다 (SQLite 는 기존 행에 기본값을 채워준다).
 
+가장 최근에 늘어난 컬럼은 `Project.description` 이다(프로젝트 카드의 설명 두 줄).
+그 이전 `dev.db` 를 들고 있으면 `no such column: project.description` 으로 서버가
+뜨지 않는다. 데이터를 지우지 않고 넘기려면:
+
+```bash
+cd apps/backend && cp data/dev.db data/dev.db.bak && .venv/bin/python -c \
+  "import sqlite3; sqlite3.connect('data/dev.db').execute(\
+   \"ALTER TABLE project ADD COLUMN description TEXT NOT NULL DEFAULT ''\")"
+```
+
 ## 여러 파일을 읽어야 보이는 것
 
 **기록 경로.** `entrypoints/injected.ts` 가 Main World 에서 `fetch`/`XHR` 을 후킹해
