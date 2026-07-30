@@ -132,6 +132,22 @@ def build_action_spec_from_spec(op, name: str, tool_name: str, description: str)
             "llmEditable": not is_credential,
         }
 
+    # 공공데이터포털 오픈API 는 예외 없이 인증키를 받는다. 그런데 요청변수 표에
+    # 그것을 적지 않는 기관이 있다(우정사업본부 도로명주소 — 포털 스크립트에만
+    # serviceKey 가 있다). 표만 믿으면 주입할 자리가 없어, 호출은 200 인데 본문이
+    # "SERVICE KEY IS MISSING" 으로 돌아온다.
+    #
+    # 이 함수는 포털 공개 기반 수집에서만 불린다. 그 경로로 들어온 오퍼레이션에는
+    # 인증키가 반드시 필요하므로, 표에 없으면 여기서 채운다.
+    if not any(k.lower() in CREDENTIAL_PARAMS for k in query_schema):
+        query_schema["serviceKey"] = {
+            "type": "string",
+            "description": "공공데이터포털에서 발급받은 인증키 (명세 표에 없어 보완)",
+            "required": True,
+            "example": None,
+            "llmEditable": False,
+        }
+
     url = f"{op.base_url if not isinstance(op, dict) else op['base_url']}" \
           f"{op.path if not isinstance(op, dict) else op['path']}"
     method = (op.method if not isinstance(op, dict) else op["method"]).upper()

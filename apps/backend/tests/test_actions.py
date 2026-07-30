@@ -160,7 +160,7 @@ def test_액션_단건_조회는_스펙과_상태를_돌려준다(client, projec
 def test_없는_액션_단건_조회는_한국어_404다(client):
     res = client.get("/api/actions/9999")
     assert res.status_code == 404
-    assert res.json()["detail"] == "해당 액션을 찾을 수 없습니다"
+    assert res.json()["detail"] == "해당 MCP 도구를 찾을 수 없습니다"
 
 
 def test_세션을_지워도_액션은_남는다(client, project_id, network_request_id):
@@ -192,7 +192,7 @@ def test_액션_삭제(client, network_request_id):
 def test_없는_액션_삭제는_한국어_404다(client):
     res = client.delete("/api/actions/9999")
     assert res.status_code == 404
-    assert res.json()["detail"] == "해당 액션을 찾을 수 없습니다"
+    assert res.json()["detail"] == "해당 MCP 도구를 찾을 수 없습니다"
 
 
 def test_이름을_바꾸면_단건_조회와_목록에_모두_반영된다(client, project_id, network_request_id):

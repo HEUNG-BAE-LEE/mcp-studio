@@ -27,6 +27,8 @@ type PreviewResult = {
   reason: string | null;
   items: Candidate[];
   keyword: string;
+  /** 서버가 실제로 검색한 주소. 용도를 적으면 검색어가 바뀌므로 원래 주소와 다르다. */
+  listUrl: string;
 };
 
 const PURPOSE_EXAMPLES = [
@@ -46,7 +48,7 @@ export default function CrawlPreviewDialog({
   limit: number;
   projectName: string;
   onClose: () => void;
-  onStart: (selected: string[], purpose: string) => Promise<void>;
+  onStart: (selected: string[], purpose: string, searchedUrl: string) => Promise<void>;
 }) {
   const [purpose, setPurpose] = useState("");
   const [result, setResult] = useState<PreviewResult | null>(null);
@@ -104,7 +106,9 @@ export default function CrawlPreviewDialog({
     setStarting(true);
     setError(null);
     try {
-      await onStart([...checked], purpose.trim());
+      // 미리보기가 실제로 읽은 주소를 그대로 넘긴다. 원래 주소로 수집하면
+      // 화면에서 고른 API 가 그 검색 결과에 없어 아무것도 안 모인다.
+      await onStart([...checked], purpose.trim(), result?.listUrl || listUrl);
     } catch (err) {
       setError(errorMessage(err));
       setStarting(false);
@@ -112,19 +116,23 @@ export default function CrawlPreviewDialog({
   }
 
   return (
-    <div className="dlg-backdrop" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
-      <div className="dlg">
-        <header className="dlg-head">
+    <div className="preview-step">
+        <header className="preview-head">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={onClose}
+            disabled={starting}
+          >← 뒤로</button>
           <div>
-            <h2 id="dlg-title">수집할 API 고르기</h2>
+            <h2>수집할 API 고르기</h2>
             <p>
               <b>{projectName}</b> 프로젝트에 담습니다 · 오퍼레이션 최대 <b>{limit}개</b>
             </p>
           </div>
-          <button className="dlg-close" onClick={onClose} disabled={starting} aria-label="닫기">✕</button>
         </header>
 
-        <div className="dlg-body">
+        <div className="preview-body">
           <section className="dlg-purpose">
             <label htmlFor="purpose">어떤 용도로 쓸 API 인가요?</label>
             <p className="dlg-hint">
@@ -213,6 +221,14 @@ export default function CrawlPreviewDialog({
                   {result?.keyword && <>검색어 <b>{result.keyword}</b> · </>}
                   후보 {items.length}개 중 <b>{checked.size}개</b> 선택
                 </span>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={start}
+                  disabled={starting || checked.size === 0}
+                >
+                  {starting ? "시작 중…" : `${checked.size}개 수집 시작`}
+                </button>
               </div>
 
               <ul className="dlg-list">
@@ -236,16 +252,14 @@ export default function CrawlPreviewDialog({
           )}
         </div>
 
-        <footer className="dlg-foot">
-          <span className="dlg-foot-note">
+        <footer className="preview-foot">
+          <span className="preview-foot-note">
             공공 서버를 배려해 요청 간 1초를 둡니다. 선택이 많으면 몇 분 걸릴 수 있습니다.
           </span>
-          <button className="btn-quiet" onClick={onClose} disabled={starting}>취소</button>
           <button className="btn btn-primary" onClick={start} disabled={starting || checked.size === 0}>
             {starting ? "시작 중…" : `${checked.size}개 수집 시작`}
           </button>
         </footer>
-      </div>
     </div>
   );
 }

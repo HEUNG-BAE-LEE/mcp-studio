@@ -99,8 +99,8 @@ function DocumentIllustration() {
 /**
  * 시작 안내.
  *
- * 이 화면은 설명 전용이다. 수집은 프로젝트 안(`/projects/:id/collect`,
- * `pages/CollectPage.tsx`)에서 시작한다. 그래서 여기에는 "시작" 버튼도
+ * 이 화면은 설명 전용이다. 수집은 프로젝트 안에서 팝업(`CollectModal`)으로
+ * 시작한다. 그래서 여기에는 "시작" 버튼도
  * 수집 폼도 두지 않는다 — 프로젝트를 모르는 자리에서 시작하게 하면 어느
  * 프로젝트에 담을지 되묻게 되고, 그 되묻기가 예전의 프로젝트 드롭다운이었다.
  */
@@ -121,7 +121,7 @@ export default function SourceList() {
           <p className="eyebrow">수집</p>
           <h1>수집 방식 안내</h1>
           <p className="page-sub">
-            API 를 가져오는 방식은 셋입니다. 어느 방식으로 수집했든 이후 액션 생성·테스트는 같습니다.
+            API 를 가져오는 방식은 셋입니다. 어느 방식으로 수집했든 이후 MCP 생성·테스트는 같습니다.
             수집을 시작하려면 프로젝트를 열고 <strong>API 수집하기</strong> 로 갑니다.
           </p>
         </div>
@@ -190,7 +190,7 @@ export default function SourceList() {
                   <code>요청변수</code> 표가 함께 있는 화면입니다. 목록·검색 페이지는 인식되지 않습니다</li>
               <li>사이드 패널에 <strong>공개 명세 페이지 감지</strong> 가 뜨는지 확인하고,
                   프로젝트 이름을 넣어 <strong>공개 명세 수집</strong></li>
-              <li><strong>관리자에서 열기</strong> → 오퍼레이션의 <strong>액션 만들기</strong></li>
+              <li><strong>관리자에서 열기</strong> → 오퍼레이션의 <strong>MCP 만들기</strong></li>
               <li>테스트 콘솔 상단 <strong>포털 인증키</strong> 에 <code>serviceKey</code> 를 등록한 뒤 질의합니다</li>
             </ol>
             <p className="guide-note">
