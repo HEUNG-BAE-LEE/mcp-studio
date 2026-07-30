@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
 import Stepper from "../components/Stepper";
-import { MarkPortal } from "../components/CollectionMark";
+import { KindMark } from "../components/CollectionMark";
 
 /**
  * 포털 공개 기반 수집 세션의 후보 목록.
@@ -97,6 +97,10 @@ export default function SpecSessionDetail() {
   // 일괄 수집이면 세션 하나에 여러 서비스가 섞인다. 서비스명을 접두로 보여주지
   // 않으면 무엇을 모았는지 화면에서 읽을 수 없다.
   const bulkCollected = serviceCount > 1;
+  // 이 화면은 포털·문서 두 방식이 함께 쓴다(둘 다 명세를 파싱해 후보를 만든다).
+  // 방식을 구분하지 않으면 문서에서 읽은 세션에 "확장에서 다시 누르세요" 같은
+  // 포털 안내가 붙는다.
+  const fromDocument = session.data?.kind === "document";
 
   return (
     <Shell breadcrumb={breadcrumb} projectId={projectId} projectName={projectName}>
@@ -104,11 +108,13 @@ export default function SpecSessionDetail() {
         <div>
           <p className="eyebrow">명세 파싱</p>
           <h1>세션 #{id}</h1>
-          <p className="subtitle">{serviceName || "포털이 공개한 명세"}에서 읽어온 오퍼레이션입니다.</p>
+          <p className="subtitle">
+            {serviceName || (fromDocument ? "올린 문서" : "포털이 공개한 명세")}에서 읽어온 오퍼레이션입니다.
+          </p>
         </div>
       </section>
 
-      <Stepper current={2} kind="portal" />
+      <Stepper current={2} kind={fromDocument ? "document" : "portal"} />
 
       {error && (
         <div className="error-banner">
@@ -120,8 +126,13 @@ export default function SpecSessionDetail() {
       {/* 안내는 어떻게 수집했는지에 따라 달라야 한다. 일괄 수집인데 "확장에서
           다시 누르세요"라고 하면 하지 않아도 될 일을 시키는 셈이다. */}
       <p className="spec-note">
-        <MarkPortal />
-        {bulkCollected ? (
+        <KindMark kind={fromDocument ? "document" : "portal"} />
+        {fromDocument ? (
+          <>
+            문서에서 읽은 명세입니다. 엔드포인트·파라미터가 문서와 맞는지 확인한 뒤
+            액션으로 만들고, <strong>Playground</strong> 에서 한 번 호출해 보세요.
+          </>
+        ) : bulkCollected ? (
           <>
             목록 URL 하나로 <strong>서비스 {serviceCount}개 · 오퍼레이션 {rows.length}개</strong>를 모았습니다.
             아래에서 한 번에 액션으로 만들 수 있습니다.

@@ -1,29 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { api, errorMessage } from "../api/client";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { api } from "../api/client";
+import CrawlPreviewDialog from "./CrawlPreviewDialog";
 
 /**
  * 포털 목록 URL 하나를 등록해 API 를 일괄 수집한다.
  *
- * 상세페이지를 한 장씩 여는 방식은 "된다"를 보여주지만, 서비스 하나에 상세기능이
- * 다섯 개면 목록을 다섯 번 바꿔야 한다. 여기서는 검색 결과 주소 하나로 그 전부를 모은다.
- *
- * 수집은 수십 초가 걸린다. 요청을 붙잡지 않고 잡 id 를 받아 진행 상황을 물어본다 —
- * 진행 표시가 없으면 사용자는 멈춘 줄 알고 새로고침한다.
+ * 진행 상황은 여기서 보여주지 않는다. 수집은 서버에서 돌기 때문에 화면 안에
+ * 상태를 들고 있으면 다른 메뉴를 눌렀다 돌아왔을 때 사라진다 — 사용자는 수집이
+ * 취소된 줄 안다. 시작하면 **수집 진행현황** 화면으로 넘겨, 상태를 서버에서
+ * 읽게 한다.
  */
 
-type Job = {
-  id: number;
-  status: "running" | "completed" | "failed";
-  phase: string;
-  servicesFound: number;
-  servicesDone: number;
-  operations: number;
-  current: string;
-  message: string;
-  sessionId: number | null;
-  limit: number;
-};
+type Project = { id: number; name: string };
+
+type RunningJob = { id: number; operations: number; limit: number };
 
 const PRESETS = [
   { label: "대기·미세먼지", keyword: "미세먼지" },
@@ -39,8 +30,6 @@ function listUrlFor(keyword: string): string {
   );
 }
 
-type Project = { id: number; name: string };
-
 export default function PortalCrawlPanel({
   projectId,
   onProjectChange,
@@ -52,25 +41,9 @@ export default function PortalCrawlPanel({
   const [projects, setProjects] = useState<Project[]>([]);
   const [url, setUrl] = useState(listUrlFor("미세먼지"));
   const [limit, setLimit] = useState(30);
-  const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
-  const timer = useRef<number | null>(null);
-
-  const poll = useCallback((jobId: number) => {
-    if (timer.current) window.clearInterval(timer.current);
-    timer.current = window.setInterval(() => {
-      api.get(`/api/crawl-jobs/${jobId}`)
-        .then((next: Job) => {
-          setJob(next);
-          if (next.status !== "running" && timer.current) {
-            window.clearInterval(timer.current);
-            timer.current = null;
-          }
-        })
-        .catch((err) => setError(errorMessage(err)));
-    }, 1500);
-  }, []);
+  const [running, setRunning] = useState<RunningJob | null>(null);
+  const [preview, setPreview] = useState(false);
 
   // 두 모드가 다 이 목록을 쓴다. 고를 수 있는 모드(onProjectChange 를 받은
   // 경우)에서는 드롭다운의 선택지가 되고, 프로젝트가 고정된 모드에서는
@@ -81,38 +54,52 @@ export default function PortalCrawlPanel({
     api.get("/api/projects").then(setProjects).catch(() => {});
   }, []);
 
-  // 화면을 떠날 때 폴링을 멈춘다. 남겨두면 사라진 컴포넌트에 상태를 쓴다.
-  useEffect(() => () => {
-    if (timer.current) window.clearInterval(timer.current);
-  }, []);
+  // 이미 도는 수집이 있으면 알려준다. 모르고 또 시작하면 같은 API 를 두 번 긁는다.
+  useEffect(() => {
+    if (!projectId) return;
+    let alive = true;
+    function check() {
+      api.get(`/api/projects/${projectId}/portal-crawls`)
+        .then((jobs: any[]) => {
+          if (!alive) return;
+          const job = jobs.find((j) => j.status === "running");
+          setRunning(job ? { id: job.id, operations: job.operations, limit: job.limit } : null);
+        })
+        .catch(() => {});
+    }
+    check();
+    const timer = window.setInterval(check, 3000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [projectId]);
 
-  async function start() {
+  function openPreview() {
     if (!projectId) {
-      setError("프로젝트를 먼저 선택하세요. 프로젝트 목록에서 하나를 열면 여기로 돌아옵니다.");
+      setError("수집 결과를 담을 프로젝트를 먼저 고르세요.");
       return;
     }
-    setStarting(true);
-    setError(null);
-    setJob(null);
-    try {
-      const started = await api.post(`/api/projects/${projectId}/portal-crawls`, {
-        listUrl: url.trim(),
-        limit,
-      });
-      const first: Job = await api.get(`/api/crawl-jobs/${started.jobId}`);
-      setJob(first);
-      poll(started.jobId);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setStarting(false);
+    if (!url.trim()) {
+      setError("공공데이터포털 검색 결과 주소를 입력하세요.");
+      return;
     }
+    setError(null);
+    setPreview(true);
   }
 
-  const done = job && job.status !== "running";
-  const percent = job
-    ? Math.min(100, Math.round((job.operations / Math.max(1, job.limit)) * 100))
-    : 0;
+  // 무엇을 수집할지는 팝업에서 확정한다. 여기서 바로 시작하면 엉뚱한 API 가
+  // 섞여 들어오고, 그걸 나중에 지우는 편이 더 번거롭다.
+  async function startSelected(selected: string[], purpose: string) {
+    await api.post(`/api/projects/${projectId}/portal-crawls`, {
+      listUrl: url.trim(),
+      limit,
+      publicDataPks: selected,
+      purpose,
+    });
+    setPreview(false);
+    navigate(`/projects/${projectId}/crawls`);
+  }
 
   return (
     <div className="crawl-panel">
@@ -120,6 +107,17 @@ export default function PortalCrawlPanel({
         <strong>목록 URL 하나로 일괄 수집</strong>
         <span>검색 결과 주소를 붙여넣으면 그 안의 API 를 자동으로 모읍니다.</span>
       </div>
+
+      {running && (
+        <div className="crawl-running">
+          <span className="dot" />
+          <div>
+            <strong>수집이 진행 중입니다</strong>
+            <small>지금까지 {running.operations} / {running.limit}개</small>
+          </div>
+          <Link className="crawl-running-link" to={`/projects/${projectId}/crawls`}>진행현황 보기</Link>
+        </div>
+      )}
 
       <div className="crawl-target">
         {/* 고정 모드에는 select 가 없다. htmlFor 를 그대로 두면 label 이
@@ -134,7 +132,6 @@ export default function PortalCrawlPanel({
             id="crawl-project"
             value={projectId ?? ""}
             onChange={(e) => onProjectChange(Number(e.target.value))}
-            disabled={!!job && job.status === "running"}
           >
             {projects.map((project) => (
               <option key={project.id} value={project.id}>{project.name}</option>
@@ -166,24 +163,15 @@ export default function PortalCrawlPanel({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://www.data.go.kr/tcs/dss/selectDataSetList.do?dType=API&keyword=…"
-          disabled={!!job && job.status === "running"}
         />
-        <select
-          value={limit}
-          onChange={(e) => setLimit(Number(e.target.value))}
-          disabled={!!job && job.status === "running"}
-        >
+        <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
           <option value={10}>10개</option>
           <option value={20}>20개</option>
           <option value={30}>30개</option>
           <option value={50}>50개</option>
         </select>
-        <button
-          className="primary"
-          onClick={start}
-          disabled={starting || (!!job && job.status === "running")}
-        >
-          {job && job.status === "running" ? "수집 중…" : "수집 시작"}
+        <button className="primary" onClick={openPreview}>
+          수집 시작
         </button>
       </div>
 
@@ -193,38 +181,20 @@ export default function PortalCrawlPanel({
         </div>
       )}
 
-      {job && (
-        <div className={`crawl-progress ${done ? "is-done" : ""}`}>
-          <div className="crawl-bar">
-            <span style={{ width: `${percent}%` }} />
-          </div>
-          <div className="crawl-stat">
-            <b>{job.operations}</b>
-            <span>오퍼레이션</span>
-            <b>{job.servicesDone}</b>
-            <span>서비스 확인</span>
-            <em>{job.phase}</em>
-          </div>
-          {job.status === "running" && job.current && (
-            <div className="crawl-current" title={job.current}>{job.current}</div>
-          )}
-          {done && (
-            <div className="crawl-done">
-              <span>{job.message}</span>
-              {job.sessionId && (
-                <button className="primary" onClick={() => navigate(`/spec-sessions/${job.sessionId}`)}>
-                  수집 결과 보기
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+      {preview && (
+        <CrawlPreviewDialog
+          listUrl={url.trim()}
+          limit={limit}
+          projectName={projects.find((p) => p.id === projectId)?.name ?? ""}
+          onClose={() => setPreview(false)}
+          onStart={startSelected}
+        />
       )}
 
       <p className="guide-note" style={{ marginTop: 12 }}>
-        <strong>공공 서버를 배려해 요청 간 1초를 둡니다</strong>
-        30개를 모으는 데 1~2분이 걸립니다. 창을 닫아도 수집은 서버에서 계속되며,
-        다시 들어오면 결과를 수집 세션에서 확인할 수 있습니다.
+        <strong>수집 시작을 누르면 무엇을 모을지 먼저 확인합니다</strong>
+        용도를 적으면 목적에 맞는 API 만 골라 드립니다. 확정하면 진행현황 화면으로 넘어가며,
+        수집은 서버에서 돌기 때문에 창을 닫아도 계속됩니다.
       </p>
     </div>
   );

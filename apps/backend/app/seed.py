@@ -158,3 +158,30 @@ def seed_portal_spec() -> None:
                 parsed_at=now,
             ))
         db.commit()
+
+
+def backfill_action_source_kind() -> None:
+    """source_kind 컬럼이 생기기 전에 만들어진 액션의 수집 방식을 채운다.
+
+    이 저장소는 마이그레이션 도구를 쓰지 않으므로, 컬럼을 추가하면 기존 행은
+    기본값(traffic)으로 남는다. 포털 수집으로 만든 액션이 화면에서 '트래픽'으로
+    보이면 어디서 왔는지가 거짓이 된다.
+
+    판단 근거는 스펙에 남아 있다 — 포털·문서 수집은 인증키를 실행 시점에
+    주입하므로 authMode 가 CREDENTIAL 이다. 문서 기반은 그 안에서 다시
+    경고 문구로 구분한다(문서에서 추출한 명세라는 표시를 남겨 두었다).
+    """
+    with Session(engine) as db:
+        rows = db.exec(select(Action).where(Action.source_kind == "traffic")).all()
+        changed = 0
+        for action in rows:
+            spec = action.action_spec or {}
+            if (spec.get("execution") or {}).get("authMode") != "CREDENTIAL":
+                continue
+            url = (spec.get("request") or {}).get("urlTemplate") or ""
+            # 포털에서 온 것은 공공 오픈API 호스트를 가리킨다. 그 밖은 문서 경로다.
+            action.source_kind = "portal" if "apis.data.go.kr" in url or "api.odcloud.kr" in url else "document"
+            db.add(action)
+            changed += 1
+        if changed:
+            db.commit()

@@ -20,42 +20,59 @@ type Props = {
 export default function Shell({ breadcrumb, projectId, projectName, children }: Props) {
   const { pathname } = useLocation();
 
-  // 번호를 붙이지 않는다. 상단 스테퍼가 이미 STEP 1~5 로 순서를 말하고 있어서,
-  // 사이드바에도 01~05 를 달면 다섯 개짜리 번호 순서가 화면에 둘이 된다.
-  // 게다가 3·4·5 는 뜻이 맞아떨어지고 1·2 는 전혀 달라서, 부분적으로만 맞는
-  // 대응 관계를 학습시켰다. 순서는 스테퍼가, 위치는 사이드바가 맡는다.
+  // 사이드바 번호는 "이 순서로 하면 된다"를 말한다. 수집 방식이 셋(트래픽·포털·
+  // 문서)으로 늘면서 어디서 시작해 어디서 확인하는지가 한눈에 안 잡혀, 화면
+  // 이름과 함께 순서를 붙였다.
   //
-  // 프로젝트가 다시 작업의 중심이다. 일괄 수집 폼이 프로젝트 안으로 옮겨오면서
-  // "수집 엔진"에는 더 이상 시작할 일이 없다 — 참고 자료로 맨 아래에 둔다.
+  // 수집은 **프로젝트 안에서** 시작한다. "API 수집하기"(02)를 전역 /sources 가
+  // 아니라 /projects/:id/collect 로 두는 이유다 — 전역 페이지에 두면 어느
+  // 프로젝트에 담을지 되묻게 되고, 그 되묻기가 프로젝트 드롭다운이었다.
+  // /sources 는 프로젝트 없이도 볼 수 있는 방식 소개로 맨 아래 남긴다.
   // 정확 일치(to)와 접두사(prefixes)를 따로 둔다. 하나의 목록에 섞어 담고
   // 끝의 슬래시로 구분하려 했더니 루트("/")가 모든 경로의 접두사여서
-  // 프로젝트 항목이 항상 활성으로 잡혔다.
+  // 프로젝트 항목이 항상 활성으로 잡혔다. 세션 상세는 /sessions/:id ·
+  // /spec-sessions/:id 로 빠지므로, 정확 일치만 보면 정작 작업하는 화면에서
+  // 사이드바가 통째로 꺼져 위치를 잃는다.
   const items = [
-    { label: "프로젝트", to: "/", prefixes: [] as string[] },
+    { label: "프로젝트", number: "01", to: "/", prefixes: [] as string[] },
     ...(projectId
       ? [
           {
-            label: "수집 세션",
+            label: "API 수집하기",
+            number: "02",
+            to: `/projects/${projectId}/collect`,
+            prefixes: [] as string[],
+          },
+          {
+            label: "수집현황",
+            number: "03",
             to: `/projects/${projectId}`,
-            // 세션 상세는 /sessions/:id · /spec-sessions/:id 로 빠진다. 정확 일치만
-            // 보면 정작 작업하는 화면에서 사이드바가 통째로 꺼져 위치를 잃는다.
             prefixes: ["/sessions/", "/spec-sessions/"],
           },
           {
-            label: "액션",
+            label: "수집 진행현황",
+            number: "04",
+            to: `/projects/${projectId}/crawls`,
+            prefixes: [] as string[],
+          },
+          {
+            label: "MCP 조회하기",
+            number: "05",
             to: `/projects/${projectId}/actions`,
             prefixes: ["/actions/"],
           },
           {
-            label: "테스트 콘솔",
+            label: "Playground",
+            number: "06",
             to: `/projects/${projectId}/console`,
             prefixes: [] as string[],
           },
         ]
       : []),
-    // 엔진은 장소가 아니라 수집 사건의 속성이다. 참고 자료로 맨 아래 둔다.
+    // 엔진은 장소가 아니라 수집 사건의 속성이다. 시작하는 곳이 아니라 무엇이
+    // 있는지 읽는 곳이라 번호를 붙이지 않고 맨 아래 둔다.
     // /engines/:kind (EngineSessionList) 도 이 항목 소관이라 접두사로 함께 켠다.
-    { label: "수집 엔진", to: "/sources", prefixes: ["/engines/"] },
+    { label: "수집 방식 안내", number: undefined as string | undefined, to: "/sources", prefixes: ["/engines/"] },
   ];
 
   function isActive(item: { to: string; prefixes: string[] }): boolean {
@@ -94,6 +111,9 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
               key={item.label}
               className={isActive(item) ? "nav-item active" : "nav-item"}
             >
+              {/* 번호가 없는 항목(방식 소개)은 빈 칸을 남기지 않는다. 예전에
+                  빈 nav-number 가 좁은 폭에서 라벨 없는 빈 줄로 보였다. */}
+              {item.number && <span className="nav-number">{item.number}</span>}
               {item.label}
             </Link>
           ))}

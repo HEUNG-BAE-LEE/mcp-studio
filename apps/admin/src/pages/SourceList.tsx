@@ -99,11 +99,10 @@ function DocumentIllustration() {
 /**
  * 시작 안내.
  *
- * 이 화면은 설명 전용이다. 수집은 프로젝트 안에서 시작한다 —
- * `+ 수집 시작` 팝업(`components/CollectStartModal.tsx`)이 엔진을 골라
- * 그 엔진의 시작 지점으로 데려간다. 그래서 여기에는 "시작" 버튼을 두지 않는다.
- * 프로젝트를 모르는 자리에서 시작 버튼을 주면 어느 프로젝트에 담을지 되묻게
- * 되고, 그 되묻기가 예전의 프로젝트 드롭다운이었다.
+ * 이 화면은 설명 전용이다. 수집은 프로젝트 안(`/projects/:id/collect`,
+ * `pages/CollectPage.tsx`)에서 시작한다. 그래서 여기에는 "시작" 버튼도
+ * 수집 폼도 두지 않는다 — 프로젝트를 모르는 자리에서 시작하게 하면 어느
+ * 프로젝트에 담을지 되묻게 되고, 그 되묻기가 예전의 프로젝트 드롭다운이었다.
  */
 function Guide({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -116,13 +115,14 @@ function Guide({ label, children }: { label: string; children: React.ReactNode }
 
 export default function SourceList() {
   return (
-    <Shell breadcrumb={["수집 엔진"]}>
+    <Shell breadcrumb={["수집 방식 안내"]}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">수집</p>
-          <h1>수집 엔진</h1>
+          <h1>수집 방식 안내</h1>
           <p className="subtitle">
             API 를 가져오는 방식은 셋입니다. 어느 방식으로 수집했든 이후 액션 생성·테스트는 같습니다.
+            수집을 시작하려면 프로젝트를 열고 <strong>API 수집하기</strong> 로 갑니다.
           </p>
         </div>
       </section>
@@ -206,17 +206,20 @@ export default function SourceList() {
           </Guide>
         </section>
 
-        <section className="method-card">
+        <section className="method-card is-live">
           <div className="method-illu"><DocumentIllustration /></div>
           <div className="method-body">
             <h3>문서 기반 수집</h3>
-            <p>활용가이드 PDF·HWP 를 올려 명세를 구조화합니다.</p>
-            <span className="kind-badge kind-document">준비중</span>
+            <p>활용가이드 PDF·텍스트 문서를 올려 LLM 이 명세를 구조화합니다.</p>
+            <span className="kind-badge kind-document">사용 가능</span>
           </div>
           <div className="method-sources">
             <h4>대상</h4>
-            <SourceRow source={{ name: "PDF · HWP 활용가이드", live: false, state: "준비중" }} />
+            <SourceRow source={{ name: "PDF · 텍스트 · 워드", live: true, state: "지원" }} />
+            <SourceRow source={{ name: "HWP", live: false, state: "PDF 로 변환 필요" }} />
           </div>
+          {/* 숫자는 프로젝트 목록이 답한다. 여기서는 "이 방식으로 모은 것 전체" 로만 잇는다 */}
+          <Link className="method-link" to="/engines/document">이 방식으로 모은 세션 보기 →</Link>
         </section>
       </div>
     </Shell>

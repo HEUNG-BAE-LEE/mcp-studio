@@ -104,7 +104,13 @@ def build_action_spec(req, name: str, tool_name: str, description: str) -> dict:
 # "여기에 발급받은 키를 넣으세요"라고만 적혀 있다. 그래서 이 파라미터들은
 # llmEditable=False 로 두어 LLM에게 보이지 않게 하고(tool_registry가 제외한다),
 # 실행 시점에 프로젝트에 등록된 키를 주입한다(executor).
-CREDENTIAL_PARAMS = {"servicekey", "authkey", "apikey", "api_key", "key"}
+# 기관마다 이름이 다르다. 공공데이터포털은 serviceKey, 행정안전부 주소 API 는
+# confmKey, 금융감독원 DART 는 crtfc_key 를 쓴다. 목록에 없으면 그 키가 LLM 에게
+# 그대로 노출되고, 모델이 지어낸 값으로 호출이 나간다.
+CREDENTIAL_PARAMS = {
+    "servicekey", "authkey", "apikey", "api_key", "key",
+    "confmkey", "crtfc_key", "accesskey", "secretkey", "auth_key",
+}
 
 
 def build_action_spec_from_spec(op, name: str, tool_name: str, description: str) -> dict:
