@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
-import PortalCrawlPanel from "../components/PortalCrawlPanel";
-import DocumentCollectPanel from "../components/DocumentCollectPanel";
+import CollectPanels from "../components/CollectPanels";
 
 /**
  * 한 프로젝트에 API 를 모으는 화면.
@@ -25,15 +24,6 @@ import DocumentCollectPanel from "../components/DocumentCollectPanel";
  * `dev.db` 가 깨진다.
  */
 
-type Engine = "portal" | "document" | "traffic";
-
-// 탭 스타일은 dev 의 .kind-tabs 를 쓴다. 수집현황 화면도 같은 클래스라,
-// 여기만 다른 모양을 쓰면 같은 앱에 탭이 두 종류가 된다.
-const TABS: { key: Engine; label: string }[] = [
-  { key: "portal", label: "포털 공개 기반" },
-  { key: "document", label: "문서 기반" },
-  { key: "traffic", label: "트래픽 기반" },
-];
 
 export default function CollectPage() {
   const { id } = useParams();
@@ -41,7 +31,6 @@ export default function CollectPage() {
 
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [engine, setEngine] = useState<Engine>("portal");
 
   // 브레드크럼과 안내 문구에 프로젝트 이름을 쓴다. 이름을 못 불러와도 수집
   // 자체는 projectId 로 되므로 폼을 막지 않고 인라인 배너로만 알린다.
@@ -75,42 +64,8 @@ export default function CollectPage() {
         </div>
       )}
 
-      <div className="kind-tabs">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            className={engine === tab.key ? "on" : ""}
-            onClick={() => setEngine(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <CollectPanels projectId={projectId} projectName={projectName} />
 
-      <div>
-        {/* onProjectChange 를 넘기지 않는다 = 프로젝트 고정 모드. 드롭다운 대신
-            프로젝트 이름이 글씨로 보인다. */}
-        {engine === "portal" && <PortalCrawlPanel projectId={projectId} />}
-
-        {engine === "document" && <DocumentCollectPanel projectId={projectId} />}
-
-        {engine === "traffic" && (
-          <article className="panel">
-            <ol className="guide-steps">
-              <li>대상 사이트를 열고 확장 아이콘을 눌러 사이드 패널을 엽니다</li>
-              <li>프로젝트 이름에 <strong>{projectName || `#${projectId}`}</strong> 을 그대로 넣습니다 —
-                  같은 이름이면 이 프로젝트에 담깁니다</li>
-              <li>버튼·필터처럼 <strong>페이지가 넘어가지 않는 조작</strong>을 클릭합니다</li>
-              <li><strong>기록 종료 및 전송</strong> 후 <strong>수집현황</strong>에서 세션을 확인합니다</li>
-            </ol>
-            <p className="guide-note">
-              <strong>확장을 새로고침했다면 대상 페이지도 새로고침하세요</strong>
-              이미 열려 있던 탭의 스크립트는 고아가 되어 클릭이 하나도 잡히지 않습니다.
-              화면에는 오류 없이 “0 클릭”만 보여 알아채기 어렵습니다.
-            </p>
-          </article>
-        )}
-      </div>
     </Shell>
   );
 }
