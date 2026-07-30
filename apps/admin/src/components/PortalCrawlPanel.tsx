@@ -33,9 +33,12 @@ function listUrlFor(keyword: string): string {
 export default function PortalCrawlPanel({
   projectId,
   onProjectChange,
+  onStarted,
 }: {
   projectId: number | null;
   onProjectChange?: (id: number) => void;
+  /** 수집이 시작돼 진행현황으로 넘어갈 때. 팝업 안이면 스스로 닫는다. */
+  onStarted?: () => void;
 }) {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -99,6 +102,7 @@ export default function PortalCrawlPanel({
     });
     setPreview(false);
     navigate(`/projects/${projectId}/crawls`);
+      onStarted?.();
   }
 
   return (

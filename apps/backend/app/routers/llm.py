@@ -224,8 +224,8 @@ def chat(project_id: int, payload: dict, db: Session = Depends(get_session)) -> 
     for _ in range(MAX_TOOL_CALLS + 1):
         remaining = MAX_TOOL_CALLS - len(steps)
         try:
-            response = client.chat.completions.create(
-                model=DEPLOYMENT,
+            response = _client().chat.completions.create(
+                model=_deployment(),
                 max_completion_tokens=2048,
                 messages=convo,
                 **({"tools": tools,
@@ -329,8 +329,8 @@ def chat(project_id: int, payload: dict, db: Session = Depends(get_session)) -> 
         # 상한까지 다 쓰고도 답이 없으면 마지막으로 정리만 시킨다. 이 요청에는
         # tools 를 넘기지 않으므로 네 번째 호출은 일어나지 않는다.
         try:
-            final = client.chat.completions.create(
-                model=DEPLOYMENT, max_completion_tokens=1024,
+            final = _client().chat.completions.create(
+                model=_deployment(), max_completion_tokens=1024,
                 messages=convo + [{"role": "user", "content": "지금까지의 도구 결과로 한국어로 답해라."}],
             )
             answer = (final.choices[0].message.content or "").strip()

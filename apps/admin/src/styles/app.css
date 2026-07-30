@@ -1914,6 +1914,113 @@
   .source-dot.on { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-tint); }
   .source-state { font-size: 12px; color: var(--tx-3); }
   .source-row.is-live .source-state { color: var(--ok); }
+
+  /* ── 프로젝트 카드 ────────────────────────────────────────────────
+     표는 이름과 숫자만 나열해서, 무엇을 모아 둔 프로젝트인지는 열어 봐야 알 수
+     있었다. 카드마다 설명·수집 방식·도구 수를 함께 두고, 수집 시작을 카드 안에
+     둔다 — 이 화면에서 가장 자주 하는 일이다. */
+  .pj-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(292px, 1fr));
+    gap: var(--sp-3);
+  }
+  .pj-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: var(--sp-5);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface);
+    transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+  }
+  .pj-card:hover { border-color: var(--line-2); background: var(--raised); }
+
+  .pj-card-top { display: flex; align-items: flex-start; gap: var(--sp-3); }
+  .pj-mark {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--brand-line);
+    border-radius: var(--r-ctl);
+    background: var(--brand-tint);
+    box-shadow: var(--edge);
+    color: var(--brand-soft);
+    font-size: 14px;
+    font-weight: 700;
+  }
+  /* 프로젝트마다 다른 색을 주어 목록에서 서로 구분된다. 채도는 낮게 — 카드가
+     알록달록해지면 정작 봐야 할 수집 방식 배지가 묻힌다. */
+  .pj-mark.tone-1 { background: var(--kind-traffic-tint); border-color: var(--kind-traffic-line); color: var(--kind-traffic); }
+  .pj-mark.tone-2 { background: var(--ok-tint); border-color: var(--ok-line); color: var(--ok); }
+  .pj-mark.tone-3 { background: var(--warn-tint); border-color: var(--warn-line); color: var(--warn); }
+
+  .pj-card-name { flex: 1; min-width: 0; }
+  .pj-card-name .cell-name { display: block; }
+  /* 두 줄 고정. 설명 길이에 따라 카드 높이가 흔들리면 그리드가 어긋나 보인다. */
+  .pj-card-name p {
+    margin: 5px 0 0;
+    min-height: 36px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--tx-3);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pj-card-name p.t4 { color: var(--tx-4); }
+
+  .pj-menu-anchor { flex-shrink: 0; }
+  .pj-menu { width: 176px; padding: var(--sp-1); }
+  .pj-menu button {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--r-ctl);
+    background: none;
+    color: var(--tx-2);
+    font-size: 12.5px;
+    text-align: left;
+  }
+  .pj-menu button:hover { background: var(--raised); color: var(--tx-1); }
+  .pj-menu button.is-danger { color: var(--danger); }
+  .pj-menu button.is-danger:hover { background: var(--danger-tint); }
+  .pj-menu .hair { margin: var(--sp-1) 6px; }
+
+  .pj-card .cluster { margin-top: var(--sp-3); }
+  .pj-metrics {
+    display: flex;
+    gap: var(--sp-5);
+    margin-top: var(--sp-4);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--line);
+  }
+  .pj-metrics b { display: block; font-size: 18px; font-weight: 650; letter-spacing: -0.02em; color: var(--tx-1); }
+  .pj-metrics span { font-size: 11.5px; color: var(--tx-3); }
+  .pj-when { margin: var(--sp-3) 0 0; font-size: 11.5px; color: var(--tx-4); }
+
+  /* 카드 높이가 서로 달라도 버튼 줄은 바닥에 맞춘다 */
+  .pj-card-foot { display: flex; align-items: center; gap: var(--sp-2); margin-top: auto; padding-top: var(--sp-4); }
+  .pj-card-foot .btn-primary { flex: 1; gap: 6px; }
+  /* 삭제 확인 팝오버는 카드 오른쪽 위(⋯ 자리)에서 펼친다 */
+  .pj-confirm-anchor { position: absolute; right: var(--sp-5); top: var(--sp-5); width: 1px; height: 1px; }
+
+  /* ── 모달 보조 ── */
+  .modal-narrow { width: min(468px, 100%); }
+  .modal-pad { padding: var(--sp-5) var(--sp-6) var(--sp-6); }
+  .modal-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-2);
+    padding: var(--sp-4) var(--sp-6);
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .field-help.is-error { color: var(--danger); }
 }
 
 /* ───────────────────────────────────────────────────────── utilities ── */

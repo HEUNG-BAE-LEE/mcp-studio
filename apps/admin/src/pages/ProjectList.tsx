@@ -4,12 +4,15 @@ import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
 import Toast, { useToast } from "../components/Toast";
 import ConfirmPopover from "../components/ConfirmPopover";
+import CollectModal from "../components/CollectModal";
+import ProjectEditModal from "../components/ProjectEditModal";
 import { EmptyState, ErrorBox, SkeletonRows } from "../components/States";
 import { KindMark, KIND_LABEL, type CollectionKind } from "../components/CollectionMark";
 
 type Project = {
   id: number;
   name: string;
+  description: string;
   kinds: string[];
   sessions: number;
   actions: number;
@@ -34,14 +37,22 @@ function KindBadges({ kinds }: { kinds: string[] }) {
 
 /** "2026-07-29 14:03" 까지만. 초는 목록에서 읽는 사람에게 쓸모가 없다. */
 function formatCollected(value: string | null): string {
-  if (!value) return "—";
+  if (!value) return "아직 없음";
   return value.replace("T", " ").slice(0, 16);
+}
+
+/** 카드 머릿글자. 이름이 비어 있을 수는 없지만 방어해 둔다. */
+function initial(name: string): string {
+  return Array.from(name.trim())[0] ?? "?";
 }
 
 export default function ProjectList() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
+  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [editing, setEditing] = useState<Project | null>(null);
+  const [collecting, setCollecting] = useState<Project | null>(null);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const { toasts, showToast, dismiss } = useToast();
@@ -54,6 +65,15 @@ export default function ProjectList() {
   }, []);
 
   useEffect(load, [load]);
+
+  // 바깥을 누르면 열려 있던 카드 메뉴를 닫는다. 메뉴가 켜진 채로 다른 카드를
+  // 만지면 어느 프로젝트를 조작하는지 헷갈린다.
+  useEffect(() => {
+    if (menuFor === null) return;
+    const close = () => setMenuFor(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [menuFor]);
 
   async function remove(project: Project) {
     setConfirming(null);
@@ -96,7 +116,7 @@ export default function ProjectList() {
           <span className="eyebrow">projects</span>
           <h1>프로젝트</h1>
           <p className="page-sub">
-            수집한 API 는 프로젝트로 모입니다. 어떤 방식으로 모았는지가 배지로 보입니다.
+            수집한 API 는 프로젝트로 모입니다. 카드에서 바로 수집을 시작할 수 있습니다.
           </p>
         </div>
         <div className="head-side">
@@ -130,7 +150,7 @@ export default function ProjectList() {
           title="아직 프로젝트가 없습니다"
           description={
             <>
-              위에서 프로젝트를 하나 만들고, 그 안에서 <strong>수집 시작</strong>을 누르세요.
+              위에서 프로젝트를 하나 만들고, 카드의 <strong>수집하기</strong>를 누르세요.
               <br />
               확장 사이드 패널에서 기록을 시작해도 프로젝트가 자동으로 만들어집니다.
             </>
@@ -144,60 +164,94 @@ export default function ProjectList() {
       )}
 
       {projects !== null && projects.length > 0 && (
-        <div className="panel">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>프로젝트</th>
-                <th style={{ width: 110 }}>수집 세션</th>
-                <th style={{ width: 90 }}>액션</th>
-                <th style={{ width: 170 }}>마지막 수집</th>
-                <th style={{ width: 72 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <tr key={project.id}>
-                  <td data-label="프로젝트">
-                    <Link className="cell-name" to={`/projects/${project.id}`}>
-                      {project.name}
-                    </Link>
-                    <span className="cell-sub num">#{project.id}</span>
-                    <KindBadges kinds={project.kinds} />
-                  </td>
-                  <td data-label="세션" className="num">{project.sessions}</td>
-                  <td data-label="액션" className="num">{project.actions}</td>
-                  <td data-label="마지막 수집" className="num t3">
-                    {formatCollected(project.lastCollectedAt)}
-                  </td>
-                  <td className="right">
-                    {/* 삭제 확인은 팝오버다. window.confirm 은 촬영 화면에서 튀고
-                        자동화를 막는다. 셀 안에서 펼치면 열 폭이 밀린다. */}
-                    <ConfirmPopover
-                      open={confirming === project.id}
-                      title="프로젝트를 지울까요?"
-                      description="되돌릴 수 없습니다. 함께 사라지는 것:"
-                      facts={[
-                        { label: "수집 세션", value: String(project.sessions) },
-                        { label: "액션", value: String(project.actions) },
-                      ]}
-                      onConfirm={() => remove(project)}
-                      onCancel={() => setConfirming(null)}
-                    >
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        aria-label={`${project.name} 삭제`}
-                        onClick={() => setConfirming(confirming === project.id ? null : project.id)}
-                      >
+        <div className="pj-grid">
+          {projects.map((project) => (
+            <article className="pj-card" key={project.id}>
+              <div className="pj-card-top">
+                <span className={`pj-mark tone-${project.id % 4}`} aria-hidden="true">
+                  {initial(project.name)}
+                </span>
+                <div className="pj-card-name">
+                  <Link className="cell-name" to={`/projects/${project.id}`}>{project.name}</Link>
+                  {/* 설명이 없어도 두 줄을 비워 둔다. 길이에 따라 카드 높이가
+                      흔들리면 그리드가 어긋나 보인다. */}
+                  <p className={project.description ? "" : "t4"}>
+                    {project.description || "설명이 없습니다"}
+                  </p>
+                </div>
+
+                <div className="pop-anchor pj-menu-anchor">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-icon"
+                    aria-label={`${project.name} 메뉴`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuFor(menuFor === project.id ? null : project.id);
+                    }}
+                  >⋯</button>
+
+                  {menuFor === project.id && (
+                    <div className="popover pj-menu" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" onClick={() => { setMenuFor(null); setEditing(project); }}>
+                        이름·설명 수정
+                      </button>
+                      <button type="button" onClick={() => { setMenuFor(null); setCollecting(project); }}>
+                        수집하기
+                      </button>
+                      <button type="button"
+                              onClick={() => { setMenuFor(null); navigate(`/projects/${project.id}/console`); }}>
+                        인증키 관리
+                      </button>
+                      <hr className="hair" />
+                      <button type="button" className="is-danger"
+                              onClick={() => { setMenuFor(null); setConfirming(project.id); }}>
                         삭제
                       </button>
-                    </ConfirmPopover>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <KindBadges kinds={project.kinds} />
+
+              <div className="pj-metrics">
+                <div><b className="num">{project.actions}</b><span>MCP 도구</span></div>
+                <div><b className="num">{project.sessions}</b><span>수집 세션</span></div>
+                <div><b className="num">{project.kinds.length}</b><span>수집 방식</span></div>
+              </div>
+
+              <p className="pj-when num">마지막 수집 · {formatCollected(project.lastCollectedAt)}</p>
+
+              <div className="pj-card-foot">
+                <button type="button" className="btn btn-primary btn-block"
+                        onClick={() => setCollecting(project)}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                       strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                    <path d="M8 3.4v9.2M3.4 8h9.2" />
+                  </svg>
+                  수집하기
+                </button>
+                <Link className="btn btn-sm" to={`/projects/${project.id}`}>열기</Link>
+              </div>
+
+              {/* 삭제 확인은 팝오버다. window.confirm 은 촬영 화면에서 튀고
+                  자동화를 막는다. */}
+              <ConfirmPopover
+                open={confirming === project.id}
+                title="프로젝트를 지울까요?"
+                description="되돌릴 수 없습니다. 함께 사라지는 것:"
+                facts={[
+                  { label: "수집 세션", value: String(project.sessions) },
+                  { label: "액션", value: String(project.actions) },
+                ]}
+                onConfirm={() => remove(project)}
+                onCancel={() => setConfirming(null)}
+              >
+                <span className="pj-confirm-anchor" />
+              </ConfirmPopover>
+            </article>
+          ))}
         </div>
       )}
 
@@ -208,7 +262,7 @@ export default function ProjectList() {
           <div>
             <i aria-hidden="true">1</i>
             <strong>프로젝트에서 수집 시작</strong>
-            <p>프로젝트에 들어가 <strong>수집 시작</strong>을 누르고 트래픽·포털 중 방식을 고릅니다.</p>
+            <p>카드의 <strong>수집하기</strong>를 누르고 트래픽·포털·문서 중 방식을 고릅니다.</p>
           </div>
           <div>
             <i aria-hidden="true">2</i>
@@ -221,6 +275,22 @@ export default function ProjectList() {
             <p>활성화한 액션을 질의로 호출해 도구 선택과 실행 결과를 확인합니다.</p>
           </div>
         </section>
+      )}
+
+      {editing && (
+        <ProjectEditModal
+          project={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(name) => { setEditing(null); showToast(`${name} 을(를) 저장했습니다`); load(); }}
+        />
+      )}
+
+      {collecting && (
+        <CollectModal
+          projectId={collecting.id}
+          projectName={collecting.name}
+          onClose={() => { setCollecting(null); load(); }}
+        />
       )}
 
       <Toast items={toasts} onDismiss={dismiss} />
