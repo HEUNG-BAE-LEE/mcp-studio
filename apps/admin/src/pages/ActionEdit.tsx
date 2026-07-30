@@ -181,7 +181,7 @@ export default function ActionEdit() {
           </div>
           <div className="form-grid">
             <label className="field">
-              <span className="field-label">액션명</span>
+              <span className="field-label">MCP 이름</span>
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
             <label className="field">
@@ -275,7 +275,7 @@ export default function ActionEdit() {
               알려준다. authMode 로 갈라 트래픽 액션(NONE)에는 띄우지 않는다. */}
           {spec.execution?.authMode === "CREDENTIAL" && (
             <div className="callout" style={{ borderLeftColor: "var(--kind-portal)" }}>
-              <strong>이 액션은 포털 인증키가 필요합니다</strong>
+              <strong>이 MCP 는 포털 인증키가 필요합니다</strong>
               <p>
                 {hiddenParams.length > 0 && <code className="param-key">{hiddenParams.join(", ")}</code>}
                 {hiddenParams.length > 0 && " 는 "}

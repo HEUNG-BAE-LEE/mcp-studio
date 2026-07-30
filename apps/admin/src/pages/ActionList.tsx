@@ -59,7 +59,7 @@ export default function ActionList() {
     const next = row.status === "ACTIVE" ? "DRAFT" : "ACTIVE";
     try {
       await api.put(`/api/actions/${row.id}`, { status: next });
-      showToast(next === "ACTIVE" ? "액션을 활성화했습니다" : "액션을 초안으로 되돌렸습니다");
+      showToast(next === "ACTIVE" ? "MCP 를 활성화했습니다" : "MCP 를 초안으로 되돌렸습니다");
       load();
     } catch (err) {
       setError(errorMessage(err));
@@ -70,7 +70,7 @@ export default function ActionList() {
     setConfirming(null);
     try {
       await api.delete(`/api/actions/${actionId}`);
-      showToast("액션을 지웠습니다");
+      showToast("MCP 를 지웠습니다");
       load();
     } catch (err) {
       setError(errorMessage(err));
@@ -79,7 +79,7 @@ export default function ActionList() {
 
   // SessionList와 같은 규칙: 존재하지 않는 프로젝트 id도 액션 목록
   // 엔드포인트는 404 대신 빈 배열을 돌려주므로, /api/projects 목록에
-  // 없는 id는 "액션이 없습니다"가 아니라 "프로젝트를 찾을 수 없습니다"로
+  // 없는 id는 "MCP 가 없습니다"가 아니라 "프로젝트를 찾을 수 없습니다"로
   // 구분해야 한다. 두 요청이 모두 끝나기 전에는 어느 빈 상태 문구도
   // 띄우지 않는다 — 먼저 도착한 문구가 잠깐 떴다가 바뀌는 것을 막는다.
   const settled = rows !== null && projectExists !== null;
@@ -113,8 +113,8 @@ export default function ActionList() {
 
       {settled && !notFound && rows.length === 0 && (
         <div className="empty">
-          <strong>만들어진 액션이 없습니다</strong>
-          <p>기록 세션에서 API 후보를 골라 액션을 만들 수 있습니다.</p>
+          <strong>만들어진 MCP 가 없습니다</strong>
+          <p>기록 세션에서 API 후보를 골라 MCP 를 만들 수 있습니다.</p>
         </div>
       )}
 

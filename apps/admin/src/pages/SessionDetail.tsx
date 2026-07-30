@@ -145,14 +145,14 @@ export default function SessionDetail() {
                   </td>
                   <td className="right">
                     {/* 비활성 버튼을 이유 없이 두지 않는다. JSON 이 아니면
-                        스키마를 추론할 수 없어 액션을 만들 수 없다. */}
+                        스키마를 추론할 수 없어 MCP 를 만들 수 없다. */}
                     {c.isJson ? (
                       <button
                         type="button"
                         className="btn btn-primary btn-sm"
                         onClick={() => navigate(`/actions/new?requestId=${c.id}`)}
                       >
-                        액션 만들기
+                        MCP 만들기
                       </button>
                     ) : (
                       <span className="t3 xs">
