@@ -1,0 +1,75 @@
+name: ACA 배포
+
+# master 에 들어온 것만 배포한다. 수동 실행은 이미지를 다시 밀어야 할 때 쓴다.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# 배포는 한 번에 하나만 돈다. 연달아 머지되면 앞의 것을 끊고 뒤의 것을 올린다 —
+# 늦게 끝난 오래된 빌드가 최신 이미지를 덮어쓰는 사고를 막는다.
+concurrency:
+  group: aca-deploy
+  cancel-in-progress: true
+
+permissions:
+  id-token: write # OIDC 토큰 발급. 이게 없으면 azure/login 이 실패한다
+  contents: read
+
+env:
+  RESOURCE_GROUP: azure_test-a89a8649-741-rg001
+  ACR_NAME: wtembed10835
+  CONTAINER_APP: mcp-studio
+  IMAGE_REPO: mcp-studio
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # 저장소 관리자 권한이 없어 시크릿을 넣을 수 없으므로 OIDC 를 쓴다.
+      # 아래 세 값은 비밀이 아니다(식별자). 이 저장소의 master 브랜치에서 온
+      # 토큰만 교환되도록 Azure 쪽 연합 자격 증명에 subject 가 박혀 있다.
+      # 값의 출처: infra/terraform 의 `terraform output`
+      - uses: azure/login@v2
+        with:
+          client-id: fa515508-3e9e-409d-a5dd-744c0196c345
+          tenant-id: 28fad9d9-3a2c-4a2f-b76f-8da5d0da9756
+          subscription-id: 3c7b1819-c657-41ca-a22e-b6dc6d34fd98
+
+      # 이미지는 ACR 안에서 빌드한다. 러너에 docker 를 세우지 않아도 되고,
+      # 이 저장소는 로컬 개발에 docker 를 쓰지 않는다는 규칙도 그대로 지켜진다.
+      - name: 이미지 빌드
+        run: |
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "$IMAGE_REPO:${{ github.sha }}" \
+            --image "$IMAGE_REPO:latest" \
+            .
+
+      - name: Container App 이미지 교체
+        run: |
+          az containerapp update \
+            --name "$CONTAINER_APP" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_NAME.azurecr.io/$IMAGE_REPO:${{ github.sha }}"
+
+      # 새 리비전이 실제로 200 을 내는지 확인한다. 여기서 실패하면 배포가
+      # 초록으로 끝나는 것보다 낫다.
+      - name: 헬스체크
+        run: |
+          FQDN=$(az containerapp show --name "$CONTAINER_APP" \
+            --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)
+          echo "https://$FQDN"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://$FQDN/health" || true)
+            if [ "$code" = "200" ]; then
+              echo "정상"
+              exit 0
+            fi
+            echo "$i 회차: $code"
+            sleep 10
+          done
+          echo "헬스체크 실패"
+          exit 1
