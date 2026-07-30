@@ -1,3 +1,4 @@
+import os
 # apps/backend/app/seed.py
 """촬영용 시드 데이터.
 `_startup`에서 init_db() 다음으로 호출된다. 두 번 실행해도 중복 행이
@@ -185,3 +186,59 @@ def backfill_action_source_kind() -> None:
             changed += 1
         if changed:
             db.commit()
+
+
+# 기관별 인증키를 .env 에서 읽어 프로젝트에 채운다.
+#
+# 값을 코드에 박지 않는다 — 저장소에 남으면 그것은 유출이다. 대신 실행 환경이
+# 갖고 있는 것을 시작할 때 옮겨 담는다. `.env` 가 비어 있으면 아무 일도 하지
+# 않으므로, 키가 없는 환경에서도 그대로 뜬다.
+#
+# 이미 등록된 값은 덮지 않는다. 화면에서 넣은 키가 재시작마다 되돌아가면
+# 무엇이 실제 값인지 알 수 없어진다.
+CREDENTIAL_ENV = {
+    "serviceKey": "DATA_GO_KR_SERVICE_KEY",
+    "confmKey": "JUSO_CONFM_KEY",
+    "apiKey": "KOSIS_API_KEY",
+    "crtfc_key": "OPENDART_API_KEY",
+}
+
+
+def seed_credentials() -> None:
+    """프로젝트가 요구하는 인증키 중 환경에 있는 것을 채운다."""
+    available = {
+        param: os.environ[env].strip()
+        for param, env in CREDENTIAL_ENV.items()
+        if os.environ.get(env, "").strip()
+    }
+    if not available:
+        return
+
+    with Session(engine) as db:
+        for project in db.exec(select(Project)).all():
+            saved = dict(project.credentials or {})
+            have = {k.lower() for k in saved}
+
+            # 그 프로젝트의 도구가 실제로 요구하는 키만 넣는다. 쓰지도 않는 키를
+            # 심어 두면 인증키 목록이 무엇을 위한 것인지 흐려진다.
+            needed = set()
+            for action in db.exec(
+                select(Action).where(Action.project_id == project.id)
+            ).all():
+                request = (action.action_spec or {}).get("request", {})
+                schema = request.get("querySchema") or request.get("bodySchema") or {}
+                needed |= {
+                    name.lower() for name, spec in schema.items()
+                    if not spec.get("llmEditable", True)
+                }
+
+            added = {
+                param: value for param, value in available.items()
+                if param.lower() in needed and param.lower() not in have
+            }
+            if not added:
+                continue
+            # JSON 컬럼은 제자리 수정을 감지하지 못한다. 새 dict 를 대입해야 저장된다.
+            project.credentials = {**saved, **added}
+            db.add(project)
+        db.commit()

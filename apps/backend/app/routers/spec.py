@@ -13,6 +13,7 @@ from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models import Action, CrawlJob, Project, RecordingSession, SpecOperation
+from app.seed import seed_credentials
 from app.services.schema_infer import build_action_spec_from_spec
 from app.services.spec_parser import PORTAL_LABELS, detect_portal, parse
 
@@ -181,6 +182,10 @@ def create_action_from_spec(operation_id: int, payload: dict, db: Session = Depe
     db.add(action)
     db.commit()
     db.refresh(action)
+
+    # 새 도구가 요구하는 키를 환경에 있는 값으로 채운다. 이미 등록된 것은 두고,
+    # 환경에 없으면 아무 일도 하지 않는다.
+    seed_credentials()
     return {"id": action.id, "name": action.name, "toolName": action.tool_name, "status": action.status}
 
 
@@ -389,6 +394,10 @@ def create_actions_bulk(session_id: int, payload: BulkActionIn,
         db.add(action)
         created.append(action)
     db.commit()
+
+    # 새 도구가 요구하는 키를 환경에 있는 값으로 채운다. 이미 등록된 것은 두고,
+    # 환경에 없으면 아무 일도 하지 않는다.
+    seed_credentials()
 
     return {
         "created": len(created),
