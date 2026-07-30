@@ -545,13 +545,33 @@ def test_프로젝트_목록이_엔진과_개수를_함께_준다(client):
         assert "lastCollectedAt" in row
 
 
-def test_배지_순서는_호출마다_같다(client):
-    """set 을 그대로 내보내면 순서가 흔들려 배지가 매번 자리를 바꾼다."""
-    first = client.get("/api/projects").json()
-    second = client.get("/api/projects").json()
-    assert [r["kinds"] for r in first] == [r["kinds"] for r in second]
-    for row in first:
-        assert row["kinds"] == [k for k in ("traffic", "portal", "document") if k in row["kinds"]]
+def test_한_프로젝트에_트래픽과_포털이_섞이면_고정_순서_배지와_실제_개수를_준다(client, project_id, engine):
+    """kinds 는 set 이 아니라 고정 순서 리스트여야 한다.
+
+    포털 세션을 먼저 만들고 트래픽 세션을 나중에 만든다 — 삽입 순서와
+    기대 순서(traffic, portal)를 어긋나게 둬서, kinds = list(present) 처럼
+    set 순서를 그대로 내보내는 회귀를 이 테스트가 실제로 잡게 한다.
+    """
+    from sqlmodel import Session as DbSession
+    from app.models import RecordingSession
+
+    portal_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+    with DbSession(engine) as db:
+        row = db.get(RecordingSession, portal_id)
+        row.kind = "portal"
+        db.add(row)
+        db.commit()
+
+    traffic_id = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+
+    rows = client.get("/api/projects").json()
+    row = next(r for r in rows if r["id"] == project_id)
+
+    assert row["kinds"] == ["traffic", "portal"]
+    assert row["sessions"] == 2
+    assert row["lastCollectedAt"] is not None
+
+    assert traffic_id != portal_id  # 두 세션이 실제로 따로 만들어졌는지 확인
 
 
 def test_세션이_없는_프로젝트는_빈_배지와_None_을_준다(client):
