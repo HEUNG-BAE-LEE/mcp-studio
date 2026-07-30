@@ -139,7 +139,8 @@ def list_actions(project_id: int, db: Session = Depends(get_session)) -> list:
     rows = db.exec(select(Action).where(Action.project_id == project_id)).all()
     return [
         {"id": a.id, "name": a.name, "toolName": a.tool_name,
-         "description": a.description, "status": a.status, "actionSpec": a.action_spec}
+         "description": a.description, "status": a.status, "actionSpec": a.action_spec,
+         "sourceKind": a.source_kind or "traffic"}
         for a in rows
     ]
 

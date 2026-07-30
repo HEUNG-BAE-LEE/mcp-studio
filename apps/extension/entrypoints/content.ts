@@ -1,5 +1,6 @@
 import { buildSelector } from "../lib/selector";
 import { sanitizeNetworkPayload } from "../lib/payload";
+import { detectSpecPage } from "../lib/spec-detect";
 
 const CORRELATION_WINDOW_MS = 5000;
 
@@ -75,6 +76,23 @@ export default defineContentScript({
 
       payload.interactionId = Date.now() < interactionExpiresAt ? currentInteractionId : null;
       post("network", payload);
+    });
+
+    // 포털 공개 기반 수집. 사이드패널이 물으면 판정 결과를, 수집을 누르면
+    // 현재 DOM 을 그대로 돌려준다. 서버가 포털을 직접 긁지 않는 이유는
+    // 백엔드 services/spec_parser.py 주석에 적어두었다.
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (msg?.type === "detect-spec") {
+        sendResponse(detectSpecPage(document, location.href));
+        return true;
+      }
+      if (msg?.type === "capture-spec") {
+        // outerHTML 은 사용자가 지금 보고 있는 상태 그대로다. 상세기능을
+        // 바꿔가며 여러 번 수집하면 백엔드가 같은 세션에 누적한다.
+        sendResponse({ url: location.href, html: document.documentElement.outerHTML });
+        return true;
+      }
+      return undefined;
     });
   },
 });

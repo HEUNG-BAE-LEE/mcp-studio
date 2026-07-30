@@ -20,16 +20,51 @@ type Props = {
 export default function Shell({ breadcrumb, projectId, projectName, children }: Props) {
   const { pathname } = useLocation();
 
+  // 사이드바 번호는 "이 순서로 하면 된다"를 말한다. 수집 방식이 셋(트래픽·포털·
+  // 문서)으로 늘면서 어디서 시작해 어디서 확인하는지가 한눈에 안 잡혀, 화면
+  // 이름과 함께 순서를 붙였다.
+  //
+  // 정확 일치(to)와 접두사(prefixes)를 따로 둔다. 하나의 목록에 섞어 담고
+  // 끝의 슬래시로 구분하려 했더니 루트("/")가 모든 경로의 접두사여서
+  // 프로젝트 항목이 항상 활성으로 잡혔다. 세션 상세는 /sessions/:id ·
+  // /spec-sessions/:id 로 빠지므로, 정확 일치만 보면 정작 작업하는 화면에서
+  // 사이드바가 통째로 꺼져 위치를 잃는다.
   const items = [
-    { label: "프로젝트", number: "01", to: "/" },
+    { label: "프로젝트", number: "01", to: "/", prefixes: [] as string[] },
+    { label: "API 수집하기", number: "02", to: "/sources", prefixes: [] as string[] },
     ...(projectId
       ? [
-          { label: "기록 세션", number: "02", to: `/projects/${projectId}` },
-          { label: "액션", number: "03", to: `/projects/${projectId}/actions` },
-          { label: "테스트 콘솔", number: "04", to: `/projects/${projectId}/console` },
+          {
+            label: "수집현황",
+            number: "03",
+            to: `/projects/${projectId}`,
+            prefixes: ["/sessions/", "/spec-sessions/"],
+          },
+          {
+            label: "수집 진행현황",
+            number: "04",
+            to: `/projects/${projectId}/crawls`,
+            prefixes: [] as string[],
+          },
+          {
+            label: "MCP 조회하기",
+            number: "05",
+            to: `/projects/${projectId}/actions`,
+            prefixes: ["/actions/"],
+          },
+          {
+            label: "Playground",
+            number: "06",
+            to: `/projects/${projectId}/console`,
+            prefixes: [] as string[],
+          },
         ]
       : []),
   ];
+
+  function isActive(item: { to: string; prefixes: string[] }): boolean {
+    return pathname === item.to || item.prefixes.some((p) => pathname.startsWith(p));
+  }
 
   // 이름을 아직 못 불러왔으면 칩을 띄우지 않는다. 빈 칩이 잠깐 스쳤다가
   // 채워지는 것보다 조금 늦게 나타나는 편이 낫다.
@@ -61,7 +96,7 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
             <Link
               to={item.to}
               key={item.label}
-              className={pathname === item.to ? "nav-item active" : "nav-item"}
+              className={isActive(item) ? "nav-item active" : "nav-item"}
             >
               <span className="nav-number">{item.number}</span>
               {item.label}

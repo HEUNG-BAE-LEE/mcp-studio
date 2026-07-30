@@ -20,6 +20,53 @@ const LAST_PROJECT_NAME_KEY = "mcpStudioLastProjectName";
 // 데모 전용. background.ts의 API_BASE와 같은 방식으로 상수에 둔다.
 const ADMIN_BASE = "http://localhost:5173";
 
+// 수집 방식별 색. 관리자 화면(app.css)의 방식 배지와 같은 계열을 쓴다.
+const PORTAL_COLOR = "#0d9488";
+const TRAFFIC_COLOR = "#3157e8";
+
+type SpecDetection = {
+  supported: boolean;
+  isSpecPage: boolean;
+  portalLabel: string;
+  serviceName: string;
+  operationCount: number;
+  paramCount: number;
+};
+
+type SpecResult = {
+  sessionId: number;
+  portalLabel: string;
+  serviceName: string;
+  added: number;
+  collected: number;
+  availableTotal: number;
+};
+
+// 라인 아이콘. 이모지는 OS마다 모양이 달라 촬영 화면에서 튄다.
+function MarkPortal({ color = "currentColor" }: { color?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke={color}
+         strokeWidth="1.5" style={{ flexShrink: 0 }}>
+      <path d="M2 7.6 L7.6 4 L13.2 7.6" strokeLinejoin="round" />
+      <path d="M4 8.6v5.8M7.6 8.6v5.8M11.2 8.6v5.8M2.4 15.4h10.4" strokeLinecap="round" />
+      <rect x="14.4" y="6.4" width="4.2" height="8" rx="1" />
+      <path d="M14.4 9h4.2" />
+    </svg>
+  );
+}
+
+function MarkTraffic({ color = "currentColor" }: { color?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke={color}
+         strokeWidth="1.5" style={{ flexShrink: 0 }}>
+      <rect x="2" y="3.5" width="11" height="9" rx="1.6" />
+      <path d="M2 6.4h11" />
+      <path d="M6.4 9v6l1.9-1.9 1.3 2.6 1.4-.7-1.3-2.5 2.4-.3z" fill={color} stroke="none" />
+      <path d="M14.6 8.6c2 0 1.7 2.4 3.6 2.4" strokeDasharray="1.8 1.8" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [recording, setRecording] = useState(false);
   const [counts, setCounts] = useState({ interactionCount: 0, networkCount: 0 });
@@ -29,6 +76,13 @@ export default function App() {
   const [finishedSessionId, setFinishedSessionId] = useState<number | null>(null);
   const [canRetry, setCanRetry] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [detection, setDetection] = useState<SpecDetection | null>(null);
+  const [collecting, setCollecting] = useState(false);
+  const [specResult, setSpecResult] = useState<SpecResult | null>(null);
+  // detection 이 null 인 이유는 둘이다 — 아직 안 물어봤거나, 물어봤는데
+  // 콘텐츠 스크립트가 없어 실패했거나. 뒤쪽은 확장을 새로고침한 직후에
+  // 반드시 생기는 상태이므로 구분해서 안내해야 한다.
+  const [probeFailed, setProbeFailed] = useState(false);
 
   // 열릴 때마다 마지막으로 입력했던 프로젝트 이름을 복원한다 - 매번 다시
   // 타이핑하지 않도록 하기 위함이다.
@@ -68,6 +122,60 @@ export default function App() {
     };
   }, []);
 
+  // 지금 보고 있는 페이지가 명세 페이지인지 계속 확인한다. 사용자가 상세기능을
+  // 바꾸거나 다른 탭으로 옮기면 판정이 달라지고, 그에 따라 주 버튼이 바뀐다.
+  useEffect(() => {
+    let alive = true;
+
+    async function probe() {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) return;
+        const result = await chrome.tabs.sendMessage(tab.id, { type: "detect-spec" });
+        if (alive) {
+          setDetection(result ?? null);
+          setProbeFailed(!result);
+        }
+      } catch {
+        // 콘텐츠 스크립트가 없는 탭(chrome:// 등)이거나 확장 재로드 직후다.
+        if (alive) {
+          setDetection(null);
+          setProbeFailed(true);
+        }
+      }
+    }
+
+    probe();
+    const timer = setInterval(probe, 1500);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const specMode = !!detection?.isSpecPage && !recording;
+
+  function collectSpec() {
+    const trimmed = projectName.trim();
+    if (!trimmed) {
+      setError("프로젝트 이름을 입력해 주세요");
+      return;
+    }
+    setCollecting(true);
+    setSpecResult(null);
+    setError(null);
+    chrome.storage.local.set({ [LAST_PROJECT_NAME_KEY]: trimmed });
+    chrome.runtime.sendMessage({ type: "collect-spec", projectName: trimmed }, (r) => {
+      setCollecting(false);
+      if (r?.ok) {
+        setSpecResult(r);
+        setFinishedSessionId(null);
+      } else {
+        setError(r?.error ?? "수집에 실패했습니다");
+      }
+    });
+  }
+
   return (
     <div
       style={{
@@ -88,26 +196,118 @@ export default function App() {
         style={{ width: "100%", padding: 6, marginBottom: 12, boxSizing: "border-box" }}
       />
 
-      {!recording ? (
-        <button
-          onClick={() => {
-            const trimmed = projectName.trim();
-            if (!trimmed) {
-              setError("프로젝트 이름을 입력해 주세요");
-              return;
-            }
-            setFinishedSessionId(null);
-            setCanRetry(false);
-            chrome.storage.local.set({ [LAST_PROJECT_NAME_KEY]: trimmed });
-            chrome.runtime.sendMessage({ type: "start", projectName: trimmed }, (r) => {
-              setRecording(!!r?.ok);
-              setError(r?.error ?? null);
-            });
+      {/* 현재 페이지 판정. 어느 수집 방식이 맞는지 사용자가 고르지 않아도 되게 한다. */}
+      {!recording && (
+        <div
+          style={{
+            display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10,
+            padding: "9px 11px", borderRadius: 8, fontSize: 11.5,
+            background: specMode ? "#ecfdf5" : "#f1f5f9",
+            border: `1px solid ${specMode ? "#a7f3d0" : "#e2e8f0"}`,
+            color: specMode ? "#0f766e" : "#64748b",
           }}
-          style={{ width: "100%", padding: 10, background: "#3157e8", color: "#fff", border: 0, borderRadius: 6 }}
         >
-          기록 시작
-        </button>
+          {specMode ? <MarkPortal color={PORTAL_COLOR} /> : <MarkTraffic color="#94a3b8" />}
+          <div>
+            {specMode ? (
+              <>
+                <strong>공개 명세 페이지 감지</strong>
+                <div style={{ marginTop: 2 }}>
+                  {detection?.portalLabel} · 상세기능 {detection?.operationCount} · 요청변수 {detection?.paramCount}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* 판정을 못 한 것과 판정해서 아니라고 한 것은 다르다. 둘을 같은
+                    문구로 묶으면 확장을 새로고침한 직후에도 "일반 페이지"라고 말해
+                    페이지 탓을 하게 된다 — 실제 원인은 고아가 된 콘텐츠 스크립트다. */}
+                <strong>{probeFailed ? "이 페이지를 확인할 수 없습니다" : "일반 페이지"}</strong>
+                <div style={{ marginTop: 2 }}>
+                  {probeFailed
+                    ? "확장을 새로고침했다면 이 페이지도 새로고침해야 합니다"
+                    : "공개 명세 표가 감지되지 않았습니다"}
+                </div>
+                {/* 판정 실패일 때는 할 일이 "페이지 새로고침" 하나로 분명하다.
+                    자격 조건과 대안을 함께 띄우면 그 하나가 희석된다. 판정이
+                    끝난 뒤(명세 아님)에만 어디서 되는지와 대안을 보여준다. */}
+                {!probeFailed && (
+                  <>
+                    <div style={{ marginTop: 6, color: "#64748b", lineHeight: 1.55 }}>
+                      공공데이터포털의 <strong>오픈API 상세페이지</strong>에서만 감지됩니다
+                      (<code>요청주소</code>와 <code>요청변수</code> 표가 함께 있는 화면).
+                      목록·검색 페이지는 대상이 아닙니다.
+                    </div>
+                    <button
+                      onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sources` })}
+                      style={{
+                        marginTop: 7, padding: "5px 9px", fontSize: 11, borderRadius: 5,
+                        border: "1px solid #cbd5e1", background: "#fff", color: "#475569",
+                      }}
+                    >
+                      목록 URL 하나로 일괄 수집하기
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!recording ? (
+        <>
+          {/* 두 버튼을 항상 함께 둔다. 페이지 판정에 따라 주/보조만 뒤바꾼다. */}
+          <button
+            onClick={specMode ? collectSpec : undefined}
+            disabled={!specMode || collecting}
+            style={{
+              width: "100%", padding: 10, borderRadius: 6, marginBottom: 7,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+              border: specMode ? 0 : "1px solid #cbd5e1",
+              background: specMode ? PORTAL_COLOR : "#fff",
+              color: specMode ? "#fff" : "#94a3b8",
+              cursor: specMode ? "pointer" : "default",
+              order: specMode ? 0 : 1,
+            }}
+          >
+            <MarkPortal color={specMode ? "#fff" : "#94a3b8"} />
+            {collecting ? "수집 중…" : specMode ? "공개 명세 수집" : "공개 명세 수집 (감지 안 됨)"}
+          </button>
+
+          <button
+            onClick={() => {
+              const trimmed = projectName.trim();
+              if (!trimmed) {
+                setError("프로젝트 이름을 입력해 주세요");
+                return;
+              }
+              setFinishedSessionId(null);
+              setSpecResult(null);
+              setCanRetry(false);
+              chrome.storage.local.set({ [LAST_PROJECT_NAME_KEY]: trimmed });
+              chrome.runtime.sendMessage({ type: "start", projectName: trimmed }, (r) => {
+                setRecording(!!r?.ok);
+                setError(r?.error ?? null);
+              });
+            }}
+            style={{
+              width: "100%", padding: 10, borderRadius: 6,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+              border: specMode ? "1px solid #cbd5e1" : 0,
+              background: specMode ? "#fff" : TRAFFIC_COLOR,
+              color: specMode ? "#475569" : "#fff",
+            }}
+          >
+            <MarkTraffic color={specMode ? "#475569" : "#fff"} />
+            트래픽 기록 시작
+          </button>
+
+          <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
+            {specMode
+              ? "이 페이지의 명세를 읽어 액션을 만듭니다"
+              : "화면을 조작하면 API 호출을 기록합니다"}
+          </div>
+        </>
       ) : (
         <button
           onClick={() =>
@@ -147,6 +347,36 @@ export default function App() {
         >
           {retrying ? "재전송 중…" : "전송 재시도"}
         </button>
+      )}
+
+      {/* 포털 상세페이지는 상세기능을 목록으로 전환하는 구조라, 한 번에 하나만 실린다.
+          몇 개 중 몇 개를 수집했는지 밝혀야 사용자가 나머지를 가져올 수 있다. */}
+      {specResult && (
+        <div style={{ marginTop: 10, padding: 10, background: "#ecfdf5", border: "1px solid #a7f3d0",
+                      borderRadius: 6, fontSize: 12, color: "#0f766e" }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            {specResult.added > 0 ? `오퍼레이션 ${specResult.added}개 수집` : "이미 수집된 오퍼레이션입니다"}
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            {specResult.serviceName}
+            <br />
+            전체 {specResult.availableTotal}개 중 <strong>{specResult.collected}개</strong> 수집됨
+            {specResult.collected < specResult.availableTotal && (
+              <div style={{ marginTop: 3, color: "#475569" }}>
+                페이지의 상세기능 목록에서 다른 항목을 고른 뒤 다시 누르면 이어서 수집됩니다
+              </div>
+            )}
+          </div>
+          <button
+            // 포털 세션은 /spec-sessions/:id 다. /sessions/:id 로 열면 트래픽 화면이
+            // 나와 "클릭과 연결된 요청이 없습니다"만 보인다 — 오퍼레이션이 멀쩡히
+            // 있는데도 수집이 실패한 것처럼 읽힌다.
+            onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/spec-sessions/${specResult.sessionId}` })}
+            style={{ width: "100%", padding: 8, background: PORTAL_COLOR, color: "#fff", border: 0, borderRadius: 6 }}
+          >
+            관리자에서 열기
+          </button>
+        </div>
       )}
 
       {finishedSessionId !== null && (

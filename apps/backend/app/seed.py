@@ -83,3 +83,105 @@ def seed() -> None:
                     status="ACTIVE",   # llm-test가 ACTIVE만 조회하므로 DRAFT로 두면 콘솔에서 안 보인다
                 ))
                 db.commit()
+
+
+# ── 포털 공개 기반 수집 시드 ──────────────────────────────────────
+#
+# 첫 화면부터 두 수집 방식이 섞여 보여야 "하나의 레지스트리로 모인다"가
+# 화면으로 읽힌다. 다만 숫자를 지어내지 않는다 — 실제로 내려받아 둔 명세
+# 페이지(tests/fixtures)를 **파서에 그대로 태워서** 만든다. 화면에 뜨는
+# 오퍼레이션·파라미터 수는 전부 파싱 결과다.
+from datetime import datetime
+from pathlib import Path
+
+from app.models import RecordingSession, SpecOperation
+from app.services.spec_parser import parse
+
+SPEC_FIXTURE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "datagokr_airkorea.html"
+SPEC_SOURCE_URL = "https://www.data.go.kr/data/15073861/openapi.do"
+SPEC_PROJECT_NAME = "공공데이터포털 오픈API"
+
+
+def seed_portal_spec() -> None:
+    if not SPEC_FIXTURE.exists():
+        # 픽스처가 없으면 조용히 건너뛴다. 시드 실패로 서버가 못 뜨는 편이 더 나쁘다.
+        return
+
+    page = parse(SPEC_FIXTURE.read_text(encoding="utf-8", errors="ignore"), SPEC_SOURCE_URL)
+    if not page.operations:
+        return
+
+    with Session(engine) as db:
+        project = db.exec(select(Project).where(Project.name == SPEC_PROJECT_NAME)).first()
+        if project is None:
+            project = Project(name=SPEC_PROJECT_NAME, allowed_origins=["https://www.data.go.kr"])
+            db.add(project)
+            db.commit()
+            db.refresh(project)
+
+        session_row = db.exec(
+            select(RecordingSession)
+            .where(RecordingSession.project_id == project.id)
+            .where(RecordingSession.kind == "portal")
+        ).first()
+        if session_row is not None:
+            return          # 이미 시드됨
+
+        now = datetime.utcnow()
+        session_row = RecordingSession(
+            project_id=project.id,
+            started_at=now,
+            ended_at=now,
+            status="COMPLETED",
+            kind="portal",
+            source_label=page.service_name,
+        )
+        db.add(session_row)
+        db.commit()
+        db.refresh(session_row)
+
+        for op in page.operations:
+            db.add(SpecOperation(
+                session_id=session_row.id,
+                portal=page.portal,
+                service_name=page.service_name,
+                provider=page.provider,
+                op_name=op.op_name,
+                summary=op.summary,
+                method=op.method,
+                base_url=op.base_url,
+                path=op.path,
+                params=[p.__dict__ for p in op.params],
+                response_fields=op.response_fields,
+                warnings=op.warnings,
+                source_url=SPEC_SOURCE_URL,
+                parsed_at=now,
+            ))
+        db.commit()
+
+
+def backfill_action_source_kind() -> None:
+    """source_kind 컬럼이 생기기 전에 만들어진 액션의 수집 방식을 채운다.
+
+    이 저장소는 마이그레이션 도구를 쓰지 않으므로, 컬럼을 추가하면 기존 행은
+    기본값(traffic)으로 남는다. 포털 수집으로 만든 액션이 화면에서 '트래픽'으로
+    보이면 어디서 왔는지가 거짓이 된다.
+
+    판단 근거는 스펙에 남아 있다 — 포털·문서 수집은 인증키를 실행 시점에
+    주입하므로 authMode 가 CREDENTIAL 이다. 문서 기반은 그 안에서 다시
+    경고 문구로 구분한다(문서에서 추출한 명세라는 표시를 남겨 두었다).
+    """
+    with Session(engine) as db:
+        rows = db.exec(select(Action).where(Action.source_kind == "traffic")).all()
+        changed = 0
+        for action in rows:
+            spec = action.action_spec or {}
+            if (spec.get("execution") or {}).get("authMode") != "CREDENTIAL":
+                continue
+            url = (spec.get("request") or {}).get("urlTemplate") or ""
+            # 포털에서 온 것은 공공 오픈API 호스트를 가리킨다. 그 밖은 문서 경로다.
+            action.source_kind = "portal" if "apis.data.go.kr" in url or "api.odcloud.kr" in url else "document"
+            db.add(action)
+            changed += 1
+        if changed:
+            db.commit()
