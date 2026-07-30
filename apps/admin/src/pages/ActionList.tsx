@@ -12,6 +12,7 @@ type ActionRow = {
   description: string;
   status: string;
   actionSpec: any;
+  sourceKind?: string;
 };
 
 function paramCount(spec: any): number {
@@ -20,11 +21,10 @@ function paramCount(spec: any): number {
   return Object.keys(schema).length;
 }
 
-// 액션이 어느 수집 방식에서 왔는지는 스펙에 남아 있다. 포털 공개 수집은
-// 인증키를 실행 시점에 주입하므로 authMode 를 CREDENTIAL 로 적어둔다.
-// 별도 컬럼을 DB에 두지 않아도 되고, 기존 액션(트래픽)은 자동으로 traffic 이 된다.
-function kindOf(spec: any): string {
-  return spec?.execution?.authMode === "CREDENTIAL" ? "portal" : "traffic";
+// 어느 수집 방식에서 왔는지는 서버가 알려준다(Action.source_kind).
+// 예전에는 authMode 로 추론했지만 그 방식으로는 문서 기반을 구분할 수 없다.
+function kindOf(row: ActionRow): string {
+  return row.sourceKind || (row.actionSpec?.execution?.authMode === "CREDENTIAL" ? "portal" : "traffic");
 }
 
 export default function ActionList() {
@@ -86,13 +86,13 @@ export default function ActionList() {
   const notFound = settled && projectExists === false;
 
   return (
-    <Shell breadcrumb={["Projects", projectName, "액션"]} projectId={projectId} projectName={projectName}>
+    <Shell breadcrumb={["Projects", projectName, "MCP 조회하기"]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
-          <p className="eyebrow">TOOL DEFINITIONS</p>
-          <h1>액션</h1>
+          <p className="eyebrow">MCP TOOLS</p>
+          <h1>MCP 조회하기</h1>
           <p className="subtitle">
-            테스트 콘솔에는 ACTIVE 상태인 액션만 노출됩니다.
+            수집한 API 를 변환한 MCP 도구 목록입니다. Playground 에서는 <b>사용 중</b>인 도구만 호출됩니다.
           </p>
         </div>
       </section>
@@ -122,7 +122,7 @@ export default function ActionList() {
         <article className="panel">
           <div className="project-table table-5col action-table">
             <div className="table-head">
-              <span>액션</span>
+              <span>MCP 도구</span>
               <span>수집 방식</span>
               <span>Tool 이름</span>
               <span>파라미터</span>
@@ -135,21 +135,35 @@ export default function ActionList() {
                   <Link to={`/actions/${row.id}`}><b>{row.name}</b></Link>
                   <small>{row.description}</small>
                 </span>
-                <span><CollectionBadge kind={kindOf(row.actionSpec)} /></span>
+                <span><CollectionBadge kind={kindOf(row)} /></span>
                 <span className="mono" title={row.toolName}>{row.toolName}</span>
                 <span className="mono">{paramCount(row.actionSpec)}개</span>
                 <span>
-                  <button onClick={() => toggle(row)}>{row.status}</button>
+                  {/* 상태를 그대로(ACTIVE/DRAFT) 보여주면 무엇을 누르는 버튼인지
+                      알 수 없다. 지금 상태와 누르면 될 일을 함께 적는다. */}
+                  <button
+                    className={`state-toggle ${row.status === "ACTIVE" ? "on" : "off"}`}
+                    onClick={() => toggle(row)}
+                    title={row.status === "ACTIVE" ? "누르면 사용 중지" : "누르면 사용 시작"}
+                  >
+                    <i />
+                    {row.status === "ACTIVE" ? "사용 중" : "미사용"}
+                  </button>
                 </span>
                 <span>
                   {confirming === row.id ? (
                     <span className="confirm-inline">
-                      정말 지울까요?
-                      <button className="danger" onClick={() => remove(row.id)}>지우기</button>
-                      <button onClick={() => setConfirming(null)}>취소</button>
+                      <b>삭제할까요?</b>
+                      <button className="btn-danger" onClick={() => remove(row.id)}>삭제</button>
+                      <button className="btn-quiet" onClick={() => setConfirming(null)}>취소</button>
                     </span>
                   ) : (
-                    <button onClick={() => setConfirming(row.id)}>삭제</button>
+                    <button className="btn-icon" onClick={() => setConfirming(row.id)} title="이 도구를 지웁니다">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+                        <path d="M2.6 4.4h10.8M6 4.4V2.9h4v1.5M4 4.4l.6 8.4a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8.4"
+                              strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
                   )}
                 </span>
               </div>

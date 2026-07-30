@@ -25,6 +25,35 @@ function formatTime(value: string | null): string {
   return value.replace("T", " ").slice(0, 19);
 }
 
+type Kind = "portal" | "traffic" | "document";
+
+/** 탭마다 다른 것은 이름·빈 상태 문구뿐이다. 조건문을 세 군데 흩뿌리는 대신
+ *  한 표로 두고 tab 으로 꺼내 쓴다. 방식이 늘면 여기 한 줄만 더한다. */
+const TABS: { kind: Kind; label: string; emptyTitle: string; emptyHint: string }[] = [
+  {
+    kind: "portal",
+    label: "게시 수집",
+    emptyTitle: "게시 수집 결과가 없습니다",
+    emptyHint: "API 수집하기에서 포털 주소를 등록해 수집을 시작하세요.",
+  },
+  {
+    kind: "traffic",
+    label: "트래픽 수집",
+    emptyTitle: "트래픽 수집 결과가 없습니다",
+    emptyHint: "확장 사이드 패널에서 트래픽 기록을 시작하세요.",
+  },
+  {
+    kind: "document",
+    label: "문서 수집",
+    emptyTitle: "문서 수집 결과가 없습니다",
+    emptyHint: "API 수집하기에서 활용가이드 문서를 올려 보세요.",
+  },
+];
+
+// 트래픽 세션은 kind 가 비어 있는 옛 데이터가 있다. 그때는 트래픽으로 본다.
+const kindOf = (raw: string | null | undefined): Kind =>
+  raw === "portal" || raw === "document" ? raw : "traffic";
+
 export default function SessionList() {
   const { id } = useParams();
   const projectId = Number(id);
@@ -34,6 +63,9 @@ export default function SessionList() {
   const [projectExists, setProjectExists] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
+  // 두 수집 방식은 후보의 정체도 판단 기준도 다르다(트래픽은 점수, 게시는 명세).
+  // 한 표에 섞으면 어느 열을 봐야 하는지가 매번 달라진다. 탭으로 나눈다.
+  const [tab, setTab] = useState<Kind>("portal");
   const { toast, showToast } = useToast();
 
   const load = useCallback(() => {
@@ -72,15 +104,17 @@ export default function SessionList() {
   // 세션 목록은 없는 id에도 []를 즉시 돌려주므로, 먼저 도착하면
   // "기록된 세션이 없습니다"가 잠깐 떴다가 "찾을 수 없습니다"로 바뀐다.
   const settled = rows !== null && projectExists !== null;
+  const visible = (rows ?? []).filter((row) => kindOf(row.kind) === tab);
+  const current = TABS.find((t) => t.kind === tab)!;
   const notFound = settled && projectExists === false;
 
   return (
     <Shell breadcrumb={["Projects", projectName]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
-          <p className="eyebrow">COLLECTION SESSIONS</p>
-          <h1>수집 세션</h1>
-          <p className="subtitle">트래픽 기반·포털 공개 기반 수집이 한 목록에 모입니다.</p>
+          <p className="eyebrow">COLLECTION</p>
+          <h1>수집현황</h1>
+          <p className="subtitle">수집 방식별로 무엇을 모았는지 확인하고, 액션으로 만들 후보를 고릅니다.</p>
         </div>
       </section>
 
@@ -98,6 +132,17 @@ export default function SessionList() {
         </div>
       )}
 
+      {settled && !notFound && rows.length > 0 && (
+        <nav className="kind-tabs" aria-label="수집 방식">
+          {TABS.map((t) => (
+            <button key={t.kind} className={tab === t.kind ? "on" : ""} onClick={() => setTab(t.kind)}>
+              {t.label}
+              <em>{rows.filter((r) => kindOf(r.kind) === t.kind).length}</em>
+            </button>
+          ))}
+        </nav>
+      )}
+
       {settled && !notFound && rows.length === 0 && (
         <div className="empty-state">
           <strong>수집된 세션이 없습니다</strong>
@@ -107,23 +152,30 @@ export default function SessionList() {
 
       {/* 삭제가 실패해도 표는 남긴다. 이미 불러온 목록은 여전히 유효하고,
           한 행의 삭제 실패로 목록 전체가 사라지면 오히려 혼란스럽다. */}
-      {rows !== null && rows.length > 0 && (
+      {rows !== null && rows.length > 0 && visible.length === 0 && (
+        <div className="empty-state">
+          <strong>{current.emptyTitle}</strong>
+          <p>{current.emptyHint}</p>
+        </div>
+      )}
+
+      {rows !== null && visible.length > 0 && (
         <article className="panel">
           <div className="project-table table-5col">
             <div className="table-head">
               <span>세션</span>
               <span>수집 방식</span>
               <span>후보</span>
-              <span>최고 점수</span>
+              <span>{tab === "traffic" ? "최고 점수" : "수집 시각"}</span>
               <span />
             </div>
-            {rows.map((row, i) => (
+            {visible.map((row, i) => (
               <div className="table-row" key={row.id}>
                 <span>
                   {/* 아이콘을 앞에 둬 ProjectList와 같은 첫 칸 구조를 쓴다 */}
                   <i className={`project-icon icon-${i % 3}`}>{String(row.id).padStart(2, "0")}</i>
                   {/* 수집 방식마다 후보 화면이 다르다. 링크도 그에 맞춰 갈라진다. */}
-                  <Link to={row.kind === "portal" ? `/spec-sessions/${row.id}` : `/sessions/${row.id}`}>
+                  <Link to={kindOf(row.kind) === "traffic" ? `/sessions/${row.id}` : `/spec-sessions/${row.id}`}>
                     <b>세션 #{row.id}</b>
                   </Link>
                   <small>{row.sourceLabel || formatTime(row.startedAt)}</small>
@@ -131,24 +183,27 @@ export default function SessionList() {
                 <span><CollectionBadge kind={row.kind} /></span>
                 <span className="mono">
                   {row.candidateCount ?? row.requestCount}
-                  {row.kind === "portal" ? " op" : "건"}
+                  {kindOf(row.kind) === "traffic" ? "건" : " op"}
                 </span>
                 <span className="mono">
-                  {row.kind === "portal"
-                    ? "—"
-                    : row.topScore === null
-                      ? "분석 전"
-                      : `★ ${row.topScore}`}
+                  {tab === "traffic"
+                    ? row.topScore === null ? "분석 전" : `★ ${row.topScore}`
+                    : formatTime(row.startedAt).slice(5, 16)}
                 </span>
                 <span>
                   {confirming === row.id ? (
                     <span className="confirm-inline">
                       정말 지울까요?
-                      <button className="danger" onClick={() => remove(row.id)}>지우기</button>
-                      <button onClick={() => setConfirming(null)}>취소</button>
+                      <button className="btn-danger" onClick={() => remove(row.id)}>지우기</button>
+                      <button className="btn-quiet" onClick={() => setConfirming(null)}>취소</button>
                     </span>
                   ) : (
-                    <button onClick={() => setConfirming(row.id)}>삭제</button>
+                    <button className="btn-icon" onClick={() => setConfirming(row.id)} title="이 세션을 지웁니다">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+                        <path d="M2.6 4.4h10.8M6 4.4V2.9h4v1.5M4 4.4l.6 8.4a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8.4"
+                              strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
                   )}
                 </span>
               </div>

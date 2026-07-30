@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import Shell from "../components/Shell";
 import PortalCrawlPanel from "../components/PortalCrawlPanel";
+import DocumentCollectPanel from "../components/DocumentCollectPanel";
 
 /**
  * 수집 엔진 화면.
@@ -185,11 +186,11 @@ export default function SourceList() {
   }, [projectId]);
 
   return (
-    <Shell breadcrumb={["수집 엔진"]} projectId={projectId} projectName={projectName}>
+    <Shell breadcrumb={["API 수집하기"]} projectId={projectId} projectName={projectName}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">수집</p>
-          <h1>수집 엔진</h1>
+          <h1>API 수집하기</h1>
           <p className="subtitle">
             API 를 가져오는 방식은 셋입니다. 어느 방식으로 수집했든 이후 액션 생성·테스트는 같습니다.
           </p>
@@ -274,16 +275,18 @@ export default function SourceList() {
           </Guide>
         </section>
 
-        <section className="method-card">
+        <section className="method-card is-live">
           <div className="method-illu"><DocumentIllustration /></div>
           <div className="method-body">
             <h3>문서 기반 수집</h3>
-            <p>활용가이드 PDF·HWP 를 올려 명세를 구조화합니다.</p>
-            <span className="kind-badge kind-document">준비중</span>
+            <p>활용가이드 PDF·텍스트 문서를 올려 LLM 이 명세를 구조화합니다.</p>
+            <span className="kind-badge kind-document">사용 가능</span>
           </div>
+          <DocumentCollectPanel projectId={projectId} />
           <div className="method-sources">
             <h4>대상</h4>
-            <SourceRow source={{ name: "PDF · HWP 활용가이드", live: false, state: "준비중" }} />
+            <SourceRow source={{ name: "PDF · 텍스트 · 워드", live: true, state: "지원" }} />
+            <SourceRow source={{ name: "HWP", live: false, state: "PDF 로 변환 필요" }} />
           </div>
         </section>
       </div>
