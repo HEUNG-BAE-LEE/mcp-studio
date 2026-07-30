@@ -248,7 +248,7 @@ HTTP 200 · 126ms
 ## 5. 자동 테스트
 
 ```bash
-# 백엔드 — 122개
+# 백엔드 — 133개
 cd apps/backend && .venv/bin/pytest tests/ -v
 
 # 확장 — 22개
