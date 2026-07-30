@@ -1,5 +1,6 @@
 import json
 import os
+from functools import lru_cache
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,13 +16,27 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 router = APIRouter()
 
-# 기본값을 두지 않는다. 누락되면 즉시 KeyError로 드러나야 한다.
-client = AzureOpenAI(
-    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-    api_key=os.environ["AZURE_OPENAI_API_KEY"],
-    api_version=os.environ["AZURE_OPENAI_API_VERSION"],
-)
-DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]   # 모델명이 아니라 배포 이름
+# 기본값을 두지 않는다. 누락은 드러나야 한다. 다만 드러나는 시점을 import 에서
+# 첫 호출로 옮긴다 — 모듈을 읽는 것만으로 죽으면 컨테이너 배포에서 앱 전체가
+# 기동하지 못해 LLM 과 무관한 수집·액션 화면까지 함께 사라진다.
+def _require(name: str) -> str:
+    try:
+        return os.environ[name]
+    except KeyError:
+        raise HTTPException(503, f"Azure OpenAI 설정이 없습니다: {name}") from None
+
+
+@lru_cache(maxsize=1)
+def _client() -> AzureOpenAI:
+    return AzureOpenAI(
+        azure_endpoint=_require("AZURE_OPENAI_ENDPOINT"),
+        api_key=_require("AZURE_OPENAI_API_KEY"),
+        api_version=_require("AZURE_OPENAI_API_VERSION"),
+    )
+
+
+def _deployment() -> str:
+    return _require("AZURE_OPENAI_DEPLOYMENT")   # 모델명이 아니라 배포 이름
 
 # 실측 결과: tools만 넘기면 finish_reason="stop"으로 도구를 호출하지 않고
 # 한국어로 되묻는다(예: "지도 범위를 알려주세요"). 시스템 메시지와
@@ -52,8 +67,8 @@ def select_tool(project_id: int, payload: dict, db: Session = Depends(get_sessio
     tools = [action_to_tool(a) for a in actions]
     by_name = {t["function"]["name"]: a for t, a in zip(tools, actions)}
 
-    response = client.chat.completions.create(
-        model=DEPLOYMENT,
+    response = _client().chat.completions.create(
+        model=_deployment(),
         max_completion_tokens=4096,
         messages=[
             {"role": "system", "content": SYSTEM},
@@ -98,10 +113,18 @@ def execute(action_id: int, payload: dict, db: Session = Depends(get_session)) -
     # 실행 직전에 프로젝트에 등록된 인증키를 넘겨 executor 가 채우게 한다.
     project = db.get(Project, action.project_id)
     credentials = (project.credentials if project else None) or {}
-    result = execute_action(action, payload["arguments"], credentials)
+    try:
+        result = execute_action(action, payload["arguments"], credentials)
+    except ValueError as exc:
+        # executor 는 인증키가 없거나 스펙과 method 가 어긋나면 ValueError 를 낸다.
+        # 잡지 않으면 FastAPI 가 맨 "Internal Server Error" 를 내보내고, 공들여
+        # 쓴 한국어 안내("인증키가 등록되어 있지 않습니다...")가 화면에 닿지 않는다.
+        # 인증 없이 나간 호출의 400 을 스펙 문제로 오해하는 것을 막으려고 만든
+        # 게이트인데, 메시지가 사라지면 그 목적이 무너진다.
+        raise HTTPException(422, str(exc)) from exc
 
-    summary_response = client.chat.completions.create(
-        model=DEPLOYMENT,
+    summary_response = _client().chat.completions.create(
+        model=_deployment(),
         max_completion_tokens=1024,
         messages=[{
             "role": "user",

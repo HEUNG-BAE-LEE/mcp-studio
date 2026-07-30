@@ -33,8 +33,35 @@ def get_or_create_project(payload: ProjectIn, db: Session = Depends(get_session)
 
 @router.get("/api/projects")
 def list_projects(db: Session = Depends(get_session)) -> list:
+    """프로젝트 목록. 이름만으로는 내 작업에 대해 아무것도 답하지 못한다.
+
+    엔진은 프로젝트의 속성이 아니라 그 안에서 일어난 수집 사건의 속성
+    (RecordingSession.kind)이다. 그래서 프로젝트를 엔진별로 쪼개지 않고,
+    한 프로젝트에 어떤 방식들이 섞여 있는지를 배지로 보여준다.
+    """
     rows = db.exec(select(Project).order_by(Project.id)).all()
-    return [{"id": p.id, "name": p.name} for p in rows]
+    out = []
+    for p in rows:
+        sessions = db.exec(
+            select(RecordingSession).where(RecordingSession.project_id == p.id)
+        ).all()
+        action_count = len(
+            db.exec(select(Action).where(Action.project_id == p.id)).all()
+        )
+        present = {s.kind for s in sessions}
+        # 고정 순서로 거른다. set 을 그대로 내보내면 순서가 흔들려
+        # 배지가 호출마다 자리를 바꾼다.
+        kinds = [k for k in ("traffic", "portal", "document") if k in present]
+        started = [s.started_at for s in sessions if s.started_at]
+        out.append({
+            "id": p.id,
+            "name": p.name,
+            "kinds": kinds,
+            "sessions": len(sessions),
+            "actions": action_count,
+            "lastCollectedAt": max(started) if started else None,
+        })
+    return out
 
 @router.get("/api/recording-sessions/{session_id}")
 def get_recording_session(session_id: int, db: Session = Depends(get_session)) -> dict:
@@ -59,6 +86,40 @@ def get_recording_session(session_id: int, db: Session = Depends(get_session)) -
         "sourceLabel": row.source_label,
     }
 
+def _session_view(row: RecordingSession, db: Session) -> dict:
+    """세션 한 건을 화면용으로 바꾼다. 프로젝트별 목록과 엔진별 목록이 같이 쓴다."""
+    # 수집 방식마다 후보의 정체가 다르다. 트래픽은 네트워크 요청, 포털은 오퍼레이션.
+    # 화면이 세는 단위를 한 필드(candidateCount)로 통일해 표를 하나로 유지한다.
+    if row.kind == "portal":
+        operations = db.exec(
+            select(SpecOperation).where(SpecOperation.session_id == row.id)
+        ).all()
+        candidate_count = len(operations)
+        top_score = None
+        label = row.source_label or (operations[0].service_name if operations else "")
+    else:
+        requests = db.exec(
+            select(NetworkRequest).where(NetworkRequest.session_id == row.id)
+        ).all()
+        scores = [r.score for r in requests if r.score is not None]
+        candidate_count = len(requests)
+        # 채점 전과 0점을 구분해야 한다. 점수는 /candidates를 부를 때 채워진다.
+        top_score = max(scores) if scores else None
+        label = row.source_label
+
+    return {
+        "id": row.id,
+        "kind": row.kind,
+        "sourceLabel": label,
+        "startedAt": row.started_at,
+        "endedAt": row.ended_at,
+        "status": row.status,
+        "candidateCount": candidate_count,
+        # 기존 화면이 쓰던 이름을 남겨둔다 (트래픽 경로 호환)
+        "requestCount": candidate_count,
+        "topScore": top_score,
+    }
+
 @router.get("/api/projects/{project_id}/recording-sessions")
 def list_recording_sessions(project_id: int, db: Session = Depends(get_session)) -> list:
     """최근 세션이 위로 오게 내림차순으로 준다."""
@@ -67,41 +128,54 @@ def list_recording_sessions(project_id: int, db: Session = Depends(get_session))
         .where(RecordingSession.project_id == project_id)
         .order_by(RecordingSession.id.desc())
     ).all()
+    return [_session_view(row, db) for row in rows]
 
-    result = []
-    for row in rows:
-        # 수집 방식마다 후보의 정체가 다르다. 트래픽은 네트워크 요청, 포털은 오퍼레이션.
-        # 화면이 세는 단위를 한 필드(candidateCount)로 통일해 표를 하나로 유지한다.
-        if row.kind == "portal":
-            operations = db.exec(
-                select(SpecOperation).where(SpecOperation.session_id == row.id)
-            ).all()
-            candidate_count = len(operations)
-            top_score = None
-            label = row.source_label or (operations[0].service_name if operations else "")
-        else:
-            requests = db.exec(
-                select(NetworkRequest).where(NetworkRequest.session_id == row.id)
-            ).all()
-            scores = [r.score for r in requests if r.score is not None]
-            candidate_count = len(requests)
-            # 채점 전과 0점을 구분해야 한다. 점수는 /candidates를 부를 때 채워진다.
-            top_score = max(scores) if scores else None
-            label = row.source_label
+@router.get("/api/collection-engines")
+def collection_engines(db: Session = Depends(get_session)) -> list:
+    """수집 방식별 산출물 요약.
 
-        result.append({
-            "id": row.id,
-            "kind": row.kind,
-            "sourceLabel": label,
-            "startedAt": row.started_at,
-            "endedAt": row.ended_at,
-            "status": row.status,
-            "candidateCount": candidate_count,
-            # 기존 화면이 쓰던 이름을 남겨둔다 (트래픽 경로 호환)
-            "requestCount": candidate_count,
-            "topScore": top_score,
+    엔진은 프로젝트가 아니라 **수집 사건**의 속성이다(RecordingSession.kind).
+    그래서 프로젝트를 엔진별로 쪼개지 않고, 엔진별로 "무엇을 모았는지"만 보여준다 —
+    한 프로젝트에 트래픽 세션과 포털 세션이 함께 있는 것이 정상이기 때문이다.
+    """
+    kinds = ["traffic", "portal", "document"]
+    out = []
+    for kind in kinds:
+        rows = db.exec(select(RecordingSession).where(RecordingSession.kind == kind)).all()
+        candidates = 0
+        project_ids = set()
+        for row in rows:
+            candidates += _session_view(row, db)["candidateCount"]
+            project_ids.add(row.project_id)
+        out.append({
+            "kind": kind,
+            "sessions": len(rows),
+            "candidates": candidates,
+            "projects": len(project_ids),
         })
-    return result
+    return out
+
+@router.get("/api/collection-engines/{kind}/sessions")
+def sessions_by_kind(kind: str, db: Session = Depends(get_session)) -> list:
+    """한 수집 방식으로 모은 세션 전부. 프로젝트 경계를 넘어 훑는다."""
+    if kind not in ("traffic", "portal", "document"):
+        raise HTTPException(422, f"알 수 없는 수집 방식입니다: {kind!r}")
+
+    rows = db.exec(
+        select(RecordingSession)
+        .where(RecordingSession.kind == kind)
+        .order_by(RecordingSession.id.desc())
+    ).all()
+
+    projects = {p.id: p.name for p in db.exec(select(Project)).all()}
+    out = []
+    for row in rows:
+        view = _session_view(row, db)
+        # 엔진별 목록에서는 어느 프로젝트 것인지가 핵심 정보다.
+        view["projectId"] = row.project_id
+        view["projectName"] = projects.get(row.project_id, f"#{row.project_id}")
+        out.append(view)
+    return out
 
 @router.delete("/api/projects/{project_id}")
 def delete_project(project_id: int, db: Session = Depends(get_session)) -> dict:

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import Action, Project, RecordingSession, SpecOperation
+from app.models import Action, CrawlJob, Project, RecordingSession, SpecOperation
 from app.services.schema_infer import build_action_spec_from_spec
 from app.services.spec_parser import PORTAL_LABELS, detect_portal, parse
 
@@ -211,3 +211,138 @@ def list_credentials(project_id: int, db: Session = Depends(get_session)) -> lis
         {"portal": portal, "masked": (value[:4] + "****") if len(value) > 4 else "****"}
         for portal, value in (project.credentials or {}).items()
     ]
+
+
+# ── 포털 일괄 수집 ───────────────────────────────────────────
+
+
+class PortalCrawlIn(BaseModel):
+    listUrl: str
+    limit: int = 30
+
+
+@router.post("/api/projects/{project_id}/portal-crawls")
+def start_portal_crawl(project_id: int, payload: PortalCrawlIn,
+                       db: Session = Depends(get_session)) -> dict:
+    """목록 URL 하나로 그 안의 API 를 일괄 수집한다.
+
+    수십 초가 걸리므로 즉시 잡 id 를 돌려주고, 화면은 진행 상황을 물어본다.
+    """
+    from app.services import crawl_runner
+    from app.services.portal_crawler import MAX_LIMIT, is_supported_list_url
+
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "해당 프로젝트를 찾을 수 없습니다")
+
+    url = payload.listUrl.strip()
+    if not is_supported_list_url(url):
+        raise HTTPException(
+            422, "아직 공공데이터포털(data.go.kr) 주소만 수집할 수 있습니다"
+        )
+    if payload.limit > MAX_LIMIT:
+        raise HTTPException(422, f"한 번에 수집할 수 있는 최대 개수는 {MAX_LIMIT}개입니다")
+
+    job_id = crawl_runner.start(project_id, url, payload.limit)
+    return {"jobId": job_id, "status": "running"}
+
+
+def _job_view(job: CrawlJob) -> dict:
+    return {
+        "id": job.id,
+        "projectId": job.project_id,
+        "listUrl": job.list_url,
+        "limit": job.limit,
+        "status": job.status,
+        "phase": job.phase,
+        "servicesFound": job.services_found,
+        "servicesDone": job.services_done,
+        "operations": job.operations,
+        "current": job.current,
+        "message": job.message,
+        "sessionId": job.session_id,
+        "startedAt": job.started_at,
+        "finishedAt": job.finished_at,
+    }
+
+
+@router.get("/api/crawl-jobs/{job_id}")
+def get_crawl_job(job_id: int, db: Session = Depends(get_session)) -> dict:
+    job = db.get(CrawlJob, job_id)
+    if job is None:
+        raise HTTPException(404, "해당 수집 작업을 찾을 수 없습니다")
+    return _job_view(job)
+
+
+@router.get("/api/projects/{project_id}/portal-crawls")
+def list_portal_crawls(project_id: int, db: Session = Depends(get_session)) -> list:
+    rows = db.exec(
+        select(CrawlJob).where(CrawlJob.project_id == project_id).order_by(CrawlJob.id.desc())
+    ).all()
+    return [_job_view(job) for job in rows]
+
+
+class BulkActionIn(BaseModel):
+    operationIds: list = []
+    status: str = "ACTIVE"
+
+
+@router.post("/api/recording-sessions/{session_id}/spec-actions")
+def create_actions_bulk(session_id: int, payload: BulkActionIn,
+                        db: Session = Depends(get_session)) -> dict:
+    """수집한 오퍼레이션을 한 번에 액션으로 만든다.
+
+    일괄 수집은 한 번에 수십 개를 모은다. 액션을 하나씩 눌러 만들게 하면
+    수집을 자동화한 의미가 사라진다.
+
+    같은 tool_name 이 이미 있으면 건너뛴다. 두 번 눌렀을 때 같은 도구가 겹쳐
+    생기면 어느 쪽이 불릴지 순서에 좌우된다.
+    """
+    session_row = db.get(RecordingSession, session_id)
+    if session_row is None:
+        raise HTTPException(404, "해당 수집 세션을 찾을 수 없습니다")
+
+    query = select(SpecOperation).where(SpecOperation.session_id == session_id)
+    if payload.operationIds:
+        query = query.where(SpecOperation.id.in_(payload.operationIds))
+    operations = db.exec(query.order_by(SpecOperation.id)).all()
+
+    existing = {
+        row.tool_name
+        for row in db.exec(
+            select(Action).where(Action.project_id == session_row.project_id)
+        ).all()
+    }
+
+    created, skipped = [], 0
+    for op in operations:
+        tool_name = _tool_name(op.op_name)
+        if tool_name in existing:
+            skipped += 1
+            continue
+        existing.add(tool_name)
+
+        name = op.summary or op.op_name
+        description = f"[{op.provider}] {op.service_name} — {op.op_name}".strip(" —[]")
+        action = Action(
+            project_id=session_row.project_id,
+            name=name,
+            tool_name=tool_name,
+            description=description,
+            action_spec=build_action_spec_from_spec(op, name=name, tool_name=tool_name,
+                                                    description=description),
+            status=payload.status,
+        )
+        db.add(action)
+        created.append(action)
+    db.commit()
+
+    return {
+        "created": len(created),
+        "skipped": skipped,
+        "total": len(operations),
+        "message": (
+            f"액션 {len(created)}개를 만들었습니다"
+            + (f" (이미 있는 {skipped}개는 건너뜀)" if skipped else "")
+        ) if created else f"새로 만들 액션이 없습니다 (이미 있는 {skipped}개)",
+    }

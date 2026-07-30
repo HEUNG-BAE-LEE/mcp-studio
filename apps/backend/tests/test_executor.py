@@ -121,3 +121,54 @@ def test_GET은_querySchema로_쿼리스트링을_만든다():
     req = build_request(make_action(spec), {"page": 2})
     assert req["url"] == "https://example.go.kr/list.do?page=2"
     assert req["content"] is None
+
+
+# --- 인증키 주입: 기관마다 갈리는 대소문자 -------------------------------------
+# 공공데이터포털 명세는 기관이 직접 쓰기 때문에 같은 인증키가 serviceKey /
+# ServiceKey 로 갈린다(실측: 한 세션의 오퍼레이션 10개 중 1개가 대문자).
+# 파서는 원문 표기를 그대로 옮기므로 맞춰주는 일은 executor 몫이다.
+
+def _hidden(param: str) -> dict:
+    """param 하나를 LLM 에게 감춘 querySchema."""
+    return {param: {"llmEditable": False}, "numOfRows": {"llmEditable": True}}
+
+
+@pytest.mark.parametrize("registered", ["serviceKey", "ServiceKey", "servicekey", "SERVICEKEY"])
+@pytest.mark.parametrize("declared", ["serviceKey", "ServiceKey"])
+def test_인증키는_등록_표기와_명세_표기가_달라도_주입된다(declared, registered):
+    """폴백에 기대지 않고 맞는지 본다 — 그래서 무관한 키를 하나 더 둔다.
+
+    등록된 키가 하나뿐이면 이름이 달라도 쓰는 폴백이 있어, 키가 하나인
+    상태로는 대소문자 조회가 깨져 있어도 테스트가 통과해 버린다.
+    """
+    creds = {registered: "TEST-KEY", "다른포털": "무관한값"}
+    out = executor._inject_credentials(_hidden(declared), {"numOfRows": "10"}, creds)
+    assert out[declared] == "TEST-KEY"
+
+
+def test_등록된_키가_하나면_이름이_달라도_그것을_쓴다():
+    """포털명(data.go.kr)으로 등록하는 경우를 위한 폴백은 남아 있어야 한다."""
+    out = executor._inject_credentials(_hidden("ServiceKey"), {}, {"data.go.kr": "XYZ"})
+    assert out["ServiceKey"] == "XYZ"
+
+
+def test_이름이_어긋나고_키가_여러개면_막는다():
+    """짐작으로 아무 키나 넣으면 인증 실패를 스펙 문제로 오해하게 된다."""
+    creds = {"portal-a": "AAA", "portal-b": "BBB"}
+    with pytest.raises(ValueError, match="인증키"):
+        executor._inject_credentials(_hidden("ServiceKey"), {}, creds)
+
+
+def test_대문자_인증키도_쿼리스트링까지_실린다():
+    """단위가 아니라 build_request 를 통과한 실제 URL 로 확인한다."""
+    spec = {
+        "request": {
+            "method": "GET",
+            "urlTemplate": "https://apis.data.go.kr/metal/list",
+            "headers": {},
+            "querySchema": _hidden("ServiceKey"),
+        }
+    }
+    req = build_request(make_action(spec), {"numOfRows": "10"},
+                        {"serviceKey": "K-1234", "다른포털": "무관한값"})
+    assert "ServiceKey=K-1234" in req["url"]

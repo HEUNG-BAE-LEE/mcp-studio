@@ -477,3 +477,114 @@ def test_없는_프로젝트_삭제는_한국어_404다(client):
     res = client.delete("/api/projects/9999")
     assert res.status_code == 404
     assert res.json()["detail"] == "해당 프로젝트를 찾을 수 없습니다"
+
+
+def test_엔진별_요약은_수집_방식마다_한_줄이다(client, project_id):
+    rows = client.get("/api/collection-engines").json()
+
+    assert [r["kind"] for r in rows] == ["traffic", "portal", "document"]
+    for r in rows:
+        assert r["sessions"] == 0 and r["candidates"] == 0 and r["projects"] == 0
+
+
+def test_엔진별_세션은_프로젝트_경계를_넘어_모인다(client, project_id, engine):
+    """엔진은 프로젝트가 아니라 수집 사건의 속성이다(RecordingSession.kind).
+
+    한 프로젝트에 트래픽·포털 세션이 함께 있는 것이 정상이므로, 엔진별 목록은
+    프로젝트로 가르지 않고 kind 로 가른다.
+    """
+    from sqlmodel import Session as DbSession
+    from app.models import RecordingSession
+
+    other = client.post("/api/projects", json={"name": "다른 프로젝트"}).json()["id"]
+    a = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+    b = client.post(f"/api/projects/{other}/recording-sessions").json()["id"]
+
+    # 같은 프로젝트에 포털 세션을 하나 더 둔다 — 섞이는 것이 정상임을 전제로 한다
+    with DbSession(engine) as db:
+        row = db.get(RecordingSession, b)
+        row.kind = "portal"
+        db.add(row)
+        db.commit()
+
+    traffic = client.get("/api/collection-engines/traffic/sessions").json()
+    portal = client.get("/api/collection-engines/portal/sessions").json()
+
+    assert [r["id"] for r in traffic] == [a]
+    assert [r["id"] for r in portal] == [b]
+    # 엔진별 목록에서는 어느 프로젝트 것인지가 핵심 정보다
+    assert traffic[0]["projectName"] and portal[0]["projectName"]
+
+    summary = {r["kind"]: r for r in client.get("/api/collection-engines").json()}
+    assert summary["traffic"]["sessions"] == 1
+    assert summary["portal"]["sessions"] == 1
+    assert summary["portal"]["projects"] == 1
+
+
+def test_알_수_없는_수집_방식은_한국어_422다(client):
+    res = client.get("/api/collection-engines/whatever/sessions")
+    assert res.status_code == 422
+    assert "알 수 없는 수집 방식" in res.json()["detail"]
+
+
+def test_프로젝트_목록이_엔진과_개수를_함께_준다(client):
+    """프로젝트 목록이 이름만 주면 내 작업에 대해 아무것도 답하지 못한다.
+
+    테스트는 매번 새 인메모리 DB를 쓰므로(운영 dev.db의 seed() 와는 무관하다),
+    앱 시작 시의 시드 대신 이 테스트 안에서 프로젝트를 만들어 존재를 보장한다.
+    """
+    client.post("/api/projects", json={"name": "요약테스트-목록"})
+    rows = client.get("/api/projects").json()
+    assert rows, "프로젝트가 있어야 한다"
+    for row in rows:
+        # 기존 필드는 그대로 — 이 응답을 읽는 화면이 이미 셋 있다
+        assert "id" in row and "name" in row
+        assert isinstance(row["kinds"], list)
+        assert isinstance(row["sessions"], int)
+        assert isinstance(row["actions"], int)
+        assert "lastCollectedAt" in row
+
+
+def test_한_프로젝트에_세_방식이_섞이면_고정_순서_배지와_실제_개수를_준다(client, project_id, engine):
+    """kinds 는 set 이 아니라 고정 순서 리스트여야 한다.
+
+    기대 순서(traffic, portal, document)와 어긋나게 **역순으로** 만든다.
+    이렇게 두면 kinds = list(present) 처럼 set 순서를 그대로 내보내는 회귀를
+    이 테스트가 잡는다.
+
+    셋 다 쓰는 이유: 파이썬은 PYTHONHASHSEED 를 무작위화하므로 set 순서가
+    실행마다 달라진다. 둘만 쓰면 우연히 맞는 순서가 나올 확률이 1/2 라 회귀를
+    절반만 잡는다(실측: 5회 중 2회 실패). 셋이면 순열이 6가지가 되어 5/6 을
+    잡는다. 정상 코드에서는 항상 통과하므로 이 테스트 자체는 flaky 하지 않다 —
+    특정 오구현을 잡을 확률만 달라진다.
+    """
+    from sqlmodel import Session as DbSession
+    from app.models import RecordingSession
+
+    made = []
+    for kind in ("document", "portal", "traffic"):   # 기대 순서의 역순
+        sid = client.post(f"/api/projects/{project_id}/recording-sessions").json()["id"]
+        with DbSession(engine) as db:
+            row = db.get(RecordingSession, sid)
+            row.kind = kind
+            db.add(row)
+            db.commit()
+        made.append(sid)
+
+    rows = client.get("/api/projects").json()
+    row = next(r for r in rows if r["id"] == project_id)
+
+    assert row["kinds"] == ["traffic", "portal", "document"]
+    assert row["sessions"] == 3
+    assert row["lastCollectedAt"] is not None
+    assert len(set(made)) == 3, "세 세션이 실제로 따로 만들어져야 한다"
+
+
+def test_세션이_없는_프로젝트는_빈_배지와_None_을_준다(client):
+    body = client.post("/api/projects", json={"name": "요약테스트-빈프로젝트"}).json()
+    rows = client.get("/api/projects").json()
+    row = next(r for r in rows if r["id"] == body["id"])
+    assert row["kinds"] == []
+    assert row["sessions"] == 0
+    assert row["actions"] == 0
+    assert row["lastCollectedAt"] is None

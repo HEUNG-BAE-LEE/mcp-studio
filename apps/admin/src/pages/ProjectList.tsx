@@ -1,18 +1,49 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
 import Toast, { useToast } from "../components/Toast";
-import ConfirmPopover from "../components/ConfirmPopover";
-import { EmptyState, ErrorBox, SkeletonRows } from "../components/States";
+import { KindMark, KIND_LABEL, type CollectionKind } from "../components/CollectionMark";
 
-type Project = { id: number; name: string };
+type Project = {
+  id: number;
+  name: string;
+  kinds: string[];
+  sessions: number;
+  actions: number;
+  lastCollectedAt: string | null;
+};
+
+/** 이 프로젝트에 섞여 있는 수집 방식. 없으면 아무것도 그리지 않는다 —
+ *  "없음" 배지는 자리만 차지하고 아무 것도 알려주지 않는다. */
+function KindBadges({ kinds }: { kinds: string[] }) {
+  if (!kinds.length) return null;
+  return (
+    <span className="kind-row">
+      {kinds.map((kind) => (
+        <span key={kind} className={`kind-chip kind-${kind}`}>
+          <KindMark kind={kind} size={11} />
+          {KIND_LABEL[kind as CollectionKind] ?? kind}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** "2026-07-29 14:03" 까지만. 초는 목록에서 읽는 사람에게 쓸모가 없다. */
+function formatCollected(value: string | null): string {
+  if (!value) return "—";
+  return value.replace("T", " ").slice(0, 16);
+}
 
 export default function ProjectList() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
-  const { toasts, showToast, dismiss } = useToast();
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const { toast, showToast } = useToast();
+  const navigate = useNavigate();
 
   const load = useCallback(() => {
     api.get("/api/projects")
@@ -32,121 +63,116 @@ export default function ProjectList() {
         r.deletedSessions ? `세션 ${r.deletedSessions}건` : "",
         r.deletedActions ? `액션 ${r.deletedActions}건` : "",
       ].filter(Boolean).join(", ");
-      showToast(`${project.name}을(를) 지웠습니다`, "ok", also ? `${also} 함께 삭제` : undefined);
+      showToast(
+        also
+          ? `${project.name}을(를) 지웠습니다 (${also} 함께 삭제)`
+          : `${project.name}을(를) 지웠습니다`,
+      );
       load();
     } catch (err) {
-      showToast("지우지 못했습니다", "error", errorMessage(err));
+      setError(errorMessage(err));
+    }
+  }
+
+  async function create() {
+    const name = newName.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      // get-or-create 다. 같은 이름이면 기존 프로젝트로 들어간다.
+      const row = await api.post("/api/projects", { name });
+      setNewName("");
+      navigate(`/projects/${row.id}`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setCreating(false);
     }
   }
 
   return (
-    <Shell breadcrumb={["프로젝트"]}>
-      <div className="page-head">
+    <Shell breadcrumb={["Projects"]}>
+      <section className="heading-row">
         <div>
-          <span className="eyebrow">projects</span>
+          <p className="eyebrow">WEB ACTION MCP BUILDER</p>
           <h1>프로젝트</h1>
-          <p className="page-sub">확장 프로그램에서 수집한 내용이 프로젝트별로 모입니다</p>
+          <p className="subtitle">
+            수집한 API 는 프로젝트로 모입니다. 어떤 방식으로 모았는지가 배지로 보입니다.
+          </p>
         </div>
-        {/* 이미 받아온 배열의 길이다. 숫자를 위해 요청을 늘리지 않는다. */}
-        {projects !== null && projects.length > 0 && (
-          <div className="metrics head-side">
-            <div>
-              <b>{projects.length}</b>
-              <small>프로젝트</small>
-            </div>
-          </div>
-        )}
-      </div>
+        <div className="new-project">
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && create()}
+            placeholder="새 프로젝트 이름"
+            disabled={creating}
+          />
+          <button onClick={create} disabled={creating || !newName.trim()}>
+            {creating ? "만드는 중…" : "만들기"}
+          </button>
+        </div>
+      </section>
 
-      {error && <ErrorBox message={error} />}
-
-      {projects === null && !error && <SkeletonRows />}
+      {error && (
+        <div className="error-banner">
+          <strong>요청을 처리하지 못했습니다</strong>
+          <p>{error}</p>
+        </div>
+      )}
 
       {projects !== null && projects.length === 0 && (
-        <EmptyState
-          title="아직 프로젝트가 없습니다"
-          description={
-            <>
-              확장 사이드패널에서 프로젝트 이름을 입력하고
-              <br />
-              기록을 시작하면 여기에 나타납니다
-            </>
-          }
-          action={
-            <Link className="btn btn-sm" to="/sources">
-              수집 엔진 살펴보기
-            </Link>
-          }
-        />
-      )}
-
-      {projects !== null && projects.length > 0 && (
-        <div className="panel">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>프로젝트</th>
-                <th style={{ width: 96 }}>ID</th>
-                <th style={{ width: 64 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <tr key={project.id}>
-                  <td data-label="프로젝트">
-                    <Link className="cell-name" to={`/projects/${project.id}`}>
-                      {project.name}
-                    </Link>
-                  </td>
-                  <td data-label="ID" className="num">#{project.id}</td>
-                  <td className="right">
-                    <ConfirmPopover
-                      open={confirming === project.id}
-                      title="프로젝트를 지울까요?"
-                      description="되돌릴 수 없습니다. 이 프로젝트의 수집 세션과 액션도 함께 사라집니다."
-                      onConfirm={() => remove(project)}
-                      onCancel={() => setConfirming(null)}
-                    >
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        aria-label={`${project.name} 삭제`}
-                        onClick={() => setConfirming(confirming === project.id ? null : project.id)}
-                      >
-                        삭제
-                      </button>
-                    </ConfirmPopover>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="empty-state">
+          <strong>아직 프로젝트가 없습니다</strong>
+          <p>
+            위에서 프로젝트를 하나 만들고, 그 안에서 <strong>수집 시작</strong>을 누르세요.
+            <br />
+            확장 사이드 패널에서 기록을 시작해도 프로젝트가 자동으로 만들어집니다.
+          </p>
         </div>
       )}
 
-      {/* 목록이 짧으면 화면 아래가 통째로 빈다. 장식 대신 실제 작업 순서를
-          적는다 — 이 도구를 처음 여는 사람이 가장 먼저 묻는 것이다. */}
       {projects !== null && projects.length > 0 && (
-        <section className="flow" aria-label="작업 순서">
-          <div>
-            <i aria-hidden="true">1</i>
-            <strong>확장에서 수집</strong>
-            <p>사이드패널에서 트래픽을 기록하거나, 포털 명세 페이지에서 공개 명세를 수집합니다.</p>
+        <article className="panel recent-projects">
+          <div className="project-table table-projects">
+            <div className="table-head">
+              <span>프로젝트</span>
+              <span>수집 세션</span>
+              <span>액션</span>
+              <span>마지막 수집</span>
+              <span />
+            </div>
+            {projects.map((project, i) => (
+              <div className="table-row" key={project.id}>
+                <span>
+                  <i className={`project-icon icon-${i % 3}`}>{String(i + 1).padStart(2, "0")}</i>
+                  <Link to={`/projects/${project.id}`}><b>{project.name}</b></Link>
+                  <small className="mono">#{project.id}</small>
+                  <KindBadges kinds={project.kinds} />
+                </span>
+                <span className="mono">{project.sessions}</span>
+                <span className="mono">{project.actions}</span>
+                <span className="mono">{formatCollected(project.lastCollectedAt)}</span>
+                <span>
+                  {/* 삭제 확인은 인라인이다. window.confirm 은 촬영 화면에서 튀고 자동화를 막는다 */}
+                  {confirming === project.id ? (
+                    <span className="confirm-inline">
+                      세션·액션까지 지울까요?
+                      <button className="danger" onClick={() => remove(project)}>지우기</button>
+                      <button onClick={() => setConfirming(null)}>취소</button>
+                    </span>
+                  ) : (
+                    <button onClick={() => setConfirming(project.id)}>삭제</button>
+                  )}
+                </span>
+              </div>
+            ))}
           </div>
-          <div>
-            <i aria-hidden="true">2</i>
-            <strong>후보에서 액션 만들기</strong>
-            <p>수집된 후보 중 쓸 것을 고르고, LLM 이 읽을 설명과 파라미터를 다듬습니다.</p>
-          </div>
-          <div>
-            <i aria-hidden="true">3</i>
-            <strong>콘솔에서 테스트</strong>
-            <p>활성화한 액션을 질의로 호출해 도구 선택과 실행 결과를 확인합니다.</p>
-          </div>
-        </section>
+        </article>
       )}
 
-      <Toast items={toasts} onDismiss={dismiss} />
+      <Toast message={toast} />
     </Shell>
   );
 }
