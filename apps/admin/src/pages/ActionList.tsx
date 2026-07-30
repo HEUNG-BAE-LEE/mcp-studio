@@ -36,7 +36,7 @@ export default function ActionList() {
   const [projectExists, setProjectExists] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
-  const { toast, showToast } = useToast();
+  const { toasts, showToast, dismiss } = useToast();
 
   const load = useCallback(() => {
     api.get(`/api/projects/${projectId}/actions`)
@@ -87,32 +87,32 @@ export default function ActionList() {
 
   return (
     <Shell breadcrumb={["Projects", projectName, "MCP 조회하기"]} projectId={projectId} projectName={projectName}>
-      <section className="heading-row">
+      <section className="page-head">
         <div>
           <p className="eyebrow">MCP TOOLS</p>
           <h1>MCP 조회하기</h1>
-          <p className="subtitle">
+          <p className="page-sub">
             수집한 API 를 변환한 MCP 도구 목록입니다. Playground 에서는 <b>사용 중</b>인 도구만 호출됩니다.
           </p>
         </div>
       </section>
 
       {error && (
-        <div className="error-banner">
+        <div className="error-box">
           <strong>요청을 처리하지 못했습니다</strong>
           <p>{error}</p>
         </div>
       )}
 
       {notFound && (
-        <div className="empty-state">
+        <div className="empty">
           <strong>프로젝트 #{projectId}를 찾을 수 없습니다</strong>
           <p>프로젝트 목록으로 돌아가 다시 선택해 주세요.</p>
         </div>
       )}
 
       {settled && !notFound && rows.length === 0 && (
-        <div className="empty-state">
+        <div className="empty">
           <strong>만들어진 액션이 없습니다</strong>
           <p>기록 세션에서 API 후보를 골라 액션을 만들 수 있습니다.</p>
         </div>
@@ -172,7 +172,7 @@ export default function ActionList() {
         </article>
       )}
 
-      <Toast message={toast} />
+      <Toast items={toasts} onDismiss={dismiss} />
     </Shell>
   );
 }

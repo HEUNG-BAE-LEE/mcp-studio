@@ -109,7 +109,7 @@ export default function DocumentCollectPanel({ projectId }: { projectId: number 
           onChange={(e) => pick(e.target.files)}
           style={{ display: "none" }}
         />
-        <button className="primary" onClick={submit} disabled={busy || files.length === 0}>
+        <button className="btn btn-primary" onClick={submit} disabled={busy || files.length === 0}>
           {busy ? "분석 중…" : "수집하기"}
         </button>
       </div>
@@ -142,7 +142,7 @@ export default function DocumentCollectPanel({ projectId }: { projectId: number 
       )}
 
       {error && (
-        <div className="error-banner" style={{ marginTop: 10 }}>
+        <div className="error-box" style={{ marginTop: 10 }}>
           <p>{error}</p>
         </div>
       )}
@@ -162,7 +162,7 @@ export default function DocumentCollectPanel({ projectId }: { projectId: number 
             ))}
           </ul>
           {result.sessionId && (
-            <button className="primary" onClick={() => navigate(`/spec-sessions/${result.sessionId}`)}>
+            <button className="btn btn-primary" onClick={() => navigate(`/spec-sessions/${result.sessionId}`)}>
               수집 결과 보기
             </button>
           )}

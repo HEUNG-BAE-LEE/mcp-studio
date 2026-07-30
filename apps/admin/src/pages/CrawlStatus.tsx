@@ -80,11 +80,11 @@ export default function CrawlStatus() {
 
   return (
     <Shell breadcrumb={["Projects", projectName, "수집 진행현황"]} projectId={projectId} projectName={projectName}>
-      <section className="heading-row">
+      <section className="page-head">
         <div>
           <p className="eyebrow">진행현황</p>
           <h1>수집 진행현황</h1>
-          <p className="subtitle">
+          <p className="page-sub">
             이 프로젝트에서 실행한 일괄 수집입니다. 수집은 서버에서 돌기 때문에
             이 화면을 닫아도 계속 진행됩니다.
           </p>
@@ -92,14 +92,14 @@ export default function CrawlStatus() {
       </section>
 
       {error && (
-        <div className="error-banner">
+        <div className="error-box">
           <strong>불러오지 못했습니다</strong>
           <p>{error}</p>
         </div>
       )}
 
       {jobs !== null && jobs.length === 0 && (
-        <div className="empty-state">
+        <div className="empty">
           <strong>아직 실행한 수집이 없습니다</strong>
           <p>
             <Link to="/sources">API 수집하기</Link> 에서 포털 주소를 등록하고 수집을 시작하세요.

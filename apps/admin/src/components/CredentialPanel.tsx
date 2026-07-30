@@ -88,7 +88,7 @@ export default function CredentialPanel({ projectId }: { projectId: number }) {
               aria-label="인증키"
               onKeyDown={(e) => { if (e.key === "Enter") save(); }}
             />
-            <button className="primary" onClick={save} disabled={saving}>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
               {saving ? "등록 중…" : "등록"}
             </button>
             <button className="btn-quiet" onClick={() => setOpen(false)}>닫기</button>

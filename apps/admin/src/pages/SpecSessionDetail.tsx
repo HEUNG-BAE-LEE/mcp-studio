@@ -83,7 +83,7 @@ export default function SpecSessionDetail() {
   if (operations.isError) {
     return (
       <Shell breadcrumb={breadcrumb} projectId={projectId} projectName={projectName}>
-        <div className="error-banner">
+        <div className="error-box">
           <strong>불러오지 못했습니다</strong>
           <p>{errorMessage(operations.error)}</p>
         </div>
@@ -104,11 +104,11 @@ export default function SpecSessionDetail() {
 
   return (
     <Shell breadcrumb={breadcrumb} projectId={projectId} projectName={projectName}>
-      <section className="heading-row">
+      <section className="page-head">
         <div>
           <p className="eyebrow">명세 파싱</p>
           <h1>세션 #{id}</h1>
-          <p className="subtitle">
+          <p className="page-sub">
             {serviceName || (fromDocument ? "올린 문서" : "포털이 공개한 명세")}에서 읽어온 오퍼레이션입니다.
           </p>
         </div>
@@ -117,7 +117,7 @@ export default function SpecSessionDetail() {
       <Stepper current={2} kind={fromDocument ? "document" : "portal"} />
 
       {error && (
-        <div className="error-banner">
+        <div className="error-box">
           <strong>액션을 만들지 못했습니다</strong>
           <p>{error}</p>
         </div>
@@ -153,7 +153,7 @@ export default function SpecSessionDetail() {
           </div>
           {bulkResult && <em className="bulk-result">{bulkResult}</em>}
           <button
-            className="primary"
+            className="btn btn-primary"
             disabled={createAll.isPending}
             onClick={() => {
               setError(null);
@@ -167,7 +167,7 @@ export default function SpecSessionDetail() {
       )}
 
       {rows.length === 0 ? (
-        <div className="empty-state">
+        <div className="empty">
           <strong>아직 수집된 오퍼레이션이 없습니다</strong>
         </div>
       ) : (
@@ -201,13 +201,13 @@ export default function SpecSessionDetail() {
                   <span className="mono">{row.responseFieldCount}</span>
                   <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <button
-                      className="quiet-button"
+                      className="btn btn-ghost btn-sm"
                       onClick={() => setExpanded(expanded === row.id ? null : row.id)}
                     >
                       {expanded === row.id ? "접기" : "상세"}
                     </button>
                     <button
-                      className="primary"
+                      className="btn btn-primary"
                       disabled={createAction.isPending}
                       onClick={() => {
                         setError(null);

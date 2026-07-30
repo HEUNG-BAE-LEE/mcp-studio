@@ -66,7 +66,7 @@ export default function SessionList() {
   // 두 수집 방식은 후보의 정체도 판단 기준도 다르다(트래픽은 점수, 게시는 명세).
   // 한 표에 섞으면 어느 열을 봐야 하는지가 매번 달라진다. 탭으로 나눈다.
   const [tab, setTab] = useState<Kind>("portal");
-  const { toast, showToast } = useToast();
+  const { toasts, showToast, dismiss } = useToast();
 
   const load = useCallback(() => {
     api.get(`/api/projects/${projectId}/recording-sessions`)
@@ -110,30 +110,30 @@ export default function SessionList() {
 
   return (
     <Shell breadcrumb={["Projects", projectName]} projectId={projectId} projectName={projectName}>
-      <section className="heading-row">
+      <section className="page-head">
         <div>
           <p className="eyebrow">COLLECTION</p>
           <h1>수집현황</h1>
-          <p className="subtitle">수집 방식별로 무엇을 모았는지 확인하고, 액션으로 만들 후보를 고릅니다.</p>
+          <p className="page-sub">수집 방식별로 무엇을 모았는지 확인하고, 액션으로 만들 후보를 고릅니다.</p>
         </div>
         {/* 수집은 프로젝트 안에서 시작한다. 예전에는 여기서 팝업을 띄웠는데,
             포털 폼이 다시 CrawlPreviewDialog 를 열어 팝업이 두 겹이 됐다.
             전용 화면으로 보낸다. */}
         {!notFound && projectId != null && (
-          <Link className="primary" to={`/projects/${projectId}/collect`}>+ 수집 시작</Link>
+          <Link className="btn btn-primary" to={`/projects/${projectId}/collect`}>+ 수집 시작</Link>
         )}
       </section>
 
 
       {error && (
-        <div className="error-banner">
+        <div className="error-box">
           <strong>요청을 처리하지 못했습니다</strong>
           <p>{error}</p>
         </div>
       )}
 
       {notFound && (
-        <div className="empty-state">
+        <div className="empty">
           <strong>프로젝트 #{projectId}를 찾을 수 없습니다</strong>
           <p>프로젝트 목록으로 돌아가 다시 선택해 주세요.</p>
         </div>
@@ -151,7 +151,7 @@ export default function SessionList() {
       )}
 
       {settled && !notFound && rows.length === 0 && (
-        <div className="empty-state">
+        <div className="empty">
           <strong>수집된 세션이 없습니다</strong>
           <p>위의 <strong>+ 수집 시작</strong>을 눌러 수집 방식을 고르세요.</p>
         </div>
@@ -160,7 +160,7 @@ export default function SessionList() {
       {/* 삭제가 실패해도 표는 남긴다. 이미 불러온 목록은 여전히 유효하고,
           한 행의 삭제 실패로 목록 전체가 사라지면 오히려 혼란스럽다. */}
       {rows !== null && rows.length > 0 && visible.length === 0 && (
-        <div className="empty-state">
+        <div className="empty">
           <strong>{current.emptyTitle}</strong>
           <p>{current.emptyHint}</p>
         </div>
@@ -219,7 +219,7 @@ export default function SessionList() {
         </article>
       )}
 
-      <Toast message={toast} />
+      <Toast items={toasts} onDismiss={dismiss} />
     </Shell>
   );
 }

@@ -57,11 +57,11 @@ export default function CollectPage() {
 
   return (
     <Shell breadcrumb={["Projects", projectName, "API 수집하기"]} projectId={projectId} projectName={projectName}>
-      <section className="heading-row">
+      <section className="page-head">
         <div>
           <p className="eyebrow">수집</p>
           <h1>API 수집하기</h1>
-          <p className="subtitle">
+          <p className="page-sub">
             모은 결과는 <strong>{projectName || `#${projectId}`}</strong> 에 담깁니다.
             방식별 차이는 <Link to="/sources">수집 방식 안내</Link>에 있습니다.
           </p>
@@ -69,7 +69,7 @@ export default function CollectPage() {
       </section>
 
       {error && (
-        <div className="error-banner">
+        <div className="error-box">
           <strong>프로젝트 이름을 불러오지 못했습니다</strong>
           <p>{error}</p>
         </div>

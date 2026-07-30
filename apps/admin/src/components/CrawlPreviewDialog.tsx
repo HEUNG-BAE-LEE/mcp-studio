@@ -142,7 +142,7 @@ export default function CrawlPreviewDialog({
                 disabled={starting}
               />
               <button
-                className="primary"
+                className="btn btn-primary"
                 onClick={() => load(purpose.trim())}
                 disabled={matching || loading || starting || !purpose.trim()}
               >
@@ -159,7 +159,7 @@ export default function CrawlPreviewDialog({
           </section>
 
           {error && (
-            <div className="error-banner" style={{ margin: "0 0 12px" }}>
+            <div className="error-box" style={{ margin: "0 0 12px" }}>
               <p>{error}</p>
             </div>
           )}
@@ -241,7 +241,7 @@ export default function CrawlPreviewDialog({
             공공 서버를 배려해 요청 간 1초를 둡니다. 선택이 많으면 몇 분 걸릴 수 있습니다.
           </span>
           <button className="btn-quiet" onClick={onClose} disabled={starting}>취소</button>
-          <button className="primary" onClick={start} disabled={starting || checked.size === 0}>
+          <button className="btn btn-primary" onClick={start} disabled={starting || checked.size === 0}>
             {starting ? "시작 중…" : `${checked.size}개 수집 시작`}
           </button>
         </footer>

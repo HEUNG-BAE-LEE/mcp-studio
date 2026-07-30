@@ -170,13 +170,13 @@ export default function PortalCrawlPanel({
           <option value={30}>30개</option>
           <option value={50}>50개</option>
         </select>
-        <button className="primary" onClick={openPreview}>
+        <button className="btn btn-primary" onClick={openPreview}>
           수집 시작
         </button>
       </div>
 
       {error && (
-        <div className="error-banner" style={{ marginTop: 10 }}>
+        <div className="error-box" style={{ marginTop: 10 }}>
           <p>{error}</p>
         </div>
       )}

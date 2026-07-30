@@ -207,7 +207,7 @@ export default function LlmConsole() {
         <div>
           <p className="eyebrow">PLAYGROUND</p>
           <h1>Playground</h1>
-          <p className="subtitle">
+          <p className="page-sub">
             물으면 수집한 MCP 도구를 골라 실제로 호출합니다. 결과가 모자라면 최대 {maxCalls}번까지
             이어서 부른 뒤 답하며, 오른쪽에 무엇을 주고받았는지 남습니다.
           </p>
@@ -216,7 +216,7 @@ export default function LlmConsole() {
       </section>
 
       {error && (
-        <div className="error-banner">
+        <div className="error-box">
           <strong>요청을 처리하지 못했습니다</strong>
           <p>{error}</p>
         </div>

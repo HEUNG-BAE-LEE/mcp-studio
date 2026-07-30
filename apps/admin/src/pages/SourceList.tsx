@@ -116,11 +116,11 @@ function Guide({ label, children }: { label: string; children: React.ReactNode }
 export default function SourceList() {
   return (
     <Shell breadcrumb={["수집 방식 안내"]}>
-      <section className="heading-row">
+      <section className="page-head">
         <div>
           <p className="eyebrow">수집</p>
           <h1>수집 방식 안내</h1>
-          <p className="subtitle">
+          <p className="page-sub">
             API 를 가져오는 방식은 셋입니다. 어느 방식으로 수집했든 이후 액션 생성·테스트는 같습니다.
             수집을 시작하려면 프로젝트를 열고 <strong>API 수집하기</strong> 로 갑니다.
           </p>

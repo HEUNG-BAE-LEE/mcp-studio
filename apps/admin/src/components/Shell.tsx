@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import ThemeToggle from "./ThemeToggle";
 
 type Props = {
   breadcrumb: string[];
@@ -83,56 +84,78 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
   // 채워지는 것보다 조금 늦게 나타나는 편이 낫다.
   const chipLabel = (projectName ?? "").trim();
 
+  // 전역 항목과 프로젝트 항목을 갈라 레일과 컨텍스트 패널에 나눠 담는다.
+  // 항목이 늘었다 줄었다 하는 대신 패널이 통째로 생겼다 없어지므로 레일의
+  // 좌표계가 흔들리지 않는다. 번호는 master 의 결정을 따른다 — 수집 방식이
+  // 셋으로 늘면서 "이 순서로 하면 된다"를 말해 줄 것이 필요해졌다.
+  const projectItems = items.filter((i) => i.to !== "/sources");
+  const hasCtx = projectItems.length > 0;
+
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">M</span>
-          <span>MCP Studio</span>
-        </div>
+    <div className={hasCtx ? "app-shell" : "app-shell no-ctx"}>
+      <a className="skip-link" href="#content">본문으로 건너뛰기</a>
 
-        {/* 목업의 워크스페이스 칩에는 셰브론이 있지만 여기엔 드롭다운이 없다.
-            누를 수 있을 것처럼 보이기만 하는 표시는 넣지 않는다. 칩 자체를
-            프로젝트 목록 링크로 두어 다른 프로젝트로 옮기는 길을 만든다. */}
-        {projectId && chipLabel && (
-          <Link to="/" className="workspace" title="프로젝트 목록으로">
-            <span className="workspace-dot">{Array.from(chipLabel)[0]}</span>
-            <span>
+      <nav className="rail" aria-label="주 메뉴">
+        <span className="rail-mark" aria-hidden="true">M</span>
+        <Link to="/" className={pathname === "/" ? "rail-item active" : "rail-item"} title="프로젝트">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <rect x="2.5" y="4" width="15" height="12" rx="2" /><path d="M2.5 8h15" />
+          </svg>
+          <span className="sr-only">프로젝트</span>
+        </Link>
+        <Link
+          to="/sources"
+          className={pathname === "/sources" || pathname.startsWith("/engines/") ? "rail-item active" : "rail-item"}
+          title="수집 엔진"
+        >
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M3 7.5 8 4.5l5 3" strokeLinejoin="round" />
+            <path d="M4.6 8.8v5.2M8 8.8v5.2M11.4 8.8v5.2M3.4 15h9.2" strokeLinecap="round" />
+            <rect x="14.6" y="6.8" width="3.2" height="7.2" rx="1" />
+          </svg>
+          <span className="sr-only">수집 엔진</span>
+        </Link>
+        <div className="rail-spacer" />
+        <ThemeToggle />
+      </nav>
+
+      {hasCtx && (
+        <aside className="ctx" aria-label="프로젝트 메뉴">
+          {chipLabel && (
+            <Link to="/" className="ctx-project" title="프로젝트 목록으로">
+              <span className="ctx-avatar" aria-hidden="true">{Array.from(chipLabel)[0]}</span>
               <strong>{chipLabel}</strong>
-              <small>프로젝트</small>
-            </span>
-          </Link>
-        )}
-
-        <nav>
-          {items.map((item) => (
-            <Link
-              to={item.to}
-              key={item.label}
-              className={isActive(item) ? "nav-item active" : "nav-item"}
-            >
-              {/* 번호가 없는 항목(방식 소개)은 빈 칸을 남기지 않는다. 예전에
-                  빈 nav-number 가 좁은 폭에서 라벨 없는 빈 줄로 보였다. */}
-              {item.number && <span className="nav-number">{item.number}</span>}
-              {item.label}
             </Link>
-          ))}
-        </nav>
-      </aside>
+          )}
+          <div className="ctx-group">프로젝트</div>
+          <div className="ctx-list">
+            {projectItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={isActive(item) ? "nav-item active" : "nav-item"}
+              >
+                <span className="nav-no">{item.number}</span>
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </aside>
+      )}
 
-      <section className="main-area">
+      <main className="main">
         <header className="topbar">
-          <div className="breadcrumbs">
-            {breadcrumb.map((crumb, i) => (
-              <span key={i}>
-                {i > 0 && <span>/</span>}
+          <div className="crumbs">
+            {breadcrumb.filter(Boolean).map((crumb, i, all) => (
+              <span key={i} className={i === all.length - 1 ? "here" : undefined}>
+                {i > 0 && <em aria-hidden="true">/&nbsp;</em>}
                 {crumb}
               </span>
             ))}
           </div>
         </header>
-        <div className="content">{children}</div>
-      </section>
-    </main>
+        <div className="content" id="content">{children}</div>
+      </main>
+    </div>
   );
 }
