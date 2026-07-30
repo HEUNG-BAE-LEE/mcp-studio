@@ -204,14 +204,61 @@ def set_credential(project_id: int, payload: CredentialIn, db: Session = Depends
 
 @router.get("/api/projects/{project_id}/credentials")
 def list_credentials(project_id: int, db: Session = Depends(get_session)) -> list:
-    """등록 여부만 돌려준다. 키 값 자체는 화면에 내려보내지 않는다."""
+    """무슨 키가 필요한지, 그중 무엇이 등록됐는지 돌려준다.
+
+    값 자체는 내려보내지 않는다(마스킹).
+
+    "인증키를 등록하세요" 만으로는 무슨 키를 넣어야 할지 알 수 없다. 이름은
+    기관마다 다르고(공공데이터포털 serviceKey · 행정안전부 confmKey · 통계청
+    apiKey), 그 이름은 수집한 도구의 스펙에 이미 적혀 있다. 화면이 되묻는 대신
+    필요한 목록을 여기서 만들어 준다.
+    """
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(404, "해당 프로젝트를 찾을 수 없습니다")
-    return [
-        {"portal": portal, "masked": (value[:4] + "****") if len(value) > 4 else "****"}
-        for portal, value in (project.credentials or {}).items()
+
+    saved = project.credentials or {}
+
+    # 실행 시점에 주입되는 파라미터(llmEditable=False)가 곧 인증키다.
+    # 어느 도구가 그것을 쓰는지도 함께 모아 화면에서 근거를 보여준다.
+    #
+    # 같은 키가 serviceKey / ServiceKey 로 갈린다 — 기관이 명세를 직접 쓰기
+    # 때문이다. executor 는 대소문자를 무시하고 주입하므로, 여기서도 소문자로
+    # 묶어야 한다. 나누어 세면 이미 등록한 키를 "미등록" 이라고 알리게 된다.
+    saved_lower = {name.lower(): (name, value) for name, value in saved.items()}
+
+    needed: dict = {}
+    for action in db.exec(select(Action).where(Action.project_id == project_id)).all():
+        request = (action.action_spec or {}).get("request", {})
+        schema = request.get("querySchema") or request.get("bodySchema") or {}
+        for name, spec in schema.items():
+            if spec.get("llmEditable", True):
+                continue
+            entry = needed.setdefault(name.lower(), {"label": name, "tools": []})
+            entry["tools"].append(action.name)
+
+    def _mask(value: str) -> str:
+        return (value[:4] + "****") if len(value) > 4 else "****"
+
+    rows = []
+    for lower, entry in sorted(needed.items()):
+        found = saved_lower.get(lower)
+        rows.append({
+            # 등록된 표기가 있으면 그것을, 없으면 명세의 표기를 보여준다.
+            "portal": found[0] if found else entry["label"],
+            "masked": _mask(found[1]) if found else None,
+            "registered": found is not None,
+            "usedBy": sorted(set(entry["tools"]))[:3],
+            "usedByCount": len(set(entry["tools"])),
+        })
+
+    # 도구가 요구하지 않는데 이미 등록해 둔 키도 남긴다 — 지우려면 보여야 한다.
+    rows += [
+        {"portal": name, "masked": _mask(value), "registered": True,
+         "usedBy": [], "usedByCount": 0}
+        for name, value in sorted(saved.items()) if name.lower() not in needed
     ]
+    return rows
 
 
 # ── 포털 일괄 수집 ───────────────────────────────────────────
