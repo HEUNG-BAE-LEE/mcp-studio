@@ -45,6 +45,10 @@ export default function DocumentCollectPanel({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 드래그가 자식 요소로 넘어갈 때마다 dragleave 가 뜬다. 깊이를 세지 않으면
+  // 영역 안에서 움직이기만 해도 강조가 깜빡인다.
+  const [dragDepth, setDragDepth] = useState(0);
+  const dragging = dragDepth > 0;
 
   function pick(selected: FileList | null) {
     if (!selected) return;
@@ -97,17 +101,39 @@ export default function DocumentCollectPanel({
         <span>PDF·텍스트 문서를 올리면 API 명세를 찾아 MCP 도구로 만듭니다.</span>
       </div>
 
-      <div className="doc-pick">
-        <button className="btn-outline doc-browse" onClick={() => inputRef.current?.click()} disabled={busy}>
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M1.8 4.2A1.4 1.4 0 0 1 3.2 2.8h3l1.4 1.6h4.2a1.4 1.4 0 0 1 1.4 1.4v5.4a1.4 1.4 0 0 1-1.4 1.4H3.2a1.4 1.4 0 0 1-1.4-1.4z"
-                  strokeLinecap="round" strokeLinejoin="round" />
+      {/* 파일을 고르는 일은 끌어다 놓는 것이 가장 짧다. 버튼은 남겨 둔다 —
+          드래그가 어려운 환경(키보드·보조기기)에서는 그것이 유일한 길이다.
+          그래서 영역 자체를 button 으로 두고 드롭 핸들러를 함께 건다. */}
+      <div
+        className={dragging ? "doc-drop is-over" : "doc-drop"}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          setDragDepth((d) => d + 1);
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDragLeave={() => setDragDepth((d) => Math.max(0, d - 1))}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragDepth(0);
+          if (!busy) pick(e.dataTransfer.files);
+        }}
+      >
+        <button
+          type="button"
+          className="doc-drop-hit"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M12 15V4m0 0L8 8m4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" strokeLinecap="round" />
           </svg>
-          찾아보기
+          <strong>{dragging ? "여기에 놓으세요" : "문서를 끌어다 놓으세요"}</strong>
+          <span>
+            또는 <u>클릭해서 찾아보기</u> · 여러 개 한꺼번에 가능
+          </span>
+          <em>PDF · TXT · MD · JSON · YAML · HTML · DOCX · CSV</em>
         </button>
-        <span className="doc-pick-note">
-          {files.length === 0 ? "여러 개 선택 가능" : `${files.length}개 선택됨`}
-        </span>
         <input
           ref={inputRef}
           type="file"
@@ -116,6 +142,17 @@ export default function DocumentCollectPanel({
           onChange={(e) => pick(e.target.files)}
           style={{ display: "none" }}
         />
+      </div>
+
+      <div className="doc-actions">
+        <span className="doc-pick-note">
+          {files.length === 0 ? "선택된 문서 없음" : `${files.length}개 선택됨`}
+        </span>
+        {files.length > 0 && (
+          <button type="button" className="btn-quiet" onClick={() => setFiles([])} disabled={busy}>
+            비우기
+          </button>
+        )}
         <button className="btn btn-primary" onClick={submit} disabled={busy || files.length === 0}>
           {busy ? "분석 중…" : "수집하기"}
         </button>

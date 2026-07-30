@@ -28,24 +28,29 @@
     /* 중립 — 순수 검정 기반. 표면은 명도만 올리고 색을 섞지 않는다.
        well 이 surface 보다 어두운 것은 입력란을 '파인 곳'으로 읽히게 하려는
        것이다. 검정 캔버스에서는 밝게 띄우는 것보다 이쪽이 자연스럽다. */
-    --bg: #000000;
-    --surface: #0a0a0b;
-    --raised: #131316;
-    --well: #08080a;
-    --line: #1e2022;
-    --line-2: #2a2d30;
-    --line-3: #3a3e44;
-    --tx-1: #f5f5f6;
-    --tx-2: #a8abb0;
-    --tx-3: #6e7278;
-    --tx-4: #4a4e54;
+    /* 단계는 지각 명도(L*)로 잡는다. 검정 근처에서는 WCAG 대비비가 뭉개져
+       지표로 쓸 수 없다 — 이전 팔레트는 대비비만 보고 순수 #000 위에 L*2.8
+       카드를 얹어, 패널도 경계선도 배경에서 떠오르지 않았다.
+       인접 단계의 L* 차이를 4 이상으로 벌린다. */
+    --bg: #08090c;        /* L* 2.5  — 캔버스 */
+    --chrome: #12141b;    /* L* 6.4  — 레일·컨텍스트 패널·상단바 */
+    --surface: #1c1f28;   /* L* 11.8 — 카드·패널 */
+    --raised: #262a35;    /* L* 17.1 — 행 hover·컨트롤 */
+    --well: #05060a;      /* L* 1.5  — 입력란(파인 곳) */
+    --line: #333947;      /* L* 24.0 — 헤어라인. 카드와 Δ12 라 실제로 보인다 */
+    --line-2: #434b5d;    /* L* 31.8 — 컨트롤 테두리 */
+    --line-3: #596176;    /* L* 41.2 — 강조 테두리 */
+    --tx-1: #f2f4f8;
+    --tx-2: #b2b8c4;
+    --tx-3: #838a99;
+    --tx-4: #5d6474;
 
     /* 표면 광택. 검정 위 카드에 아주 약한 세로 그라데이션을 넣으면 평면
        사각형이 '판'으로 읽힌다. 8% 이상 올리면 싸구려로 보인다. */
-    --sheen: linear-gradient(180deg, #141416 0%, #0a0a0b 42%);
-    --sheen-ctl: linear-gradient(180deg, #191a1d 0%, #0e0f11 100%);
-    --sheen-ctl-hover: linear-gradient(180deg, #212226 0%, #141517 100%);
-    --edge: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+    --sheen: linear-gradient(180deg, #232733 0%, #1c1f28 46%);
+    --sheen-ctl: linear-gradient(180deg, #2b3040 0%, #1e2230 100%);
+    --sheen-ctl-hover: linear-gradient(180deg, #353b4d 0%, #262b3a 100%);
+    --edge: inset 0 1px 0 rgba(255, 255, 255, 0.075);
 
     /* 아이덴티티 — 아이리스 하나만 쓴다. 브랜드 마크·활성 표시·포커스 링.
        주버튼에는 쓰지 않는다(색 채운 버튼을 주 액션으로 두지 않는다). */
@@ -121,6 +126,7 @@
   /* 라이트 페이퍼. 값만 교체하며 컴포넌트 규칙은 한 줄도 바뀌지 않는다. */
   :root[data-theme="light"] {
     --bg: #ffffff;
+    --chrome: #fafafb;
     --surface: #ffffff;
     --raised: #f6f6f7;
     --well: #f4f4f5;
@@ -228,6 +234,16 @@
   /* 클래스를 달지 않은 select 도 시스템 안에 둔다. 두지 않으면 OS 기본
      흰 드롭다운이 검정 화면에 그대로 뚫린다. */
   select {
+    /* macOS 는 네이티브 select 를 자기 크롬으로 그린다. appearance 를 끄지
+       않으면 검정 화면에 밝은 회색 위젯이 그대로 뚫린다. */
+    appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--tx-3) 50%),
+      linear-gradient(135deg, var(--tx-3) 50%, transparent 50%);
+    background-position: right 14px center, right 9px center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 28px;
     height: var(--h-ctl);
     padding: 0 10px;
     border: 1px solid var(--line-2);
@@ -286,6 +302,7 @@
     position: sticky;
     top: 0;
     height: 100vh;
+    background: var(--chrome);
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;
@@ -334,6 +351,7 @@
     position: sticky;
     top: 0;
     height: 100vh;
+    background: var(--chrome);
     border-right: 1px solid var(--line);
     padding: 12px 10px;
     overflow-y: auto;
@@ -416,7 +434,7 @@
     justify-content: space-between;
     gap: var(--sp-4);
     padding: 0 var(--sp-8);
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    background: color-mix(in srgb, var(--chrome) 92%, transparent);
     backdrop-filter: saturate(160%) blur(12px);
     border-bottom: 1px solid var(--line);
     z-index: 1;
@@ -587,6 +605,7 @@
   .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   .tbl th {
     text-align: left;
+    background: var(--raised);
     padding: 11px 18px;
     font-size: 11.5px;
     font-weight: 600;
@@ -871,6 +890,7 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
+  .select { appearance: none; padding-right: 28px; }
   .input, .select, .textarea {
     width: 100%;
     height: var(--h-ctl);
@@ -1823,6 +1843,7 @@
   .table-head {
     display: grid;
     align-items: center;
+    background: var(--raised);
     padding: 11px 18px;
     border-bottom: 1px solid var(--line);
     font-size: 12px;
@@ -1914,6 +1935,55 @@
   .source-dot.on { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-tint); }
   .source-state { font-size: 12px; color: var(--tx-3); }
   .source-row.is-live .source-state { color: var(--ok); }
+
+  /* ── 문서 드롭 영역 ──
+     파일을 고르는 일은 끌어다 놓는 것이 가장 짧다. 버튼도 남긴다 — 드래그가
+     어려운 환경에서는 그것이 유일한 길이라, 영역 전체를 button 으로 둔다. */
+  .doc-drop {
+    margin-top: var(--sp-4);
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-card);
+    background: var(--well);
+    transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+  }
+  .doc-drop.is-over {
+    border-color: var(--brand);
+    border-style: solid;
+    background: var(--brand-tint);
+  }
+  .doc-drop-hit {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: var(--sp-8) var(--sp-5);
+    border: 0;
+    background: none;
+    color: var(--tx-3);
+    text-align: center;
+  }
+  .doc-drop-hit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .doc-drop-hit svg { color: var(--tx-4); margin-bottom: 2px; }
+  .doc-drop.is-over .doc-drop-hit svg { color: var(--brand-soft); }
+  .doc-drop-hit strong { font-size: 14px; color: var(--tx-1); letter-spacing: -0.015em; }
+  .doc-drop.is-over .doc-drop-hit strong { color: var(--brand-soft); }
+  .doc-drop-hit span { font-size: 12.5px; color: var(--tx-3); }
+  .doc-drop-hit u { color: var(--tx-2); text-underline-offset: 2px; }
+  .doc-drop-hit em {
+    margin-top: 4px;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 11.5px;
+    color: var(--tx-4);
+  }
+  .doc-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-top: var(--sp-3);
+  }
+  .doc-actions .btn { margin-left: auto; }
+  .doc-actions .doc-pick-note { font-size: 12.5px; color: var(--tx-3); }
 
   /* ── 프로젝트 카드 ────────────────────────────────────────────────
      표는 이름과 숫자만 나열해서, 무엇을 모아 둔 프로젝트인지는 열어 봐야 알 수
