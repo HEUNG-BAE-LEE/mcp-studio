@@ -34,12 +34,12 @@
   align-items: center;
   gap: 8px;
   padding: 9px 13px;
-  border-bottom: 1px solid var(--signal-tint);
-  background: var(--signal-tint);
+  border-bottom: 1px solid var(--danger-tint);
+  background: var(--danger-tint);
 }
 
 .rec-bar strong {
-  color: var(--signal);
+  color: var(--danger);
   font-size: 12px;
 }
 

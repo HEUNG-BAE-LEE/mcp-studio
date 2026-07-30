@@ -92,6 +92,20 @@ export default function ActionList() {
           <h1>액션</h1>
           <p className="page-sub">테스트 콘솔에는 활성 상태인 액션만 노출됩니다</p>
         </div>
+        {/* 콘솔에 실제로 노출되는 것이 몇 개인지가 이 화면의 핵심 숫자다.
+            이미 받아온 배열에서 센다 — 요청을 늘리지 않는다. */}
+        {rows !== null && rows.length > 0 && (
+          <div className="metrics head-side">
+            <div className="is-ok">
+              <b>{rows.filter((r) => r.status === "ACTIVE").length}</b>
+              <small>활성</small>
+            </div>
+            <div>
+              <b>{rows.length}</b>
+              <small>전체</small>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && <ErrorBox message={error} />}

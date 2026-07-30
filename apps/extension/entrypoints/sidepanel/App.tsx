@@ -199,7 +199,7 @@ export default function App() {
     <>
       {recording ? (
         <div className="rec-bar">
-          <span className="dot dot-signal" />
+          <span className="dot dot-danger" />
           <strong>기록 중</strong>
           <span className="push mono" style={{ fontSize: 11.5, color: "var(--tx-2)" }}>
             {counts.networkCount} 요청
@@ -235,7 +235,7 @@ export default function App() {
             {/* 되돌릴 수 없는 조작이라 시그널 색을 쓰는 유일한 버튼이다. */}
             <button
               type="button"
-              className="btn btn-signal"
+              className="btn btn-critical"
               onClick={() =>
                 chrome.runtime.sendMessage({ type: "stop" }, (r) => {
                   setRecording(false);

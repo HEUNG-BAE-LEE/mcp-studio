@@ -6,43 +6,54 @@
    때는 두 파일을 함께 고친다. 색을 하나만 고쳐도 확장과 관리자의 수집 방식
    배지 색이 갈리고, 그러면 사용자는 둘을 다른 도구로 읽는다.
 
+   시스템 규칙은 관리자와 같다 — 순수 #000 캔버스, 1px 헤어라인으로 층 구분,
+   라디우스 6/16, 주 액션은 흰 판(색 채운 버튼은 되돌릴 수 없는 조작 전용).
+
    폰트도 같은 이유로 public/fonts/ 에 복제해 둔다.
    ========================================================================== */
 
 :root {
-  --bg: #0c0b0a;
-  --surface: #131211;
-  --raised: #191817;
-  --well: #201e1c;
-  --line: #2a2725;
-  --line-2: #3a3633;
-  --tx-1: #f2eeea;
-  --tx-2: #a79e97;
-  --tx-3: #7c746e;
+  --bg: #000000;
+  --surface: #0a0a0b;
+  --raised: #131316;
+  --well: #08080a;
+  --line: #1e2022;
+  --line-2: #2a2d30;
+  --line-3: #3a3e44;
+  --tx-1: #f5f5f6;
+  --tx-2: #a8abb0;
+  --tx-3: #6e7278;
+  --tx-4: #4a4e54;
 
-  --signal: #ff5c1a;
-  --signal-press: #c7430f;
-  --signal-tint: rgba(255, 92, 26, 0.11);
+  --sheen: linear-gradient(180deg, #141416 0%, #0a0a0b 42%);
+  --sheen-ctl: linear-gradient(180deg, #191a1d 0%, #0e0f11 100%);
+  --sheen-ctl-hover: linear-gradient(180deg, #212226 0%, #141517 100%);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.055);
 
-  --danger: #ff4d3d;
-  --danger-tint: rgba(255, 77, 61, 0.12);
-  --danger-line: rgba(255, 77, 61, 0.3);
-  --warn: #e3a73c;
-  --ok: #2fbf9e;
+  --brand: #9281f7;
+  --brand-soft: #b3a6ff;
+  --brand-tint: rgba(146, 129, 247, 0.14);
+  --brand-line: rgba(146, 129, 247, 0.34);
 
-  --kind-traffic: #5b8def;
-  --kind-portal: #2fbf9e;
-  --kind-portal-tint: rgba(47, 191, 158, 0.13);
-  --kind-portal-line: rgba(47, 191, 158, 0.26);
+  --ok: #3ad389;
+  --warn: #ffb224;
+  --danger: #ff6465;
+  --danger-tint: rgba(255, 100, 101, 0.12);
+  --danger-line: rgba(255, 100, 101, 0.34);
 
-  --r-ctl: 4px;
-  --r-card: 10px;
+  --kind-traffic: #3b9eff;
+  --kind-portal: #3ad389;
+  --kind-portal-tint: rgba(58, 211, 137, 0.13);
+  --kind-portal-line: rgba(58, 211, 137, 0.3);
+
+  --r-ctl: 6px;
+  --r-card: 16px;
   --r-pill: 999px;
 
   --sans: "Wanted Sans", -apple-system, "Apple SD Gothic Neo", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --dur-1: 110ms;
+  --dur-1: 120ms;
   --ease: cubic-bezier(0.2, 0.9, 0.25, 1);
 
   color-scheme: dark;
@@ -63,9 +74,7 @@
   font-display: swap;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -74,156 +83,142 @@ body {
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 430;
-  line-height: 1.55;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
-button,
-input {
-  font: inherit;
-  color: inherit;
-}
-button {
-  cursor: pointer;
-}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
 
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--signal);
+  box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px rgba(146, 129, 247, 0.6);
   border-radius: var(--r-ctl);
 }
 
-strong {
-  color: var(--tx-1);
-  font-weight: 600;
-}
+strong { color: var(--tx-1); font-weight: 600; }
 
 .mono {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "zero" 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
 }
 
-/* ── 공통 컴포넌트 ── 관리자와 같은 어휘를 쓴다. */
+/* ── 공통 컴포넌트 ── 관리자와 같은 어휘를 쓴다.
+   검정 위 버튼은 미세한 세로 그라데이션 + 위쪽 1px 하이라이트로 '판'이 된다. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   width: 100%;
-  height: 34px;
-  padding: 0 12px;
+  height: 36px;
+  padding: 0 13px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-ctl);
-  background: var(--raised);
+  background: var(--sheen-ctl);
+  box-shadow: var(--edge);
   color: var(--tx-1);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 550;
-  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  letter-spacing: -0.006em;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease),
+    transform var(--dur-1) var(--ease), opacity var(--dur-1) var(--ease);
 }
-.btn:hover:not(:disabled) {
-  background: var(--well);
-}
-.btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-/* 주버튼은 바닥에서 가장 먼 값이다. 시그널 오렌지는 주버튼에 쓰지 않는다. */
+.btn:hover:not(:disabled) { background: var(--sheen-ctl-hover); border-color: var(--line-3); }
+.btn:active:not(:disabled) { transform: translateY(0.5px); box-shadow: none; }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* 주버튼은 바닥에서 가장 먼 값이다. 색을 채운 버튼을 주 액션으로 두지 않는다. */
 .btn-primary {
-  background: var(--tx-1);
-  border-color: var(--tx-1);
-  color: var(--bg);
-  font-weight: 600;
+  background: linear-gradient(180deg, #ffffff 0%, #dcdce0 100%);
+  border-color: #ffffff;
+  color: #08080a;
+  font-weight: 620;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
-.btn-primary:hover:not(:disabled) {
-  background: var(--tx-2);
-  border-color: var(--tx-2);
+.btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, #ffffff 0%, #ececef 100%); }
+
+/* 되돌릴 수 없는 순간에만 (기록 종료). 채운 빨강은 이 한 곳뿐이다. */
+.btn-critical {
+  background: linear-gradient(180deg, #ff7071 0%, #e04a4b 100%);
+  border-color: #ff6465;
+  color: #1a0708;
+  font-weight: 620;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
-/* 되돌릴 수 없는 순간에만 (기록 종료). */
-.btn-signal {
-  background: var(--signal);
-  border-color: var(--signal);
-  color: #160800;
-  font-weight: 600;
-}
-.btn-signal:hover:not(:disabled) {
-  background: var(--signal-press);
-  border-color: var(--signal-press);
-}
+.btn-critical:hover:not(:disabled) { background: linear-gradient(180deg, #ff8384 0%, #ef5859 100%); }
 
 .card {
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  padding: 12px;
-  background: var(--surface);
+  padding: 14px;
+  background: var(--sheen);
+  box-shadow: var(--edge);
 }
-.card + .card {
-  margin-top: 8px;
-}
+.card + .card { margin-top: 9px; }
 .card-portal {
   border-color: var(--kind-portal-line);
   background: var(--kind-portal-tint);
+  box-shadow: none;
 }
 
 .label {
   display: block;
-  margin-bottom: 6px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  color: var(--tx-3);
-  letter-spacing: 0.06em;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tx-4);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .input {
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
+  height: 34px;
+  padding: 0 11px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-ctl);
   background: var(--well);
   color: var(--tx-1);
-  font-size: 12.5px;
+  font-size: 13px;
   outline: none;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
-.input::placeholder {
-  color: var(--tx-3);
-}
+.input::placeholder { color: var(--tx-4); }
+.input:hover { border-color: var(--line-3); }
 .input:focus {
-  border-color: var(--signal);
-  box-shadow: 0 0 0 3px var(--signal-tint);
+  border-color: var(--brand);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--brand-tint);
 }
-.input:disabled {
-  opacity: 0.55;
-}
+.input:disabled { opacity: 0.55; }
 
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 9px;
+  padding: 3px 10px;
   border: 1px solid var(--kind-portal-line);
   border-radius: var(--r-pill);
   background: var(--kind-portal-tint);
   color: var(--kind-portal);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
 }
 
 .dot {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
+  gap: 7px;
+  font-size: 12px;
   color: var(--tx-3);
   white-space: nowrap;
 }
@@ -234,53 +229,35 @@ strong {
   border-radius: 50%;
   background: currentColor;
   flex-shrink: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
 }
-.dot-ok {
-  color: var(--ok);
-}
-.dot-signal {
-  color: var(--signal);
-}
-.dot-signal::before {
-  box-shadow: 0 0 0 3px var(--signal-tint);
-}
+.dot-ok { color: var(--ok); }
+.dot-danger { color: var(--danger); }
 
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.push {
-  margin-left: auto;
-}
-.hair {
-  height: 1px;
-  background: var(--line);
-  margin: 12px 0;
-}
-.help {
-  font-size: 11.5px;
-  color: var(--tx-3);
-  line-height: 1.5;
-}
+.row { display: flex; align-items: center; gap: 9px; }
+.push { margin-left: auto; }
+.hair { height: 1px; background: var(--line); margin: 14px 0; }
+.help { font-size: 12px; color: var(--tx-3); line-height: 1.55; }
 .mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: var(--signal);
-  color: #160800;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--brand);
+  color: #0b0910;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
+  letter-spacing: -0.03em;
   flex-shrink: 0;
+  box-shadow: var(--edge);
 }
 .alert {
-  margin-top: 10px;
-  padding: 9px 11px;
+  margin-top: 11px;
+  padding: 10px 12px;
   border: 1px solid var(--danger-line);
   border-radius: var(--r-ctl);
   background: var(--danger-tint);
   color: var(--danger);
-  font-size: 11.5px;
+  font-size: 12px;
 }
