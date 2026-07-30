@@ -1,0 +1,33 @@
+flowchart TB
+  subgraph TOP["클라이언트 (사용자 브라우저)"]
+    direction LR
+    subgraph EXT["Chrome 확장 (WXT)"]
+      direction TB
+      REC["트래픽 기록<br/>fetch·XHR 후킹<br/>클릭-요청 상관관계"]
+      DET["포털 명세 감지<br/>(공개 명세 페이지 판정)"]
+    end
+    subgraph AD["React 관리자"]
+      UI["수집 엔진 · 세션 상세<br/>액션 편집 · LLM 콘솔"]
+    end
+  end
+  subgraph BE["FastAPI 백엔드"]
+    direction LR
+    subgraph COLLECT["수집 계층"]
+      direction TB
+      SESS["기록 세션 저장"] --> SCORE["후보 스코어링<br/>(로그 API 감점 등)"]
+      SCORE --> INFER["스키마 추론<br/>타입·예시값·WAF 헤더 보존"]
+      CRAWL["일괄 수집기<br/>1초 간격·최대 60건"] --> PARSE["명세 파서<br/>(요청주소·요청변수 표)"]
+    end
+    subgraph RUN["실행 계층"]
+      direction TB
+      ACT["액션 (ActionSpec)<br/>세션과 독립된 값 복사"] --> TOOL["LLM 도구 변환<br/>tool_choice=required<br/>예시값 주입"]
+      TOOL --> LLM["Azure OpenAI<br/>function calling"]
+      LLM --> EXEC["실행 게이트웨이<br/>레이트리밋·인증키 주입·마스킹"]
+    end
+    INFER --> ACT
+    PARSE --> ACT
+  end
+  REC -->|"기록 전송"| SESS
+  DET -->|"페이지 DOM 전송"| PARSE
+  UI --- BE
+  EXEC -->|"HTTP (간격 1초)"| API[("대상 API<br/>공공 포털·기관 서버")]
