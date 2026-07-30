@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
+import CollectModal from "../components/CollectModal";
 import Toast, { useToast } from "../components/Toast";
 import CollectionBadge from "../components/CollectionMark";
 
@@ -55,6 +56,7 @@ const kindOf = (raw: string | null | undefined): Kind =>
   raw === "portal" || raw === "document" ? raw : "traffic";
 
 export default function SessionList() {
+  const [collecting, setCollecting] = useState(false);
   const { id } = useParams();
   const projectId = Number(id);
   const [rows, setRows] = useState<SessionRow[] | null>(null);
@@ -120,7 +122,9 @@ export default function SessionList() {
             포털 폼이 다시 CrawlPreviewDialog 를 열어 팝업이 두 겹이 됐다.
             전용 화면으로 보낸다. */}
         {!notFound && projectId != null && (
-          <Link className="btn btn-primary" to={`/projects/${projectId}/collect`}>+ 수집 시작</Link>
+          <button type="button" className="btn btn-primary" onClick={() => setCollecting(true)}>
+            + 수집 시작
+          </button>
         )}
       </section>
 
@@ -220,6 +224,13 @@ export default function SessionList() {
       )}
 
       <Toast items={toasts} onDismiss={dismiss} />
+      {collecting && projectId != null && (
+        <CollectModal
+          projectId={projectId}
+          projectName={projectName}
+          onClose={() => { setCollecting(false); load(); }}
+        />
+      )}
     </Shell>
   );
 }
