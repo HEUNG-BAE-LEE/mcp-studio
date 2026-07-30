@@ -13,7 +13,14 @@ import { api, errorMessage } from "../api/client";
  * 띄게 해 "왜 호출이 실패하는지"를 찾아 헤매지 않게 한다.
  */
 
-type Credential = { portal: string; masked: string };
+type Credential = {
+  portal: string;
+  masked: string | null;
+  registered: boolean;
+  /** 이 키를 쓰는 도구 이름 몇 개. 무슨 키인지 근거가 된다. */
+  usedBy: string[];
+  usedByCount: number;
+};
 
 export default function CredentialPanel({ projectId }: { projectId: number }) {
   const [rows, setRows] = useState<Credential[] | null>(null);
@@ -51,12 +58,20 @@ export default function CredentialPanel({ projectId }: { projectId: number }) {
     }
   }
 
-  const current = rows?.[0];
+  // 아직 등록되지 않았는데 도구가 요구하는 키. 이것이 있으면 호출이 막힌다.
+  const missing = (rows ?? []).filter((r) => !r.registered && r.usedByCount > 0);
+  const registered = (rows ?? []).filter((r) => r.registered);
+  const current = registered[0];
+
+  // 창을 열 때 무엇을 넣어야 하는지 미리 채워 둔다. 되묻지 않기 위해서다.
+  useEffect(() => {
+    if (open && missing.length > 0) setPortal(missing[0].portal);
+  }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="cred">
       <button
-        className={`cred-chip ${current ? "" : "is-missing"}`}
+        className={`cred-chip ${missing.length === 0 && current ? "" : "is-missing"}`}
         onClick={() => setOpen((v) => !v)}
         title="포털 인증키는 LLM 에게 숨기고 실행 시점에 주입합니다"
       >
@@ -64,15 +79,42 @@ export default function CredentialPanel({ projectId }: { projectId: number }) {
           <circle cx="5.6" cy="8" r="2.6" />
           <path d="M8.2 8h6.2M12.4 8v2.2M10.6 8v1.6" strokeLinecap="round" />
         </svg>
-        {current ? <>인증키 <code>{current.masked}</code></> : <>인증키 미등록</>}
+        {missing.length > 0
+          ? <>인증키 필요 · <code>{missing[0].portal}</code>{missing.length > 1 && ` 외 ${missing.length - 1}`}</>
+          : current
+            ? <>인증키 <code>{current.masked}</code>{registered.length > 1 && ` 외 ${registered.length - 1}`}</>
+            : <>인증키 없음</>}
       </button>
 
       {open && (
         <div className="cred-form">
           <p>
-            포털 공개 기반 수집으로 만든 도구는 인증키를 LLM 에게 숨기고 실행 시점에 주입합니다.
-            키가 없으면 호출 전에 막힙니다.
+            수집한 도구가 요구하는 인증키입니다. 이름은 기관마다 다릅니다 —
+            공공데이터포털은 <code>serviceKey</code>, 행정안전부 주소는 <code>confmKey</code>,
+            통계청은 <code>apiKey</code> 를 씁니다. 값은 각 기관 사이트에서 발급받습니다.
           </p>
+
+          {rows !== null && rows.length > 0 && (
+            <ul className="cred-need">
+              {rows.map((row) => (
+                <li key={row.portal} className={row.registered ? "is-ok" : "is-missing"}>
+                  <code>{row.portal}</code>
+                  <span>
+                    {row.usedByCount > 0
+                      ? `도구 ${row.usedByCount}개가 사용${row.usedBy[0] ? ` · ${row.usedBy[0]}${row.usedByCount > 1 ? " 외" : ""}` : ""}`
+                      : "쓰는 도구 없음"}
+                  </span>
+                  <b>{row.registered ? row.masked : "미등록"}</b>
+                  {!row.registered && (
+                    <button type="button" className="btn btn-ghost btn-sm"
+                            onClick={() => setPortal(row.portal)}>
+                      이 키 넣기
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="cred-row">
             <input
               value={portal}
