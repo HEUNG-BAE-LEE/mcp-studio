@@ -9,6 +9,7 @@ import LlmConsole from "./pages/LlmConsole";
 import SourceList from "./pages/SourceList";
 import EngineSessionList from "./pages/EngineSessionList";
 import CrawlStatus from "./pages/CrawlStatus";
+import CollectPage from "./pages/CollectPage";
 import SpecSessionDetail from "./pages/SpecSessionDetail";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,8 @@ export default function App() {
           <Route path="/projects/:id/console" element={<LlmConsole />} />
           <Route path="/sources" element={<SourceList />} />
           <Route path="/engines/:kind" element={<EngineSessionList />} />
+          {/* 수집은 프로젝트 안에서 시작한다. 전역 /sources 는 방식 소개만 한다 */}
+          <Route path="/projects/:id/collect" element={<CollectPage />} />
           <Route path="/projects/:id/crawls" element={<CrawlStatus />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
           <Route path="/spec-sessions/:id" element={<SpecSessionDetail />} />

@@ -45,6 +45,11 @@ export default function PortalCrawlPanel({
   const [running, setRunning] = useState<RunningJob | null>(null);
   const [preview, setPreview] = useState(false);
 
+  // 두 모드가 다 이 목록을 쓴다. 고를 수 있는 모드(onProjectChange 를 받은
+  // 경우)에서는 드롭다운의 선택지가 되고, 프로젝트가 고정된 모드에서는
+  // projectId 에 해당하는 **이름**을 찾는 데 쓴다. 어느 쪽이든 결과가 어느
+  // 프로젝트로 들어가는지 화면에 드러나야 한다 — 조용히 첫 프로젝트에 넣으면
+  // "대기 API 를 모았는데 실거래가 프로젝트에 들어간" 상황을 설명할 수 없다.
   useEffect(() => {
     api.get("/api/projects").then(setProjects).catch(() => {});
   }, []);
@@ -115,16 +120,28 @@ export default function PortalCrawlPanel({
       )}
 
       <div className="crawl-target">
-        <label htmlFor="crawl-project">수집 결과를 담을 프로젝트</label>
-        <select
-          id="crawl-project"
-          value={projectId ?? ""}
-          onChange={(e) => onProjectChange?.(Number(e.target.value))}
-        >
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>{project.name}</option>
-          ))}
-        </select>
+        {/* 고정 모드에는 select 가 없다. htmlFor 를 그대로 두면 label 이
+            존재하지 않는 요소를 가리킨다. */}
+        {onProjectChange ? (
+          <label htmlFor="crawl-project">수집 결과를 담을 프로젝트</label>
+        ) : (
+          <span className="crawl-target-label">수집 결과를 담을 프로젝트</span>
+        )}
+        {onProjectChange ? (
+          <select
+            id="crawl-project"
+            value={projectId ?? ""}
+            onChange={(e) => onProjectChange(Number(e.target.value))}
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>{project.name}</option>
+            ))}
+          </select>
+        ) : (
+          <strong className="crawl-fixed-project">
+            {projects.find((p) => p.id === projectId)?.name ?? `#${projectId}`}
+          </strong>
+        )}
       </div>
 
       <div className="crawl-presets">

@@ -24,6 +24,10 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
   // 문서)으로 늘면서 어디서 시작해 어디서 확인하는지가 한눈에 안 잡혀, 화면
   // 이름과 함께 순서를 붙였다.
   //
+  // 수집은 **프로젝트 안에서** 시작한다. "API 수집하기"(02)를 전역 /sources 가
+  // 아니라 /projects/:id/collect 로 두는 이유다 — 전역 페이지에 두면 어느
+  // 프로젝트에 담을지 되묻게 되고, 그 되묻기가 프로젝트 드롭다운이었다.
+  // /sources 는 프로젝트 없이도 볼 수 있는 방식 소개로 맨 아래 남긴다.
   // 정확 일치(to)와 접두사(prefixes)를 따로 둔다. 하나의 목록에 섞어 담고
   // 끝의 슬래시로 구분하려 했더니 루트("/")가 모든 경로의 접두사여서
   // 프로젝트 항목이 항상 활성으로 잡혔다. 세션 상세는 /sessions/:id ·
@@ -31,9 +35,14 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
   // 사이드바가 통째로 꺼져 위치를 잃는다.
   const items = [
     { label: "프로젝트", number: "01", to: "/", prefixes: [] as string[] },
-    { label: "API 수집하기", number: "02", to: "/sources", prefixes: [] as string[] },
     ...(projectId
       ? [
+          {
+            label: "API 수집하기",
+            number: "02",
+            to: `/projects/${projectId}/collect`,
+            prefixes: [] as string[],
+          },
           {
             label: "수집현황",
             number: "03",
@@ -60,6 +69,10 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
           },
         ]
       : []),
+    // 엔진은 장소가 아니라 수집 사건의 속성이다. 시작하는 곳이 아니라 무엇이
+    // 있는지 읽는 곳이라 번호를 붙이지 않고 맨 아래 둔다.
+    // /engines/:kind (EngineSessionList) 도 이 항목 소관이라 접두사로 함께 켠다.
+    { label: "수집 방식 안내", number: undefined as string | undefined, to: "/sources", prefixes: ["/engines/"] },
   ];
 
   function isActive(item: { to: string; prefixes: string[] }): boolean {
@@ -98,7 +111,9 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
               key={item.label}
               className={isActive(item) ? "nav-item active" : "nav-item"}
             >
-              <span className="nav-number">{item.number}</span>
+              {/* 번호가 없는 항목(방식 소개)은 빈 칸을 남기지 않는다. 예전에
+                  빈 nav-number 가 좁은 폭에서 라벨 없는 빈 줄로 보였다. */}
+              {item.number && <span className="nav-number">{item.number}</span>}
               {item.label}
             </Link>
           ))}

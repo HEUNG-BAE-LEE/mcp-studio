@@ -116,7 +116,14 @@ export default function SessionList() {
           <h1>수집현황</h1>
           <p className="subtitle">수집 방식별로 무엇을 모았는지 확인하고, 액션으로 만들 후보를 고릅니다.</p>
         </div>
+        {/* 수집은 프로젝트 안에서 시작한다. 예전에는 여기서 팝업을 띄웠는데,
+            포털 폼이 다시 CrawlPreviewDialog 를 열어 팝업이 두 겹이 됐다.
+            전용 화면으로 보낸다. */}
+        {!notFound && projectId != null && (
+          <Link className="primary" to={`/projects/${projectId}/collect`}>+ 수집 시작</Link>
+        )}
       </section>
+
 
       {error && (
         <div className="error-banner">
@@ -146,7 +153,7 @@ export default function SessionList() {
       {settled && !notFound && rows.length === 0 && (
         <div className="empty-state">
           <strong>수집된 세션이 없습니다</strong>
-          <p>확장 사이드 패널에서 트래픽 기록을 시작하거나, 포털 명세 페이지에서 공개 명세를 수집해 보세요.</p>
+          <p>위의 <strong>+ 수집 시작</strong>을 눌러 수집 방식을 고르세요.</p>
         </div>
       )}
 

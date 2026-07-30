@@ -1,9 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { api } from "../api/client";
+import { Link } from "react-router-dom";
 import Shell from "../components/Shell";
-import PortalCrawlPanel from "../components/PortalCrawlPanel";
-import DocumentCollectPanel from "../components/DocumentCollectPanel";
 
 /**
  * 수집 엔진 화면.
@@ -103,9 +99,10 @@ function DocumentIllustration() {
 /**
  * 시작 안내.
  *
- * 수집은 브라우저(확장 프로그램)에서 일어나므로 관리자가 직접 시작할 수 없다.
- * 그래서 "시작" 버튼을 만들지 않는다 — 눌러도 아무것도 시작되지 않는 버튼은
- * 안내가 없는 것보다 나쁘다. 대신 무엇을 해야 하는지 순서대로 펼친다.
+ * 이 화면은 설명 전용이다. 수집은 프로젝트 안(`/projects/:id/collect`,
+ * `pages/CollectPage.tsx`)에서 시작한다. 그래서 여기에는 "시작" 버튼도
+ * 수집 폼도 두지 않는다 — 프로젝트를 모르는 자리에서 시작하게 하면 어느
+ * 프로젝트에 담을지 되묻게 되고, 그 되묻기가 예전의 프로젝트 드롭다운이었다.
  */
 function Guide({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -116,83 +113,16 @@ function Guide({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-type Harvest = { kind: string; sessions: number; candidates: number; projects: number };
-
-/**
- * 이 엔진으로 무엇을 모았는지.
- *
- * 엔진은 프로젝트가 아니라 **수집 사건**의 속성이다(RecordingSession.kind).
- * 그래서 프로젝트를 엔진별로 쪼개지 않는다 — 한 프로젝트에 트래픽 세션과 포털
- * 세션이 함께 있는 것이 정상이고("미세먼지" 주제를 두 경로로 모을 수 있다),
- * 쪼개면 "어느 방식으로 수집했든 이후는 같다"는 이 제품의 주장이 화면에서 사라진다.
- *
- * 대신 엔진별로 산출물만 되짚어 준다. 수집만 시켜놓고 어디로 갔는지 말해주지
- * 않으면 되돌아오는 길이 없다.
- */
-function HarvestBlock({ harvest, unit }: { harvest?: Harvest; unit: string }) {
-  if (!harvest) return null;
-
-  return (
-    <div className="method-harvest">
-      <h4>이 방식으로 수집한 것</h4>
-      {harvest.sessions === 0 ? (
-        <p className="harvest-empty">아직 없습니다</p>
-      ) : (
-        <>
-          <p className="harvest-counts">
-            세션 <strong>{harvest.sessions}</strong>건 · {unit}{" "}
-            <strong>{harvest.candidates}</strong>
-            {harvest.projects > 1 && <span> · 프로젝트 {harvest.projects}개에 걸쳐</span>}
-          </p>
-          <Link to={`/engines/${harvest.kind}`}>수집 목록 보기 →</Link>
-        </>
-      )}
-    </div>
-  );
-}
-
 export default function SourceList() {
-  // 일괄 수집은 프로젝트에 속한다. 사이드바에서 바로 들어오면 프로젝트가 없으므로
-  // 첫 프로젝트를 기본으로 잡아준다 — 여기까지 와서 "프로젝트를 고르세요"만
-  // 보여주면 한 걸음이 더 늘어난다.
-  const [params] = useSearchParams();
-  const [projectId, setProjectId] = useState<number | null>(
-    params.get("project") ? Number(params.get("project")) : null,
-  );
-  const [projectName, setProjectName] = useState("");
-  const [harvest, setHarvest] = useState<Record<string, Harvest>>({});
-
-  useEffect(() => {
-    api.get("/api/collection-engines")
-      .then((rows: Harvest[]) =>
-        setHarvest(Object.fromEntries(rows.map((r) => [r.kind, r]))))
-      // 요약을 못 불러와도 카드 자체는 보여야 한다. 산출물 블록만 빠진다.
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    api.get("/api/projects").then((list: { id: number; name: string }[]) => {
-      if (!list.length) return;
-      // 포털 수집이니 포털 프로젝트를 먼저 고른다. 없으면 첫 프로젝트.
-      const found =
-        (projectId && list.find((p) => p.id === projectId)) ||
-        list.find((p) => p.name.includes("공공데이터포털")) ||
-        list[0];
-      if (found) {
-        setProjectId(found.id);
-        setProjectName(found.name);
-      }
-    }).catch(() => {});
-  }, [projectId]);
-
   return (
-    <Shell breadcrumb={["API 수집하기"]} projectId={projectId} projectName={projectName}>
+    <Shell breadcrumb={["수집 방식 안내"]}>
       <section className="heading-row">
         <div>
           <p className="eyebrow">수집</p>
-          <h1>API 수집하기</h1>
+          <h1>수집 방식 안내</h1>
           <p className="subtitle">
             API 를 가져오는 방식은 셋입니다. 어느 방식으로 수집했든 이후 액션 생성·테스트는 같습니다.
+            수집을 시작하려면 프로젝트를 열고 <strong>API 수집하기</strong> 로 갑니다.
           </p>
         </div>
       </section>
@@ -209,7 +139,8 @@ export default function SourceList() {
             <h4>대상</h4>
             <SourceRow source={{ name: "공공 · 민간 · 사내 시스템", live: true, state: "제한 없음" }} />
           </div>
-          <HarvestBlock harvest={harvest.traffic} unit="요청" />
+          {/* 숫자는 프로젝트 목록이 답한다. 여기서는 "이 방식으로 모은 것 전체" 로만 잇는다 */}
+          <Link className="method-link" to="/engines/traffic">이 방식으로 모은 세션 보기 →</Link>
           <Guide label="이 방식으로 시작하는 방법">
             <ol className="guide-steps">
               <li>확장 프로그램을 로드합니다 — <code>chrome://extensions</code> → 개발자 모드 →
@@ -242,14 +173,14 @@ export default function SourceList() {
               {PORTAL_SOURCES.filter((s) => s.live).length} / {PORTAL_SOURCES.length} 사용 가능
             </span>
           </div>
-          <PortalCrawlPanel projectId={projectId} onProjectChange={setProjectId} />
           <div className="method-sources">
             <h4>기관 포털</h4>
             {PORTAL_SOURCES.map((source) => (
               <SourceRow key={source.name} source={source} />
             ))}
           </div>
-          <HarvestBlock harvest={harvest.portal} unit="오퍼레이션" />
+          {/* 숫자는 프로젝트 목록이 답한다. 여기서는 "이 방식으로 모은 것 전체" 로만 잇는다 */}
+          <Link className="method-link" to="/engines/portal">이 방식으로 모은 세션 보기 →</Link>
           <Guide label="이 방식으로 시작하는 방법">
             <ol className="guide-steps">
               <li><a href="https://www.data.go.kr" target="_blank" rel="noreferrer">공공데이터포털</a>에서
@@ -282,12 +213,13 @@ export default function SourceList() {
             <p>활용가이드 PDF·텍스트 문서를 올려 LLM 이 명세를 구조화합니다.</p>
             <span className="kind-badge kind-document">사용 가능</span>
           </div>
-          <DocumentCollectPanel projectId={projectId} />
           <div className="method-sources">
             <h4>대상</h4>
             <SourceRow source={{ name: "PDF · 텍스트 · 워드", live: true, state: "지원" }} />
             <SourceRow source={{ name: "HWP", live: false, state: "PDF 로 변환 필요" }} />
           </div>
+          {/* 숫자는 프로젝트 목록이 답한다. 여기서는 "이 방식으로 모은 것 전체" 로만 잇는다 */}
+          <Link className="method-link" to="/engines/document">이 방식으로 모은 세션 보기 →</Link>
         </section>
       </div>
     </Shell>

@@ -237,14 +237,22 @@ export default function App() {
                       (<code>요청주소</code>와 <code>요청변수</code> 표가 함께 있는 화면).
                       목록·검색 페이지는 대상이 아닙니다.
                     </div>
+                    {/* 일괄 수집은 프로젝트 안에서 시작한다. 예전에는 이 버튼이
+                        /sources 를 열었지만 그 화면에는 폼이 없어져 아무것도 없는
+                        화면에 도착했다. 프로젝트 목록으로 보낸다 — 거기서 프로젝트를
+                        만들거나 골라 `+ 수집 시작` 을 누른다. */}
+                    <div style={{ marginTop: 7, color: "#64748b", lineHeight: 1.55 }}>
+                      목록 URL 하나로 여러 API 를 한 번에 모으려면 관리자에서 프로젝트를
+                      열고 <strong>+ 수집 시작 → 포털</strong> 을 누르세요.
+                    </div>
                     <button
-                      onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/sources` })}
+                      onClick={() => chrome.tabs.create({ url: `${ADMIN_BASE}/` })}
                       style={{
                         marginTop: 7, padding: "5px 9px", fontSize: 11, borderRadius: 5,
                         border: "1px solid #cbd5e1", background: "#fff", color: "#475569",
                       }}
                     >
-                      목록 URL 하나로 일괄 수집하기
+                      관리자에서 프로젝트 열기
                     </button>
                   </>
                 )}

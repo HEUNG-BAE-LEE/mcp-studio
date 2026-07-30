@@ -32,11 +32,18 @@ def _inject_credentials(schema: Optional[dict], arguments: dict, credentials: di
     if not hidden:
         return arguments
 
+    # 기관마다 명세를 직접 쓰기 때문에 같은 인증키가 serviceKey / ServiceKey 로
+    # 갈린다(실측: 한 세션의 오퍼레이션 10개 중 1개가 대문자). 파서는 원문 표기를
+    # 그대로 옮겨야 하므로 — 실제 API 가 그 표기를 요구한다 — 맞춰주는 일은
+    # 여기서 한다. 양쪽을 다 낮춰 비교해야 한다. 예전에는 파라미터 이름만
+    # 낮춰서, 등록된 키가 전부 소문자일 때만 우연히 맞았다.
+    by_lower = {k.lower(): v for k, v in credentials.items()}
+
     filled = dict(arguments)
     for key in hidden:
         if key in filled:
             continue
-        value = credentials.get(key) or credentials.get(key.lower())
+        value = credentials.get(key) or by_lower.get(key.lower())
         if not value and len(credentials) == 1:
             # 포털 하나만 등록된 흔한 경우, 파라미터 이름이 달라도 그 키를 쓴다.
             value = next(iter(credentials.values()))

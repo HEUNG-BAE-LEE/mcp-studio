@@ -1,0 +1,14 @@
+.git
+.claude
+docs
+node_modules
+**/node_modules
+apps/backend/.venv
+apps/backend/data
+apps/admin/dist
+apps/extension/.output
+apps/extension/.wxt
+**/__pycache__
+**/.pytest_cache
+*.env
+.mcp.json

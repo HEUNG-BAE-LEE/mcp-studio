@@ -33,8 +33,35 @@ def get_or_create_project(payload: ProjectIn, db: Session = Depends(get_session)
 
 @router.get("/api/projects")
 def list_projects(db: Session = Depends(get_session)) -> list:
+    """프로젝트 목록. 이름만으로는 내 작업에 대해 아무것도 답하지 못한다.
+
+    엔진은 프로젝트의 속성이 아니라 그 안에서 일어난 수집 사건의 속성
+    (RecordingSession.kind)이다. 그래서 프로젝트를 엔진별로 쪼개지 않고,
+    한 프로젝트에 어떤 방식들이 섞여 있는지를 배지로 보여준다.
+    """
     rows = db.exec(select(Project).order_by(Project.id)).all()
-    return [{"id": p.id, "name": p.name} for p in rows]
+    out = []
+    for p in rows:
+        sessions = db.exec(
+            select(RecordingSession).where(RecordingSession.project_id == p.id)
+        ).all()
+        action_count = len(
+            db.exec(select(Action).where(Action.project_id == p.id)).all()
+        )
+        present = {s.kind for s in sessions}
+        # 고정 순서로 거른다. set 을 그대로 내보내면 순서가 흔들려
+        # 배지가 호출마다 자리를 바꾼다.
+        kinds = [k for k in ("traffic", "portal", "document") if k in present]
+        started = [s.started_at for s in sessions if s.started_at]
+        out.append({
+            "id": p.id,
+            "name": p.name,
+            "kinds": kinds,
+            "sessions": len(sessions),
+            "actions": action_count,
+            "lastCollectedAt": max(started) if started else None,
+        })
+    return out
 
 @router.get("/api/recording-sessions/{session_id}")
 def get_recording_session(session_id: int, db: Session = Depends(get_session)) -> dict:
