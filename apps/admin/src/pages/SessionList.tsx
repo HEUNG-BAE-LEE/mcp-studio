@@ -4,6 +4,7 @@ import { api, errorMessage } from "../api/client";
 import Shell from "../components/Shell";
 import Toast, { useToast } from "../components/Toast";
 import CollectionBadge from "../components/CollectionMark";
+import CollectStartModal from "../components/CollectStartModal";
 
 type SessionRow = {
   id: number;
@@ -34,6 +35,7 @@ export default function SessionList() {
   const [projectExists, setProjectExists] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
+  const [starting, setStarting] = useState(false);
   const { toast, showToast } = useToast();
 
   const load = useCallback(() => {
@@ -82,7 +84,18 @@ export default function SessionList() {
           <h1>수집 세션</h1>
           <p className="subtitle">트래픽 기반·포털 공개 기반 수집이 한 목록에 모입니다.</p>
         </div>
+        {!notFound && (
+          <button className="primary" onClick={() => setStarting(true)}>+ 수집 시작</button>
+        )}
       </section>
+
+      {starting && projectId != null && (
+        <CollectStartModal
+          projectId={projectId}
+          projectName={projectName}
+          onClose={() => setStarting(false)}
+        />
+      )}
 
       {error && (
         <div className="error-banner">
@@ -101,7 +114,7 @@ export default function SessionList() {
       {settled && !notFound && rows.length === 0 && (
         <div className="empty-state">
           <strong>수집된 세션이 없습니다</strong>
-          <p>확장 사이드 패널에서 트래픽 기록을 시작하거나, 포털 명세 페이지에서 공개 명세를 수집해 보세요.</p>
+          <p>위의 <strong>+ 수집 시작</strong>을 눌러 수집 방식을 고르세요.</p>
         </div>
       )}
 
