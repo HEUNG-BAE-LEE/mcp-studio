@@ -197,7 +197,7 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .method-body { padding: 4px 18px 16px; }
 .method-body h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; }
 .method-body p { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.55; }
-.method-sources { margin-top: auto; border-top: 1px dashed var(--line); background: #fafbfd; padding: 11px 14px 13px; }
+.method-sources { border-top: 1px dashed var(--line); background: #fafbfd; padding: 11px 14px 13px; }
 .method-sources h4 { margin: 0 0 8px; font-size: 10px; letter-spacing: .06em; color: #8991a2; font-weight: 700; }
 .source-row { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 7px; font-size: 12px; border: 1px solid transparent; }
 .source-row + .source-row { margin-top: 4px; }
@@ -299,16 +299,10 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; back
 .credential-hint a { color: var(--blue); font-weight: 650; text-decoration: none; }
 .credential-hint a:hover { text-decoration: underline; }
 
-/* 엔진 카드의 산출물 블록. 수집만 시켜놓고 어디로 갔는지 말해주지 않으면
-   되돌아오는 길이 없다. */
-.method-harvest { border-top: 1px dashed var(--line); padding: 11px 16px 13px; background: #fbfcfe; }
-.method-harvest h4 { margin: 0 0 6px; font-size: 10px; letter-spacing: .06em; color: #8991a2; font-weight: 700; }
-.harvest-counts { margin: 0 0 7px; font-size: 12px; color: #465064; }
-.harvest-counts strong { color: var(--ink); }
-.harvest-counts span { color: var(--muted); }
-.harvest-empty { margin: 0; font-size: 12px; color: #98a1b0; }
-.method-harvest a { font-size: 12px; font-weight: 650; color: var(--blue); text-decoration: none; }
-.method-harvest a:hover { text-decoration: underline; }
+/* 엔진 카드에서 엔진별 목록으로 가는 링크. 숫자는 프로젝트 목록이 답하므로
+   여기서는 "이 방식으로 모은 것 전체"로만 잇는다. */
+.method-link { display: block; padding: 10px 14px; font-size: 12px; font-weight: 650;
+               border-top: 1px dashed var(--line); }
 
 /* 프로젝트 목록 전용 그리드. table-5col 을 쓰면 '마지막 수집' 이 120px 에서
    ellipsis 로 잘리고(.table-row .mono), 삭제 열의 인라인 확인 문구가 좁아 접힌다. */

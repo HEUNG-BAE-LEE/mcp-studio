@@ -25,14 +25,12 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
   // 게다가 3·4·5 는 뜻이 맞아떨어지고 1·2 는 전혀 달라서, 부분적으로만 맞는
   // 대응 관계를 학습시켰다. 순서는 스테퍼가, 위치는 사이드바가 맡는다.
   //
-  // 수집 엔진을 프로젝트보다 위에 둔다. 처음 쓰는 사람에게 프로젝트 목록은
-  // 비어 있고, 그 빈 상태가 "확장에서 시작하세요"라며 다른 곳을 가리킨다.
-  // 시작 방법이 담긴 화면이 이미 한 일보다 아래에 있으면 순서가 뒤집힌 것이다.
+  // 프로젝트가 다시 작업의 중심이다. 일괄 수집 폼이 프로젝트 안으로 옮겨오면서
+  // "수집 엔진"에는 더 이상 시작할 일이 없다 — 참고 자료로 맨 아래에 둔다.
   // 정확 일치(to)와 접두사(prefixes)를 따로 둔다. 하나의 목록에 섞어 담고
   // 끝의 슬래시로 구분하려 했더니 루트("/")가 모든 경로의 접두사여서
   // 프로젝트 항목이 항상 활성으로 잡혔다.
   const items = [
-    { label: "수집 엔진", to: "/sources", prefixes: [] as string[] },
     { label: "프로젝트", to: "/", prefixes: [] as string[] },
     ...(projectId
       ? [
@@ -55,6 +53,9 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
           },
         ]
       : []),
+    // 엔진은 장소가 아니라 수집 사건의 속성이다. 참고 자료로 맨 아래 둔다.
+    // /engines/:kind (EngineSessionList) 도 이 항목 소관이라 접두사로 함께 켠다.
+    { label: "수집 엔진", to: "/sources", prefixes: ["/engines/"] },
   ];
 
   function isActive(item: { to: string; prefixes: string[] }): boolean {
