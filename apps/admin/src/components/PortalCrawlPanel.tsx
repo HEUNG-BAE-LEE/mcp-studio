@@ -120,7 +120,13 @@ export default function PortalCrawlPanel({
       </div>
 
       <div className="crawl-target">
-        <label htmlFor="crawl-project">수집 결과를 담을 프로젝트</label>
+        {/* 고정 모드에는 select 가 없다. htmlFor 를 그대로 두면 label 이
+            존재하지 않는 요소를 가리킨다. */}
+        {onProjectChange ? (
+          <label htmlFor="crawl-project">수집 결과를 담을 프로젝트</label>
+        ) : (
+          <span className="crawl-target-label">수집 결과를 담을 프로젝트</span>
+        )}
         {onProjectChange ? (
           <select
             id="crawl-project"
