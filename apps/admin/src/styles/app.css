@@ -46,7 +46,7 @@
     --tx-1: #f2f4f8;
     --tx-2: #b2b8c4;
     --tx-3: #838a99;
-    --tx-4: #5d6474;
+    --tx-4: #6f7788;   /* L* 48.5 — 보조 라벨. placeholder 로도 아직 흐리다 */
 
     /* 표면 광택. 검정 위 카드에 아주 약한 세로 그라데이션을 넣으면 평면
        사각형이 '판'으로 읽힌다. 8% 이상 올리면 싸구려로 보인다. */
@@ -1098,12 +1098,13 @@
     line-height: 1.6;
   }
   .op-name { color: var(--tx-1); font-weight: 600; font-size: 14px; letter-spacing: -0.014em; }
+  /* API 주소는 이 화면에서 확인하는 값이다. 보조 단계에 두면 읽히지 않는다. */
   .op-url {
     display: block;
     margin-top: 3px;
     font-family: var(--mono);
     font-size: 12px;
-    color: var(--tx-4);
+    color: var(--tx-3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1579,13 +1580,13 @@
   .crawl-running-link { margin-left: auto; font-size: 12px; color: var(--kind-portal); font-weight: 650; }
   /* 수집 진행현황 화면 */
 .job-card { border: 1px solid var(--line); border-radius: var(--r-card); padding: 15px 17px; margin-bottom: 12px; background: var(--surface); }
-  .job-card.is-running { border-color: var(--kind-portal-line); background: #f8fdfb; }
+  .job-card.is-running { border-color: var(--kind-portal-line); background: var(--raised); }
   .job-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
   .job-head strong { font-size: 14px; color: var(--tx-1); display: inline-flex; align-items: center; gap: 6px; }
   .job-state { font-size: 12px; font-weight: 800; border-radius: 99px; padding: 2px 9px; }
   .job-state.running { background: var(--kind-portal-tint); color: var(--kind-portal); }
   .job-state.completed { background: var(--kind-traffic-tint); color: var(--kind-traffic); }
-  .job-state.failed { background: #fdeeec; color: var(--danger); }
+  .job-state.failed { background: var(--danger-tint); color: var(--danger); }
   .job-meta { font-size: 12px; color: var(--tx-3); }
   .job-link { margin-left: auto; font-size: 12px; font-weight: 650; color: var(--kind-traffic); }
   .job-bar { height: 6px; border-radius: 99px; background: var(--well); overflow: hidden; }
@@ -1601,7 +1602,7 @@
   .kind-tabs button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 9px 14px; font-size: 13px; font-weight: 650; color: var(--tx-3); border-bottom: 2px solid transparent; }
   .kind-tabs button:hover { color: var(--tx-1); }
   .kind-tabs button.on { color: var(--kind-portal); border-bottom-color: var(--kind-portal); }
-  .kind-tabs em { font-style: normal; font-size: 12px; font-weight: 700; background: #f2f5f9; color: var(--tx-3); border-radius: 99px; padding: 1px 7px; }
+  .kind-tabs em { font-style: normal; font-size: 12px; font-weight: 700; background: var(--raised); color: var(--tx-3); border-radius: var(--r-pill); padding: 1px 7px; }
   .kind-tabs button.on em { background: var(--kind-portal-tint); color: var(--kind-portal); }
   /* 상태 토글 — 지금 상태와 누르면 될 일을 함께 읽히게 한다 */
 .state-toggle { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line2); background: var(--surface); border-radius: 99px; padding: 3px 11px 3px 9px; font-size: 12px; font-weight: 650; color: var(--tx-3); }
@@ -1616,7 +1617,17 @@
   .pg-examples button.on { border-color: var(--kind-portal); background: var(--kind-portal-tint); color: var(--kind-portal); font-weight: 650; }
   /* ── 수집 전 확인 창 ───────────────────────────────────────────
    무엇이 잡힐지 모르고 시작하면 엉뚱한 API 가 섞이고, 그걸 지우는 편이 더 번거롭다. */
-.dlg-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(18,26,38,.5); backdrop-filter: blur(2px); }
+/* 수집 팝업 안의 두 번째 단계(후보 고르기). 팝업 위에 팝업을 겹치면 뒤엣것이
+     비쳐 무엇을 조작하는지 알 수 없어, 같은 자리에서 화면을 바꾼다. */
+  .preview-step { display: flex; flex-direction: column; }
+  .preview-head { display: flex; align-items: flex-start; gap: var(--sp-3);
+    padding: var(--sp-5) var(--sp-6) var(--sp-4); border-bottom: 1px solid var(--line); }
+  .preview-head h2 { font-size: 15px; color: var(--tx-1); letter-spacing: -0.02em; }
+  .preview-head p { margin: 4px 0 0; font-size: 12.5px; color: var(--tx-3); }
+  .preview-body { padding: var(--sp-5) var(--sp-6); overflow-y: auto; max-height: min(58vh, 520px); }
+  .preview-foot { display: flex; align-items: center; gap: var(--sp-3);
+    padding: var(--sp-4) var(--sp-6); border-top: 1px solid var(--line); background: var(--surface); }
+  .preview-foot-note { flex: 1; font-size: 12px; color: var(--tx-3); line-height: 1.55; }
   .dlg-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
   .dlg-head h2 { font-size: 17px; color: var(--tx-1); font-weight: 750; }
   .dlg-head p { margin: 3px 0 0; font-size: 12px; color: var(--tx-3); }
@@ -1633,7 +1644,8 @@
   .dlg-examples { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
   .dlg-examples button { border: 1px solid var(--line); background: var(--surface); color: var(--tx-2); border-radius: 99px; padding: 3px 10px; font-size: 12px; }
   .dlg-examples button:hover { border-color: var(--kind-portal); color: var(--kind-portal); }
-  .dlg-notice { margin: 12px 0 0; padding: 9px 12px; border-radius: var(--r-card); background: #f4f7fa; color: var(--tx-3); font-size: 12px; }
+  .dlg-notice { margin: 12px 0 0; padding: 9px 12px; border-radius: var(--r-ctl);
+    background: var(--well); border: 1px solid var(--line); color: var(--tx-3); font-size: 12px; }
   .dlg-notice.is-ok { background: var(--kind-portal-tint); color: var(--kind-portal); border: 1px solid var(--kind-portal-line); }
   .dlg-loading, .doc-loading { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--raised); }
   .dlg-loading strong, .doc-loading strong { display: block; font-size: 13px; color: var(--tx-1); }
@@ -1645,7 +1657,7 @@
   .dlg-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; }
   .dlg-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--well); }
   .dlg-list li:last-child { border-bottom: none; }
-  .dlg-list li.on { background: #f7fdfb; }
+  .dlg-list li.on { background: var(--brand-tint); }
   .dlg-list label { display: flex; align-items: flex-start; gap: 9px; flex: 1; min-width: 0; cursor: pointer; }
   .dlg-item { min-width: 0; }
   .dlg-item b { display: block; font-size: 12.5px; color: var(--tx-1); font-weight: 650; line-height: 1.5; }
@@ -1694,7 +1706,7 @@
   .cred-chip:hover { border-color: var(--line-2); }
   .cred-chip svg { color: var(--tx-3); }
   .cred-chip code { font-size: 12px; color: var(--tx-1); }
-  .cred-chip.is-missing { border-color: #f0d9a8; background: #fffaf0; color: #8a6a1f; }
+  .cred-chip.is-missing { border-color: var(--warn-line); background: var(--warn-tint); color: var(--warn); }
   .cred-chip.is-missing svg { color: #c79a34; }
   .cred-form { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: 480px;
   padding: 16px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface);
@@ -1732,9 +1744,9 @@
   .pg-avatar.is-error { display: grid; place-items: center; background: var(--danger-tint); color: var(--danger);
   font-weight: 800; font-size: 12px; }
   .pg-bubble { flex: 1; min-width: 0; padding: 13px 16px; border: 1px solid var(--line);
-  border-radius: 16px 16px 16px 5px; background: #fbfcfd; }
-  .pg-bubble.is-error { border-color: #f4d3ce; background: #fdf4f3; }
-  .pg-bubble.is-error p { color: #96271a; }
+  border-radius: 16px 16px 16px 5px; background: var(--surface); }
+  .pg-bubble.is-error { border-color: var(--danger-line); background: var(--danger-tint); }
+  .pg-bubble.is-error p { color: var(--danger); }
   /* 어떤 도구를 거쳤는지. 누르면 오른쪽 로그가 그 호출로 펼쳐진다. */
 .pg-used { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 11px;
   padding-bottom: 11px; border-bottom: 1px solid var(--line); }
@@ -1744,7 +1756,7 @@
   .pg-used-chip:hover { border-color: var(--line-2); }
   .pg-used-chip.on { border-color: var(--kind-traffic); background: var(--kind-traffic-tint); }
   .pg-used-chip.on .mono { color: #24379e; }
-  .pg-used-chip.bad { border-color: #f0c9c4; background: #fdf6f5; }
+  .pg-used-chip.bad { border-color: var(--danger-line); background: var(--danger-tint); }
   .pg-used-count { margin-left: auto; color: var(--tx-3); font-size: 12px; }
   .pg-truncated { margin-top: 10px !important; padding: 8px 12px; border-radius: var(--r-card);
   background: var(--warn-tint); color: #8a6a1f; font-size: 12px !important; }
@@ -1810,7 +1822,7 @@
   .pg-call-caret { color: #b6bfcd; transition: transform .15s; }
   .pg-call.is-open .pg-call-caret { transform: rotate(180deg); }
   .pg-call-body { padding: 2px 12px 14px; }
-  .pg-why { margin: 0 0 12px; padding: 9px 12px; border-radius: var(--r-card); background: #f5f7ff;
+  .pg-why { margin: 0 0 12px; padding: 9px 12px; border-radius: var(--r-card); background: var(--brand-tint);
   color: #3a4763; font-size: 12px; line-height: 1.62; }
   .pg-io { margin-top: 12px; }
   .pg-io h4 { margin: 0 0 5px; font-size: 12px; letter-spacing: .07em; text-transform: uppercase;
@@ -1832,9 +1844,9 @@
   .pg-tools-label { margin: 0 0 9px; color: #a3abb8; font-size: 12px; }
   /* 끝났지만 하나도 못 모은 잡. 성공과 같은 초록으로 두면 잘 된 줄 알고
    왜 액션이 안 생겼는지 엉뚱한 데서 찾게 된다. */
-.job-card.is-empty { border-color: #e7dcc4; background: #fffdf7; }
-  .job-state.empty { background: var(--warn-tint); color: #8a6a1f; }
-  .job-card.is-empty .job-bar span { background: #d9c9a4; }
+.job-card.is-empty { border-color: var(--warn-line); background: var(--raised); }
+  .job-state.empty { background: var(--warn-tint); color: var(--warn); }
+  .job-card.is-empty .job-bar span { background: var(--warn); }
   @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
   @keyframes pulse { 50% { box-shadow: 0 0 0 5px rgba(13,148,136,.16); } }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -1853,7 +1865,7 @@
     border-bottom: 1px solid var(--line);
     font-size: 12px;
     font-weight: 600;
-    color: var(--tx-4);
+    color: var(--tx-3);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -2138,4 +2150,18 @@
     font-weight: 600;
   }
   .skip-link:focus { left: 8px; }
+}
+
+@layer screens {
+  /* 무슨 키를 넣어야 하는지 창 안에서 답한다. "인증키를 등록하세요" 만으로는
+     이름이 기관마다 달라(serviceKey · confmKey · apiKey) 알 수 없다. */
+  .cred-need { list-style: none; margin: var(--sp-4) 0 0; padding: 0; display: grid; gap: var(--sp-1); }
+  .cred-need li { display: flex; align-items: center; gap: var(--sp-3); padding: 9px 11px;
+    border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--well); font-size: 12px; }
+  .cred-need li.is-missing { border-color: var(--warn-line); background: var(--warn-tint); }
+  .cred-need code { font-family: var(--mono); font-size: 11.5px; color: var(--tx-1); }
+  .cred-need span { flex: 1; min-width: 0; color: var(--tx-3); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .cred-need b { font-family: var(--mono); font-size: 11.5px; color: var(--tx-2); font-weight: 500; }
+  .cred-need li.is-missing b { color: var(--warn); }
 }

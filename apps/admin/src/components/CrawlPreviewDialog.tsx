@@ -112,19 +112,23 @@ export default function CrawlPreviewDialog({
   }
 
   return (
-    <div className="dlg-backdrop" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
-      <div className="dlg">
-        <header className="dlg-head">
+    <div className="preview-step">
+        <header className="preview-head">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={onClose}
+            disabled={starting}
+          >← 뒤로</button>
           <div>
-            <h2 id="dlg-title">수집할 API 고르기</h2>
+            <h2>수집할 API 고르기</h2>
             <p>
               <b>{projectName}</b> 프로젝트에 담습니다 · 오퍼레이션 최대 <b>{limit}개</b>
             </p>
           </div>
-          <button className="dlg-close" onClick={onClose} disabled={starting} aria-label="닫기">✕</button>
         </header>
 
-        <div className="dlg-body">
+        <div className="preview-body">
           <section className="dlg-purpose">
             <label htmlFor="purpose">어떤 용도로 쓸 API 인가요?</label>
             <p className="dlg-hint">
@@ -236,16 +240,14 @@ export default function CrawlPreviewDialog({
           )}
         </div>
 
-        <footer className="dlg-foot">
-          <span className="dlg-foot-note">
+        <footer className="preview-foot">
+          <span className="preview-foot-note">
             공공 서버를 배려해 요청 간 1초를 둡니다. 선택이 많으면 몇 분 걸릴 수 있습니다.
           </span>
-          <button className="btn-quiet" onClick={onClose} disabled={starting}>취소</button>
           <button className="btn btn-primary" onClick={start} disabled={starting || checked.size === 0}>
             {starting ? "시작 중…" : `${checked.size}개 수집 시작`}
           </button>
         </footer>
-      </div>
     </div>
   );
 }

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.db import init_db
-from app.seed import backfill_action_source_kind, seed, seed_portal_spec
+from app.seed import backfill_action_source_kind, seed, seed_credentials, seed_portal_spec
 from app.routers import sessions, analysis, actions, llm, spec
 
 app = FastAPI(title="MCP Studio")
@@ -28,6 +28,8 @@ def _startup() -> None:
     seed()
     seed_portal_spec()
     backfill_action_source_kind()
+    # 액션이 만들어진 뒤에 돈다 — 무슨 키가 필요한지는 액션 스펙이 정한다.
+    seed_credentials()
 
 @app.get("/health")
 def health() -> dict:
