@@ -89,7 +89,11 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
   // 좌표계가 흔들리지 않는다. 번호는 master 의 결정을 따른다 — 수집 방식이
   // 셋으로 늘면서 "이 순서로 하면 된다"를 말해 줄 것이 필요해졌다.
   const projectItems = items.filter((i) => i.to !== "/sources");
-  const hasCtx = projectItems.length > 0;
+  // 패널이 뜨는 조건은 projectId 다. projectItems.length 로 보면 "01 프로젝트"가
+  // 항상 들어 있어 늘 참이 되고, 프로젝트를 고르기 전에도 패널이 떴다 —
+  // 제목이 "프로젝트"인데 안에는 지금 보고 있는 페이지로 가는 링크 하나뿐이고,
+  // 그 목적지는 레일 아이콘에도 이미 있어 화면 폭만 썼다.
+  const hasCtx = projectId != null;
 
   return (
     <div className={hasCtx ? "app-shell" : "app-shell no-ctx"}>
