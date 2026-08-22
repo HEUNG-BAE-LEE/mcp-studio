@@ -1,16 +1,15 @@
-name: ACA staging 배포
+name: ACA prod 배포
 
-# dev 에 들어온 것을 staging(mcp-studio)으로 배포한다. master 는 prod 워크플로가
-# 맡는다. 수동 실행은 이미지를 다시 밀어야 할 때 쓴다.
+# master 는 dev 에서 검증을 마친 것만 들어온다. 그래서 master 머지가 곧
+# prod 승격이다. 수동 실행은 이미지를 다시 밀어야 할 때 쓴다.
 on:
   push:
-    branches: [dev]
+    branches: [master]
   workflow_dispatch:
 
-# 배포는 한 번에 하나만 돈다. 연달아 머지되면 앞의 것을 끊고 뒤의 것을 올린다 —
-# 늦게 끝난 오래된 빌드가 최신 이미지를 덮어쓰는 사고를 막는다.
+# prod 배포도 한 번에 하나만. 연달아 머지되면 앞의 것을 끊고 뒤의 것을 올린다.
 concurrency:
-  group: aca-deploy
+  group: aca-deploy-prod
   cancel-in-progress: true
 
 permissions:
@@ -20,7 +19,7 @@ permissions:
 env:
   RESOURCE_GROUP: azure_test-a89a8649-741-rg001
   ACR_NAME: wtembed10835
-  CONTAINER_APP: mcp-studio
+  CONTAINER_APP: mcp-studio-prod
   IMAGE_REPO: mcp-studio
 
 jobs:
@@ -29,24 +28,23 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # 저장소 관리자 권한이 없어 시크릿을 넣을 수 없으므로 OIDC 를 쓴다.
-      # 아래 세 값은 비밀이 아니다(식별자). 연합 자격 증명에 master·dev 두
-      # 브랜치의 subject 가 등록되어 있어 dev 에서 온 토큰도 교환된다.
-      # 값의 출처: infra/terraform 의 `terraform output`
+      # staging 워크플로와 같은 자격 증명을 쓴다. 연합 자격 증명의 subject 가
+      # master 브랜치로 박혀 있고, 이 워크플로도 master 에서만 돌기 때문이다.
       - uses: azure/login@v2
         with:
           client-id: fa515508-3e9e-409d-a5dd-744c0196c345
           tenant-id: 28fad9d9-3a2c-4a2f-b76f-8da5d0da9756
           subscription-id: 3c7b1819-c657-41ca-a22e-b6dc6d34fd98
 
-      # 이미지는 ACR 안에서 빌드한다. 러너에 docker 를 세우지 않아도 되고,
-      # 이 저장소는 로컬 개발에 docker 를 쓰지 않는다는 규칙도 그대로 지켜진다.
+      # 이미지는 커밋 SHA 태그를 쓴다. staging 워크플로가 같은 SHA 로 이미
+      # 빌드해 두었다면 ACR 캐시로 곧장 끝난다 — 같은 코드가 두 번 빌드되어
+      # 서로 다른 이미지가 되는 일을 막는 것이 목적이다.
       - name: 이미지 빌드
         run: |
           az acr build \
             --registry "$ACR_NAME" \
             --image "$IMAGE_REPO:${{ github.sha }}" \
-            --image "$IMAGE_REPO:latest" \
+            --image "$IMAGE_REPO:prod" \
             .
 
       - name: Container App 이미지 교체
@@ -56,8 +54,8 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --image "$ACR_NAME.azurecr.io/$IMAGE_REPO:${{ github.sha }}"
 
-      # 새 리비전이 실제로 200 을 내는지 확인한다. 여기서 실패하면 배포가
-      # 초록으로 끝나는 것보다 낫다.
+      # 새 리비전이 실제로 200 을 내는지 확인한다. prod 는 특히, 배포가
+      # 초록으로 끝났는데 화면이 죽어 있는 상태가 가장 나쁘다.
       - name: 헬스체크
         run: |
           FQDN=$(az containerapp show --name "$CONTAINER_APP" \
