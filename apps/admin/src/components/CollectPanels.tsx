@@ -28,13 +28,21 @@ export default function CollectPanels({
   projectId,
   projectName,
   onStarted,
+  onEngineChange,
 }: {
   projectId: number | null;
   projectName: string;
   /** 수집이 시작돼 다른 화면으로 넘어갈 때. 팝업 안이면 스스로 닫는다. */
   onStarted?: () => void;
+  /** 고른 방식을 바깥에 알린다. 스튜디오는 옆에 그 방식의 절차를 띄운다. */
+  onEngineChange?: (kind: Engine) => void;
 }) {
   const [engine, setEngine] = useState<Engine>("portal");
+
+  function pick(kind: Engine) {
+    setEngine(kind);
+    onEngineChange?.(kind);
+  }
 
   return (
     <>
@@ -46,7 +54,7 @@ export default function CollectPanels({
             role="tab"
             aria-selected={engine === item.key}
             className={engine === item.key ? "on" : ""}
-            onClick={() => setEngine(item.key)}
+            onClick={() => pick(item.key)}
           >
             <KindMark kind={item.key} size={16} />
             <b>{item.label}</b>

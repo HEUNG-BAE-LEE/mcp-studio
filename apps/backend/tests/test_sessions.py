@@ -469,7 +469,8 @@ def test_프로젝트_삭제는_세션과_액션을_모두_지운다(client, pro
 
 def test_빈_프로젝트도_삭제된다(client, project_id):
     body = client.delete(f"/api/projects/{project_id}").json()
-    assert body == {"ok": True, "deletedSessions": 0, "deletedActions": 0, "deletedRequests": 0}
+    assert body == {"ok": True, "deletedSessions": 0, "deletedActions": 0,
+                    "deletedRequests": 0, "deletedSkills": 0}
     assert project_id not in [p["id"] for p in client.get("/api/projects").json()]
 
 
