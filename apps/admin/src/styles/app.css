@@ -2897,3 +2897,170 @@
     .live-dot::after { animation: none; }
   }
 }
+
+/* ── 트래픽 수집 패널 ─────────────────────────────────────────────────────
+   화면이 확장의 상태를 알고 말한다. 안내문만 있고 누를 것이 없던 자리를
+   상태 → 행동 순서로 바꿨다. */
+@layer screens {
+  .tf { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+  .tf-bar {
+    border-radius: var(--r-card); padding: var(--sp-4) var(--sp-5);
+    border: 1px solid var(--line); background: var(--surface);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+  }
+  .tf-bar-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+  .tf-bar-head strong { font-size: 13.5px; color: var(--tx-1); }
+  .tf-bar-head .btn { margin-left: auto; }
+  .tf-bar p { margin: 0; font-size: 12.5px; color: var(--tx-2); line-height: 1.65; }
+  .tf-dot { width: 8px; height: 8px; border-radius: var(--r-pill); flex: none; background: var(--tx-3); }
+  .tf-bar.is-checking { color: var(--tx-3); font-size: 12.5px; flex-direction: row; align-items: center; }
+  .tf-bar.is-missing { border-color: var(--warn-line); background: var(--warn-tint); }
+  .tf-bar.is-missing .tf-dot { background: var(--warn); }
+  .tf-bar.is-ready { border-color: var(--kind-traffic-line); background: var(--kind-traffic-tint); }
+  .tf-bar.is-ready .tf-dot { background: var(--kind-traffic); }
+
+  .tf-path {
+    display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: 6px;
+  }
+  .tf-hint { font-size: 11.5px; color: var(--tx-3); margin: 0; }
+
+  /* 기록 중 — 확장 안에서만 보이던 상태를 화면으로 끌어냈다 */
+  .tf-live {
+    border-radius: var(--r-card); padding: var(--sp-4) var(--sp-5);
+    border: 1px solid var(--ok-line); background: var(--ok-tint);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+  }
+  .tf-live-head { display: flex; align-items: center; gap: var(--sp-2); }
+  .tf-live-head strong { font-size: 13.5px; color: var(--tx-1); }
+  .tf-pulse {
+    width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--ok); flex: none;
+    position: relative;
+  }
+  .tf-pulse::after {
+    content: ""; position: absolute; inset: 0; border-radius: var(--r-pill);
+    animation: tf-ring 1.8s ease-out infinite;
+  }
+  @keyframes tf-ring {
+    0% { box-shadow: 0 0 0 0 var(--ok-line); }
+    70%, 100% { box-shadow: 0 0 0 10px transparent; }
+  }
+  .tf-live-row {
+    display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-ctl); padding: var(--sp-3) var(--sp-4);
+  }
+  .tf-live-nm { flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 2px; }
+  .tf-live-nm b { font-size: 13px; color: var(--tx-1); }
+  .tf-live-nm span { font-size: 10.5px; color: var(--tx-3); }
+  .tf-live-kv { display: flex; align-items: baseline; gap: 5px; }
+  .tf-live-kv .num { font-size: 17px; }
+  .tf-live-kv span { font-family: var(--mono); font-size: 9.5px; color: var(--tx-3); }
+  .tf-other { font-size: 11px; color: var(--tx-3); margin: 0; }
+  .tf-how { display: flex; flex-direction: column; gap: var(--sp-3); }
+}
+
+/* ── 자동 트래픽 수집 ────────────────────────────────────────────────────
+   사람은 로그인만, 탐색은 기계가. 화면이 묻는 것은 "어디서"와 "무엇을"
+   둘뿐이고, 나머지는 진행 상황을 정직하게 비추는 데 쓴다. */
+@layer screens {
+  .tf-modes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+  @media (max-width: 620px) { .tf-modes { grid-template-columns: 1fr; } }
+  .tf-modes button {
+    display: flex; flex-direction: column; gap: 3px; text-align: left; cursor: pointer;
+    background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-card);
+    padding: var(--sp-3) var(--sp-4); font-family: var(--sans);
+  }
+  .tf-modes button b { font-size: 13px; color: var(--tx-1); }
+  .tf-modes button span { font-size: 11.5px; color: var(--tx-3); }
+  .tf-modes button.on {
+    border-color: var(--kind-traffic-line); background: var(--kind-traffic-tint);
+  }
+  .tf-modes button.on b { color: var(--kind-traffic); }
+
+  .ac { display: flex; flex-direction: column; gap: var(--sp-4); }
+  .ac-form {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-card); padding: var(--sp-4) var(--sp-5);
+  }
+  .ac-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: var(--sp-2); }
+  .ac-preset {
+    font-size: 11px; padding: 5px 11px; border-radius: var(--r-pill); cursor: pointer;
+    background: var(--raised); border: 1px solid var(--line); color: var(--tx-2);
+    font-family: var(--sans);
+  }
+  .ac-preset:hover { border-color: var(--line-3); color: var(--tx-1); }
+
+  .ac-step {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-card); padding: var(--sp-4) var(--sp-5);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+  }
+  .ac-step.is-done { border-color: var(--ok-line); background: var(--ok-tint); }
+  .ac-step-hd { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+  .ac-step-hd strong { font-size: 13.5px; color: var(--tx-1); }
+  .ac-step p { margin: 0; font-size: 12.5px; color: var(--tx-2); line-height: 1.65; }
+  .ac-no {
+    width: 22px; height: 22px; border-radius: var(--r-pill); flex: none;
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px;
+    font-weight: 700; background: var(--raised); border: 1px solid var(--line-2); color: var(--tx-3);
+  }
+  .ac-step.is-done .ac-no { background: var(--ok); border-color: var(--ok); color: var(--bg); }
+
+  .ac-limits { display: flex; flex-direction: column; gap: var(--sp-3); }
+  .ac-toggle { display: flex; align-items: flex-start; gap: var(--sp-2); font-size: 12.5px; color: var(--tx-2); }
+  .ac-toggle input { margin-top: 4px; accent-color: var(--kind-portal); }
+  .ac-num { display: flex; align-items: center; gap: var(--sp-2); font-size: 12.5px; color: var(--tx-2); }
+  .ac-num .input { width: 90px; }
+
+  .ac-run {
+    background: var(--surface); border: 1px solid var(--kind-traffic-line);
+    border-radius: var(--r-card); padding: var(--sp-4) var(--sp-5);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+  }
+  .ac-run.is-done { border-color: var(--line); }
+  .ac-run-hd { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+  .ac-run-hd strong { font-size: 13.5px; color: var(--tx-1); }
+  .ac-run-hd .btn { margin-left: auto; }
+  .ac-metrics { display: flex; gap: var(--sp-6); flex-wrap: wrap; }
+  .ac-metrics div span {
+    display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--tx-3);
+  }
+  .ac-current { margin: 0; font-size: 11px; color: var(--tx-3); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .ac-log {
+    background: var(--well); border: 1px solid var(--line); border-radius: var(--r-ctl);
+    padding: var(--sp-3); display: flex; flex-direction: column; gap: 3px;
+    max-height: 190px; overflow-y: auto;
+  }
+  .ac-log div { font-size: 11px; color: var(--tx-2); }
+
+  .ac-result { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .ac-api {
+    display: flex; align-items: flex-start; gap: var(--sp-3); text-align: left; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-ctl);
+    padding: var(--sp-3) var(--sp-4); font-family: var(--sans);
+  }
+  .ac-api.on { background: var(--kind-portal-tint); border-color: var(--kind-portal-line); }
+  .ac-api .wiz-cb { margin-top: 2px; }
+  .ac-api.on .wiz-cb { background: var(--kind-portal); border-color: var(--kind-portal); color: var(--bg); }
+  .ac-api .skl-meth { margin-left: 0; margin-top: 2px; }
+  .ac-api-nm { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .ac-api-nm b { font-size: 12.5px; color: var(--tx-1); font-family: var(--mono); word-break: break-all; }
+  .ac-api-nm > span { font-size: 10.5px; color: var(--tx-3); }
+  .ac-why { font-family: var(--sans); font-size: 11.5px; color: var(--tx-2); }
+
+  .ac-skiptoggle { align-self: flex-start; }
+  .ac-skipped {
+    display: flex; flex-direction: column; gap: 5px;
+    background: var(--well); border: 1px solid var(--line); border-radius: var(--r-ctl);
+    padding: var(--sp-3); max-height: 220px; overflow-y: auto;
+  }
+  .ac-skip { display: flex; align-items: center; gap: var(--sp-2); font-size: 11px; color: var(--tx-3); }
+  .ac-skip span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ac-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+    padding-top: var(--sp-3); border-top: 1px solid var(--line); flex-wrap: wrap;
+  }
+}

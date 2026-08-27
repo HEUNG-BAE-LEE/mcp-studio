@@ -7,7 +7,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.db import init_db
 from app.catalog_seed import seed_call_logs, seed_catalog
 from app.seed import backfill_action_source_kind, seed, seed_credentials, seed_portal_spec
-from app.routers import sessions, analysis, actions, llm, spec, market, skills
+from app.routers import sessions, analysis, actions, llm, spec, market, skills, autocrawl
 
 app = FastAPI(title="MCP Studio")
 app.add_middleware(
@@ -24,6 +24,7 @@ app.include_router(llm.router)
 app.include_router(spec.router)
 app.include_router(market.router)
 app.include_router(skills.router)
+app.include_router(autocrawl.router)
 
 @app.on_event("startup")
 def _startup() -> None:

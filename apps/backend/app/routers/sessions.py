@@ -104,6 +104,44 @@ def update_project(project_id: int, payload: ProjectPatch,
     return {"id": project.id, "name": project.name, "description": project.description}
 
 
+@router.get("/api/recording-sessions/active")
+def active_sessions(db: Session = Depends(get_session)) -> list[dict]:
+    """지금 기록 중인 세션.
+
+    트래픽 수집은 브라우저 확장에서 시작하므로, 관리자 화면은 기록이
+    돌고 있는지 알 방법이 없었다. 확장 안에서만 보이는 상태를 화면에서도
+    보게 하려고 서버에 묻는다 — 확장이 다른 탭에 있어도 잡힌다.
+
+    경로가 `/{session_id}` 보다 **먼저** 선언돼야 한다. FastAPI 는 등록
+    순서로 매칭하므로 뒤에 두면 "active" 가 세션 id 로 해석돼 422 가 난다.
+    """
+    rows = db.exec(
+        select(RecordingSession).where(RecordingSession.status == "RECORDING")
+    ).all()
+
+    names = {p.id: p.name for p in db.exec(select(Project)).all()}
+    out = []
+    for row in rows:
+        clicks = len(db.exec(
+            select(InteractionEvent).where(InteractionEvent.session_id == row.id)
+        ).all())
+        calls = len(db.exec(
+            select(NetworkRequest).where(NetworkRequest.session_id == row.id)
+        ).all())
+        out.append({
+            "id": row.id,
+            "projectId": row.project_id,
+            "projectName": names.get(row.project_id, ""),
+            "kind": row.kind,
+            "sourceLabel": row.source_label,
+            "startedAt": row.started_at.isoformat() if row.started_at else None,
+            "clicks": clicks,
+            "calls": calls,
+        })
+    out.sort(key=lambda r: r["startedAt"] or "", reverse=True)
+    return out
+
+
 @router.get("/api/recording-sessions/{session_id}")
 def get_recording_session(session_id: int, db: Session = Depends(get_session)) -> dict:
     """브레드크럼이 프로젝트 이름을 필요로 한다.

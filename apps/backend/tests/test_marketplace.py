@@ -297,3 +297,37 @@ def tool_id_factory(client):
         client.post("/api/catalog/dispatch", json={"entryIds": [eid], "projectIds": [pid]})
         return client.get(f"/api/projects/{pid}/skill-palette").json()[0]["id"]
     return _make
+
+
+# ── 진행 중 세션 (트래픽 수집 화면) ─────────────────────────────────────────
+
+def test_기록_중인_세션만_돌려준다(client, make_project):
+    """트래픽 수집은 확장에서 시작해서, 화면은 기록이 도는지 몰랐다.
+    서버가 아는 만큼이라도 비춰야 화면이 막다른 길이 되지 않는다."""
+    pid = make_project("진행중 세션 테스트")
+    sid = client.post(f"/api/projects/{pid}/recording-sessions").json()["id"]
+
+    rows = client.get("/api/recording-sessions/active").json()
+    assert any(r["id"] == sid for r in rows), "시작한 세션이 보여야 한다"
+
+    row = next(r for r in rows if r["id"] == sid)
+    assert row["projectName"] == "진행중 세션 테스트"
+    assert row["kind"] == "traffic"
+
+
+def test_전송이_끝난_세션은_빠진다(client, make_project):
+    """확장은 종료 시점에 한 번에 올린다. bulk 가 곧 종료 신호다."""
+    pid = make_project("종료 세션 테스트")
+    sid = client.post(f"/api/projects/{pid}/recording-sessions").json()["id"]
+    client.post(f"/api/recording-sessions/{sid}/bulk", json={"interactions": [], "networks": []})
+
+    rows = client.get("/api/recording-sessions/active").json()
+    assert not any(r["id"] == sid for r in rows)
+
+
+def test_active_가_세션_id로_해석되지_않는다(client):
+    """FastAPI 는 등록 순서로 매칭한다. /{session_id} 뒤에 두면
+    "active" 가 id 로 읽혀 422 가 난다 — 실제로 한 번 겪었다."""
+    res = client.get("/api/recording-sessions/active")
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)
