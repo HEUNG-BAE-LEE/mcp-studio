@@ -1,6 +1,7 @@
 import { buildSelector } from "../lib/selector";
 import { sanitizeNetworkPayload } from "../lib/payload";
 import { detectSpecPage } from "../lib/spec-detect";
+import { installWebBridge } from "../lib/web-bridge";
 
 const CORRELATION_WINDOW_MS = 5000;
 
@@ -37,6 +38,10 @@ export default defineContentScript({
   matches: ["<all_urls>"],
   runAt: "document_start",
   async main(ctx) {
+    // 관리자 화면이면 다리만 놓고 관측은 하지 않는다. 우리 화면의 클릭을
+    // 수집 후보로 잡을 이유가 없다.
+    installWebBridge(chrome.runtime.getManifest().version);
+
     // injectScript는 비동기다. 이 await가 끝나기 전에 페이지가 보낸 요청은
     // 후킹되지 않는다. 기법상 불가피하며, 시나리오는 로딩 후 클릭이므로
     // 데모에는 영향이 없다.

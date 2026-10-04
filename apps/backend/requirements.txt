@@ -14,3 +14,4 @@ truststore==0.10.0
 # 이음 게이트웨이: 명세(YAML) 파싱, 원본 시스템 인증 정보 암호화 보관
 PyYAML==6.0.3
 cryptography==50.0.2
+playwright==1.49.1

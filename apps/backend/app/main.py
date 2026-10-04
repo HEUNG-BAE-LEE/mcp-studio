@@ -5,10 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.db import init_db
+from app.catalog_seed import seed_call_logs, seed_catalog
 from app.seed import backfill_action_source_kind, seed, seed_credentials, seed_portal_spec
 from app.routers import sessions, analysis, actions, llm, spec
 from app.ieum.console import mount_console
 from app.ieum.routers import router as ieum_router
+from app.routers import sessions, analysis, actions, llm, spec, market, skills, autocrawl
 
 app = FastAPI(title="MCP Studio")
 app.add_middleware(
@@ -27,6 +29,9 @@ app.include_router(spec.router)
 # 콘솔 마운트는 아래 관리자 화면의 `/` 마운트보다 먼저여야 한다.
 app.include_router(ieum_router)
 mount_console(app)
+app.include_router(market.router)
+app.include_router(skills.router)
+app.include_router(autocrawl.router)
 
 @app.on_event("startup")
 def _startup() -> None:
@@ -34,6 +39,9 @@ def _startup() -> None:
     seed()
     seed_portal_spec()
     backfill_action_source_kind()
+    # 마켓이 비어 있으면 플랫폼이라는 개념 자체가 전달되지 않는다.
+    seed_catalog()
+    seed_call_logs()
     # 액션이 만들어진 뒤에 돈다 — 무슨 키가 필요한지는 액션 스펙이 정한다.
     seed_credentials()
 
