@@ -1,0 +1,1531 @@
+{
+ "cfg": {
+  "name": "구매관리 (레거시)",
+  "base": "http://10.20.4.30:8080/po",
+  "start": "/login.do",
+  "repo": "https://git.hanbit.local/legacy/po-web.git",
+  "branch": "release/2026.09",
+  "staging": "http://10.20.9.30:8080/po",
+  "account": "svc_ieum_crawl",
+  "owner": "김현우 책임 (구매팀)",
+  "framework": "전자정부 표준프레임워크 3.10 (Spring MVC, MyBatis)",
+  "files": 1284
+ },
+ "apis": [
+  {
+   "id": "poList",
+   "m": "GET",
+   "path": "/poList.do",
+   "tool": "list_purchase_orders",
+   "title": "발주 목록 조회",
+   "mode": "read",
+   "rec": "yes",
+   "src": {
+    "file": "PoController.java",
+    "line": 52,
+    "fn": "selectPoList",
+    "vo": "PoSearchVO",
+    "mapper": "PoMapper.selectPoList",
+    "sql": "SELECT"
+   },
+   "tr": {
+    "screen": "발주 현황 > 조회 버튼",
+    "samples": 6,
+    "q": "?fromDt=20260901&toDt=20260930"
+   },
+   "verify": {
+    "k": "ok",
+    "code": 200,
+    "ms": 142
+   },
+   "desc": "기간, 거래처, 진행 상태로 발주 목록을 조회합니다. 발주 현황이나 특정 거래처의 발주 내역을 물을 때 사용합니다.",
+   "params": [
+    {
+     "o": "fromDt",
+     "ot": "String (YYYYMMDD)",
+     "a": "start_date",
+     "at": "string (date)",
+     "req": 1,
+     "rule": "date",
+     "d": "발주일 시작",
+     "ex": "20260901",
+     "ax": "2026-09-01",
+     "obs": [
+      "20260901",
+      "20260801",
+      "20260915"
+     ]
+    },
+    {
+     "o": "toDt",
+     "ot": "String (YYYYMMDD)",
+     "a": "end_date",
+     "at": "string (date)",
+     "req": 1,
+     "rule": "date",
+     "d": "발주일 끝",
+     "ex": "20260930",
+     "ax": "2026-09-30",
+     "obs": [
+      "20260930",
+      "20260831"
+     ]
+    },
+    {
+     "o": "vendCd",
+     "ot": "String",
+     "a": "vendor_code",
+     "at": "string",
+     "rule": "name",
+     "d": "거래처 코드",
+     "ex": "V0012",
+     "obs": [
+      "V0012",
+      "V0031"
+     ]
+    },
+    {
+     "o": "sttsCd",
+     "ot": "String(2)",
+     "a": "status",
+     "at": "string",
+     "rule": "code",
+     "d": "진행 상태 (공통코드 PO_STTS)",
+     "ex": "20",
+     "ax": "pending",
+     "codes": [
+      [
+       "10",
+       "draft",
+       "작성"
+      ],
+      [
+       "20",
+       "pending",
+       "승인대기"
+      ],
+      [
+       "30",
+       "approved",
+       "승인"
+      ],
+      [
+       "90",
+       "cancelled",
+       "취소"
+      ]
+     ],
+     "obs": [
+      "20",
+      "30"
+     ]
+    }
+   ],
+   "res": [
+    {
+     "o": "resultList[].PO_NO",
+     "a": "orders[].order_no",
+     "at": "string",
+     "ov": "PO-2609-0142",
+     "rule": "name"
+    },
+    {
+     "o": "resultList[].VEND_NM",
+     "a": "orders[].vendor",
+     "at": "string",
+     "ov": "한빛상사",
+     "rule": "name"
+    },
+    {
+     "o": "resultList[].PO_AMT",
+     "a": "orders[].amount_krw",
+     "at": "number",
+     "ov": "4,850,000",
+     "av": 4850000,
+     "rule": "num"
+    },
+    {
+     "o": "resultList[].PO_STTS_CD",
+     "a": "orders[].status",
+     "at": "string",
+     "ov": "20",
+     "av": "pending",
+     "rule": "code",
+     "codes": [
+      [
+       "10",
+       "draft",
+       "작성"
+      ],
+      [
+       "20",
+       "pending",
+       "승인대기"
+      ],
+      [
+       "30",
+       "approved",
+       "승인"
+      ],
+      [
+       "90",
+       "cancelled",
+       "취소"
+      ]
+     ]
+    },
+    {
+     "o": "resultList[].PO_YMD",
+     "a": "orders[].ordered_on",
+     "at": "string (date)",
+     "ov": "20260926",
+     "av": "2026-09-26",
+     "rule": "date"
+    }
+   ]
+  },
+  {
+   "id": "poDetail",
+   "m": "GET",
+   "path": "/poDetail.do",
+   "tool": "get_purchase_order",
+   "title": "발주 상세 조회",
+   "mode": "read",
+   "rec": "yes",
+   "src": {
+    "file": "PoController.java",
+    "line": 78,
+    "fn": "selectPoDetail",
+    "vo": "PoVO",
+    "mapper": "PoMapper.selectPoDetail",
+    "sql": "SELECT"
+   },
+   "tr": {
+    "screen": "발주 현황 > 목록 행 클릭",
+    "samples": 4,
+    "q": "?poNo=PO-2609-0142"
+   },
+   "verify": {
+    "k": "ok",
+    "code": 200,
+    "ms": 96
+   },
+   "desc": "발주 번호로 거래처, 품목별 수량과 금액, 지급 조건, 담당자를 조회합니다.",
+   "params": [
+    {
+     "o": "poNo",
+     "ot": "String",
+     "a": "order_no",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "발주 번호",
+     "ex": "PO-2609-0142",
+     "obs": [
+      "PO-2609-0142",
+      "PO-2609-0139",
+      "PO-2609-0127",
+      "PO-2609-0118"
+     ]
+    }
+   ],
+   "res": [
+    {
+     "o": "PO_NO",
+     "a": "order_no",
+     "at": "string",
+     "ov": "PO-2609-0142",
+     "rule": "name"
+    },
+    {
+     "o": "VEND_NM",
+     "a": "vendor",
+     "at": "string",
+     "ov": "한빛상사",
+     "rule": "name"
+    },
+    {
+     "o": "ITEM_LIST[].ITEM_NM",
+     "a": "items[].name",
+     "at": "string",
+     "ov": "A4 복사용지 80g",
+     "rule": "name"
+    },
+    {
+     "o": "ITEM_LIST[].QTY",
+     "a": "items[].quantity",
+     "at": "number",
+     "ov": "200",
+     "av": 200,
+     "rule": "num"
+    },
+    {
+     "o": "PAY_TERM_CD",
+     "a": "payment_terms",
+     "at": "string",
+     "ov": "01",
+     "av": "net30",
+     "rule": "code",
+     "codes": [
+      [
+       "01",
+       "net30",
+       "30일 후 지급"
+      ],
+      [
+       "02",
+       "net60",
+       "60일 후 지급"
+      ]
+     ]
+    },
+    {
+     "o": "CHRG_TELNO",
+     "a": "contact_mobile",
+     "at": "string",
+     "ov": "010-7712-3048",
+     "av": "010-****-3048",
+     "rule": "mask"
+    }
+   ]
+  },
+  {
+   "id": "vendList",
+   "m": "GET",
+   "path": "/vendList.do",
+   "tool": "search_vendors",
+   "title": "거래처 검색",
+   "mode": "read",
+   "rec": "yes",
+   "src": {
+    "file": "VendController.java",
+    "line": 31,
+    "fn": "selectVendList",
+    "vo": "VendSearchVO",
+    "mapper": "VendMapper.selectVendList",
+    "sql": "SELECT"
+   },
+   "tr": {
+    "screen": "발주 등록 > 거래처 찾기 팝업",
+    "samples": 3,
+    "q": "?vendNm=한빛"
+   },
+   "verify": {
+    "k": "ok",
+    "code": 200,
+    "ms": 88
+   },
+   "desc": "거래처 이름 일부로 거래처를 검색해 거래처 코드를 알려줍니다. 발주 조회나 등록에 필요한 거래처 코드를 찾을 때 사용합니다.",
+   "params": [
+    {
+     "o": "vendNm",
+     "ot": "String",
+     "a": "name",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "거래처 이름 일부",
+     "ex": "한빛",
+     "obs": [
+      "한빛",
+      "대한",
+      "상사"
+     ]
+    }
+   ],
+   "res": [
+    {
+     "o": "resultList[].VEND_CD",
+     "a": "vendors[].code",
+     "at": "string",
+     "ov": "V0012",
+     "rule": "name"
+    },
+    {
+     "o": "resultList[].VEND_NM",
+     "a": "vendors[].name",
+     "at": "string",
+     "ov": "한빛상사",
+     "rule": "name"
+    },
+    {
+     "o": "resultList[].BIZ_NO",
+     "a": "vendors[].business_no",
+     "at": "string",
+     "ov": "123-45-67890",
+     "av": "123-45-*****",
+     "rule": "mask"
+    }
+   ]
+  },
+  {
+   "id": "itemPrice",
+   "m": "GET",
+   "path": "/itemPrice.do",
+   "tool": "get_item_price",
+   "title": "품목 단가 조회",
+   "mode": "read",
+   "rec": "yes",
+   "src": {
+    "file": "ItemController.java",
+    "line": 44,
+    "fn": "selectItemPrice",
+    "vo": "ItemPriceVO",
+    "mapper": "ItemMapper.selectItemPrice",
+    "sql": "SELECT"
+   },
+   "tr": {
+    "screen": "발주 등록 > 품목 선택",
+    "samples": 2,
+    "q": "?itemCd=P-10023&vendCd=V0012"
+   },
+   "verify": {
+    "k": "ok",
+    "code": 200,
+    "ms": 74
+   },
+   "desc": "품목 코드와 거래처 코드로 계약 단가와 적용 시작일을 조회합니다.",
+   "params": [
+    {
+     "o": "itemCd",
+     "ot": "String",
+     "a": "item_code",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "품목 코드",
+     "ex": "P-10023",
+     "obs": [
+      "P-10023",
+      "P-10051"
+     ]
+    },
+    {
+     "o": "vendCd",
+     "ot": "String",
+     "a": "vendor_code",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "거래처 코드",
+     "ex": "V0012",
+     "obs": [
+      "V0012"
+     ]
+    }
+   ],
+   "res": [
+    {
+     "o": "UNIT_PRC",
+     "a": "unit_price_krw",
+     "at": "number",
+     "ov": "12,500",
+     "av": 12500,
+     "rule": "num"
+    },
+    {
+     "o": "APLY_YMD",
+     "a": "effective_from",
+     "at": "string (date)",
+     "ov": "20260101",
+     "av": "2026-01-01",
+     "rule": "date"
+    }
+   ]
+  },
+  {
+   "id": "prList",
+   "m": "GET",
+   "path": "/prList.do",
+   "tool": "list_purchase_requests",
+   "title": "구매요청 목록 조회",
+   "mode": "read",
+   "rec": "yes",
+   "src": {
+    "file": "PrController.java",
+    "line": 39,
+    "fn": "selectPrList",
+    "vo": "PrSearchVO",
+    "mapper": "PrMapper.selectPrList",
+    "sql": "SELECT"
+   },
+   "tr": {
+    "screen": "구매요청 > 구매요청함",
+    "samples": 5,
+    "q": "?deptCd=D1030&sttsCd=10"
+   },
+   "verify": {
+    "k": "ok",
+    "code": 200,
+    "ms": 131
+   },
+   "desc": "부서와 진행 상태로 구매요청 목록을 조회합니다. 우리 팀 구매요청이 어떻게 됐는지 물을 때 사용합니다.",
+   "params": [
+    {
+     "o": "deptCd",
+     "ot": "String(5)",
+     "a": "department",
+     "at": "string",
+     "rule": "code",
+     "d": "부서명을 부서코드로 바꿔 전달",
+     "ex": "D1030",
+     "ax": "인사팀",
+     "codes": [
+      [
+       "D1030",
+       "인사팀"
+      ],
+      [
+       "D2010",
+       "영업1팀"
+      ],
+      [
+       "D4010",
+       "구매팀"
+      ]
+     ],
+     "obs": [
+      "D1030",
+      "D4010"
+     ]
+    },
+    {
+     "o": "sttsCd",
+     "ot": "String(2)",
+     "a": "status",
+     "at": "string",
+     "rule": "code",
+     "d": "진행 상태 (공통코드 PR_STTS)",
+     "ex": "10",
+     "ax": "requested",
+     "codes": [
+      [
+       "10",
+       "requested",
+       "요청"
+      ],
+      [
+       "20",
+       "approved",
+       "승인"
+      ],
+      [
+       "30",
+       "ordered",
+       "발주 완료"
+      ]
+     ],
+     "obs": [
+      "10",
+      "20"
+     ]
+    }
+   ],
+   "res": [
+    {
+     "o": "resultList[].PR_NO",
+     "a": "requests[].request_no",
+     "at": "string",
+     "ov": "PR-2609-0088",
+     "rule": "name"
+    },
+    {
+     "o": "resultList[].PR_TITLE",
+     "a": "requests[].title",
+     "at": "string",
+     "ov": "10월 사무용품 구매",
+     "rule": "name"
+    },
+    {
+     "o": "resultList[].REQ_USER_NM",
+     "a": "requests[].requester",
+     "at": "string",
+     "ov": "홍길동",
+     "rule": "name"
+    },
+    {
+     "o": "resultList[].PR_STTS_CD",
+     "a": "requests[].status",
+     "at": "string",
+     "ov": "10",
+     "av": "requested",
+     "rule": "code",
+     "codes": [
+      [
+       "10",
+       "requested",
+       "요청"
+      ],
+      [
+       "20",
+       "approved",
+       "승인"
+      ],
+      [
+       "30",
+       "ordered",
+       "발주 완료"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "budgetRemain",
+   "m": "GET",
+   "path": "/budgetRemain.do",
+   "tool": "get_department_budget",
+   "title": "부서 예산 잔액 조회",
+   "mode": "read",
+   "rec": "yes",
+   "src": {
+    "file": "BudgetController.java",
+    "line": 27,
+    "fn": "selectBudgetRemain",
+    "vo": "BudgetVO",
+    "mapper": "BudgetMapper.selectBudgetRemain",
+    "sql": "SELECT"
+   },
+   "tr": {
+    "screen": "구매요청 작성 > 예산 확인 버튼",
+    "samples": 2,
+    "q": "?deptCd=D1030&yyyy=2026"
+   },
+   "verify": {
+    "k": "ok",
+    "code": 200,
+    "ms": 65
+   },
+   "desc": "부서와 연도로 구매 예산 총액, 사용액, 잔액을 조회합니다. 구매요청 전에 예산이 남았는지 확인할 때 사용합니다.",
+   "params": [
+    {
+     "o": "deptCd",
+     "ot": "String(5)",
+     "a": "department",
+     "at": "string",
+     "req": 1,
+     "rule": "code",
+     "d": "부서명을 부서코드로 바꿔 전달",
+     "ex": "D1030",
+     "ax": "인사팀",
+     "codes": [
+      [
+       "D1030",
+       "인사팀"
+      ],
+      [
+       "D2010",
+       "영업1팀"
+      ],
+      [
+       "D4010",
+       "구매팀"
+      ]
+     ],
+     "obs": [
+      "D1030"
+     ]
+    },
+    {
+     "o": "yyyy",
+     "ot": "String(4)",
+     "a": "year",
+     "at": "integer",
+     "req": 1,
+     "rule": "num",
+     "d": "회계 연도",
+     "ex": "2026",
+     "ax": 2026,
+     "obs": [
+      "2026"
+     ]
+    }
+   ],
+   "res": [
+    {
+     "o": "BDGT_AMT",
+     "a": "budget_krw",
+     "at": "number",
+     "ov": "30,000,000",
+     "av": 30000000,
+     "rule": "num"
+    },
+    {
+     "o": "USE_AMT",
+     "a": "used_krw",
+     "at": "number",
+     "ov": "21,450,000",
+     "av": 21450000,
+     "rule": "num"
+    },
+    {
+     "o": "REMAIN_AMT",
+     "a": "remaining_krw",
+     "at": "number",
+     "ov": "8,550,000",
+     "av": 8550000,
+     "rule": "num"
+    }
+   ]
+  },
+  {
+   "id": "prDraftSave",
+   "m": "POST",
+   "path": "/prDraftSave.do",
+   "tool": "save_purchase_request_draft",
+   "title": "구매요청 임시저장",
+   "mode": "write",
+   "rec": "no",
+   "recNote": "화면의 자동 임시저장용이라 AI 도구로 쓸 일이 적습니다",
+   "src": {
+    "file": "PrController.java",
+    "line": 88,
+    "fn": "insertPrDraft",
+    "vo": "PrVO",
+    "mapper": "PrMapper.insertPrDraft",
+    "sql": "INSERT"
+   },
+   "tr": {
+    "screen": "구매요청 작성 > 자동 임시저장 (30초마다)",
+    "samples": 1,
+    "blocked": true
+   },
+   "verify": {
+    "k": "block"
+   },
+   "desc": "작성 중인 구매요청을 임시저장합니다.",
+   "params": [
+    {
+     "o": "prTitle",
+     "ot": "String",
+     "a": "title",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "구매요청 제목",
+     "ex": "10월 사무용품 구매"
+    },
+    {
+     "o": "prCn",
+     "ot": "String",
+     "a": "content",
+     "at": "string",
+     "rule": "name",
+     "d": "요청 내용",
+     "ex": "A4 용지 20박스"
+    }
+   ],
+   "res": [
+    {
+     "o": "PR_NO",
+     "a": "request_no",
+     "at": "string",
+     "ov": "PR-TMP-0912",
+     "rule": "name"
+    }
+   ]
+  },
+  {
+   "id": "poSave",
+   "m": "POST",
+   "path": "/poSave.do",
+   "tool": "create_purchase_order",
+   "title": "발주 등록",
+   "mode": "write",
+   "rec": "yes",
+   "confirmQ": "이 내용으로 발주를 등록할까요?",
+   "src": {
+    "file": "PoController.java",
+    "line": 104,
+    "fn": "insertPo",
+    "vo": "PoVO",
+    "mapper": "PoMapper.insertPo",
+    "sql": "INSERT"
+   },
+   "tr": null,
+   "trNote": "저장 버튼은 누르지 않을 버튼이라 화면 탐색에서 호출하지 않았습니다",
+   "verify": {
+    "k": "stg",
+    "code": 200,
+    "ms": 184,
+    "note": "테스트 발주 PO-TEST-0007을 만든 뒤 바로 지웠습니다"
+   },
+   "desc": "거래처, 품목, 수량, 납기일로 발주를 새로 등록합니다. 실제 발주가 만들어지므로 실행 전에 사용자의 확인을 받습니다.",
+   "params": [
+    {
+     "o": "vendCd",
+     "ot": "String",
+     "a": "vendor_code",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "거래처 코드",
+     "ex": "V0012"
+    },
+    {
+     "o": "itemCd",
+     "ot": "String",
+     "a": "item_code",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "품목 코드",
+     "ex": "P-10023"
+    },
+    {
+     "o": "qty",
+     "ot": "int",
+     "a": "quantity",
+     "at": "integer",
+     "req": 1,
+     "rule": "num",
+     "d": "수량",
+     "ex": "20",
+     "ax": 20
+    },
+    {
+     "o": "dlvYmd",
+     "ot": "String (YYYYMMDD)",
+     "a": "delivery_date",
+     "at": "string (date)",
+     "req": 1,
+     "rule": "date",
+     "d": "납기일",
+     "ex": "20261015",
+     "ax": "2026-10-15"
+    }
+   ],
+   "res": [
+    {
+     "o": "PO_NO",
+     "a": "order_no",
+     "at": "string",
+     "ov": "PO-2610-0003",
+     "rule": "name"
+    },
+    {
+     "o": "RSLT",
+     "a": "result",
+     "at": "string",
+     "ov": "S",
+     "av": "created",
+     "rule": "code",
+     "codes": [
+      [
+       "S",
+       "created",
+       "등록 완료"
+      ],
+      [
+       "F",
+       "failed",
+       "실패"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "poApprove",
+   "m": "POST",
+   "path": "/poApprove.do",
+   "tool": "approve_purchase_order",
+   "title": "발주 승인",
+   "mode": "write",
+   "rec": "check",
+   "recNote": "승인 권한이 있는 계정으로 다시 검증해야 합니다",
+   "confirmQ": "이 발주를 승인할까요?",
+   "src": {
+    "file": "PoController.java",
+    "line": 131,
+    "fn": "updatePoApprove",
+    "vo": "PoApproveVO",
+    "mapper": "PoMapper.updatePoApprove",
+    "sql": "UPDATE"
+   },
+   "tr": null,
+   "trNote": "승인 화면은 테스트 계정 권한으로 열리지 않았습니다",
+   "verify": {
+    "k": "stgerr",
+    "code": 403,
+    "note": "테스트 계정에 승인 권한이 없습니다"
+   },
+   "desc": "승인 대기 중인 발주를 승인합니다. 실행 전에 사용자의 확인을 받습니다.",
+   "params": [
+    {
+     "o": "poNo",
+     "ot": "String",
+     "a": "order_no",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "발주 번호",
+     "ex": "PO-2609-0142"
+    },
+    {
+     "o": "aprvOpnn",
+     "ot": "String",
+     "a": "comment",
+     "at": "string",
+     "rule": "name",
+     "d": "승인 의견",
+     "ex": "확인했습니다"
+    }
+   ],
+   "res": [
+    {
+     "o": "RSLT",
+     "a": "result",
+     "at": "string",
+     "ov": "S",
+     "av": "approved",
+     "rule": "code",
+     "codes": [
+      [
+       "S",
+       "approved",
+       "승인 완료"
+      ],
+      [
+       "F",
+       "failed",
+       "실패"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "poExcel",
+   "m": "GET",
+   "path": "/poExcelDown.do",
+   "tool": null,
+   "title": "발주 목록 엑셀 다운로드",
+   "mode": "read",
+   "rec": "no",
+   "recNote": "응답이 엑셀 파일이라 AI 도구로는 list_purchase_orders가 낫습니다",
+   "src": {
+    "file": "PoController.java",
+    "line": 160,
+    "fn": "downloadPoExcel",
+    "vo": "PoSearchVO",
+    "mapper": "PoMapper.selectPoList",
+    "sql": "SELECT",
+    "ret": "ModelAndView"
+   },
+   "tr": null,
+   "trNote": "화면에서 다운로드 버튼을 누르지 않았습니다",
+   "verify": {
+    "k": "file",
+    "code": 200,
+    "ms": 310
+   },
+   "params": [],
+   "res": []
+  },
+  {
+   "id": "oldPoList",
+   "m": "GET",
+   "path": "/oldPoList.do",
+   "tool": null,
+   "title": "구 발주 목록 (사용 중지)",
+   "mode": "read",
+   "rec": "no",
+   "recNote": "운영에 배포되지 않은 API라 소스 정리 대상으로 보입니다",
+   "src": {
+    "file": "PoController.java",
+    "line": 188,
+    "fn": "selectOldPoList",
+    "vo": "PoSearchVO",
+    "mapper": "PoMapper.selectOldPoList",
+    "sql": "SELECT",
+    "dep": true
+   },
+   "tr": null,
+   "trNote": "어떤 화면에서도 호출되지 않았습니다",
+   "verify": {
+    "k": "404",
+    "code": 404
+   },
+   "params": [],
+   "res": []
+  },
+  {
+   "id": "codeList",
+   "m": "GET",
+   "path": "/common/codeList.do",
+   "tool": "get_common_codes",
+   "title": "공통코드 조회",
+   "mode": "read",
+   "rec": "yes",
+   "src": null,
+   "srcNote": "egov-common-2.1.jar 공통 모듈 안에 있어 저장소에서 소스를 찾지 못했습니다",
+   "tr": {
+    "screen": "여러 화면에서 자동 호출",
+    "samples": 9,
+    "q": "?grpCd=PO_STTS"
+   },
+   "verify": {
+    "k": "ok",
+    "code": 200,
+    "ms": 38
+   },
+   "extra": "이 응답으로 다른 API의 코드값 변환표 3개(PO_STTS, PR_STTS, PAY_TERM)를 만들었습니다",
+   "desc": "공통코드 그룹 이름으로 코드값과 코드명 목록을 조회합니다.",
+   "params": [
+    {
+     "o": "grpCd",
+     "ot": "관찰값 기준 String",
+     "a": "code_group",
+     "at": "string",
+     "req": 1,
+     "rule": "name",
+     "d": "공통코드 그룹",
+     "ex": "PO_STTS",
+     "obs": [
+      "PO_STTS",
+      "PAY_TERM",
+      "PR_STTS"
+     ]
+    }
+   ],
+   "res": [
+    {
+     "o": "resultList[].CD",
+     "a": "codes[].code",
+     "at": "string",
+     "ov": "20",
+     "rule": "name",
+     "guess": 1
+    },
+    {
+     "o": "resultList[].CD_NM",
+     "a": "codes[].name",
+     "at": "string",
+     "ov": "승인대기",
+     "rule": "name",
+     "guess": 1
+    }
+   ]
+  },
+  {
+   "id": "ssoUser",
+   "m": "GET",
+   "path": "http://10.20.4.12/sso/userInfo.do",
+   "tool": null,
+   "title": "사내 SSO 사용자 정보",
+   "mode": "read",
+   "rec": "no",
+   "recNote": "사내 SSO 서버의 API라 이 시스템의 도구로 등록하지 않습니다",
+   "src": null,
+   "srcNote": "다른 서버(10.20.4.12)의 API입니다",
+   "tr": {
+    "screen": "로그인 직후",
+    "samples": 1,
+    "q": ""
+   },
+   "verify": {
+    "k": "out"
+   },
+   "params": [],
+   "res": [
+    {
+     "o": "userId",
+     "a": "user_id",
+     "at": "string",
+     "ov": "svc_ieum_crawl",
+     "rule": "name"
+    }
+   ]
+  },
+  {
+   "id": "monthly",
+   "m": "GET",
+   "path": "/chart/monthly.do",
+   "tool": "get_monthly_order_stats",
+   "title": "월별 발주 통계",
+   "mode": "read",
+   "rec": "yes",
+   "src": null,
+   "srcNote": "응답 헤더 X-Module: po-report로 보아 별도 저장소(po-report)에 있는 것으로 보입니다",
+   "tr": {
+    "screen": "메인 > 월별 발주 차트",
+    "samples": 2,
+    "q": "?yyyy=2026"
+   },
+   "verify": {
+    "k": "ok",
+    "code": 200,
+    "ms": 210
+   },
+   "desc": "연도를 지정해 월별 발주 건수와 금액을 조회합니다. 발주 추이나 월별 통계를 물을 때 사용합니다.",
+   "params": [
+    {
+     "o": "yyyy",
+     "ot": "관찰값 기준 숫자 4자리",
+     "a": "year",
+     "at": "integer",
+     "req": 1,
+     "rule": "num",
+     "d": "연도",
+     "ex": "2026",
+     "ax": 2026,
+     "obs": [
+      "2026",
+      "2025"
+     ]
+    }
+   ],
+   "res": [
+    {
+     "o": "resultList[].MM",
+     "a": "months[].month",
+     "at": "integer",
+     "ov": "09",
+     "av": 9,
+     "rule": "num",
+     "guess": 1
+    },
+    {
+     "o": "resultList[].PO_CNT",
+     "a": "months[].order_count",
+     "at": "integer",
+     "ov": "142",
+     "av": 142,
+     "rule": "num",
+     "guess": 1
+    },
+    {
+     "o": "resultList[].PO_AMT",
+     "a": "months[].amount_krw",
+     "at": "number",
+     "ov": "318,400,000",
+     "av": 318400000,
+     "rule": "num",
+     "guess": 1
+    }
+   ]
+  }
+ ],
+ "events": [
+  {
+   "l": "sys",
+   "msg": "탐색을 준비하고 있습니다",
+   "dt": 3
+  },
+  {
+   "l": "git",
+   "k": "stage",
+   "msg": "저장소 복제",
+   "det": "po-web, release/2026.09 브랜치, 파일 1,284개",
+   "dt": 9
+  },
+  {
+   "l": "web",
+   "k": "page",
+   "scr": "login",
+   "url": "/login.do",
+   "msg": "시작 페이지를 열었습니다",
+   "cnt": 1,
+   "dt": 3
+  },
+  {
+   "l": "git",
+   "k": "stage",
+   "msg": "프레임워크 감지",
+   "det": "전자정부 표준프레임워크 3.10 (Spring MVC, MyBatis)",
+   "dt": 4
+  },
+  {
+   "l": "web",
+   "k": "act",
+   "scr": "login",
+   "hl": "login",
+   "msg": "테스트 계정으로 로그인",
+   "dt": 3
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "POST",
+   "p": "/loginProc.do",
+   "code": 302,
+   "tag": "allow",
+   "dt": 1
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "http://10.20.4.12/sso/userInfo.do",
+   "code": 200,
+   "tag": "out",
+   "api": "ssoUser",
+   "dt": 1
+  },
+  {
+   "l": "git",
+   "k": "file",
+   "f": "PoController.java",
+   "apis": [
+    "poList",
+    "poDetail",
+    "poSave",
+    "poApprove",
+    "poExcel",
+    "oldPoList"
+   ],
+   "note": "화면 이동 매핑 9개 제외, @Deprecated 1개",
+   "dt": 6
+  },
+  {
+   "l": "web",
+   "k": "page",
+   "scr": "main",
+   "url": "/main.do",
+   "msg": "메인 화면",
+   "cnt": 2,
+   "dt": 4
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/chart/monthly.do?yyyy=2026",
+   "code": 200,
+   "tag": "cap",
+   "api": "monthly",
+   "dt": 1
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/common/codeList.do?grpCd=PO_STTS",
+   "code": 200,
+   "tag": "cap",
+   "api": "codeList",
+   "dt": 1
+  },
+  {
+   "l": "git",
+   "k": "file",
+   "f": "VendController.java",
+   "apis": [
+    "vendList"
+   ],
+   "note": "화면 이동 매핑 3개 제외",
+   "dt": 3
+  },
+  {
+   "l": "web",
+   "k": "page",
+   "scr": "poList",
+   "url": "/poListView.do",
+   "msg": "발주 현황 메뉴를 열었습니다",
+   "cnt": 4,
+   "dt": 5
+  },
+  {
+   "l": "web",
+   "k": "act",
+   "scr": "poList",
+   "hl": "search",
+   "msg": "조회 버튼 클릭",
+   "dt": 3
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/poList.do?fromDt=20260901&toDt=20260930",
+   "code": 200,
+   "tag": "cap",
+   "api": "poList",
+   "dt": 1
+  },
+  {
+   "l": "git",
+   "k": "file",
+   "f": "ItemController.java",
+   "apis": [
+    "itemPrice"
+   ],
+   "note": "화면 이동 매핑 2개 제외",
+   "dt": 3
+  },
+  {
+   "l": "web",
+   "k": "act",
+   "scr": "poList",
+   "hl": "row",
+   "msg": "목록 첫 행 클릭",
+   "dt": 3
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/poDetail.do?poNo=PO-2609-0142",
+   "code": 200,
+   "tag": "cap",
+   "api": "poDetail",
+   "dt": 1
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/common/codeList.do?grpCd=PAY_TERM",
+   "code": 200,
+   "tag": "cap",
+   "api": "codeList",
+   "dt": 1
+  },
+  {
+   "l": "git",
+   "k": "file",
+   "f": "PrController.java",
+   "apis": [
+    "prList",
+    "prDraftSave"
+   ],
+   "note": "화면 이동 매핑 6개 제외",
+   "dt": 4
+  },
+  {
+   "l": "web",
+   "k": "page",
+   "scr": "poReg",
+   "url": "/poRegView.do",
+   "msg": "발주 등록 메뉴를 열었습니다",
+   "cnt": 7,
+   "dt": 5
+  },
+  {
+   "l": "web",
+   "k": "act",
+   "scr": "poReg",
+   "hl": "vend",
+   "msg": "거래처 찾기에서 \"한빛\" 검색",
+   "dt": 3
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/vendList.do?vendNm=한빛",
+   "code": 200,
+   "tag": "cap",
+   "api": "vendList",
+   "dt": 1
+  },
+  {
+   "l": "git",
+   "k": "file",
+   "f": "BudgetController.java",
+   "apis": [
+    "budgetRemain"
+   ],
+   "note": "",
+   "dt": 2
+  },
+  {
+   "l": "web",
+   "k": "act",
+   "scr": "poReg",
+   "hl": "item",
+   "msg": "품목 선택",
+   "dt": 3
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/itemPrice.do?itemCd=P-10023&vendCd=V0012",
+   "code": 200,
+   "tag": "cap",
+   "api": "itemPrice",
+   "dt": 1
+  },
+  {
+   "l": "web",
+   "k": "skip",
+   "scr": "poReg",
+   "hl": "save",
+   "msg": "저장 버튼은 누르지 않을 버튼이라 건너뜀",
+   "dt": 2
+  },
+  {
+   "l": "git",
+   "k": "stage",
+   "msg": "MyBatis 매퍼로 읽기, 쓰기 분류",
+   "det": "SELECT 8개, INSERT 2개, UPDATE 1개",
+   "dt": 5
+  },
+  {
+   "l": "web",
+   "k": "page",
+   "scr": "prList",
+   "url": "/prListView.do",
+   "msg": "구매요청함을 열었습니다",
+   "cnt": 9,
+   "dt": 4
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/prList.do?deptCd=D1030&sttsCd=10",
+   "code": 200,
+   "tag": "cap",
+   "api": "prList",
+   "dt": 1
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/common/codeList.do?grpCd=PR_STTS",
+   "code": 200,
+   "tag": "cap",
+   "api": "codeList",
+   "dt": 1
+  },
+  {
+   "l": "web",
+   "k": "page",
+   "scr": "prReg",
+   "url": "/prRegView.do",
+   "msg": "구매요청 작성 화면을 열었습니다",
+   "cnt": 11,
+   "dt": 4
+  },
+  {
+   "l": "web",
+   "k": "act",
+   "scr": "prReg",
+   "hl": "budget",
+   "msg": "예산 확인 버튼 클릭",
+   "dt": 3
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "GET",
+   "p": "/budgetRemain.do?deptCd=D1030&yyyy=2026",
+   "code": 200,
+   "tag": "cap",
+   "api": "budgetRemain",
+   "dt": 1
+  },
+  {
+   "l": "web",
+   "k": "req",
+   "m": "POST",
+   "p": "/prDraftSave.do",
+   "code": null,
+   "tag": "block",
+   "api": "prDraftSave",
+   "scr": "prReg",
+   "hl": "draft",
+   "msg": "자동 임시저장 요청을 가로채 차단했습니다",
+   "dt": 30
+  },
+  {
+   "l": "web",
+   "k": "skip",
+   "scr": "prReg",
+   "hl": "submit",
+   "msg": "요청 전송 버튼은 누르지 않을 버튼이라 건너뜀",
+   "dt": 2
+  },
+  {
+   "l": "web",
+   "k": "skip",
+   "msg": "로그아웃 링크는 제외 경로라 열지 않음",
+   "dt": 1
+  },
+  {
+   "l": "web",
+   "k": "done",
+   "msg": "화면 탐색을 마쳤습니다",
+   "cnt": 14,
+   "dt": 40
+  },
+  {
+   "l": "sys",
+   "k": "stage",
+   "st": "merge",
+   "msg": "소스와 트래픽을 대조하고 있습니다",
+   "det": "값만 다른 요청은 경로 하나로 묶었습니다",
+   "dt": 6
+  },
+  {
+   "l": "sys",
+   "k": "note",
+   "msg": "공통코드 응답으로 코드값 변환표 3개를 만들었습니다",
+   "dt": 3
+  },
+  {
+   "l": "sys",
+   "k": "stage",
+   "st": "verify",
+   "msg": "실제 호출로 검증하고 있습니다",
+   "dt": 2
+  }
+ ],
+ "poStts": [
+  [
+   "10",
+   "draft",
+   "작성"
+  ],
+  [
+   "20",
+   "pending",
+   "승인대기"
+  ],
+  [
+   "30",
+   "approved",
+   "승인"
+  ],
+  [
+   "90",
+   "cancelled",
+   "취소"
+  ]
+ ],
+ "prStts": [
+  [
+   "10",
+   "requested",
+   "요청"
+  ],
+  [
+   "20",
+   "approved",
+   "승인"
+  ],
+  [
+   "30",
+   "ordered",
+   "발주 완료"
+  ]
+ ],
+ "dept": [
+  [
+   "D1030",
+   "인사팀"
+  ],
+  [
+   "D2010",
+   "영업1팀"
+  ],
+  [
+   "D4010",
+   "구매팀"
+  ]
+ ]
+}

@@ -2,6 +2,9 @@
 # 백엔드(:8000)와 관리자 화면(:5173)을 한 번에 띄운다.
 # Ctrl+C 한 번으로 둘 다 내려간다.
 #
+# 이음 게이트웨이(apps/backend/app/ieum)는 백엔드 프로세스에 함께 올라간다. 관리 콘솔
+# (apps/web/ieum)도 백엔드가 /ieum/ 에서 정적으로 서빙하므로 따로 띄울 것이 없다.
+#
 # 확장은 별도다. 코드를 고쳤으면 `cd apps/extension && npm run build` 후
 # chrome://extensions 에서 다시 로드하고, **대상 페이지를 새로고침**해야 한다.
 # 새로고침하지 않으면 이미 주입돼 있던 콘텐츠 스크립트가 고아가 되어
@@ -45,6 +48,20 @@ if [ ! -x apps/backend/.venv/bin/uvicorn ]; then
   echo "    cd apps/backend"
   echo "    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
   exit 1
+fi
+
+# requirements.txt 가 바뀐 뒤 pip install 을 건너뛰면 이음(PyYAML, cryptography)을 불러오다
+# 백엔드가 죽는다. 뜬 뒤에 로그를 뒤지게 하지 않고 여기서 원인을 보여 준다.
+if ! IMPORT_ERR="$(apps/backend/.venv/bin/python -c 'import yaml, cryptography, httpx' 2>&1)"; then
+  echo "✗ 백엔드 의존성을 불러오지 못했습니다:"
+  echo "$IMPORT_ERR" | tail -3 | sed 's/^/    /'
+  echo "  패키지가 없다면:"
+  echo "    cd apps/backend && .venv/bin/pip install -r requirements.txt"
+  exit 1
+fi
+
+if [ ! -f apps/web/ieum/index.html ]; then
+  echo "! apps/web/ieum 이 없습니다. 이음 관리 콘솔(/ieum/)은 열리지 않습니다."
 fi
 
 if [ ! -d node_modules ] || [ ! -d apps/admin/node_modules ]; then
@@ -127,6 +144,7 @@ cat <<EOF
   관리자   http://localhost:$ADMIN_PORT
   수집 엔진 http://localhost:$ADMIN_PORT/sources
   백엔드   http://localhost:$BACKEND_PORT
+  이음 콘솔 http://localhost:$BACKEND_PORT/ieum/
   로그     $BACKEND_LOG
            $ADMIN_LOG
 

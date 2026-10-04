@@ -11,6 +11,12 @@ __pycache__/
 # 덮어써 사라지게 만들었다(실제로 발생). 슬래시 없이 둔다.
 node_modules
 
+# 이음 시드 데이터는 커밋돼야 한다. 전역 gitignore 에 `*.json` 이 있는 개발자는
+# 이 예외가 없으면 파일이 조용히 빠지고, clone 한 쪽은 기동할 때 FileNotFoundError 를 만난다.
+# 런타임 상태(apps/backend/data/ieum)는 위의 apps/backend/data/ 규칙으로 계속 빠진다.
+!apps/backend/app/ieum/data/**/*.json
+!docs/ieum/poc/*.json
+
 # 환경변수 — 실제 키가 들어가므로 절대 커밋 금지
 .env
 .env.local

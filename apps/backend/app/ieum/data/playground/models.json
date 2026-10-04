@@ -1,0 +1,18 @@
+{
+ "claude": {
+  "label": "Claude",
+  "via": "MCP 커넥터"
+ },
+ "gemini": {
+  "label": "Gemini",
+  "via": "함수 호출"
+ },
+ "gpt": {
+  "label": "GPT",
+  "via": "원격 MCP 도구"
+ },
+ "mcp": {
+  "label": "사내 Agent",
+  "via": "MCP 클라이언트"
+ }
+}

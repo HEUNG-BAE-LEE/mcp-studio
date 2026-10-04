@@ -7,6 +7,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.db import init_db
 from app.seed import backfill_action_source_kind, seed, seed_credentials, seed_portal_spec
 from app.routers import sessions, analysis, actions, llm, spec
+from app.ieum.console import mount_console
+from app.ieum.routers import router as ieum_router
 
 app = FastAPI(title="MCP Studio")
 app.add_middleware(
@@ -21,6 +23,10 @@ app.include_router(analysis.router)
 app.include_router(actions.router)
 app.include_router(llm.router)
 app.include_router(spec.router)
+# 이음 게이트웨이: API(/api/ieum), MCP 서버(/mcp), 시연용 원본(/demo-origin), 콘솔(/ieum/).
+# 콘솔 마운트는 아래 관리자 화면의 `/` 마운트보다 먼저여야 한다.
+app.include_router(ieum_router)
+mount_console(app)
 
 @app.on_event("startup")
 def _startup() -> None:

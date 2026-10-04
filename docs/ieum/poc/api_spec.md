@@ -1,0 +1,124 @@
+# API 명세서
+
+발견된 API: **3개**
+
+## Base URLs
+
+- `https://jsonplaceholder.typicode.com`
+- `https://www.google-analytics.com`
+
+## https://jsonplaceholder.typicode.com
+
+### `POST` /cdn-cgi/rum
+
+- **Status**: 204
+- **호출 횟수**: 3
+- **Content-Type**: `application/json`
+
+**Headers:**
+
+- `content-type`: `application/json`
+
+**Request Body (샘플):**
+
+```json
+{
+  "memory": {
+    "totalJSHeapSize": 10000000,
+    "usedJSHeapSize": 10000000,
+    "jsHeapSizeLimit": 3760000000
+  },
+  "resources": [],
+  "referrer": "",
+  "eventType": 1,
+  "firstPaint": 756.6999999955297,
+  "firstContentfulPaint": 756.6999999955297,
+  "startTime": 1779238189341.2,
+  "versions": {
+    "fl": "2024.11.0",
+    "js": "2026.5.0",
+    "timings": 2
+  },
+  "pageloadId": "d8150c09-6b78-4162-97a4-57621947e9d4",
+  "location": "https://jsonplaceholder.typicode.com/",
+  "nt": "navigate",
+  "timingsV2": {
+    "nextHopProtocol": "h2",
+    "domainLookupStart": 13.199999995529652,
+    "domainLookupEnd": 13.199999995529652,
+    "connectStart": 13.199999995529652,
+    "connectEnd": 147.5,
+    "requestStart": 150.39999999850988,
+    "responseStart": 221.29999999701977,
+    "responseEnd": 225.29999999701977,
+    "domInteractive": 661.8999999985099,
+    "domComplete": 2167.39999999851,
+    "loadEventStart": 2167.39999999851,
+    "loadEventEnd": 2167.7999999970198,
+    "firstInterimRespo
+```
+
+### `GET` /todos/1
+
+- **Status**: 200
+- **호출 횟수**: 2
+
+**Response Body (샘플):**
+
+```json
+{
+  "userId": 1,
+  "id": 1,
+  "title": "delectus aut autem",
+  "completed": false
+}
+```
+
+## https://www.google-analytics.com
+
+### `POST` /g/collect
+
+- **Status**: 204
+- **호출 횟수**: 9
+
+**Query Parameters:**
+
+| 이름 | 샘플값 |
+|------|--------|
+| `v` | `2` |
+| `tid` | `G-E3C3GCQVBN` |
+| `gtm` | `45je65i2v884780828za200zd884780828` |
+| `_p` | `1779238189938` |
+| `gcd` | `13l3l3l3l1l1` |
+| `npa` | `0` |
+| `dma` | `0` |
+| `cid` | `209459105.1779238190` |
+| `frm` | `0` |
+| `pscdl` | `noapi` |
+| `rcb` | `19` |
+| `sr` | `1280x800` |
+| `uaa` | `arm` |
+| `uab` | `64` |
+| `uafvl` | `Chromium;124.0.6367.29|HeadlessChrome;124.0.6367.29|Not-A.Brand;99.0.0.0` |
+| `uamb` | `0` |
+| `uap` | `macOS` |
+| `uapv` | `15.3.2` |
+| `uaw` | `0` |
+| `ul` | `en-us` |
+| `_s` | `1` |
+| `tag_exp` | `0~115616986~115938465~115938469` |
+| `sid` | `1779238190` |
+| `sct` | `1` |
+| `seg` | `0` |
+| `dl` | `https://jsonplaceholder.typicode.com/` |
+| `dt` | `JSONPlaceholder - Free Fake REST API` |
+| `en` | `page_view` |
+| `_fv` | `1` |
+| `_nsi` | `1` |
+| `_ss` | `1` |
+| `_ee` | `1` |
+| `tfd` | `1043` |
+| `_eu` | `AEAAAAQ` |
+| `ae` | `a` |
+| `epn.percent_scrolled` | `90` |
+| `_et` | `4701` |

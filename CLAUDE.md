@@ -19,6 +19,7 @@ document(문서 변환, 미구현) 셋이며, RecordingSession.kind 로 갈린�
 cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
 cd apps/backend && .venv/bin/pytest tests/ -v
 cd apps/backend && .venv/bin/pytest tests/test_masking.py -k 마스킹 -v   # 일부만 실행
+cd apps/backend && .venv/bin/pytest tests/test_ieum_gateway.py tests/test_ieum_units.py -v   # 이음
 
 # 관리자 화면 (:5173)
 cd apps/admin && npm run dev
@@ -46,6 +47,7 @@ cd apps/extension && npm run compile    # tsc --noEmit
 apps/extension/  Chrome 확장 (WXT + React) — 트래픽 기록 + 포털 명세 감지·전송
 apps/backend/    FastAPI + SQLModel + SQLite — 점수화·스키마 추론·실행·LLM
 apps/admin/      React + Vite — 프로젝트 → 세션 → 액션 계층 화면
+apps/web/ieum/   이음 관리 콘솔 (바닐라 JS, 빌드 없음) — 백엔드가 /ieum/ 에서 서빙
 ```
 
 DB 는 `apps/backend/data/dev.db` 파일 하나다. 마이그레이션은 없고 기동 시 생성된다.
@@ -147,7 +149,26 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 **`/sources` 에 산출물 숫자를 다시 넣지 않는다** — 프로젝트 목록 배지와 범위가 달라
 (전체 합산 vs 프로젝트 하나) 두 숫자가 어긋나면 버그로 읽힌다.
 
+**이음 게이트웨이는 별개 기능이다** (`apps/backend/app/ieum/`, 콘솔은 `apps/web/ieum`).
+레거시 시스템의 명세(OpenAPI·WSDL·호출 샘플)를 AI 도구로 바꿔 MCP 서버로 배포한다.
+수집·액션·LLM 콘솔과 코드를 공유하지 않고 SQLite 도 쓰지 않는다 — 모든 데이터는 JSON
+파일(`store.JsonStore`)이다. 메뉴별 시드(`app/ieum/data/`)를 읽고 변경분은
+`apps/backend/data/ieum/` 에 쓴다. 같은 `app.main` 에 붙으므로 `./start.sh` 가 함께 띄운다.
+`app.main` 에서 `include_router(ieum_router)` 와 `mount_console(app)` 은 맨 아래 관리자 화면의
+`/` 마운트보다 **먼저** 불러야 한다. 앞선 `/` 마운트가 `/ieum/` 요청을 삼킨다.
+응답은 `{resultCode, resultMsg, resultData}` 봉투이고 HTTP 상태도 resultCode 와 같다(`responses.py`).
+원본 시스템 인증 정보는 Fernet 으로 암호화해 `source_secrets.enc` 에 두는데, 키는
+`IEUM_SECRET_KEY` 또는 같은 폴더의 `.secret_key` 다. 둘은 짝이라 하나만 지우면 못 읽는다.
+
 ## 밟으면 아픈 것들
+
+- **전역 gitignore 에 `*.json` 을 둔 개발자는 새 JSON 이 조용히 빠진다.** 이음 시드
+  (`app/ieum/data/**`)는 `.gitignore` 에 예외를 뒀다. 다른 곳에 JSON 을 새로 추가하면
+  `git status` 에 안 보이니 `git check-ignore -v <파일>` 로 확인한다.
+- **이음 테스트는 `app.main` 으로 서버를 띄우지 않는다.** 기동할 때 `dev.db` 를 시드하기
+  때문이다. `tests/conftest.py` 의 `ieum_server` 는 이음 라우터만 실은 앱을 진짜 포트에
+  띄우고(변환 엔진이 HTTP 로 `/demo-origin` 을 부른다), `ieum_state` 는 상태 폴더를
+  임시로 돌린다.
 
 - **WAF.** 대상 사이트는 `User-Agent`·`Referer`·`X-Requested-With` 가 없으면 400 을
   낸다. 헤더를 골라 저장하는 쪽은 `services/schema_infer.py` 의 `PRESERVED_HEADERS`,
