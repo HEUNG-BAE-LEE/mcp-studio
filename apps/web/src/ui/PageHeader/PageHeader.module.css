@@ -1,0 +1,92 @@
+.root {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.title {
+  margin: 0;
+  font: var(--t-h1);
+}
+
+/* 하위 화면 뒤로 링크 — 제목 위 한 줄 · 아래 8 */
+.back {
+  display: flex;
+  margin: 0 0 var(--s-2);
+}
+
+/* 그 자리 편집: 제목 줄이 InlineEdit로 바뀐다. h1은 시각 숨김으로 남는다 */
+.root[data-editing='true'] .titleRow {
+  align-items: flex-start;
+}
+.editor {
+  flex: 1;
+  min-width: 0;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 시각 숨김 유틸 */
+  height: 1px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 시각 숨김 유틸 */
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.description {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 설명 위 3 */
+  margin: 3px 0 0;
+  font: var(--t-ui);
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  gap: var(--s-2);
+}
+
+.root[data-divider='true'] {
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.extra {
+  display: flex;
+  margin-top: var(--s-1-5);
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3-5);
+}
+.tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+.meta {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-3-5);
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.metaValue {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}

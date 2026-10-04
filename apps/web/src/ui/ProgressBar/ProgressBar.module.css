@@ -1,0 +1,16 @@
+/* 진행 막대: pill · data-empty 바탕(막대 빈 구간 — DESIGN Data) · md 4(전체) · sm 3(항목) · 채움 ink */
+.track {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 전체 막대 두께 4(DESIGN 리터럴 px 예외 주석 — 막대 · 점 두께) */
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--data-empty);
+  overflow: hidden;
+}
+.track[data-size='sm'] {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 항목 막대 두께 3(막대 치수) */
+  height: 3px;
+}
+.fill {
+  height: 100%;
+  background: var(--ink);
+}

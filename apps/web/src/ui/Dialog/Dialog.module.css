@@ -1,0 +1,27 @@
+/* 값: Dialog(발행 확인) */
+.content {
+  /* width 520 + padding 24 (content-box) — 바깥 568 */
+  box-sizing: content-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3-5);
+  width: 520px;
+  padding: var(--s-6);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  box-shadow: var(--shadow-modal);
+}
+.title {
+  margin: 0;
+  font: var(--t-h2);
+}
+.description {
+  margin: 0;
+  font: var(--t-prose);
+  color: var(--ink-soft);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}

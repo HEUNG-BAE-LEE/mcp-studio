@@ -1,0 +1,82 @@
+/* 연결 설정 표: 1px hairline r12 상자 · 행 150px 1fr · 44 · 0 16 · hairline-soft 구분 */
+.root {
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.row {
+  /* 행 콘텐츠 44 + border-bottom 1 = 45 (Table double과 동일). height가 border를 포함하지 않도록 content-box */
+  box-sizing: content-box;
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  column-gap: var(--s-4);
+  align-items: center;
+  height: var(--h-row);
+  padding: 0 var(--s-4);
+  border-bottom: 1px solid var(--hairline-soft);
+  font: var(--t-body);
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.row[data-action='true'] {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 액션 행 52 */
+  height: 52px;
+}
+.key {
+  margin: 0;
+  color: var(--muted);
+}
+.value {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-soft);
+}
+.value[data-mono='true'] {
+  font-family: var(--font-mono);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — mono 값 13 */
+  font-size: 13px;
+  /* 기계값 — 공백 없는 긴 값은 아무 데서나 접는다(DESIGN Typography). truncate면 한 줄 말줄임이 먼저다 */
+  overflow-wrap: anywhere;
+}
+/* truncate: 한 줄 말줄임. box는 값 칸(flex) 안에서 줄어들고, plain은 값 칸(block) 폭을 따른다 */
+.truncate {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 설정 상태 · 수집 행: 상자 없음 · 행 gap 8 · 키 96 400 13 muted · 값 400 13 ink · baseline gap 14 */
+.root[data-variant='plain'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.root[data-variant='plain'] .row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3-5);
+  height: auto;
+  padding: 0;
+  border-bottom: 0;
+  font: var(--t-ui);
+}
+.root[data-variant='plain'] .key {
+  flex: none;
+  width: 96px;
+}
+.root[data-variant='plain'] .value {
+  display: block;
+  color: var(--ink);
+}

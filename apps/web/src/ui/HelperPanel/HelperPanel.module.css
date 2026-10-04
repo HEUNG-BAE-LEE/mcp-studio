@@ -1,0 +1,18 @@
+/* 흐름 우측 안내 패널: 272 · 24 22 · gap 14 · surface-subtle · 왼쪽 1px hairline-soft */
+.root {
+  flex: none;
+  box-sizing: border-box;
+  width: 272px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 안쪽 24 22 */
+  padding: 24px 22px;
+  border-left: 1px solid var(--hairline-soft);
+  background: var(--surface-subtle);
+  overflow: auto;
+}
+.title {
+  font: var(--t-ui-strong);
+  color: var(--muted);
+}

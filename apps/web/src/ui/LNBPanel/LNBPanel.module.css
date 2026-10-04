@@ -1,0 +1,248 @@
+/* LNBPanel: 안쪽 14 12 · 머리 36 · 상위 38 · 스크롤(위 14 · gap 2 · 얇은 스크롤바) · 종 발 */
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: var(--s-3-5) var(--s-3);
+  overflow: hidden;
+  /* hover 바탕(패널 지역 변수) — 펼친 열 바탕 --surface-soft 위에서 보이는 --hairline-soft. 플로팅 --canvas 위에서도 보인다(COMPONENTS LNBPanel) */
+  --lnb-hover: var(--hairline-soft);
+}
+
+/* 머리: 로고 20 · 앱 이름 · 검색 · 접기 */
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 머리 높이 36(아래 패딩 14 포함, 토큰 없음) */
+  height: 36px;
+  padding: 0 var(--s-1) var(--s-3-5);
+}
+/* 머리 IconButton — background를 덮지 않고 IconButton hover 지역 변수로 준다(COMPONENTS IconButton) */
+.headButton {
+  --icon-button-hover: var(--lnb-hover);
+}
+.appName {
+  flex: 1;
+  min-width: 0;
+  font: var(--t-body-strong);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 상위 항목 */
+.top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0-5);
+}
+.item {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2-5);
+  width: 100%;
+  height: var(--h-nav-item);
+  padding: 0 var(--s-2-5);
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  font: var(--t-item);
+  color: var(--ink-soft);
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.item:hover:not([data-active='true']) {
+  background: var(--lnb-hover);
+}
+.item[data-active='true'] {
+  background: var(--canvas);
+  color: var(--accent);
+}
+.item[data-pending='true'] {
+  color: var(--faint);
+}
+.item:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+.item:disabled:hover {
+  background: transparent;
+}
+.item[data-pending='true'] .label {
+  font-weight: 400;
+}
+.icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note {
+  flex: none;
+  font: var(--t-label);
+  font-weight: 400;
+  line-height: 1;
+  color: var(--muted);
+}
+
+/* 구역 스크롤 영역 — 좌우 -12 · 안쪽 12로 스크롤바를 패널 끝에 붙인다.
+   위아래 포커스 링 자리 4(2 + offset 1 = 3 이상 — DESIGN 접근성 포커스): 아래 안쪽 여백(마지막 항목) +
+   scroll-padding(Tab이 항목을 가장자리로 끌어올 때 링이 스크롤 상자에 잘리지 않게) */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0-5);
+  margin: var(--s-3-5) calc(-1 * var(--s-3)) 0;
+  padding: 0 var(--s-3) var(--s-1);
+  scroll-padding-block: var(--s-1);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+.sectionLabel {
+  padding: 0 var(--s-2-5) var(--s-2);
+  font: var(--t-chip);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  color: var(--faint);
+  letter-spacing: var(--tracking-label-mono);
+}
+.sectionLabel:not(:first-child) {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 둘째 구역 라벨 위 22(토큰 없음) */
+  margin-top: 22px;
+}
+
+/* 그룹 행: .item과 같은 상자 + chevron. 구역 첫 그룹 말고는 위 4 */
+.group {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2-5);
+  width: 100%;
+  height: var(--h-nav-item);
+  margin-top: var(--s-1);
+  padding: 0 var(--s-2-5);
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-soft);
+  text-align: left;
+  cursor: pointer;
+}
+.group:hover {
+  background: var(--lnb-hover);
+}
+.sectionLabel + .group {
+  margin-top: 0;
+}
+.groupLabel {
+  flex: 1;
+  min-width: 0;
+  font: var(--t-item);
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* chevron 색은 --faint — Select chevron(--muted)과 다르다 */
+.chevron {
+  flex: none;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  color: var(--faint);
+  transition: transform var(--m-fast);
+}
+.chevron[data-open='true'] {
+  transform: rotate(180deg);
+}
+.chevronSvg {
+  width: 12px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: chevron 12×8 (아이콘 viewBox 원본) */
+  height: 8px;
+}
+
+/* 하위 항목 */
+.sub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0-5);
+}
+.subItem {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 하위 항목 상하 7 · 우 10(왼쪽 38은 아이콘 18 + gap 10 + 좌 10에서 파생) */
+  padding: 7px 10px 7px 38px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: var(--t-body);
+  color: var(--ink-soft);
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.subItem:hover:not([data-active='true']) {
+  background: var(--lnb-hover);
+}
+.subItem[data-active='true'] {
+  border-color: var(--accent);
+  background: var(--canvas);
+  color: var(--accent);
+}
+.subItem[data-pending='true'] {
+  color: var(--faint);
+}
+
+/* 종 발: 위 1px hairline · 12 10 0 · 우측 정렬 */
+.bell {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  padding: var(--s-3) var(--s-2-5) 0;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  background: none;
+  cursor: pointer;
+}
+/* 종 hover는 발 줄 전체가 아니라 아이콘 둘레 상자 — 안쪽 --s-1을 같은 음수 바깥 여백으로 되돌려 아이콘 자리는 그대로 둔다 */
+.bellIcon {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  margin: calc(-1 * var(--s-1));
+  padding: var(--s-1);
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  transition: background var(--m-fast);
+}
+.bell:hover .bellIcon {
+  background: var(--lnb-hover);
+}

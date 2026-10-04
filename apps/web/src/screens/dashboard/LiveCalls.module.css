@@ -1,0 +1,11 @@
+/* apps/web/src/screens/dashboard/LiveCalls.module.css — 실시간 호출(머리 → 내용 간격은 Region): 시각 · 도구 = Table mono 열(--t-mono) muted · 결과 --t-ui-strong ink-soft(상태 색 없음 — 실패는 문구가 말한다) */
+.muted {
+  color: var(--muted);
+}
+.connector {
+  color: var(--ink);
+}
+.result {
+  font: var(--t-ui-strong);
+  color: var(--ink-soft);
+}

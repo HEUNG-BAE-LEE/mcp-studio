@@ -1,0 +1,35 @@
+/* 세로 gap 6 · 설명은 caption muted · 검증 문구는 InlineMessage(label 500 12 fix-fg).
+   칸 = 두 줄(라벨 · 컨트롤 + 검증 문구). 부모가 grid(칸 grid — 흐름 2열)면 두 행을 subgrid로 차지해 같은 행 칸끼리 라벨 줄 높이를 나눈다 —
+   한쪽 라벨이 두 줄로 접혀도 컨트롤 윗변이 맞는다. 부모가 grid가 아니면 grid-row · subgrid는 무시되고 위에서 아래로 쌓인다 */
+.root {
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: var(--s-1-5);
+  /* 늘이지 않는다 — 라벨(inline-flex · 가운데 정렬)이 늘면 글이 줄 가운데로 내려간다 */
+  align-items: start;
+}
+.body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1-5);
+}
+/* 묶음 칸 fieldset — legend는 subgrid 행이 될 수 없어 위에서 아래로 쌓는다(grid 안 자리는 두 행 그대로). 브라우저 기본 테두리 · 여백 · 최소 폭을 지운다 */
+.group {
+  display: flex;
+  flex-direction: column;
+  /* .root의 align-items: start를 되돌린다 — flex 열에서 start면 자식(SegmentedControl · Checkbox 묶음)이 내용 폭으로 줄어든다 */
+  align-items: stretch;
+  gap: var(--s-1-5);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* 칸 한 줄 설명 — 컨트롤 아래 · 검증 문구 위(caption muted) */
+.description {
+  margin: 0;
+  font: var(--t-caption);
+  color: var(--muted);
+}

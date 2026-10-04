@@ -1,0 +1,25 @@
+/* 담을 도구 칩: 5 11 · r8 · 500 13/1.4 · 1px. 눌림 ink/on-ink/ink · 아님 canvas/ink-soft/hairline, hover surface-subtle */
+.root {
+  box-sizing: border-box;
+  margin: 0;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 칩 5 11 */
+  padding: 5px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+  color: var(--ink-soft);
+  font: var(--t-ui-strong);
+  cursor: pointer;
+}
+.root:hover:not(:disabled, [data-pressed='true']) {
+  background: var(--surface-subtle);
+}
+.root[data-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.root:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}

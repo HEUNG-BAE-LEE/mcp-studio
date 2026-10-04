@@ -1,0 +1,125 @@
+/* 높이 단계 lg 34(기본 — 다이얼로그 안 선택) · 0 10 · gap 8 · hairline(열림 faint) · 반지름 8 · 400 14/1.4 · chevron 12×8 muted
+   sm 26(표 행 · 툴바 안): 0 8 · gap 6 · 400 13/1.4, 목록 항목도 400 13
+   xl 36(세로 폼 — Input xl 옆): 0 11 · 400 13/1.4, 목록 항목 8 10 · 400 13 */
+.trigger {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  height: var(--h-lg);
+  padding: 0 var(--s-2-5);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+  color: var(--ink);
+  font: var(--t-body);
+  cursor: pointer;
+}
+.trigger[data-size='sm'] {
+  gap: var(--s-1-5);
+  height: var(--h-sm);
+  padding: 0 var(--s-2);
+  font: var(--t-ui);
+}
+.trigger[data-size='xl'] {
+  height: var(--h-xl);
+  /* padding 11 = 12(--s-3) − 테두리 1 — Input xl과 같다 */
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 테두리 1px 보정 */
+  padding: 0 calc(var(--s-3) - 1px);
+  font: var(--t-ui);
+}
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trigger[data-placeholder] {
+  /* 자리표시 상태(`가져오지 않고 새로 입력`) 글자 — 자리표시 색은 하나(base.css `::placeholder`와 같은 --placeholder) */
+  color: var(--placeholder);
+}
+.trigger[data-state='open'] {
+  border-color: var(--faint);
+}
+.trigger[data-invalid='true'] {
+  border-color: var(--fix-fg);
+}
+/* [data-placeholder]보다 뒤에 둔다 — 같은 특이도라 순서로 이긴다 */
+.trigger:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+.chevron {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  transition: transform var(--m-fast);
+}
+.chevronSvg {
+  width: 12px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: chevron 12×8 (아이콘 viewBox 원본) */
+  height: 8px;
+}
+.trigger[data-state='open'] .chevron {
+  transform: rotate(180deg);
+}
+.content {
+  box-sizing: border-box;
+  width: var(--radix-select-trigger-width);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 층 최대 높이 216(COMPONENTS 층), 뷰포트 가용 높이 우선 */
+  max-height: min(216px, var(--radix-select-content-available-height));
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+  /* 목록 그림자 = --shadow-panel */
+  box-shadow: var(--shadow-panel);
+  z-index: var(--z-inline);
+}
+.viewport {
+  display: flex;
+  flex-direction: column;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 항목 간격 1 */
+  gap: 1px;
+  padding: var(--s-1);
+}
+.item {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-2-5);
+  border-radius: var(--r-sm);
+  font: var(--t-body);
+  color: var(--ink);
+  cursor: pointer;
+}
+.content[data-size='sm'] .item {
+  padding: var(--s-1-5) var(--s-2);
+  font: var(--t-ui);
+}
+.content[data-size='xl'] .item {
+  font: var(--t-ui);
+}
+.item > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.item[data-highlighted] {
+  background: var(--surface-subtle);
+}
+.item[data-state='checked'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.note {
+  flex: none;
+  /* 400 12px/1 — 12px 토큰은 --t-label(500/1.4)뿐이라 웨이트 · 행간만 덮어쓴다 */
+  font: var(--t-label);
+  font-weight: 400;
+  line-height: 1;
+  color: var(--faint);
+}

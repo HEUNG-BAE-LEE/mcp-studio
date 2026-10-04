@@ -1,0 +1,15 @@
+/* 화면 상태 골격: 세로 쌓기 · 왼쪽 정렬 · gap 12 · 한 줄 글 ui-strong ink-soft. 여백은 감싸는 자리(PageBody · 영역 · 층 내용 열)가 준다 */
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+.text {
+  font: var(--t-ui-strong);
+  color: var(--ink-soft);
+}
+/* 영역 안 로딩 — 진행형 한 줄만(쌓기 · 간격 없음) */
+.root[data-inline='true'] {
+  display: block;
+}

@@ -1,0 +1,6 @@
+/* apps/web/src/screens/dashboard/Reserved.module.css — 예약 영역(머리 → 내용 간격은 Region): 1px dashed hairline r12 자리(높이 = 행 높이 h-row × 4) */
+.box {
+  height: calc(var(--h-row) * 4);
+  border: 1px dashed var(--hairline);
+  border-radius: var(--r-md);
+}

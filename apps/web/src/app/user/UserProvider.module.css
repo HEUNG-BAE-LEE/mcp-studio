@@ -1,0 +1,8 @@
+/* UserProvider 실패 화면 — 토큰만 */
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  align-items: flex-start;
+  padding: var(--s-6) var(--s-8);
+}

@@ -1,0 +1,7 @@
+dist
+node_modules
+pnpm-lock.yaml
+# 문서는 원문 서식을 유지한다
+*.md
+*.yaml
+*.yml

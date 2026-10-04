@@ -1,0 +1,36 @@
+/* 로그 <pre>: field · r8 · 12 · mono 12/1.55 · pre-wrap. 줄은 span 블록 하나씩 — 내어쓰기 2ch는 줄마다(첫 줄 0 · 접힌 줄 2ch) */
+.pre {
+  box-sizing: border-box;
+  margin: 0;
+  overflow: auto;
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--field);
+  font: var(--t-mono);
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  /* 기계값 표면 — 공백 없는 긴 값(경로 · URL · 토큰)은 아무 데서나 접는다(DESIGN Typography) */
+  overflow-wrap: anywhere;
+}
+/* 빈 줄도 한 줄 높이를 지킨다 */
+.line {
+  display: block;
+  min-height: 1lh;
+  padding-left: 2ch;
+  text-indent: -2ch;
+}
+
+/* 설정 수집 로그 · 흐름 진행 로그: surface-subtle · r8 · 12 14 · 줄 400 12/1.6 mono ink-soft · 줄 gap 4 · 공백 접힘 · 내어쓰기 없음 */
+.pre[data-variant='soft'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-3-5);
+  background: var(--surface-subtle);
+  line-height: 1.6;
+  white-space: normal;
+}
+.pre[data-variant='soft'] > .line {
+  padding-left: 0;
+  text-indent: 0;
+}

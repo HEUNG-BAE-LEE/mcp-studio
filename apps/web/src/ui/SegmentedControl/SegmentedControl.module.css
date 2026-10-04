@@ -1,0 +1,38 @@
+/* 트랙 inline-flex(내용 폭) gap 4 padding 3 surface-track radius 12 · 선택 canvas + accent
+   lg(기본, 34): 항목 padding 5 12 radius 8 500 13/1.4 · sm-plus(28): 트랙 높이 28 · 항목 좌우 10 · 500 12/1.4 */
+.root {
+  box-sizing: border-box;
+  display: inline-flex;
+  /* 늘어나는 부모(Field group 열 등) 안에서도 트랙은 내용 폭이다 */
+  width: fit-content;
+  vertical-align: middle;
+  gap: var(--s-1);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 트랙 안쪽 여백 3, 스케일 밖 */
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--surface-track);
+}
+.root[data-size='sm-plus'] {
+  height: var(--h-sm-plus);
+}
+.item {
+  box-sizing: border-box;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 항목 상하 5, 스케일 밖 */
+  padding: 5px var(--s-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  font: var(--t-ui-strong);
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* sm-plus: 항목은 트랙 안쪽 높이(28 − 3 × 2)를 채우고 글자는 가운데 */
+.root[data-size='sm-plus'] .item {
+  padding: 0 var(--s-2-5);
+  font: var(--t-label);
+}
+.item[data-state='on'] {
+  background: var(--canvas);
+  color: var(--accent);
+}

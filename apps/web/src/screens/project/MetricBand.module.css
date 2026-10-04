@@ -1,0 +1,7 @@
+/* apps/web/src/screens/project/MetricBand.module.css — 요약 밴드: 4열 gap 10 */
+.band {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-2-5);
+}

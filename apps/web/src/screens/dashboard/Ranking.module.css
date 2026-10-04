@@ -1,0 +1,7 @@
+/* apps/web/src/screens/dashboard/Ranking.module.css — 호출 순위(머리 → 내용 간격은 Region): 순위 · 수 Table numeric 열(tabular-nums — 순위는 기계값이 아니라 mono가 아니다) · 순위 muted · 수 --t-ui-strong */
+.rank {
+  color: var(--muted);
+}
+.calls {
+  font: var(--t-ui-strong);
+}

@@ -1,0 +1,20 @@
+/* 알림 수 표식: min-width 16 · height 16 · padding 0 4 · pill · on-ink · mono 500 11/16 · 가운데. 위치는 호출자가 style로 준다 */
+.root {
+  box-sizing: border-box;
+  display: inline-block;
+  min-width: 16px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 개수 점 16 */
+  height: 16px;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-pill);
+  color: var(--on-ink);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 글자 chip 크기 11 · 행간 16 = 점 16 */
+  font: 500 11px/16px var(--font-mono);
+  text-align: center;
+}
+.root[data-tone='fix'] {
+  background: var(--fix-fg);
+}
+.root[data-tone='progress'] {
+  background: var(--progress-fg);
+}

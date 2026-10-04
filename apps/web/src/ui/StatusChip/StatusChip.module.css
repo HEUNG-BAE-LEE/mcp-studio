@@ -1,0 +1,54 @@
+/* pill · 1px 테두리 · tier 색. md = 목록 행 칩, lg = 머리 상태 태그 */
+/* 크기별 padding · 글자는 각 size 블록 참고. tier 색의 쓰는 곳은 DESIGN Colors Status */
+.root {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+.root[data-size='md'] {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 소스 행 칩 상하 패딩 1px */
+  padding: 1px var(--s-2);
+  font: var(--t-chip);
+  /* 11px/1.6 = 17.6px — 테두리 포함 칩 높이를 맞춘다(--t-chip은 18px) */
+  line-height: 1.6;
+}
+.root[data-size='lg'] {
+  display: inline-block;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 헤더 상태 태그 상하 3 · 좌우 9는 스케일 밖 */
+  padding: 3px 9px;
+  border-radius: var(--r-sm);
+  font: var(--t-label);
+}
+.root[data-tier='progress'] {
+  color: var(--progress-fg);
+  background: var(--progress-bg);
+  border-color: var(--progress-border);
+}
+.root[data-tier='progress'][data-surface='soft'] {
+  background: var(--progress-soft);
+}
+.root[data-tier='fix'] {
+  color: var(--fix-fg);
+  background: var(--fix-bg);
+  border-color: var(--fix-border);
+}
+.root[data-tier='fix'][data-surface='soft'] {
+  background: var(--fix-soft);
+}
+/* 완료(done)는 평상시 상태라 중립(idle)과 같은 무채색으로 그린다 — DESIGN Colors Status */
+.root[data-tier='done'],
+.root[data-tier='idle'] {
+  color: var(--idle-fg);
+  background: var(--idle-bg);
+  border-color: var(--idle-border);
+}
+/* soft: 목록 행(사용 중 · 미발행 등) */
+.root[data-tier='done'][data-surface='soft'],
+.root[data-tier='idle'][data-surface='soft'] {
+  background: var(--idle-soft);
+  border-color: var(--idle-soft-border);
+}

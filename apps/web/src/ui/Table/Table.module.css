@@ -1,0 +1,100 @@
+/* 밀도 double 44 · single 36: grid 행 + 1px hairline-soft 구분. <table>이 아니다 */
+.root {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+}
+/* 동적 열(minWidth): 열 최소 폭 합이 표 폭보다 크면 표 상자 안에서 가로 스크롤 — 헤더 · 행이 같은 폭 안에서 함께 움직인다 */
+.root[data-scroll-x='true'] {
+  overflow-x: auto;
+}
+.track {
+  box-sizing: border-box;
+}
+.head,
+.row {
+  box-sizing: border-box;
+  display: grid;
+  align-items: center;
+}
+.head {
+  padding: 0 var(--s-2-5) var(--s-2);
+  border-bottom: 1px solid var(--hairline);
+  font: var(--t-ui-strong);
+  color: var(--muted);
+}
+.row {
+  border-bottom: 1px solid var(--hairline-soft);
+}
+/* 컴포넌트 지역 변수 — 밀도별 열 간격 */
+.root[data-density='double'] {
+  --table-gap: var(--s-5);
+}
+.root[data-density='single'] {
+  --table-gap: var(--s-2);
+}
+.head,
+.row {
+  column-gap: var(--table-gap);
+}
+.root[data-density='double'] .row,
+.root[data-density='single'] .row {
+  /* 행은 content-box — --h-row(44) · --h-row-single(36)은 padding · 아래 1px 구분을 뺀 내용 높이다 */
+  box-sizing: content-box;
+  padding: 0 var(--s-2-5);
+}
+.root[data-density='double'] .row {
+  height: var(--h-row);
+  font: var(--t-body);
+  color: var(--ink-soft);
+}
+.root[data-density='single'] .row {
+  height: var(--h-row-single);
+  font: var(--t-ui);
+}
+.row[data-clickable='true'] {
+  cursor: pointer;
+}
+.row[data-clickable='true']:hover {
+  background: var(--surface-subtle);
+}
+.row[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+/* 글 셀 — 넘치면 말줄임 */
+.cell {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 컨트롤 셀(Checkbox · Switch · RowMenu · Button · Select — 모두 <button> · 입력 칸)은 자르지 않는다.
+   포커스 링(2 + offset 1)이 셀 상자 밖으로 나오기 때문(DESIGN 접근성 포커스). 이 열은 고정 px 폭이라 넘치지 않는다 */
+.cell:has(button, input, select, textarea) {
+  overflow: visible;
+}
+.cell[data-numeric='true'] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cell[data-mono='true'] {
+  font: var(--t-mono);
+}
+.cell[data-empty='true'] {
+  color: var(--muted);
+}
+/* 두 줄 셀(TableCellLines): 첫 줄 행 글자 · 둘째 줄 caption muted · 줄마다 ellipsis */
+.lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sub {
+  font: var(--t-caption);
+  color: var(--muted);
+}

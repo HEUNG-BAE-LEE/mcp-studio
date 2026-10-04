@@ -1,0 +1,103 @@
+/* LNB: 루트 flex:none · 열(폭은 LNB.tsx가 LNB_WIDTH로 인라인 style에 준다) · 0폭 핸들(7px 히트) · 플로팅(--z-modal · --shadow-popover) */
+.root {
+  display: flex;
+  flex: none;
+  height: 100%;
+}
+
+.column {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-soft);
+  border-right: 1px solid var(--hairline);
+}
+
+/* 열 안 패널 자리 — flex:1 · min-height:0 · height:100% · overflow hidden */
+.panelSlot {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+/* 플로팅 안 패널 자리 — flex:1 · min-width:0으로 전폭 */
+.floatingSlot {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.handle {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 0;
+}
+.handleHit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 핸들 히트 영역 −3 · 7(토큰 없음) */
+  left: -3px;
+  width: 7px;
+  cursor: col-resize;
+}
+
+.rail {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3-5);
+  height: 100%;
+  padding: var(--s-4) var(--s-1-5);
+}
+/* 레일 컨트롤 hover — 레일 바탕이 surface-soft라 IconButton 기본 hover(surface-soft)는 보이지 않는다.
+   surface-soft 면 위 hover = hairline-soft(IconButton filled와 같은 짝 — surface-track은 차이가 거의 없다).
+   IconButton은 바깥에서 background를 덮지 않고 그 지역 변수(--icon-button-hover)를 className으로 준다(COMPONENTS IconButton) */
+.railControl {
+  --icon-button-hover: var(--hairline-soft);
+}
+/* 알림 수 — 누르는 상자는 위 IconButton sm과 같은 26×26 · radius 8(글자만 누르는 자리가 되지 않게) · hover는 레일 컨트롤과 같은 hairline-soft */
+.railCount {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  margin-top: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: var(--t-ui-strong);
+  font-family: var(--font-mono);
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--m-fast);
+}
+.railCount:hover,
+.railCount:active {
+  background: var(--hairline-soft);
+}
+
+.floating {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--z-modal);
+  box-sizing: border-box;
+  display: flex;
+  background: var(--canvas);
+  border-right: 1px solid var(--hairline);
+  box-shadow: var(--shadow-popover);
+}

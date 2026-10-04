@@ -1,0 +1,57 @@
+/* 화면 본문 틀(DESIGN Layout 본문 여백 · 세로 리듬 · Patterns 화면 틀): 여백 body-top · body-x · body-bottom(1024 좌우 body-x-narrow) · 영역 사이 gap-section · 두 열 gap-column(1024 gap-column-narrow) */
+.body {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-section);
+  padding: var(--body-top) var(--body-x) var(--body-bottom);
+  overflow-y: auto;
+}
+/* 포커스 링(넘치면 키보드로 닿는 스크롤 상자)을 안쪽에 그린다 — 본문이 앱 프레임 가장자리(overflow: hidden)에 붙어 바깥 링이 잘린다.
+   전역 링을 뒤집은 값 offset −3(DESIGN 접근성 포커스 · ModalPanel과 같다) */
+.body:focus-visible {
+  outline-offset: -3px;
+}
+/* 본문 전체가 스크롤 — 영역은 줄어들지 않고 제 높이를 지킨다(overflow를 가진 영역도 눌리지 않게) */
+.body[data-scroll='page'] > * {
+  flex-shrink: 0;
+}
+.body[data-narrow='true'] {
+  padding-right: var(--body-x-narrow);
+  padding-left: var(--body-x-narrow);
+}
+/* 영역이 각자 스크롤 — 본문은 넘치지 않고 두 열이 남은 높이를 채운다 */
+.body[data-scroll='regions'] {
+  overflow: hidden;
+}
+.body[data-scroll='regions'] > .columns {
+  flex: 1;
+  min-height: 0;
+}
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: var(--gap-column);
+}
+.columns[data-narrow='true'] {
+  column-gap: var(--gap-column-narrow);
+}
+/* 작업 + 보조 열: 넓은 작업 열 + 오른쪽 고정 보조 열(1024도 같은 폭) */
+.columns[data-variant='aside'] {
+  grid-template-columns: minmax(0, 1fr) var(--w-aside);
+}
+/* 한 열 안 영역 쌓기 — 사이 gap-section. fill이면 마지막 영역이 남은 높이를 채운다 */
+.stack {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-section);
+}
+.stack[data-fill='true'] > :last-child {
+  flex: 1;
+  min-height: 0;
+}

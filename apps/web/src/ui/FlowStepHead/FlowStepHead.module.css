@@ -1,0 +1,16 @@
+/* 세로 gap 6 · 제목 --t-h2 · 설명 --t-prose muted */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1-5);
+}
+.title {
+  margin: 0;
+  font: var(--t-h2);
+  color: var(--ink);
+}
+.description {
+  margin: 0;
+  font: var(--t-prose);
+  color: var(--muted);
+}

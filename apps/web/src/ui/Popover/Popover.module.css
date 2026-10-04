@@ -1,0 +1,10 @@
+/* Select 목록과 같은 표면: canvas · 1px hairline · r12 · popover 그림자 · 안쪽 4 */
+.content {
+  box-sizing: border-box;
+  padding: var(--s-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  box-shadow: var(--shadow-popover);
+  z-index: var(--z-inline);
+}

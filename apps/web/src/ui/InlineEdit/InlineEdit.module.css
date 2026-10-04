@@ -1,0 +1,21 @@
+/* InlineEdit: 열 gap 6(라벨 · 입력 · 검증 문구 간격과 같다) · 줄 gap 8 · 입력이 남은 폭 · 검증 문구는 InlineMessage */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1-5);
+  min-width: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.input {
+  flex: 1;
+  min-width: 0;
+}
+/* 저장 중에는 입력이 읽기 전용이어도 읽기 전용 회색 대신 보통 입력 모양을 유지한다 */
+.root[data-saving] .input[readonly] {
+  background: var(--canvas);
+  color: var(--ink);
+}

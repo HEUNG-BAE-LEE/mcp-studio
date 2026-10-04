@@ -1,0 +1,87 @@
+/* 한 줄 카드(소스 · 커넥터 목록): 1px hairline-soft · r12 · 10 12 11 · gap 12. hover hairline + surface-faint
+   누르는 카드 = 제목 버튼(.press)의 ::after가 카드 전체를 덮는 누름 자리. action은 그 위(z 1)에 놓인 형제 */
+.root {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-3);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 카드 안쪽 여백 10 12 11(아래 11은 스케일 밖) */
+  padding: 10px 12px 11px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+}
+.root[data-clickable='true'] {
+  cursor: pointer;
+}
+.root[data-clickable='true']:hover {
+  border-color: var(--hairline);
+  background: var(--surface-faint);
+}
+.root[data-selected='true'] {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-1-5);
+  min-width: 0;
+}
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.title {
+  min-width: 0;
+  font: var(--t-body-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 제목 버튼 — 글자 모양은 .title 그대로. 자신은 위치를 갖지 않아 ::after가 카드(.root) 기준으로 펼쳐진다(overflow에 잘리지 않는다) */
+.press {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.press::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+/* 타입 칩(소스 타입 · 도구 수): 중립 surface-soft · ink-soft — 상태 색을 타입 구분에 쓰지 않는다 */
+.type {
+  flex: none;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 타입 칩 1px 6px */
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font: var(--t-chip);
+  font-family: var(--font-mono);
+  line-height: 1.6;
+}
+.summary {
+  min-width: 0;
+  font: var(--t-caption);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 누름 자리(::after) 위에 놓여 action 누름이 제목 버튼으로 가지 않는다 */
+.action {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: none;
+}

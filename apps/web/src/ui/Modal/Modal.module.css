@@ -1,0 +1,148 @@
+/* 값: Modal settings(소스 설정) · form(LNB 새 프로젝트) */
+.content {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  box-shadow: var(--shadow-modal);
+}
+.head {
+  flex: none;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.foot {
+  flex: none;
+  display: flex;
+  border-top: 1px solid var(--hairline-soft);
+}
+.actions {
+  display: flex;
+}
+
+/* settings: 머리 = 제목 행(이름 · 칩 · ✕) + 부제, 몸통은 여백 없음(탭 레일은 내용 열) */
+.content[data-kind='settings'] .head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — settings 머리 18 22 15 */
+  padding: 18px 22px 15px;
+}
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+}
+.title {
+  margin: 0;
+  font: var(--t-section);
+  color: var(--ink);
+}
+.close {
+  margin-left: auto;
+}
+.subtitle {
+  margin: 0;
+  font: var(--t-ui);
+  color: var(--muted);
+}
+.content[data-kind='settings'] .body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.content[data-kind='settings'] .foot {
+  align-items: center;
+  gap: var(--s-3);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — settings 발 13 22 */
+  padding: 13px 22px;
+}
+.note {
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.content[data-kind='settings'] .actions {
+  margin-left: auto;
+  gap: var(--s-3);
+}
+
+/* form: 머리 = 키커 + ✕, 몸통 18 24 gap 14, 발은 액션 우측 gap 8 */
+/* 둥근 클립을 두지 않는다 — 폼 입력 모서리의 소수 위치 앤티에일리어싱이 잘린다 */
+.content[data-kind='form'] {
+  overflow: visible;
+}
+.content[data-kind='form'] .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — form 머리 18 24 14 */
+  padding: 18px 24px 14px;
+}
+.kicker {
+  margin: 0;
+  font: var(--t-ui-strong);
+  color: var(--muted);
+}
+.content[data-kind='form'] .body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — form 몸통 18 24 */
+  padding: 18px 24px;
+}
+.content[data-kind='form'] .foot {
+  justify-content: flex-end;
+  gap: var(--s-2);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — form 발 14 24 18 */
+  padding: 14px 24px 18px;
+}
+.content[data-kind='form'] .actions {
+  gap: var(--s-2);
+}
+
+/* info: 정보 열람(연결 정보). 머리 20 24 16(키커 행 + 이름 h2 600 20 + 상태 태그 + 부제), 몸통 18 24 gap 10, 발 14 24 18 우측 gap 8 */
+/* 둥근 클립을 두지 않는다(form과 같은 사유) */
+.content[data-kind='info'] {
+  overflow: visible;
+}
+.content[data-kind='info'] .head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — info 머리 20 24 16 */
+  padding: 20px 24px 16px;
+}
+.kickerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+}
+.infoTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+}
+.infoTitle {
+  margin: 0;
+  font: var(--t-h2);
+  color: var(--ink);
+}
+.content[data-kind='info'] .body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — info 몸통 18 24 */
+  padding: 18px 24px;
+}
+.content[data-kind='info'] .foot {
+  justify-content: flex-end;
+  gap: var(--s-2);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — info 발 14 24 18 */
+  padding: 14px 24px 18px;
+}
+.content[data-kind='info'] .actions {
+  gap: var(--s-2);
+}

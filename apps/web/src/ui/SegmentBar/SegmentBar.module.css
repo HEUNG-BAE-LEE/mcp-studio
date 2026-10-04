@@ -1,0 +1,76 @@
+/* tone 색: DESIGN Data 규칙 — 손봐야 할 것 2(fix · progress) + 중립 단계(ink-soft · muted · faint) + data-empty */
+/* 막대 7 · 구간 r2 · gap 2 · 아래 8 · 범례 2열 */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.bar {
+  display: flex;
+  gap: var(--s-0-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 막대 높이 7(DESIGN 리터럴 px 예외 주석 — 막대 · 점 두께) */
+  height: 7px;
+}
+.seg {
+  align-self: stretch;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 구간 반지름 2(DESIGN Shapes 파생 반지름) */
+  border-radius: 2px;
+}
+.legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--s-2-5);
+  row-gap: var(--s-1);
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 범례 행 17 */
+  height: 17px;
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.swatch {
+  flex: none;
+  width: 6px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 위와 같음 */
+  height: 6px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 위와 같음 */
+  border-radius: 2px;
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.n {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+.seg[data-tone='ink-soft'],
+.swatch[data-tone='ink-soft'] {
+  background: var(--ink-soft);
+}
+.seg[data-tone='muted'],
+.swatch[data-tone='muted'] {
+  background: var(--muted);
+}
+.seg[data-tone='faint'],
+.swatch[data-tone='faint'] {
+  background: var(--faint);
+}
+.seg[data-tone='progress'],
+.swatch[data-tone='progress'] {
+  background: var(--progress-fg);
+}
+.seg[data-tone='fix'],
+.swatch[data-tone='fix'] {
+  background: var(--fix-fg);
+}
+.seg[data-tone='empty'],
+.swatch[data-tone='empty'] {
+  background: var(--data-empty);
+}

@@ -1,0 +1,10 @@
+# 슬래시를 붙이면 디렉터리만 무시한다. 심볼릭 링크로 커밋되는 사고를 막기 위해 슬래시 없이 둔다
+node_modules
+dist/
+*.tsbuildinfo
+.vite/
+.DS_Store
+
+# 도구 산출물
+.playwright-mcp/
+.superpowers/

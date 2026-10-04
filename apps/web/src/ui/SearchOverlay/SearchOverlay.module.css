@@ -1,0 +1,132 @@
+/* 값: SearchOverlay(LNB 검색). 위 여백은 top prop 인라인 */
+/* layer.overlay가 align-items:center · z-index:--z-modal을 주므로 속성 선택자로 이긴다 */
+.overlay[data-layer='search'] {
+  align-items: flex-start;
+  z-index: var(--z-search);
+}
+.content {
+  box-sizing: border-box;
+  width: 460px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 층 최대 높이 540(COMPONENTS SearchOverlay) */
+  max-height: 540px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--canvas);
+  box-shadow: var(--shadow-modal);
+}
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — LNB 검색 머리 높이 54 */
+  height: 54px;
+  padding: 0 var(--s-4);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+}
+/* outline:none을 주지 않는다 — 전역 :focus-visible 링 유지(규칙 12) */
+.input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 입력은 브라우저 기본 패딩(1 2)을 그대로 쓴다 */
+  padding: 1px 2px;
+  border: 0;
+  background: transparent;
+  font: var(--t-item);
+  font-weight: 400;
+  color: var(--ink);
+}
+.kbd {
+  flex: none;
+  font: var(--t-chip);
+  font-family: var(--font-mono);
+  color: var(--muted);
+  background: var(--surface-soft);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — esc 키캡 반지름 5 */
+  border-radius: 5px;
+  padding: 0 var(--s-1-5);
+}
+.results {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — LNB 검색 결과 영역 10 8 12 */
+  padding: 10px 8px 12px;
+}
+
+/* 결과 조각(그룹 · 항목 · 빈 결과) */
+.groupLabel {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 그룹 헤더 6 10 */
+  padding: 6px 10px;
+  font: var(--t-chip);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  letter-spacing: var(--tracking-label-mono);
+  color: var(--faint);
+}
+.group + .group .groupLabel {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 둘째 그룹 헤더 12 10 6 */
+  padding: 12px 10px 6px;
+}
+.item {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  width: 100%;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 결과 행 9 10 */
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  font: var(--t-body);
+  color: var(--ink-soft);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+/* hover */
+.item:hover {
+  background: var(--surface-subtle);
+}
+.item[data-pending='true'] {
+  color: var(--faint);
+}
+.itemIcon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+}
+.itemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.itemNote {
+  flex: none;
+  font: var(--t-label);
+  font-weight: 400;
+  line-height: 1;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.empty {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 0건 22 10 */
+  padding: 22px 10px;
+  font: var(--t-ui);
+  line-height: 1.6;
+  color: var(--faint);
+}

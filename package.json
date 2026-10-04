@@ -1,0 +1,37 @@
+{
+  "name": "mcp-studio",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.4",
+  "engines": {
+    "node": ">=22.22"
+  },
+  "volta": {
+    "node": "22.23.1",
+    "pnpm": "10.34.4"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @mcp-studio/web dev",
+    "build": "pnpm typecheck && pnpm --filter @mcp-studio/web build",
+    "typecheck": "pnpm --filter @mcp-studio/web typecheck",
+    "lint": "pnpm lint:eslint && pnpm lint:format && pnpm lint:tokens && pnpm lint:docs",
+    "lint:eslint": "eslint .",
+    "lint:format": "prettier --check .",
+    "lint:tokens": "stylelint \"apps/**/*.module.css\" --allow-empty-input",
+    "lint:docs": "node apps/web/lint/check-docs.js",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.1.0",
+    "eslint-plugin-jsx-a11y": "^6.10.0",
+    "eslint-plugin-react-hooks": "^7.1.0",
+    "globals": "^17.0.0",
+    "prettier": "^3.9.0",
+    "stylelint": "^17.15.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.0"
+  }
+}

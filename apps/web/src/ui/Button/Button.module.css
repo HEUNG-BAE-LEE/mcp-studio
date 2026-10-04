@@ -1,0 +1,134 @@
+/* Button. 높이 단계(DESIGN 컨트롤 높이 단계) — 높이 · 좌우 · 행간
+   sm 26 · 0 10 / sm-plus 28 · 0 11 / md 32 · 0 14(기본) / lg 34 · 0 14 · 행간 32(의도)
+   행간은 --btn-lh 하나로 정하고, 글자 역할(textStyle)은 글꼴만 바꾼다 */
+.root {
+  --btn-lh: var(--h-md);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--h-md);
+  padding: 0 var(--s-3-5);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font: var(--t-ui-strong);
+  line-height: var(--btn-lh);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background var(--m-fast),
+    color var(--m-fast),
+    border-color var(--m-fast);
+}
+.root[data-size='sm'] {
+  --btn-lh: var(--h-sm);
+  height: var(--h-sm);
+  padding: 0 var(--s-2-5);
+}
+.root[data-size='sm-plus'] {
+  --btn-lh: var(--h-sm-plus);
+  height: var(--h-sm-plus);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — sm-plus 좌우 11 */
+  padding: 0 11px;
+}
+.root[data-size='lg'] {
+  height: var(--h-lg);
+}
+/* 글자 역할 label: 500 12. 행간은 높이 단계(--btn-lh) 그대로 */
+.root[data-text-style='label'] {
+  font: var(--t-label);
+  font-weight: 500;
+  line-height: var(--btn-lh);
+}
+
+.root[data-variant='primary'] {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.root[data-variant='primary']:hover:not(:disabled):not([data-disabled='true']),
+.root[data-variant='primary']:active:not(:disabled):not([data-disabled='true']) {
+  background: var(--ink-soft);
+}
+
+.root[data-variant='secondary']:hover:not(:disabled):not([data-disabled='true']),
+.root[data-variant='secondary']:active:not(:disabled):not([data-disabled='true']) {
+  background: var(--surface-track);
+}
+
+.root[data-variant='danger'] {
+  background: transparent;
+  color: var(--fix-fg);
+  border: 1px solid var(--fix-border);
+}
+.root[data-variant='danger']:hover:not(:disabled):not([data-disabled='true']),
+.root[data-variant='danger']:active:not(:disabled):not([data-disabled='true']) {
+  background: var(--fix-bg);
+  border-color: var(--fix-border-strong);
+}
+
+.root[data-variant='link'] {
+  height: auto;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  /* --t-ui(400 13px/1.4)와 같은 행간 비율 */
+  line-height: 1.4;
+}
+.root[data-variant='link']:hover:not(:disabled):not([data-disabled='true']),
+.root[data-variant='link']:active:not(:disabled):not([data-disabled='true']) {
+  color: var(--accent-ink);
+}
+
+/* 윤곽 보조(이전 · 프로젝트로 돌아가기 · 진행 중 주 액션 · 담기 잠김): 투명 · 1px hairline · ink-soft · hover surface-soft */
+.root[data-variant='outline'] {
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+.root[data-variant='outline']:hover:not(:disabled):not([data-disabled='true']),
+.root[data-variant='outline']:active:not(:disabled):not([data-disabled='true']) {
+  background: var(--surface-soft);
+}
+
+/* 조용한 한 줄(수정 취소): 투명 · 좌우 10 · muted · hover ink
+   좌우 10은 md에만 건다 — 다른 크기의 padding을 덮어쓰지 않는다 */
+.root[data-variant='quiet'][data-size='md'] {
+  padding: 0 var(--s-2-5);
+}
+.root[data-variant='quiet'] {
+  background: transparent;
+  color: var(--muted);
+}
+.root[data-variant='quiet']:hover:not(:disabled):not([data-disabled='true']),
+.root[data-variant='quiet']:active:not(:disabled):not([data-disabled='true']) {
+  color: var(--ink);
+}
+
+.root:disabled,
+.root[data-disabled='true'] {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+/* 비활성 보조 버튼: 필 유지 · 글자 faint */
+.root[data-variant='secondary']:disabled,
+.root[data-variant='secondary'][data-disabled='true'] {
+  color: var(--faint);
+}
+/* 비활성 주 버튼: 필 disabled-fill · 글자 faint. .root:disabled 뒤에 둔다 */
+.root[data-variant='primary']:disabled,
+.root[data-variant='primary'][data-disabled='true'] {
+  background: var(--disabled-fill);
+  color: var(--faint);
+}
+/* 비활성 윤곽: 윤곽 유지 · 필 canvas(머리 바탕 위에서도 흰 칸) · 글자 faint */
+.root[data-variant='outline']:disabled,
+.root[data-variant='outline'][data-disabled='true'] {
+  background: var(--canvas);
+  color: var(--faint);
+}
+
+.root[data-loading='true'] {
+  cursor: progress;
+}

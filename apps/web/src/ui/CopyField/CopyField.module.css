@@ -1,0 +1,46 @@
+/* 연결 정보 복사 행: gap 12 · 라벨 92 400 13 muted · 값 7 10 surface-subtle 1px hairline-soft r8 mono 13 ink · 복사 28 0 10 surface-soft 500 13/28 ink-soft */
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.label {
+  flex: none;
+  width: 92px;
+  font: var(--t-ui);
+  color: var(--muted);
+}
+.value {
+  flex: 1;
+  min-width: 0;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 값 칸 7 10 */
+  padding: 7px 10px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface-subtle);
+  font: var(--t-ui);
+  font-family: var(--font-mono);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.copy {
+  flex: none;
+  /* 높이 단계 sm-plus 28 */
+  height: var(--h-sm-plus);
+  padding: 0 var(--s-2-5);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-soft);
+  font: var(--t-ui-strong);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 행간 28 = 복사 버튼 높이 28 */
+  line-height: 28px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--m-fast);
+}
+.copy:hover {
+  background: var(--surface-track);
+}

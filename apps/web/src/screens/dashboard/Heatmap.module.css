@@ -1,0 +1,36 @@
+/* apps/web/src/screens/dashboard/Heatmap.module.css — 히트맵(머리 → 내용 간격은 Region): 격자 gap 4 · 열 26px + 12 × 1fr gap 4 · 줄 높이 h-sm 26 · 시간 눈금 --t-caption muted · 요일 400 12 muted · 셀 r3 · 명도 = ink × 밀도(color-mix) */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.hours,
+.row {
+  display: grid;
+  /* 요일 열 26px은 레이아웃 고정폭(규칙 1 예외, stylelint 허용 속성) */
+  grid-template-columns: 26px repeat(12, minmax(0, 1fr));
+  column-gap: var(--s-1);
+}
+.hour {
+  text-align: center;
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.row {
+  height: var(--h-sm);
+  align-items: stretch;
+}
+.day {
+  display: flex;
+  align-items: center;
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.cell {
+  /* 기본값(밀도 0). Heatmap.tsx가 style로 셀마다 `--heat`를 덮어쓴다 */
+  --heat: 0%;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 셀 반지름 3(DESIGN Shapes 파생 반지름) */
+  border-radius: 3px;
+  /* 투명과 섞으면 rgb(ink / 밀도)와 같은 값 — rgb() 리터럴 없이 */
+  background: color-mix(in srgb, var(--ink) var(--heat), transparent);
+}

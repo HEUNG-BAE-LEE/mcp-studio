@@ -1,0 +1,59 @@
+/* 값: AlertPanel. 패널 위치는 left · bottom prop 인라인 */
+/* layer.overlay의 flex 가운데 정렬을 끄고 z를 알림 scrim 층으로 — 속성 선택자로 이긴다 */
+.overlay[data-layer='alert'] {
+  display: block;
+  z-index: var(--z-alert-scrim);
+}
+.panel {
+  position: absolute;
+  z-index: var(--z-alert-panel);
+  box-sizing: border-box;
+  width: 424px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  box-shadow: var(--shadow-panel);
+}
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 알림 머리 13 15 11 */
+  padding: 13px 15px 11px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.title {
+  margin: 0;
+  font: var(--t-body-strong);
+}
+.close {
+  margin-left: auto;
+}
+.list {
+  flex: none;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 층 최대 높이 396(COMPONENTS AlertPanel) */
+  max-height: 396px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+/* 항목은 줄지 않는다 — 넘치면 목록이 스크롤한다 */
+.list > * {
+  flex: none;
+}
+/* 카드 사이 1px — 목록이 바로 아래 자식 사이에 긋는다(카드를 li · 래퍼로 감싸도 남는다). 카드(Notice)는 선을 긋지 않는다 */
+.list > * + * {
+  border-top: 1px solid var(--hairline-soft);
+}
+.footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 좌우 15 = 알림 머리 좌우(13 15 11)에 맞춘다 */
+  padding: var(--s-2-5) 15px;
+  border-top: 1px solid var(--hairline-soft);
+}

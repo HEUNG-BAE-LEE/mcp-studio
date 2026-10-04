@@ -1,0 +1,62 @@
+/* 한 줄 gap 8 · 제목 section 600 16/1.4 · 수 mono 500 14 ink-soft · 도구 우측 gap 8
+   note: 도구 앞 우측 caption muted 한 줄 · divider: 아래 10 + 1px hairline · 줄 최소 높이 sm-plus 28 (목록 영역 머리) · reason: 머리 아래 4에 caption muted 한 줄 */
+.root {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.stack {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.root[data-divider='true'],
+.stack[data-divider='true'] {
+  padding-bottom: var(--s-2-5);
+  border-bottom: 1px solid var(--hairline);
+}
+/* 열 머리(divider)는 도구가 없어도 도구 높이(sm-plus 28)를 지킨다 — 나란한 열의 구분선 높이가 맞는다 */
+.root[data-divider='true'],
+.stack[data-divider='true'] > .root {
+  min-height: var(--h-sm-plus);
+}
+.title {
+  flex: none;
+  margin: 0;
+  font: var(--t-section);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.count {
+  flex: none;
+  font: var(--t-body);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+.note {
+  flex: none;
+  margin-left: auto;
+  font: var(--t-caption);
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* 메모가 있으면 메모가 우측으로 밀고 도구는 그 뒤에 붙는다 */
+.note + .tools {
+  margin-left: 0;
+}
+.reason {
+  margin: 0;
+  font: var(--t-caption);
+  color: var(--muted);
+}

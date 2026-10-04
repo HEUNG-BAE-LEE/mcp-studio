@@ -1,0 +1,7 @@
+/* 값 줄: wrap · 세로 가운데 · gap 6 — LNB 새 프로젝트 태그 줄 */
+.values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1-5);
+}

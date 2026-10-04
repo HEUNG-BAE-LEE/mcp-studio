@@ -1,0 +1,87 @@
+/* --notice-* 는 컴포넌트 지역 변수이며 토큰이 아니다 */
+/* 알림 패널 카드 · 안내 문단: 12 15 13 · 왼쪽 3px edge · gap 4. 카드 사이 구분선은 목록 상자(AlertPanel)가 긋는다 — 카드는 긋지 않는다 */
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: var(--s-2);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 카드 안쪽 12 15 13 */
+  padding: 12px 15px 13px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 왼쪽 선 3px(막대 치수) */
+  border-left: 3px solid var(--notice-edge);
+  background: var(--notice-bg);
+}
+.root[data-tone='risk'] {
+  --notice-edge: var(--fix-fg);
+  --notice-bg: var(--fix-soft);
+  --notice-fg: var(--fix-fg);
+  --notice-body-fg: var(--fix-body);
+  --notice-link-fg: var(--fix-fg);
+}
+.root[data-tone='warn'] {
+  --notice-edge: var(--progress-fg);
+  --notice-bg: var(--progress-soft);
+  --notice-fg: var(--progress-fg);
+  --notice-body-fg: var(--progress-body);
+  --notice-link-fg: var(--progress-fg);
+}
+/* 진행 중 = 시간이 지나면 바뀐다 — progress 선 + 중립 바탕(warn과 구분). 액센트를 쓰지 않는다 */
+.root[data-tone='going'] {
+  --notice-edge: var(--progress-fg);
+  --notice-bg: var(--canvas);
+  --notice-fg: var(--ink);
+  --notice-body-fg: var(--muted);
+  --notice-link-fg: var(--accent);
+}
+.root[data-tone='info'] {
+  --notice-edge: var(--faint);
+  --notice-bg: var(--canvas);
+  --notice-fg: var(--ink);
+  --notice-body-fg: var(--muted);
+  --notice-link-fg: var(--accent);
+}
+/* 완료는 무채색 — 왼쪽 선은 가장 옅게 물러난다(DESIGN Colors Status) */
+.root[data-tone='done'] {
+  --notice-edge: var(--hairline);
+  --notice-bg: var(--canvas);
+  --notice-fg: var(--ink-soft);
+  --notice-body-fg: var(--muted);
+  --notice-link-fg: var(--accent);
+}
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+.title {
+  min-width: 0;
+  font: var(--t-ui-strong);
+  color: var(--notice-fg);
+}
+.text {
+  font: var(--t-label);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--notice-body-fg);
+}
+.link {
+  align-self: flex-end;
+  margin: var(--s-0-5) 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: var(--t-label);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--notice-link-fg);
+  text-decoration: none;
+  cursor: pointer;
+}

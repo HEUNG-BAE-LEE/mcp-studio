@@ -1,0 +1,54 @@
+/* 요약 밴드: 밴드가 1px hairline · gap 1(칸 사이 선) · r12, 칸은 canvas · 13 16 14 · gap 8 */
+.band {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 칸 사이 선 1px(hairline 배경이 비치는 틈 = 테두리 두께) */
+  gap: 1px;
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--hairline);
+  overflow: hidden;
+}
+.band[data-narrow='true'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 칸 안쪽 13 16 14 */
+  padding: 13px 16px 14px;
+  background: var(--canvas);
+}
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  font: var(--t-ui-strong);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.value {
+  font: var(--t-figure);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.value[data-tone='fix'] {
+  color: var(--fix-fg);
+}
+.value[data-tone='faint'] {
+  color: var(--faint);
+}
+.delta {
+  font: var(--t-caption);
+  color: var(--muted);
+}

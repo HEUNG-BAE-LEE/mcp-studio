@@ -1,0 +1,26 @@
+/* apps/web/src/screens/project/settings/settings.module.css — 설정 모달 탭별 묶음(간격만). 내용 열(20 24 · gap 16 · 스크롤 · 칸 최대 --w-field)은 ui Tabs rail · ModalPanel */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2-5);
+}
+/* 담을 도구 — Field group 안 Checkbox 묶음(항목 = Checkbox label) */
+.tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.links {
+  display: flex;
+  gap: var(--s-3-5);
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}

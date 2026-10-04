@@ -1,0 +1,237 @@
+/* apps/web/src/screens/project/add-source/flow.module.css — 소스 추가 흐름 배치: ② 폼 · 바구니 · ③ 진행 */
+.push {
+  margin-left: auto;
+}
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3-5);
+  align-items: stretch;
+}
+.connect {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+.form {
+  flex: 1;
+  min-width: 0;
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+}
+.formHead {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-3-5);
+  border-bottom: 1px solid var(--hairline-soft);
+  background: var(--surface-faint);
+}
+/* 머리 줄 — 모드 전환 · 수정 취소 · 담기. 잠긴 사유(ReasonLine)는 그 아래 --s-1, 사유가 없으면 자리를 차지하지 않는다 */
+.formTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-2-5);
+}
+.formBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-4);
+}
+/* 폼 섹션 하나 = (SectionHead h3 +) 칸 묶음. 칸 사이 --s-4, 섹션 사이는 formBody의 --s-6(DESIGN 폼) */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+/* 칸은 ui Field(세로 gap 6 · 검증 문구) — 여기서는 grid 안 줄어듦만 */
+.field {
+  min-width: 0;
+}
+.field[data-span='2'] {
+  grid-column: span 2;
+}
+/* 1024(앱 스토어 narrow) — 폼이 좁아 칸 grid 1열(DESIGN 화면 틀 단계 흐름) */
+.grid[data-narrow='true'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.grid[data-narrow='true'] > .field[data-span='2'] {
+  grid-column: auto;
+}
+.cardErrors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.panel {
+  flex: none;
+  box-sizing: border-box;
+  width: 312px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
+}
+.basketList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.basketCard,
+.runItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+}
+.runItem {
+  gap: var(--s-2);
+}
+/* 수정 중인 카드 = 현재 선택 */
+.basketCard[data-editing='true'] {
+  border-color: var(--accent);
+}
+.cardRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.cardTitle {
+  min-width: 0;
+  font: var(--t-ui-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cardSub {
+  font: var(--t-mono);
+  color: var(--muted);
+}
+.cardRuntime {
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.chain {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
+  padding: var(--s-3);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  cursor: pointer;
+}
+.chainBox {
+  flex: none;
+}
+.chainText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0-5);
+}
+.chainTitle {
+  font: var(--t-label);
+}
+.chainNote,
+.panelFootText {
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.panelFoot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  padding-top: var(--s-2-5);
+  border-top: 1px solid var(--hairline);
+}
+.runMain {
+  flex: 1;
+  min-width: 0;
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3-5);
+}
+/* 전체 진행 카드 — 테두리 카드 안쪽 간격(머리 → 내용 --s-2-5 · 안쪽 --s-4 — DESIGN 본문 여백 · 세로 리듬: 카드 · 패널 안 머리는 상자 안쪽 간격) */
+.runCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2-5);
+  padding: var(--s-4);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+}
+.runList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+/* 항목 진행 글 — 상태 색 없이 중립(대기 · 완료 muted, 읽는 중 · 수집 실패 ink). 무엇이 됐는지는 문구가 말한다 */
+.runState {
+  flex: none;
+  margin-left: auto;
+  font: var(--t-label);
+  color: var(--muted);
+}
+.runState[data-state='reading'],
+.runState[data-state='failed'] {
+  color: var(--ink);
+}
+.outputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+.doneBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
+}
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2-5);
+}
+.total {
+  min-width: 104px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+}
+.totalKey {
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.totalValue {
+  font: var(--t-figure);
+  font-variant-numeric: tabular-nums;
+}

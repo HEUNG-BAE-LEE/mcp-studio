@@ -1,0 +1,74 @@
+/* 빈 상태 세 종: not-created 점선 상자 28 24 · nothing-yet 상자 없음 26 16 · filtered 한 줄 + 윤곽 버튼 */
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.root[data-kind='not-created'] {
+  gap: var(--s-2);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 상자 안쪽 28 24 */
+  padding: 28px 24px;
+  border: 1px dashed var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-faint);
+}
+.root[data-kind='nothing-yet'] {
+  gap: var(--s-1-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — nothing-yet 26 16 */
+  padding: 26px 16px;
+}
+.root[data-kind='filtered'] {
+  gap: var(--s-2);
+}
+.title {
+  font: var(--t-item);
+  font-weight: 600;
+}
+.root[data-kind='nothing-yet'] .title,
+.root[data-kind='filtered'] .body {
+  font: var(--t-ui-strong);
+  color: var(--ink-soft);
+}
+.body {
+  font: var(--t-label);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--muted);
+}
+/* 38ch는 not-created 본문만 — filtered는 한 줄이라 폭 제한 없음 */
+.root[data-kind='not-created'] .body {
+  max-width: 38ch;
+}
+.root[data-kind='nothing-yet'] .body {
+  max-width: 36ch;
+}
+.action {
+  display: flex;
+  margin-top: var(--s-1);
+}
+.hint {
+  font: var(--t-chip);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.clear {
+  box-sizing: border-box;
+  /* 높이 단계 sm-plus 28 · 좌우 11 — Button sm-plus와 같은 상자 */
+  height: var(--h-sm-plus);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 지우기 버튼 좌우 11(Button sm-plus) */
+  padding: 0 11px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: var(--t-label);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 행간 26 = 높이 28 − 테두리 2 */
+  line-height: 26px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.clear:hover {
+  background: var(--surface-subtle);
+}

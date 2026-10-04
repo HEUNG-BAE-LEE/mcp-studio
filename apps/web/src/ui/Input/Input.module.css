@@ -1,0 +1,71 @@
+/* 높이 단계 xl 36(기본) · padding 0 11 · 1px hairline · radius 8 · canvas · 400 13/1.4. 2xl 38: padding 0 12 */
+.root {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--h-xl);
+  /* padding 11 = 12(--s-3) − 테두리 1 */
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 테두리 1px 보정 */
+  padding: 0 calc(var(--s-3) - 1px);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+  color: var(--ink);
+  font: var(--t-ui);
+}
+.root[data-size='2xl'] {
+  height: var(--h-2xl);
+  padding-right: var(--s-3);
+  padding-left: var(--s-3);
+}
+/* sm-plus 28 · 좌우 10 · 400 12/1.4 — 영역 머리 검색 */
+.root[data-size='sm-plus'] {
+  height: var(--h-sm-plus);
+  padding-right: var(--s-2-5);
+  padding-left: var(--s-2-5);
+  font: var(--t-caption);
+}
+/* lg 34 · 좌우 12 · 400 14/1.4 — Select 트리거와 같은 높이(그 자리 편집) */
+.root[data-size='lg'] {
+  height: var(--h-lg);
+  padding-right: var(--s-3);
+  padding-left: var(--s-3);
+  font: var(--t-body);
+}
+/* 화면 제목 그 자리 편집(InlineEdit textStyle=heading): h1 글자 그대로 — lg 34 안에서 행간 1.35가 가운데 맞는다 */
+.root[data-text-style='heading'] {
+  font: var(--t-h1);
+}
+.root[data-trailing='true'] {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 이름 입력 우 여백 38 = 표식 18 + 좌우 여백 */
+  padding-right: 38px;
+}
+.root[data-mono='true'] {
+  /* 식별자 입력: 400 13px/1.4 mono — 크기는 --t-ui 그대로, 글꼴만 mono */
+  font-family: var(--font-mono);
+}
+.root[data-invalid='true'] {
+  border-color: var(--fix-fg);
+}
+/* 읽기 전용(편집 권한 없음 — 같은 폼을 읽기 전용으로): surface-subtle 바탕 · ink-soft 글 · 테두리 · 포커스 링은 그대로 */
+.root[readonly] {
+  background: var(--surface-subtle);
+  color: var(--ink-soft);
+}
+.root:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+/* trailing 래퍼: 입력 폭 그대로 + 우측 장식 절대 배치 */
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.trailing {
+  position: absolute;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — trailing 우 11 */
+  right: 11px;
+  display: flex;
+  align-items: center;
+}

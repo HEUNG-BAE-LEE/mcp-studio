@@ -1,0 +1,49 @@
+/* 40×22 pill · 손잡이 18 top 2 left 2/20 · 켜짐 ink · 꺼짐 hairline */
+.root {
+  box-sizing: border-box;
+  position: relative;
+  width: 40px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 스위치 40×22 */
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--hairline);
+  cursor: pointer;
+  transition: background var(--m-fast);
+}
+
+.root[data-state='checked'] {
+  background: var(--ink);
+}
+
+.root:disabled {
+  cursor: not-allowed;
+  background: var(--disabled-fill);
+}
+
+/* 비활성 + 켜짐: 소스 순서에 기대지 않도록 명시. 트랙 disabled · 손잡이 canvas */
+.root:disabled[data-state='checked'] {
+  background: var(--disabled);
+}
+
+.thumb {
+  position: absolute;
+  top: var(--s-0-5);
+  left: var(--s-0-5);
+  width: 18px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 손잡이 18 = 22 − 2×2 */
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--canvas);
+  transition: transform var(--m-fast);
+}
+
+.thumb[data-state='checked'] {
+  /* 40 − 18 − 2×2 = 18 */
+  transform: translateX(calc(var(--s-4) + var(--s-0-5)));
+}
+
+.root:disabled .thumb {
+  background: var(--canvas);
+}

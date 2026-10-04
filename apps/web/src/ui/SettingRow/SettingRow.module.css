@@ -1,0 +1,31 @@
+/* 한 줄 gap 14 · 세로 가운데 · 제목 ui-strong ink + 설명 caption muted(gap 2) · 컨트롤 우측.
+   앞에 내용이 있으면 위 1px hairline-soft + 14. 위험 작업 입구도 상자 색은 같다 — 뜻은 컨트롤(Button danger)이 나른다 */
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3-5);
+}
+.root:not(:first-child) {
+  padding-top: var(--s-3-5);
+  border-top: 1px solid var(--hairline-soft);
+}
+.text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0-5);
+}
+.title {
+  font: var(--t-ui-strong);
+  color: var(--ink);
+}
+.description {
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.control {
+  flex: none;
+  display: flex;
+  align-items: center;
+}

@@ -1,0 +1,59 @@
+/* 층 · 헤더의 ✕ 글리프 버튼(아이콘을 쓰지 않는다) */
+.root {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-family: var(--font-sans);
+  font-weight: 400;
+  cursor: pointer;
+}
+.root:hover {
+  background: var(--surface-track);
+}
+.root[data-size='22'] {
+  width: 22px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — ✕ 22(AlertPanel) */
+  height: 22px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — ✕ 22 글리프 13 */
+  font-size: 13px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: ✕ 글리프 행간 22 = 상자 22 */
+  line-height: 22px;
+}
+.root[data-size='24'] {
+  width: 24px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — ✕ 24(Modal) */
+  height: 24px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — ✕ 24 글리프 14 */
+  font-size: 14px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: ✕ 글리프 행간 24 = 상자 24 */
+  line-height: 24px;
+}
+.root[data-size='26'] {
+  width: 26px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — ✕ 26(PageHeader) */
+  height: 26px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — ✕ 26 글리프 14 */
+  font-size: 14px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: ✕ 글리프 행간 26 = 상자 26 */
+  line-height: 26px;
+}
+/* 바구니 빼기 ✕: 투명 · faint · 400 13/24 · hover surface-soft + ink */
+.root[data-variant='ghost'] {
+  background: transparent;
+  color: var(--faint);
+}
+.root[data-variant='ghost'][data-size='24'] {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 바구니 ✕ 글리프 13 */
+  font-size: 13px;
+}
+.root[data-variant='ghost']:hover {
+  background: var(--surface-soft);
+  color: var(--ink);
+}

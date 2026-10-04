@@ -1,0 +1,6 @@
+/* 폼 칸 밖 한 줄: label 500 12/1.4 fix-fg · 마진 0 */
+.root {
+  margin: 0;
+  font: var(--t-label);
+  color: var(--fix-fg);
+}

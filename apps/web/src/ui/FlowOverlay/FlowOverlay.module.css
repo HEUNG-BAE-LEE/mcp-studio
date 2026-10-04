@@ -1,0 +1,92 @@
+/* 값: FlowOverlay(소스 추가). scrim 없음 — Content가 컨테이너를 덮는다 */
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+}
+.root[data-contained='true'] {
+  position: absolute;
+}
+.head {
+  flex: none;
+  box-sizing: border-box;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 머리 56 · 좌우 22 */
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 머리 56 · 좌우 22 */
+  padding: 0 22px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.title {
+  margin: 0;
+  font: var(--t-section);
+  color: var(--ink);
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+/* 내용 열 = 고정 단계 머리 + 스크롤 영역. HelperPanel과 따로 스크롤한다 */
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.heading {
+  flex: none;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 내용 열 위 20 · 좌우 30 */
+  padding: 20px 30px 0;
+}
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 내용 열 20 30 22 */
+  padding: 20px 30px 22px;
+}
+/* 머리가 있으면 머리와 내용 사이 = 내용 gap 16 */
+.scroll[data-headed] {
+  padding-top: var(--s-4);
+}
+/* 스크롤 영역 안 자식은 줄지 않는다 — 넘치면 스크롤 */
+.scroll > * {
+  flex-shrink: 0;
+}
+.foot {
+  flex: none;
+  box-sizing: border-box;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 발 56 · 좌우 22 */
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 발 56 · 좌우 22 */
+  padding: 0 22px;
+  border-top: 1px solid var(--hairline-soft);
+}
+/* 발 한 줄 — 주 액션(마지막 버튼) 바로 왼쪽. DOM은 버튼 뒤, order로 주 액션 앞에 둔다 */
+.note {
+  order: 1;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  font: var(--t-caption);
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.foot[data-note] > :nth-last-child(2) {
+  order: 2;
+  margin-left: 0;
+}

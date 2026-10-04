@@ -1,0 +1,34 @@
+/* 층 공통: container가 있으면 그 상자(앱 프레임 · 카탈로그 예시 상자)를(absolute), 없으면 뷰포트를(fixed) 덮는다 — 층은 앱 프레임 안에 그린다 */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--scrim);
+}
+.overlay[data-contained='true'] {
+  position: absolute;
+}
+.overlay[data-scrim='light'] {
+  background: var(--scrim-light);
+}
+/* scrim 없음 — 알림 패널 · 카탈로그 예시 */
+.overlay[data-scrim='none'] {
+  background: transparent;
+}
+/* 시각적으로만 숨기는 제목(스크린리더엔 남는다) */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 시각 숨김 유틸 */
+  height: 1px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 시각 숨김 유틸 */
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

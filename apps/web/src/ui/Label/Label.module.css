@@ -1,0 +1,33 @@
+/* 500 13/1.4 ink, 칩과 gap 8. 칩 500 11/1.6 · padding 1 6 · radius 8: 필수 · 선택 모두 surface-soft/muted */
+.root {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  font: var(--t-ui-strong);
+  color: var(--ink);
+}
+.chip {
+  flex: none;
+  box-sizing: border-box;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 상하 1px */
+  padding: 1px var(--s-1-5);
+  border-radius: var(--r-sm);
+  font: var(--t-chip);
+  /* 1.6 = 17.6px — 칩 상자 높이를 맞춘다(--t-chip은 18px) */
+  line-height: 1.6;
+}
+.chip {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+/* 칸 힌트: 400 12/1.4 muted, 칩과 gap 8 */
+.hint {
+  font: var(--t-caption);
+  color: var(--muted);
+}
+/* 묶음 칸 legend — float로 rendered legend에서 빼 fieldset flex의 보통 자식(gap 6)이 되게 한다 */
+.legend {
+  float: left;
+  padding: 0;
+}

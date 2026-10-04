@@ -1,0 +1,5 @@
+/* apps/web/src/screens/shell/ShellAlerts.module.css — 알림 패널 목록 자리의 받기 전 · 조회 실패(screenGate의 ScreenState). 목록은 카드(Notice)가 여백을 갖고
+   목록 상자는 여백이 없어, 감싸는 자리가 여백을 준다(COMPONENTS ScreenState) */
+.state {
+  padding: var(--s-3) var(--s-3-5);
+}

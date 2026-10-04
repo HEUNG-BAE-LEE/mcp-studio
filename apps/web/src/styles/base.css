@@ -1,0 +1,41 @@
+/* 전역 기본 스타일. 토큰 변수는 tokens.css(손으로 고치는 원본)에 있다. box-sizing 초기화는 두지 않는다 — content-box 기준이다 */
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./fonts/PretendardVariable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: normal;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--canvas-outer);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  /* 한글은 어절 단위로 줄을 바꾸고, 줄보다 긴 낱말만 넘칠 때 접는다(DESIGN Typography).
+     anywhere는 최소 폭을 한 글자로 낮춰 줄어드는 flex 항목 · auto 열에서 한글이 글자마다 끊긴다 — 기계값 표면만 쓴다 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+a:hover {
+  color: var(--accent-ink);
+}
+
+/* 전역 포커스 링 하나 — DESIGN.md ## 핵심 규칙 12. 지우지 않는다 */
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+/* 자리표시자 — 정보를 나르지 않는 힌트라 --placeholder(= --faint 값). opacity는 Firefox가 기본 0.54를 입히는 것을 막는다 */
+::placeholder {
+  color: var(--placeholder);
+  opacity: 1;
+}

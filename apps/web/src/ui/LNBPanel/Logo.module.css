@@ -1,0 +1,12 @@
+/* LNBPanel 머리 · LNB 레일 로고 자리 */
+.logo {
+  display: block;
+  flex: none;
+  width: 20px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 로고 표식 20×20 */
+  height: 20px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 로고 테두리 1.5px = 아이콘 stroke 1.5(DESIGN Iconography) */
+  border: 1.5px solid var(--ink-soft);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 로고 반지름 5(DESIGN Shapes 파생 반지름) */
+  border-radius: 5px;
+}

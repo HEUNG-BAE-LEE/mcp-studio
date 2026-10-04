@@ -1,0 +1,37 @@
+/*
+ * 그 자리 확인 줄(COMPONENTS InlineConfirm): fix-soft · 1px fix-border · r8.
+ * 상태 색(rule 3)은 DESIGN Status 쓰는 곳 목록의 `확인 줄`이다.
+ * 안쪽 10 12 · gap 12
+ */
+.root {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2-5) var(--s-3);
+  border: 1px solid var(--fix-border);
+  border-radius: var(--r-sm);
+  background: var(--fix-soft);
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  font: var(--t-ui);
+  color: var(--ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  gap: var(--s-2);
+}
+
+/* 거부 한 줄 — 줄을 wrap해 폭 전체 아래 행으로 */
+.root[data-rejected] {
+  flex-wrap: wrap;
+  row-gap: var(--s-2);
+}
+.rejection {
+  flex-basis: 100%;
+}

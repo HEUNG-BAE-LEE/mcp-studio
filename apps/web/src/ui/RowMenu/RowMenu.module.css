@@ -1,0 +1,62 @@
+/* 트리거 = IconButton sm ghost 상자(26 · r8 · icon) + 글리프 ⋯ · 목록 = Popover 표면 */
+.trigger {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--icon);
+  font: var(--t-ui);
+  cursor: pointer;
+  transition: background var(--m-fast);
+}
+.trigger:hover:not(:disabled),
+.trigger:active:not(:disabled),
+.trigger[data-state='open'] {
+  background: var(--surface-soft);
+}
+.trigger:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+.content {
+  box-sizing: border-box;
+  min-width: var(--radix-dropdown-menu-trigger-width);
+  padding: var(--s-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  box-shadow: var(--shadow-popover);
+  z-index: var(--z-inline);
+}
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0-5);
+  padding: var(--s-1-5) var(--s-2);
+  border-radius: var(--r-sm);
+  font: var(--t-ui);
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.item[data-highlighted] {
+  background: var(--surface-subtle);
+}
+.item[data-tone='danger'] {
+  color: var(--fix-fg);
+}
+.item[data-disabled] {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+.reason {
+  font: var(--t-caption);
+  color: var(--muted);
+  white-space: normal;
+}

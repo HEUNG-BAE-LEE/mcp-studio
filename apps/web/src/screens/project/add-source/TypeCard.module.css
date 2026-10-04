@@ -1,0 +1,207 @@
+/* apps/web/src/screens/project/add-source/TypeCard.module.css — ① 타입 카드. 선택 = 현재 선택(accent 테두리 · 머리 accent-soft · 표시 상자 accent). 타입마다 색을 나누지 않는다 */
+/* 누름 자리 = 이름 버튼(.name)의 ::after가 카드 전체를 덮는다. 툴팁 점(.over)만 그 위에 놓인다 */
+.card {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--canvas);
+  cursor: pointer;
+}
+/* 선택: 테두리 accent(그림자 링을 쓰지 않는다) */
+.card[data-selected='true'] {
+  border-color: var(--accent);
+}
+.art {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  padding: var(--s-3-5) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  overflow: hidden;
+  border-bottom: 1px solid var(--hairline-soft);
+  background: var(--surface-subtle);
+}
+.card[data-selected='true'] .art {
+  border-bottom-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.artTop {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+.tag {
+  font: var(--t-caption);
+  color: var(--muted);
+}
+.mark {
+  margin-left: auto;
+  flex: none;
+  box-sizing: border-box;
+  width: 20px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 선택 표시 상자 20×20(점 · 표시 치수) */
+  height: 20px;
+  border: 1px solid var(--disabled);
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+  color: var(--on-ink);
+  font: var(--t-label);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card[data-selected='true'] .mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.pic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--illust);
+}
+.body {
+  flex: 1;
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+/* 이름 버튼 — 자신은 위치를 갖지 않아 ::after가 카드(.card) 기준으로 펼쳐진다 */
+.name {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: var(--t-section);
+  text-align: start;
+  cursor: pointer;
+}
+.name::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.over {
+  position: relative;
+  z-index: 1;
+}
+/* 설명은 두 줄까지 — 카드끼리 줄이 맞도록 높이도 두 줄로 잡는다 */
+.desc {
+  display: -webkit-box;
+  min-height: 2lh;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font: var(--t-ui);
+  color: var(--ink-soft);
+}
+/* 1024: 카드 폭이 줄어 두 줄을 넘는 설명이 잘린다(핵심 규칙 11) — 세 줄까지 · 높이도 세 줄로 맞춘다 */
+.card[data-narrow='true'] .desc {
+  min-height: 3lh;
+  -webkit-line-clamp: 3;
+}
+.how {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: var(--s-3);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
+}
+.howText {
+  font: var(--t-caption);
+  color: var(--ink-soft);
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-top: var(--s-4);
+  border-top: 1px dashed var(--hairline);
+}
+.label {
+  font: var(--t-label);
+  color: var(--muted);
+}
+.gets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+.fieldsHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+/* `필수 n · 선택 m` — 화면 수치라 mono가 아니라 tabular-nums(DESIGN Typography) */
+.fieldCount {
+  margin-left: auto;
+  font: var(--t-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.peek {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.peekItem {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.dot {
+  flex: none;
+  width: 5px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 미리보기 점 5×5(점 치수) */
+  height: 5px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 점 반지름 1(DESIGN Shapes 파생 반지름) */
+  border-radius: 1px;
+  background: var(--disabled);
+}
+.dot[data-required='true'] {
+  border-radius: var(--r-pill);
+  background: var(--ink-soft);
+}
+.peekLabel {
+  min-width: 0;
+  font: var(--t-caption);
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.autoHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1-5);
+}
+.gauge {
+  display: flex;
+  gap: var(--s-1);
+}
+.seg {
+  flex: 1;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 자동화 게이지 높이 5(막대 치수) */
+  height: 5px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 게이지 칸 반지름 2(DESIGN Shapes 파생 반지름) */
+  border-radius: 2px;
+  /* 게이지 빈 칸 = 막대 빈 구간(DESIGN Data) */
+  background: var(--data-empty);
+}
+.seg[data-on='true'] {
+  background: var(--ink-soft);
+}

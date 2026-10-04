@@ -1,0 +1,15 @@
+/* apps/web/src/screens/shell/AppShellRoute.module.css — 앱 루트: 프레임 바깥 여백 page-*(32 40 44) · canvas-outer. 1280 미만은 narrow · 최소 폭 1024(뷰포트). 본문 안쪽 여백은 화면 몫(PageBody body-* — DESIGN Layout) */
+.root {
+  box-sizing: border-box;
+  height: 100vh;
+  /* 뷰포트 최소 1024 — border-box라 1024에서 문서 폭 = 뷰포트(가로 넘침 없음). 프레임은 여백 안(1024 − 24 × 2 = 976)을 채운다 */
+  min-width: var(--viewport-min);
+  padding: var(--page-top) var(--page-x) var(--page-bottom);
+  background: var(--canvas-outer);
+}
+/* 1279 = 기준 폭(--viewport-base) − 1 — AppShellRoute.tsx VIEWPORT_BASE_PX와 같은 경계 */
+@media (max-width: 1279px) {
+  .root {
+    padding: var(--page-top-narrow) var(--page-x-narrow) var(--page-bottom-narrow);
+  }
+}

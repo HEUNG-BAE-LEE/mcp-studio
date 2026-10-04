@@ -1,0 +1,119 @@
+/* 카드: 1px hairline-soft r12 · 13 14 · gap 8 · 라벨 500 12 muted · 값 figure 600 16/1.25 우측(단위 · 꼬리 500 12 muted) · 막대 7 gap 2 r2 + 목표 표시 2×11 · 범례 우측 400 11 gap 10 */
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 카드 안쪽 13 14 */
+  padding: 13px 14px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-md);
+}
+.label {
+  min-width: 0;
+  font: var(--t-label);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.value {
+  align-self: flex-end;
+  font: var(--t-figure);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.value[data-tone='progress'] {
+  color: var(--progress-fg);
+}
+.value[data-tone='fix'] {
+  color: var(--fix-fg);
+}
+.value[data-tone='faint'] {
+  color: var(--faint);
+}
+.unit {
+  font: var(--t-label);
+  color: var(--muted);
+}
+.bar {
+  position: relative;
+  display: flex;
+  gap: var(--s-0-5);
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 막대 높이 7(DESIGN 리터럴 px 예외 주석 — 막대 · 점 두께) */
+  height: 7px;
+}
+.seg {
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 구간 높이 7 = 막대 높이 */
+  height: 7px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 구간 반지름 2(DESIGN Shapes 파생 반지름) */
+  border-radius: 2px;
+}
+.mark {
+  position: absolute;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 목표 표시 top -2 · 2×11 · r1(막대 7에서 위아래 2씩) */
+  top: -2px;
+  width: 2px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 위와 같음 */
+  height: 11px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 위와 같음 */
+  border-radius: 1px;
+  background: var(--fix-fg);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2-5);
+  font: var(--t-chip);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  white-space: nowrap;
+}
+.swatch {
+  flex: none;
+  width: 6px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 범례 색 표시 6×6 r2(점 치수) */
+  height: 6px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 위와 같음 */
+  border-radius: 2px;
+}
+.swatch[data-swatch='line'] {
+  width: 2px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 목표 색 표시 2×9(점 치수) */
+  height: 9px;
+}
+.n {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.seg[data-tone='ink'],
+.swatch[data-tone='ink'] {
+  background: var(--ink);
+}
+.seg[data-tone='ink-soft'],
+.swatch[data-tone='ink-soft'] {
+  background: var(--ink-soft);
+}
+.seg[data-tone='faint'],
+.swatch[data-tone='faint'] {
+  background: var(--faint);
+}
+.seg[data-tone='progress'],
+.swatch[data-tone='progress'] {
+  background: var(--progress-fg);
+}
+.seg[data-tone='fix'],
+.swatch[data-tone='fix'] {
+  background: var(--fix-fg);
+}
+.seg[data-tone='empty'],
+.swatch[data-tone='empty'] {
+  background: var(--data-empty);
+}

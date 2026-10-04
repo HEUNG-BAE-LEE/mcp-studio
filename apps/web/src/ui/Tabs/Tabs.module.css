@@ -1,0 +1,73 @@
+/* 탭 줄: ui 500 13 · 비활성 muted · 활성 ink + 아래 2px accent · gap 16 */
+.list {
+  display: flex;
+  gap: var(--s-4);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.trigger {
+  box-sizing: border-box;
+  padding: var(--s-2) 0;
+  border: 0;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 활성 탭 밑줄 2px */
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: var(--t-ui-strong);
+  cursor: pointer;
+}
+.trigger[data-state='active'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.trigger:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+/* 내용 패널(Tabs.Content — Radix tabIndex 0, Tab으로 닿는다)은 클래스 없이 전역 :focus-visible 링을 쓴다. rail 내용 열의 안쪽 링은 ModalPanel.module.css */
+
+/* 설정 모달 탭 레일: 188 · 14 12 · gap 2 · surface-subtle · 오른쪽 1px hairline-soft.
+   항목 8 10 r8 gap 2 · 라벨 500 13/1.4 ink-soft(활성 accent + canvas 필) · 메모 400 11/1.4 muted */
+.root[data-variant='rail'] {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  min-height: 0;
+}
+.list[data-variant='rail'] {
+  flex: none;
+  box-sizing: border-box;
+  width: 188px;
+  flex-direction: column;
+  gap: var(--s-0-5);
+  padding: var(--s-3-5) var(--s-3);
+  border-bottom: 0;
+  border-right: 1px solid var(--hairline-soft);
+  background: var(--surface-subtle);
+}
+.list[data-variant='rail'] .trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-0-5);
+  padding: var(--s-2) var(--s-2-5);
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  text-align: left;
+}
+.list[data-variant='rail'] .trigger[data-state='active'] {
+  background: var(--canvas);
+  color: var(--accent);
+}
+.list[data-variant='rail'] .trigger:disabled {
+  color: var(--disabled);
+}
+.railLabel {
+  font: var(--t-ui-strong);
+}
+.railNote {
+  font: var(--t-chip);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
+}

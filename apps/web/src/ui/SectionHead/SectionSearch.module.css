@@ -1,0 +1,7 @@
+/* 영역 머리 검색 폭 150 · 1024 110(레이아웃 고정폭). [data-size]로 Input 기본 폭 100%보다 앞선다 */
+.search[data-size] {
+  width: 150px;
+}
+.search[data-size][data-narrow='true'] {
+  width: 110px;
+}

@@ -1,0 +1,43 @@
+/* padding 5 9 · radius 8 · ink · on-ink · 400 12/1.4 · popover 그림자 */
+.content {
+  box-sizing: border-box;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 툴팁 패딩 5 9, 스케일 밖 */
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--on-ink);
+  font: var(--t-caption);
+  white-space: nowrap;
+  box-shadow: var(--shadow-popover);
+  z-index: var(--z-inline);
+  animation: fade var(--m-fade);
+}
+
+/* note(자동화 수준 설명 등): 내용 폭 212(content-box) · 9 11 · 400 11/1.6 · 줄바꿈 · 왼쪽 정렬 */
+.content[data-variant='note'] {
+  box-sizing: content-box;
+  width: 212px;
+  /* stylelint-disable-next-line mcp/no-literal-px -- 파생 치수: 컴포넌트 고유 치수 — 9 11 */
+  padding: 9px 11px;
+  font: var(--t-chip);
+  font-weight: 400;
+  line-height: 1.6;
+  white-space: normal;
+  text-align: left;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content {
+    animation: none;
+  }
+}

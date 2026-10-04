@@ -1,0 +1,27 @@
+/* 영역(세로 flex · min-height 0 · 머리 → 내용 10) · 목록(위 10 · 좌우 · 아래 4 — 포커스 링 자리 · gap 8 · 스크롤) · 빈 상태 세로 가운데 */
+.region {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2-5);
+}
+/* RegionList는 위 안쪽 여백(--s-2-5)으로 머리와 띄운다(포커스 링 자리를 겸한다) — Region gap과 겹치지 않게 지운다 */
+.region > .list {
+  margin-top: calc(-1 * var(--s-2-5));
+}
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* 좌우 · 아래 4 = 포커스 링 자리(2 + offset 1 = 3 이상 — DESIGN 접근성 포커스). 스크롤 상자는 가로도 자른다.
+     좌우 안쪽만큼 바깥으로 넓혀 항목 가장자리를 머리(SectionHead)와 맞춘다 */
+  margin: 0 calc(-1 * var(--s-1));
+  padding: var(--s-2-5) var(--s-1) var(--s-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.empty {
+  margin: auto 0;
+}

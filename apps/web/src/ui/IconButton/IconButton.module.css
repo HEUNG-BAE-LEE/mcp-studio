@@ -1,0 +1,42 @@
+/* 정사각 높이 단계 sm(기본) · sm-plus · 반지름 --r-sm · 아이콘 --icon */
+/* --icon-button-hover: 컴포넌트 지역 변수(토큰 아님) — hover 바탕. 기본값은 명시도 0(:where)이라 부르는 쪽 className이 덮는다
+   (바탕이 surface-soft인 자리 — LNB 레일 · LNBPanel 머리. COMPONENTS IconButton) */
+:where(.root) {
+  --icon-button-hover: var(--surface-soft);
+}
+:where(.root[data-variant='filled']) {
+  --icon-button-hover: var(--hairline-soft);
+}
+.root {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--icon);
+  cursor: pointer;
+  transition: background var(--m-fast);
+}
+/* hover 바탕은 variant별 지역 변수 값(위 :where) — filled 필보다 명시도가 높아 filled도 이 규칙 하나로 바뀐다 */
+.root:hover:not(:disabled),
+.root:active:not(:disabled) {
+  background: var(--icon-button-hover);
+}
+/* sm-plus 28 · 아이콘 17 (헤더 톱니) */
+.root[data-size='sm-plus'] {
+  width: var(--h-sm-plus);
+  height: var(--h-sm-plus);
+}
+.root[data-variant='filled'] {
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+}
+.root:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}

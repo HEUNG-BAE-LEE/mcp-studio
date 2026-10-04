@@ -1,0 +1,25 @@
+/* Modal settings 내용 열: 남은 폭 · 안쪽 20 24 · gap 16 · 세로 스크롤. Tabs rail 내용(Tabs.Content)도 이 상자다 */
+.panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6);
+}
+/* 포커스 링(Tabs rail 내용 · 키보드로 닿는 스크롤 상자)을 안쪽에 그린다 — 열이 모달 가장자리(overflow: hidden)에 붙어 바깥 링이 잘린다.
+   전역 링(2px ink · offset 1)을 뒤집은 값: 가장자리에서 1 띄우고 2 = offset −3(DESIGN 접근성 포커스) */
+.panel:focus-visible {
+  outline-offset: -3px;
+}
+/* Radix가 고르지 않은 탭 내용도 hidden 속성으로 남긴다 — display:flex가 hidden을 덮지 않게 */
+.panel[hidden] {
+  display: none;
+}
+/* 폼 칸(Field) 최대 폭 --w-field(DESIGN 폼). 820 모달에서 내용 열 ≈ 584 */
+.panel [data-part='field'] {
+  max-width: var(--w-field);
+}

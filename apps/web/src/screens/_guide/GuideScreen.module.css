@@ -1,0 +1,88 @@
+.layout {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--canvas);
+  color: var(--ink);
+}
+.toc {
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+  padding: var(--s-5) var(--s-4);
+  border-right: 1px solid var(--hairline);
+  background: var(--surface-soft);
+}
+.group {
+  margin: var(--s-4) 0 var(--s-1);
+  font: var(--t-label);
+  color: var(--faint);
+}
+.tocItem {
+  display: block;
+  padding: var(--s-1) 0;
+  font: var(--t-ui);
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+.main {
+  box-sizing: border-box;
+  padding: var(--page-top) var(--page-x) var(--page-bottom);
+}
+.narrow {
+  max-width: 1024px;
+}
+.bar {
+  display: flex;
+  margin: 0 0 var(--s-6);
+}
+.section {
+  margin: 0 0 var(--s-8);
+}
+.title {
+  margin: 0 0 var(--s-3);
+  font: var(--t-h2);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 240px);
+  gap: var(--s-4);
+  align-items: start;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.cell {
+  justify-items: start;
+  display: grid;
+  gap: var(--s-1-5);
+}
+/* 예시 묶음을 한 줄씩 세로로 — 묶음(캡션 + 예시) 사이를 넓게 둔다 */
+.list {
+  display: grid;
+  gap: var(--s-4);
+}
+/* 넓은 예시 폭 976(1280 본문 폭 근사) — 레이아웃 고정폭 */
+.wide {
+  display: grid;
+  gap: var(--s-1-5);
+  width: 100%;
+  max-width: 976px;
+}
+/* 본문 폭보다 넓은 예시(AppShell 프레임 · FlowOverlay 상자)를 가둔다 — 페이지 대신 이 상자가 가로로 스크롤한다 */
+.stage {
+  justify-self: stretch;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.caption {
+  font: var(--t-label);
+  color: var(--muted);
+}
