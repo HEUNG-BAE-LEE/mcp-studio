@@ -161,6 +161,27 @@ export default defineBackground(() => {
       return true;
     }
 
+    // 관리자 화면의 "사이드패널 열기" 버튼. 웹페이지는 사이드패널을 직접
+    // 열 수 없어서 content script 를 거쳐 여기로 온다. Chrome 은 사용자
+    // 클릭 직후에만 허용하므로, 화면이 클릭 핸들러 안에서 보내야 한다.
+    if (msg.type === "open-panel") {
+      const tabId = _sender.tab?.id;
+      if (tabId == null) {
+        sendResponse({ ok: false });
+        return true;
+      }
+      (async () => {
+        try {
+          await chrome.sidePanel.open({ tabId });
+          sendResponse({ ok: true });
+        } catch {
+          // 제스처 판정에 걸리면 여기로 온다. 화면이 대신 안내를 띄운다.
+          sendResponse({ ok: false });
+        }
+      })();
+      return true;
+    }
+
     if (msg.type === "state") {
       loadState()
         .then((state) => snapshot(state))

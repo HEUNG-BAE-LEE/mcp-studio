@@ -100,3 +100,100 @@ class CrawlJob(SQLModel, table=True):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 마켓플레이스 — 카탈로그
+#
+# MCP 를 프로젝트 소유물이 아니라 "플랫폼이 진열한 상품"으로 승격한다.
+# Action 은 여전히 프로젝트에 속하고, CatalogEntry 는 그 원본이 된다:
+#   CatalogEntry(1) ─ CatalogTool(N)  ── 담기 ─▶  Action(N) in Project
+#
+# 수집 방식(kind)과 검증 이력을 여기에 함께 남기는 것이 핵심이다. 이걸 빠뜨리면
+# 마켓 카드의 방식 배지도, 상세의 출처 표시도 나중에 되살릴 수 없다
+# (전수 재수집을 해야 한다).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CatalogEntry(SQLModel, table=True):
+    """마켓에 진열되는 MCP 한 묶음. 보통 기관·서비스 단위다."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    slug: str = Field(index=True)          # kr.go.molit.rtms
+    name: str
+    description: str = ""
+    provider: str = ""                     # 국토교통부 · 밸류맵
+    mark: str = ""                         # 카드 좌측 모노그램 (2글자)
+    category: str = "기타"                  # 부동산 · 통계·인구 · 기상·환경 …
+    origin: str = "public"                 # public(공공) | private(민간)
+    price_per_call: int = 0                # 원 단위. public 은 0
+    version: str = "v1.0"
+    tags: list = Field(default_factory=list, sa_column=Column(JSON))
+
+    # ── 출처 (§6.6) ──
+    kind: str = "portal"                   # portal | document | traffic
+    source_url: str = ""
+    collected_at: Optional[datetime] = None
+    collect_seconds: int = 0
+    verified_at: Optional[datetime] = None
+    verified_ok: int = 0                   # 실호출 200 + 필드 확보
+    verified_warn: int = 0                 # 200 이지만 0건/필수값 누락
+    verified_fail: int = 0                 # 4xx·5xx
+
+    # 인기 지표. "담긴 프로젝트 수"는 매번 세지 않고 담을 때 올린다.
+    installs: int = 0
+
+
+class CatalogTool(SQLModel, table=True):
+    """카탈로그 항목에 들어 있는 도구 하나. 담으면 Action 으로 복제된다."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    entry_id: int = Field(foreign_key="catalogentry.id", index=True)
+    name: str
+    tool_name: str
+    description: str = ""
+    method: str = "GET"
+    action_spec: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    # verified | warn | fail — 상세 화면의 신호등
+    verify_status: str = "verified"
+    verify_note: str = ""
+
+
+class ProjectCatalog(SQLModel, table=True):
+    """어느 프로젝트가 어느 카탈로그를 담았는지. 마켓 카드의 '담김' 표시 근거."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id", index=True)
+    entry_id: int = Field(foreign_key="catalogentry.id", index=True)
+    added_at: Optional[datetime] = None
+
+
+class Skill(SQLModel, table=True):
+    """MCP 를 순서대로 묶어 도구 하나처럼 부르는 레시피.
+
+    EmberLink(climax) `src/apimcp/core/skills.py` 의 모델을 그대로 계승한다 —
+    step 은 두 종류뿐(mcp | prompt)이고, {{input}} · {{steps[n].output}} 로
+    앞 단계 결과를 참조한다. 실행 주체는 에이전트(LLM)이고 여기는 레시피만 든다.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id", index=True)
+    name: str
+    slug: str = ""
+    description: str = ""
+    tags: list = Field(default_factory=list, sa_column=Column(JSON))
+    # [{"type":"mcp","tool_id":"12","args_template":{...}} | {"type":"prompt","text":"…"}]
+    steps: list = Field(default_factory=list, sa_column=Column(JSON))
+    enabled: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class CallLog(SQLModel, table=True):
+    """실시간 호출 모니터(§6.1)가 읽는 최소 기록.
+
+    본문은 남기지 않는다 — 파라미터와 응답을 저장하지 않는 것이 §3 의
+    무저장 원칙이고, 나중에 빼는 것보다 처음부터 안 넣는 편이 쉽다.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: Optional[int] = Field(default=None, index=True)
+    tool_name: str = ""
+    kind: str = "mcp"                      # mcp | skill
+    status: int = 200
+    duration_ms: int = 0
+    occurred_at: Optional[datetime] = Field(default=None, index=True)

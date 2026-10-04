@@ -1,7 +1,5 @@
-import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
-import CollectModal from "./CollectModal";
 
 type Props = {
   breadcrumb: string[];
@@ -20,9 +18,44 @@ type Props = {
  * 세 개는 "아직 안 만든 기능"으로 읽힌다. 대신 프로젝트에 들어가면 상단에
  * 프로젝트 칩이 함께 나타나, 항목이 늘어난 이유가 화면에 드러난다.
  */
+
+/** 레일 아이콘. 경로마다 모양을 달리해 접힌 레일에서도 위치를 잃지 않게 한다. */
+function RailIcon({ to }: { to: string }) {
+  const common = {
+    width: 17, height: 17, viewBox: "0 0 20 20", fill: "none",
+    stroke: "currentColor", strokeWidth: 1.6,
+  } as const;
+
+  if (to === "/") {
+    // 홈 — 지붕
+    return <svg {...common}><path d="M3 9.2 10 3.6l7 5.6" strokeLinejoin="round" />
+      <path d="M4.8 10.4V16h10.4v-5.6" strokeLinejoin="round" /></svg>;
+  }
+  if (to === "/market") {
+    // 마켓 — 장바구니
+    return <svg {...common}><path d="M3 4h2l1.6 8.4h8L16.6 6.6H6.2" strokeLinejoin="round" />
+      <circle cx="8" cy="15.6" r="1.2" /><circle cx="14" cy="15.6" r="1.2" /></svg>;
+  }
+  if (to === "/projects") {
+    // 프로젝트 — 카드 묶음
+    return <svg {...common}><rect x="2.5" y="4" width="15" height="12" rx="2" />
+      <path d="M2.5 8h15" /></svg>;
+  }
+  if (to === "/studio") {
+    // 스튜디오 — 변환(들어가서 나온다)
+    return <svg {...common}><path d="M3.5 6.5h7l-2-2M16.5 13.5h-7l2 2" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx="14.5" cy="6.5" r="2" /><circle cx="5.5" cy="13.5" r="2" /></svg>;
+  }
+  // 수집 방식 안내 — 엔진
+  return <svg {...common}>
+    <path d="M3 7.5 8 4.5l5 3" strokeLinejoin="round" />
+    <path d="M4.6 8.8v5.2M8 8.8v5.2M11.4 8.8v5.2M3.4 15h9.2" strokeLinecap="round" />
+    <rect x="14.6" y="6.8" width="3.2" height="7.2" rx="1" />
+  </svg>;
+}
+
 export default function Shell({ breadcrumb, projectId, projectName, children }: Props) {
   const { pathname } = useLocation();
-  const [collecting, setCollecting] = useState(false);
 
   // 사이드바 번호는 "이 순서로 하면 된다"를 말한다. 수집 방식이 셋(트래픽·포털·
   // 문서)으로 늘면서 어디서 시작해 어디서 확인하는지가 한눈에 안 잡혀, 화면
@@ -37,43 +70,31 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
   // 프로젝트 항목이 항상 활성으로 잡혔다. 세션 상세는 /sessions/:id ·
   // /spec-sessions/:id 로 빠지므로, 정확 일치만 보면 정작 작업하는 화면에서
   // 사이드바가 통째로 꺼져 위치를 잃는다.
-  const items = [
-    { label: "프로젝트", number: "01", to: "/", prefixes: [] as string[] },
-    ...(projectId
-      ? [
-          // 수집하기는 이동이 아니라 팝업이라 to 가 비어 있다.
-          { label: "API 수집하기", number: "02", to: "", prefixes: [] as string[] },
-          {
-            label: "수집현황",
-            number: "03",
-            to: `/projects/${projectId}`,
-            prefixes: ["/sessions/", "/spec-sessions/"],
-          },
-          {
-            label: "수집 진행현황",
-            number: "04",
-            to: `/projects/${projectId}/crawls`,
-            prefixes: [] as string[],
-          },
-          {
-            label: "MCP 조회하기",
-            number: "05",
-            to: `/projects/${projectId}/actions`,
-            prefixes: ["/actions/"],
-          },
-          {
-            label: "Playground",
-            number: "06",
-            to: `/projects/${projectId}/console`,
-            prefixes: [] as string[],
-          },
-        ]
-      : []),
-    // 엔진은 장소가 아니라 수집 사건의 속성이다. 시작하는 곳이 아니라 무엇이
-    // 있는지 읽는 곳이라 번호를 붙이지 않고 맨 아래 둔다.
-    // /engines/:kind (EngineSessionList) 도 이 항목 소관이라 접두사로 함께 켠다.
-    { label: "수집 방식 안내", number: undefined as string | undefined, to: "/sources", prefixes: ["/engines/"] },
+  // 표면을 둘로 가른다.
+  //   GLOBAL   어디서나 갈 수 있는 곳 — 레일 아이콘
+  //   프로젝트  프로젝트가 정해져야 뜻이 있는 곳 — 컨텍스트 패널
+  // 번호를 뗀 이유는 이제 "이 순서로 하면 된다"가 하나가 아니기 때문이다.
+  // 마켓에서 담아 쓰는 길과 스튜디오에서 만들어 쓰는 길이 함께 있다.
+  const GLOBAL = [
+    { label: "홈", to: "/", prefixes: [] as string[] },
+    { label: "마켓플레이스", to: "/market", prefixes: ["/market/"] },
+    { label: "내 프로젝트", to: "/projects", prefixes: [] as string[] },
+    { label: "수집 스튜디오", to: "/studio", prefixes: [] as string[] },
+    { label: "수집 방식 안내", to: "/sources", prefixes: ["/engines/"] },
   ];
+
+  const projectItems = projectId
+    ? [
+        { label: "수집현황", to: `/projects/${projectId}`,
+          prefixes: ["/sessions/", "/spec-sessions/"] },
+        { label: "MCP 조회하기", to: `/projects/${projectId}/actions`,
+          prefixes: ["/actions/"] },
+        { label: "스킬", to: `/projects/${projectId}/skills`,
+          prefixes: [`/projects/${projectId}/skills/`] },
+        { label: "Playground", to: `/projects/${projectId}/console`,
+          prefixes: [] as string[] },
+      ]
+    : [];
 
   function isActive(item: { to: string; prefixes: string[] }): boolean {
     return pathname === item.to || item.prefixes.some((p) => pathname.startsWith(p));
@@ -87,7 +108,6 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
   // 항목이 늘었다 줄었다 하는 대신 패널이 통째로 생겼다 없어지므로 레일의
   // 좌표계가 흔들리지 않는다. 번호는 master 의 결정을 따른다 — 수집 방식이
   // 셋으로 늘면서 "이 순서로 하면 된다"를 말해 줄 것이 필요해졌다.
-  const projectItems = items.filter((i) => i.to !== "/sources");
   // 패널이 뜨는 조건은 projectId 다. projectItems.length 로 보면 "01 프로젝트"가
   // 항상 들어 있어 늘 참이 되고, 프로젝트를 고르기 전에도 패널이 떴다 —
   // 제목이 "프로젝트"인데 안에는 지금 보고 있는 페이지로 가는 링크 하나뿐이고,
@@ -100,24 +120,17 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
 
       <nav className="rail" aria-label="주 메뉴">
         <span className="rail-mark" aria-hidden="true">M</span>
-        <Link to="/" className={pathname === "/" ? "rail-item active" : "rail-item"} title="프로젝트">
-          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <rect x="2.5" y="4" width="15" height="12" rx="2" /><path d="M2.5 8h15" />
-          </svg>
-          <span className="sr-only">프로젝트</span>
-        </Link>
-        <Link
-          to="/sources"
-          className={pathname === "/sources" || pathname.startsWith("/engines/") ? "rail-item active" : "rail-item"}
-          title="수집 엔진"
-        >
-          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <path d="M3 7.5 8 4.5l5 3" strokeLinejoin="round" />
-            <path d="M4.6 8.8v5.2M8 8.8v5.2M11.4 8.8v5.2M3.4 15h9.2" strokeLinecap="round" />
-            <rect x="14.6" y="6.8" width="3.2" height="7.2" rx="1" />
-          </svg>
-          <span className="sr-only">수집 엔진</span>
-        </Link>
+        {GLOBAL.map((g) => (
+          <Link
+            key={g.to}
+            to={g.to}
+            className={isActive(g) ? "rail-item active" : "rail-item"}
+            title={g.label}
+          >
+            <RailIcon to={g.to} />
+            <span className="sr-only">{g.label}</span>
+          </Link>
+        ))}
         <div className="rail-spacer" />
         <ThemeToggle />
       </nav>
@@ -125,7 +138,7 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
       {hasCtx && (
         <aside className="ctx" aria-label="프로젝트 메뉴">
           {chipLabel && (
-            <Link to="/" className="ctx-project" title="프로젝트 목록으로">
+            <Link to="/projects" className="ctx-project" title="프로젝트 목록으로">
               <span className="ctx-avatar" aria-hidden="true">{Array.from(chipLabel)[0]}</span>
               <strong>{chipLabel}</strong>
             </Link>
@@ -133,38 +146,19 @@ export default function Shell({ breadcrumb, projectId, projectName, children }: 
           <div className="ctx-group">프로젝트</div>
           <div className="ctx-list">
             {projectItems.map((item) => (
-              // 수집하기만 팝업을 연다. 나머지는 화면 이동이다.
-              item.to === "" ? (
-                <button
-                  key={item.label}
-                  type="button"
-                  className="nav-item"
-                  onClick={() => setCollecting(true)}
-                >
-                  <span className="nav-no">{item.number}</span>
-                  {item.label}
-                </button>
-              ) : (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={isActive(item) ? "nav-item active" : "nav-item"}
-                >
-                  <span className="nav-no">{item.number}</span>
-                  {item.label}
-                </Link>
-              )
+              <Link
+                key={item.to}
+                to={item.to}
+                className={isActive(item) ? "nav-item active" : "nav-item"}
+              >
+                {item.label}
+              </Link>
             ))}
+            <Link className="nav-item is-cta" to={`/studio?project=${projectId}`}>
+              ＋ API 수집하기
+            </Link>
           </div>
         </aside>
-      )}
-
-      {collecting && projectId != null && (
-        <CollectModal
-          projectId={projectId}
-          projectName={projectName || `#${projectId}`}
-          onClose={() => setCollecting(false)}
-        />
       )}
 
       <main className="main">

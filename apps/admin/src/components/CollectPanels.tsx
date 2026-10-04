@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import PortalCrawlPanel from "./PortalCrawlPanel";
 import DocumentCollectPanel from "./DocumentCollectPanel";
+import TrafficPanel from "./TrafficPanel";
 import { KindMark } from "./CollectionMark";
 
 /**
@@ -28,13 +28,21 @@ export default function CollectPanels({
   projectId,
   projectName,
   onStarted,
+  onEngineChange,
 }: {
   projectId: number | null;
   projectName: string;
   /** 수집이 시작돼 다른 화면으로 넘어갈 때. 팝업 안이면 스스로 닫는다. */
   onStarted?: () => void;
+  /** 고른 방식을 바깥에 알린다. 스튜디오는 옆에 그 방식의 절차를 띄운다. */
+  onEngineChange?: (kind: Engine) => void;
 }) {
   const [engine, setEngine] = useState<Engine>("portal");
+
+  function pick(kind: Engine) {
+    setEngine(kind);
+    onEngineChange?.(kind);
+  }
 
   return (
     <>
@@ -46,7 +54,7 @@ export default function CollectPanels({
             role="tab"
             aria-selected={engine === item.key}
             className={engine === item.key ? "on" : ""}
-            onClick={() => setEngine(item.key)}
+            onClick={() => pick(item.key)}
           >
             <KindMark kind={item.key} size={16} />
             <b>{item.label}</b>
@@ -63,21 +71,7 @@ export default function CollectPanels({
         {engine === "document" && <DocumentCollectPanel projectId={projectId} onStarted={onStarted} />}
 
         {engine === "traffic" && (
-          <>
-            <ol className="steps">
-              <li>대상 사이트를 열고 확장 아이콘을 눌러 사이드 패널을 엽니다</li>
-              <li>프로젝트 이름에 <strong>{projectName || `#${projectId}`}</strong> 을 그대로 넣습니다 —
-                  같은 이름이면 이 프로젝트에 담깁니다</li>
-              <li>버튼·필터처럼 <strong>페이지가 넘어가지 않는 조작</strong>을 클릭합니다</li>
-              <li><strong>기록 종료 및 전송</strong> 후 <Link to={`/projects/${projectId}`}>수집현황</Link>에서
-                  세션을 확인합니다</li>
-            </ol>
-            <p className="guide-note">
-              <strong>확장을 새로고침했다면 대상 페이지도 새로고침하세요</strong>
-              이미 열려 있던 탭의 스크립트는 고아가 되어 클릭이 하나도 잡히지 않습니다.
-              화면에는 오류 없이 “0 클릭”만 보여 알아채기 어렵습니다.
-            </p>
-          </>
+          <TrafficPanel projectId={projectId} projectName={projectName} />
         )}
       </div>
     </>

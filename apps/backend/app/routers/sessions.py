@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import Project, RecordingSession, InteractionEvent, NetworkRequest, Action, SpecOperation
+from app.models import (
+    Action, CallLog, InteractionEvent, NetworkRequest, Project, ProjectCatalog,
+    RecordingSession, Skill, SpecOperation,
+)
 from app.services.body import summarize_response
 from app.services.masking import mask_patterns, mask_deep, mask_query, mask_body
 
@@ -99,6 +102,44 @@ def update_project(project_id: int, payload: ProjectPatch,
     db.commit()
     db.refresh(project)
     return {"id": project.id, "name": project.name, "description": project.description}
+
+
+@router.get("/api/recording-sessions/active")
+def active_sessions(db: Session = Depends(get_session)) -> list[dict]:
+    """지금 기록 중인 세션.
+
+    트래픽 수집은 브라우저 확장에서 시작하므로, 관리자 화면은 기록이
+    돌고 있는지 알 방법이 없었다. 확장 안에서만 보이는 상태를 화면에서도
+    보게 하려고 서버에 묻는다 — 확장이 다른 탭에 있어도 잡힌다.
+
+    경로가 `/{session_id}` 보다 **먼저** 선언돼야 한다. FastAPI 는 등록
+    순서로 매칭하므로 뒤에 두면 "active" 가 세션 id 로 해석돼 422 가 난다.
+    """
+    rows = db.exec(
+        select(RecordingSession).where(RecordingSession.status == "RECORDING")
+    ).all()
+
+    names = {p.id: p.name for p in db.exec(select(Project)).all()}
+    out = []
+    for row in rows:
+        clicks = len(db.exec(
+            select(InteractionEvent).where(InteractionEvent.session_id == row.id)
+        ).all())
+        calls = len(db.exec(
+            select(NetworkRequest).where(NetworkRequest.session_id == row.id)
+        ).all())
+        out.append({
+            "id": row.id,
+            "projectId": row.project_id,
+            "projectName": names.get(row.project_id, ""),
+            "kind": row.kind,
+            "sourceLabel": row.source_label,
+            "startedAt": row.started_at.isoformat() if row.started_at else None,
+            "clicks": clicks,
+            "calls": calls,
+        })
+    out.sort(key=lambda r: r["startedAt"] or "", reverse=True)
+    return out
 
 
 @router.get("/api/recording-sessions/{session_id}")
@@ -252,6 +293,19 @@ def delete_project(project_id: int, db: Session = Depends(get_session)) -> dict:
     for action in actions:
         db.delete(action)
 
+    # 스킬·카탈로그 링크·호출 기록도 함께 지운다. SQLite 는 지워진 id 를
+    # 다시 쓰기 때문에, 남겨 두면 나중에 만든 다른 프로젝트에 유령 스킬이
+    # 붙는다 — 목록에 본 적 없는 스킬이 있고 슬러그가 겹쳐 저장이 막힌다.
+    skills = db.exec(select(Skill).where(Skill.project_id == project_id)).all()
+    for skill in skills:
+        db.delete(skill)
+    for link in db.exec(
+        select(ProjectCatalog).where(ProjectCatalog.project_id == project_id)
+    ).all():
+        db.delete(link)
+    for log in db.exec(select(CallLog).where(CallLog.project_id == project_id)).all():
+        db.delete(log)
+
     for row in sessions:
         db.delete(row)
 
@@ -262,6 +316,7 @@ def delete_project(project_id: int, db: Session = Depends(get_session)) -> dict:
         "deletedSessions": len(sessions),
         "deletedActions": len(actions),
         "deletedRequests": request_count,
+        "deletedSkills": len(skills),
     }
 
 # 페이로드를 dict로 받으면 키 누락이 KeyError, 잘못된 시각이 ValueError가 되어
