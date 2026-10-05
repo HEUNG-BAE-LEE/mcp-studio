@@ -1,4 +1,5 @@
 """명세(OpenAPI/Swagger, WSDL, 호출 샘플)를 읽어 AI 도구 후보를 만든다."""
+import copy
 import json
 import re
 import shlex
@@ -88,7 +89,8 @@ class _Resolver:
 def _flatten(schema, prefix='', depth=0, out=None):
     """응답 스키마의 말단 필드를 {경로: 스키마} 로 펼친다. 배열은 [] 로 표시."""
     out = {} if out is None else out
-    if len(out) >= 40 or depth > 4:
+    # 공공데이터포털 표준 봉투(response.body.items[].필드)는 말단이 5단계 아래에 있다 — 4 에서 끊으면 업무 필드가 전부 빠진다
+    if len(out) >= 40 or depth > 6:
         return out
     t = schema.get('type')
     if t == 'array':
@@ -404,7 +406,79 @@ GOV_PRESETS = {
 }
 
 
+# 조달청 나라장터 오픈API — 활용가이드(입찰공고 1.2, 낙찰 1.2, 계약 1.0, 물품목록 1.2) 기준.
+# 응답 봉투: response.body.items[] , 값은 전부 문자열, 일시 'YYYY-MM-DD HH:MM:SS'. 조회일시는 YYYYMMDDHHMM, 등록일시 범위 최대 1개월.
+_PPS_COMMON = [
+    {'o': 'pageNo', 'ot': 'int', 'loc': 'query', 'rule': 'inject', 'd': '첫 페이지', 'ex': '1', 'v': '1'},
+    {'o': 'type', 'ot': 'string', 'loc': 'query', 'rule': 'inject', 'd': '응답 형식을 JSON으로 고정', 'ex': 'json', 'v': 'json'},
+    {'o': 'numOfRows', 'ot': 'int', 'a': 'limit', 'at': 'integer', 'loc': 'query', 'rule': 'num', 'd': '가져올 건수 (기본 10)', 'ex': '10', 'ax': 10},
+]
+_PPS_RANGE = [
+    {'o': 'inqryBgnDt', 'ot': 'YYYYMMDDHHMM', 'a': 'from', 'at': 'string (date)', 'loc': 'query', 'req': 1, 'rule': 'date',
+     'd': '조회 시작일 (등록일시 기준, 끝일과 최대 1개월)', 'ex': '202609010000', 'ax': '2026-09-01'},
+    {'o': 'inqryEndDt', 'ot': 'YYYYMMDDHHMM', 'a': 'to', 'at': 'string (date)', 'loc': 'query', 'req': 1, 'rule': 'date', 'end': 1,
+     'd': '조회 종료일', 'ex': '202609302359', 'ax': '2026-09-30'},
+]
+
+
+def _items(*cols):
+    out = []
+    for o, a, d, rule in cols:
+        r = {'o': 'response.body.items[].%s' % o, 'a': 'items[].%s' % a, 'at': 'number' if rule == 'num' else 'string', 'ov': '', 'rule': rule, 'd': d}
+        out.append(r)
+    return out
+
+
+_BID_RES = _items(('bidNtceNo', 'notice_no', '입찰공고번호', 'keep'), ('bidNtceOrd', 'notice_order', '입찰공고차수', 'keep'),
+                  ('bidNtceNm', 'title', '입찰공고명', 'name'), ('ntceInsttNm', 'notice_agency', '공고기관명', 'name'),
+                  ('dminsttNm', 'demand_agency', '수요기관명', 'name'), ('presmptPrce', 'estimated_price', '추정가격(원)', 'num'),
+                  ('cntrctCnclsMthdNm', 'contract_method', '계약체결방법', 'name'), ('bidClseDt', 'bid_close_at', '입찰마감일시', 'name'),
+                  ('opengDt', 'opening_at', '개찰일시', 'name'), ('bidNtceDtlUrl', 'detail_url', '공고 상세 주소', 'name'))
+PPS_PRESETS = {
+    'pps_bid': {'name': '조달청 나라장터 입찰공고정보', 'desc': '공공데이터포털 조달청_나라장터 입찰공고정보서비스 (물품)',
+                'base': 'https://apis.data.go.kr/1230000/ad/BidPublicInfoService', 'tools': [
+        {'id': 'search_pps_bid_notices', 'op': 'getBidPblancListInfoThng', 'title': '물품 입찰공고 목록 조회',
+         'desc': '기간을 주면 그 사이 등록된 물품 입찰공고를 조회합니다. 기간은 최대 1개월입니다.',
+         'params': [{'o': 'inqryDiv', 'ot': 'string', 'loc': 'query', 'rule': 'inject', 'd': '조회구분 1(등록일시)', 'ex': '1', 'v': '1'}] + _PPS_RANGE + _PPS_COMMON,
+         'res': _BID_RES},
+        {'id': 'get_pps_bid_notice', 'op': 'getBidPblancListInfoThng', 'title': '입찰공고번호로 공고 조회',
+         'desc': '입찰공고번호(예: R26BK01234567)로 공고 한 건과 변경 차수를 조회합니다.',
+         'params': [{'o': 'inqryDiv', 'ot': 'string', 'loc': 'query', 'rule': 'inject', 'd': '조회구분 2(입찰공고번호)', 'ex': '2', 'v': '2'},
+                    {'o': 'bidNtceNo', 'ot': 'string(13)', 'a': 'notice_no', 'at': 'string', 'loc': 'query', 'req': 1, 'rule': 'name', 'd': '입찰공고번호 13자리', 'ex': 'R26BK01234567'}] + _PPS_COMMON,
+         'res': _BID_RES}]},
+    'pps_scsbid': {'name': '조달청 나라장터 낙찰정보', 'desc': '공공데이터포털 조달청_나라장터 낙찰정보서비스 (물품)',
+                   'base': 'https://apis.data.go.kr/1230000/as/ScsbidInfoService', 'tools': [
+        {'id': 'get_pps_award', 'op': 'getScsbidListSttusThng', 'title': '입찰공고번호로 낙찰 결과 조회',
+         'desc': '입찰공고번호로 최종 낙찰업체, 낙찰금액, 낙찰률, 참가업체 수를 조회합니다.',
+         'params': [{'o': 'inqryDiv', 'ot': 'string', 'loc': 'query', 'rule': 'inject', 'd': '조회구분 4(입찰공고번호)', 'ex': '4', 'v': '4'},
+                    {'o': 'bidNtceNo', 'ot': 'string(13)', 'a': 'notice_no', 'at': 'string', 'loc': 'query', 'req': 1, 'rule': 'name', 'd': '입찰공고번호', 'ex': 'R26BK01234567'}] + _PPS_COMMON,
+         'res': _items(('bidNtceNo', 'notice_no', '입찰공고번호', 'keep'), ('bidwinnrNm', 'winner', '최종낙찰업체명', 'name'),
+                       ('sucsfbidAmt', 'award_amount', '최종낙찰금액(원)', 'num'), ('sucsfbidRate', 'award_rate', '최종낙찰률(%)', 'num'),
+                       ('prtcptCnum', 'bidders', '참가업체수', 'num'), ('rlOpengDt', 'opened_at', '실개찰일시', 'name'))}]},
+    'pps_cntrct': {'name': '조달청 나라장터 계약정보', 'desc': '공공데이터포털 조달청_나라장터 계약정보서비스 (물품)',
+                   'base': 'https://apis.data.go.kr/1230000/ao/CntrctInfoService', 'tools': [
+        {'id': 'search_pps_contracts', 'op': 'getCntrctInfoListThng', 'title': '물품 계약 목록 조회',
+         'desc': '기간을 주면 그 사이 등록된 물품 계약을 조회합니다. 업체·수요기관은 ^ 로 구분된 목록 문자열로 옵니다.',
+         'params': [{'o': 'inqryDiv', 'ot': 'string', 'loc': 'query', 'rule': 'inject', 'd': '조회구분 1(등록일시)', 'ex': '1', 'v': '1'}] + _PPS_RANGE + _PPS_COMMON,
+         'res': _items(('untyCntrctNo', 'contract_no', '통합계약번호', 'keep'), ('cntrctNm', 'title', '계약명', 'name'),
+                       ('cntrctCnclsDate', 'signed_on', '계약체결일자', 'date'), ('totCntrctAmt', 'total_amount', '총계약금액(원)', 'num'),
+                       ('cntrctInsttNm', 'contract_agency', '계약기관명', 'name'), ('corpList', 'companies', '계약업체 목록 문자열', 'name'))}]},
+    'pps_thng': {'name': '조달청 물품목록정보', 'desc': '공공데이터포털 조달청_물품목록정보서비스',
+                 'base': 'https://apis.data.go.kr/1230000/ao/ThngListInfoService02', 'tools': [
+        {'id': 'search_pps_items', 'op': 'getThngPrdnmLocplcAccotListInfoInfoPrdlstSearch02', 'title': '품명으로 물품 조회',
+         'desc': '품명으로 물품분류번호(8자리)와 물품식별번호(8자리), 제조사를 조회합니다.',
+         'params': [{'o': 'prdctClsfcNoNm', 'ot': 'string', 'a': 'item_name', 'at': 'string', 'loc': 'query', 'req': 1, 'rule': 'name', 'd': '품명', 'ex': '사무용의자'}] + _PPS_COMMON,
+         'res': _items(('prdctClsfcNo', 'class_no', '물품분류번호 8자리', 'keep'), ('prdctIdntNo', 'item_id', '물품식별번호 8자리', 'keep'),
+                       ('prdctClsfcNoNm', 'item_name', '품명', 'name'), ('krnPrdctNm', 'korean_name', '한글품목명', 'name'),
+                       ('mnfctCorpNm', 'maker', '제조업체명', 'name'))}]},
+}
+
+
 def gov_preset(key):
+    if key in PPS_PRESETS:
+        p = PPS_PRESETS[key]
+        tools = [dict(t, method='GET', path='/' + t['op'], status='review', mode='read') for t in p['tools']]
+        return {'name': p['name'], 'desc': p['desc'], 'base': p['base'], 'spec': '공공데이터포털 OpenAPI (조달청 활용가이드)'}, copy.deepcopy(tools)
     p = GOV_PRESETS.get(key)
     if not p:
         raise SpecError('지원하지 않는 공공데이터 API입니다.')
