@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="egovframework.po.service.impl.ItemMapper">
+
+    <!-- 품목 단가 조회: 거래처를 주면 계약 단가, 아니면 기준 단가 -->
+    <select id="selectItemPrice" resultType="egovframework.po.service.ItemPriceVO">
+        SELECT I.ITEM_CD      AS itemCd
+             , I.ITEM_NM      AS itemNm
+             , #{vendCd}      AS vendCd
+             , NVL(C.UNIT_PRICE, I.BASE_PRICE) AS unitPrice
+             , 'KRW'          AS currency
+          FROM TB_ITEM I
+          LEFT JOIN TB_ITEM_CONTRACT C
+            ON C.ITEM_CD = I.ITEM_CD
+           AND C.VEND_CD = #{vendCd}
+         WHERE I.ITEM_CD = #{itemCd}
+    </select>
+
+</mapper>

@@ -59,8 +59,8 @@ function noticeHTML(t) {
     if (!r) return `<div class="notice warn td-notice">${svg('alert', 18)}<div class="nt"><b>원본 명세가 바뀌었습니다.</b> ${esc(t.driftMsg || '')}</div><button class="btn sm" data-act="include">확인했고 계속 공개</button></div>`;
     return `<div class="notice warn td-notice">${svg('alert', 18)}<div class="nt"><b>원본 명세가 바뀌었습니다.</b> 응답 필드 <span class="inline-code">${r.o}</span> → <span class="inline-code">${r.newO}</span>. 이 때문에 지금은 <span class="inline-code">${r.a}</span> 값이 비어서 전달됩니다. 오늘 새벽 명세를 다시 읽으면서 감지했습니다.</div><button class="btn sm primary" data-act="fixDrift">새 필드로 매핑</button></div>`; }
   if (t.status === 'review' && t.mode === 'write') return `<div class="notice warn td-notice">${svg('shield', 18)}<div class="nt"><b>데이터를 만들거나 바꾸는 쓰기 작업입니다.</b> 실행 방식이 사용자 확인 후 실행인지, 설명이 AI가 오해하지 않게 쓰였는지 확인한 뒤 검토를 마쳐 주세요.</div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`;
-  if (t.status === 'review' && t.disc) { const a = DA[t.disc], e = dEvidence(a), v = dVerify(a);
-    return `<div class="notice ${e === 'both' ? '' : 'warn'} td-notice">${svg('search', 18)}<div class="nt"><b>자동 탐색으로 찾은 API입니다.</b> 근거는 ${e === 'both' ? '소스와 운영 트래픽 모두' : e === 'src' ? 'Git 소스뿐' : '운영 트래픽뿐'}이고, 검증 결과는 ${v[0]}입니다.${e === 'tr' ? ' 소스가 없어 타입은 관찰한 값으로 추정했습니다.' : ''} <button class="link" data-act="discEv" data-id="${a.id}">탐색 근거 보기</button></div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`; }
+  if (t.status === 'review' && t.disc) { const ev = t.disc.ev, v = dVerify({ verify:t.disc.verify });
+    return `<div class="notice ${ev === 'both' ? '' : 'warn'} td-notice">${svg('search', 18)}<div class="nt"><b>자동 탐색으로 찾은 API입니다.</b> 근거는 ${ev === 'both' ? '소스와 운영 트래픽 모두' : ev === 'src' ? 'Git 소스뿐' : '운영 트래픽뿐'}이고, 검증 결과는 ${v[0]}입니다.${ev === 'tr' ? ' 소스가 없어 타입은 관찰한 값으로 추정했습니다.' : ''}${t.disc.recNote ? ` ${esc(t.disc.recNote)}` : ''} <button class="link" data-act="discEv" data-job="${t.disc.job}" data-id="${t.disc.id}">탐색 근거 보기</button></div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`; }
   if (t.status === 'review' && !t.guess) return `<div class="notice td-notice">${svg('info', 18)}<div class="nt"><b>명세를 읽어 자동으로 만든 도구 후보입니다.</b> 설명과 파라미터 매핑이 맞는지 확인한 뒤 공개하세요.</div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`;
   if (t.status === 'review') return `<div class="notice td-notice">${svg('info', 18)}<div class="nt"><b>호출 샘플 12건으로 형식을 추론했습니다.</b> 추정 표시가 있는 필드의 의미가 맞는지 확인해 주세요. 맞지 않으면 필드 이름과 설명을 고친 뒤 저장하세요.</div><button class="btn sm primary" data-act="reviewDone">확인 완료</button></div>`;
   if (t.status === 'off') return `<div class="notice mute td-notice">${svg('lock', 18)}<div class="nt"><b>AI 공개 대상에서 제외된 작업입니다.</b> ${esc(t.offReason || '')}</div><button class="btn sm" data-act="include">다시 포함</button></div>`;
@@ -128,7 +128,7 @@ function vStudio() {
     <select class="sel-f" data-chg="src" aria-label="원본 시스템 선택" style="max-width:280px">${srcs.map(x => `<option value="${x.id}" ${x.id === s.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
     ${prBadge(s.proto)}<span class="muted" style="font-size:13px">${esc(s.spec)}, 마지막 동기화 ${esc(s.sync)}</span>
     <span class="sp"></span>
-    <button class="btn" data-act="reread">${svg('refresh', 16)}명세 다시 읽기</button>
+    ${s.proto === 'disc' ? '' : `<button class="btn" data-act="reread">${svg('refresh', 16)}명세 다시 읽기</button>`}
   </div>
   <div class="studio">
     <section class="panel" aria-label="도구 목록">

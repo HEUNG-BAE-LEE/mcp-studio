@@ -5,7 +5,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, Body
 
-from app.ieum.gateway import credentials, engine, spec
+from app.ieum.gateway import credentials, engine, session_auth, spec
 from app.ieum.repositories import deploy as deploy_repo
 from app.ieum.repositories import sources as repo
 from app.ieum.repositories import studio as tool_repo
@@ -14,7 +14,7 @@ from app.ieum.responses import fail, ok
 router = APIRouter(prefix="/api/ieum/sources", tags=["ieum-sources"])
 
 MAX_SPEC = 10 * 1024 * 1024
-AUTH_LABEL = {"none": "없음", "key": "API Key", "bearer": "Bearer 토큰", "basic": "HTTP Basic", "oauth": "OAuth 2.0", "wss": "WS-Security"}
+AUTH_LABEL = {"none": "없음", "key": "API Key", "bearer": "Bearer 토큰", "basic": "HTTP Basic", "oauth": "OAuth 2.0", "wss": "WS-Security", "session": "세션 (서비스 계정)"}
 
 
 def _slug(name, taken):
@@ -38,8 +38,10 @@ def _clean_cred(auth):
         raise spec.SpecError("인증 키를 입력해 주세요.")
     if t == "key" and cred.get("in") not in ("header", "query"):
         cred["in"] = "header"
-    if t in ("basic", "wss") and not cred.get("username"):
+    if t in ("basic", "wss", "session") and not cred.get("username"):
         raise spec.SpecError("계정을 입력해 주세요.")
+    if t == "session" and not cred.get("password"):
+        raise spec.SpecError("비밀번호를 입력해 주세요.")
     if t == "oauth" and not (cred.get("tokenUrl") and cred.get("clientId") and cred.get("clientSecret")):
         raise spec.SpecError("OAuth 토큰 URL, Client ID, Client Secret을 모두 입력해 주세요.")
     return cred
@@ -99,12 +101,6 @@ def source_list():
     })
 
 
-@router.get("/discovery/")
-def discovery_result():
-    """API 자동 탐색: 탐색 서버가 준비되면 열립니다. (시연용 데이터)"""
-    return ok(repo.discovery.load())
-
-
 @router.post("/connect/")
 def source_connect(payload: Optional[dict] = Body(None)):
     """명세를 읽어 시스템을 등록하고 AI 도구 후보를 만든다."""
@@ -144,7 +140,12 @@ def source_reauth(source_id: str, payload: Optional[dict] = Body(None)):
         cred = _clean_cred((payload or {}).get("auth"))
     except spec.SpecError as e:
         return fail(400, str(e))
+    if cred["type"] == "session":
+        # 로그인 방법(레시피)은 자동 탐색이 알아낸 것이다. 계정과 비밀번호만 바꾼다.
+        old = credentials.get(source_id)
+        cred = dict({k: v for k, v in old.items() if k not in ("username", "password", "type")}, **cred)
     credentials.put(source_id, cred)
+    session_auth.invalidate(source_id)          # 바꾸기 전 계정으로 받아 둔 세션 쿠키를 계속 쓰면 안 된다
     return ok(repo.upsert_source({"id": source_id, "err": False, "auth": AUTH_LABEL[cred["type"]], "authType": cred["type"]}))
 
 
@@ -219,6 +220,7 @@ def source_delete(source_id: str):
     repo.delete_source(source_id)
     tool_repo.delete_source_tools(source_id)
     credentials.delete(source_id)
+    session_auth.invalidate(source_id)
     rows = deploy_repo.toolsets.load()
     for ts in rows:
         ts["tools"] = [i for i in ts["tools"] if i not in ids]

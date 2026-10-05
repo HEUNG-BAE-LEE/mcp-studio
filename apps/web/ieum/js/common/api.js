@@ -23,17 +23,16 @@ const persist = (promise, failMsg = '서버에 저장하지 못했습니다.') =
 
 async function loadAll() {
   const [src, disc, tools, pg, ts, keys, logs, dash] = await Promise.all([
-    api.get('/sources/'), api.get('/sources/discovery/'), api.get('/studio/'), api.get('/playground/'),
+    api.get('/sources/'), api.get('/discovery/'), api.get('/studio/'), api.get('/playground/'),
     api.get('/deploy/toolsets/'), api.get('/deploy/keys/'), api.get('/logs/'), api.get('/dashboard/summary/'),
   ]);
   WS = src.workspace; SOURCES = src.sources;
   WZ_MODES = src.wizard.modes; BAN_WORDS = src.wizard.banWords; GOV_APIS = src.wizard.govApis;
-  DISC_CFG = disc.cfg; DISC_APIS = disc.apis; DISC_EVENTS = disc.events; PO_STTS = disc.poStts; PR_STTS = disc.prStts; DEPT = disc.dept;
+  DISC = disc;
   TOOLS = tools; MODELS = pg.models; PG_CHAT = pg.chatEnabled;
   TOOLSETS = ts; KEYS = keys; LOGS = logs.rows;
   WS.host = location.origin; DASH = dash;
   SOURCES.forEach(s => SRC[s.id] = s);
-  DISC_APIS.forEach(a => DA[a.id] = a);
   indexTools();
 }
 const refreshDash = () => api.get('/dashboard/summary/').then(d => { DASH = d; if (S.view === 'dash') render(); }).catch(() => {});

@@ -13,7 +13,9 @@ def ieum_state(tmp_path, monkeypatch):
 
     시드는 그대로 읽는다. 호출 한도 카운터도 비워, 앞선 테스트가 한도를 먹지 않게 한다.
     """
-    from app.ieum.gateway import engine, runner
+    from app.ieum.discovery import jobs
+    from app.ieum.gateway import engine, runner, session_auth
+    from app.ieum.routers import demo_legacy
 
     path = tmp_path / "ieum-state"
     monkeypatch.setenv("IEUM_STATE_DIR", str(path))
@@ -21,7 +23,10 @@ def ieum_state(tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(runner, "_RATE", {})
     monkeypatch.setattr(engine, "_TOKEN_CACHE", {})
-    return path
+    monkeypatch.setattr(session_auth, "_CACHE", {})
+    demo_legacy.reset()                      # 시연용 레거시 사이트는 모듈 단위로 상태를 든다. 앞 테스트의 승인·저장이 남지 않게
+    yield path
+    jobs.stop(timeout=30)                    # 실패한 테스트가 돌려 둔 탐색이 다음 테스트의 상태 폴더에 쓰지 않게
 
 
 @pytest.fixture

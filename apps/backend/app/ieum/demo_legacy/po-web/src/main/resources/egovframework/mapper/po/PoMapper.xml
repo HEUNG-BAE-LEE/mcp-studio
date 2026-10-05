@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="egovframework.po.service.impl.PoMapper">
+
+    <!-- 발주 목록 조회 -->
+    <select id="selectPoList" parameterType="egovframework.po.service.PoSearchVO" resultType="egovMap">
+        SELECT P.PO_NO      AS poNo
+             , P.PO_DT      AS poDt
+             , P.VEND_CD    AS vendCd
+             , V.VEND_NM    AS vendNm
+             , P.ITEM_CD    AS itemCd
+             , P.QTY        AS qty
+             , P.UNIT_PRICE AS unitPrice
+             , P.STTS_CD    AS sttsCd
+          FROM TB_PO P
+          LEFT JOIN TB_VEND V ON V.VEND_CD = P.VEND_CD
+         WHERE P.PO_DT BETWEEN #{fromDt} AND #{toDt}
+        <if test="vendCd != null and vendCd != ''">
+           AND P.VEND_CD = #{vendCd}
+        </if>
+        <if test="sttsCd != null and sttsCd != ''">
+           AND P.STTS_CD = #{sttsCd}
+        </if>
+         ORDER BY P.PO_NO DESC
+    </select>
+
+    <!-- 발주 상세 조회 -->
+    <select id="selectPoDetail" parameterType="string" resultType="egovMap">
+        SELECT PO_NO      AS poNo
+             , PO_DT      AS poDt
+             , VEND_CD    AS vendCd
+             , ITEM_CD    AS itemCd
+             , QTY        AS qty
+             , UNIT_PRICE AS unitPrice
+             , PAY_TERM   AS payTerm
+             , STTS_CD    AS sttsCd
+          FROM TB_PO
+         WHERE PO_NO = #{poNo}
+    </select>
+
+    <!-- 발주번호 채번: PO + 일자 + 시퀀스 -->
+    <select id="selectNextPoNo" resultType="string">
+        SELECT 'PO' || TO_CHAR(SYSDATE, 'YYYYMMDD') || LPAD(SEQ_PO.NEXTVAL, 4, '0') FROM DUAL
+    </select>
+
+    <!-- 발주 등록 -->
+    <insert id="insertPo" parameterType="map">
+        INSERT INTO TB_PO (PO_NO, PO_DT, VEND_CD, ITEM_CD, QTY, UNIT_PRICE, PAY_TERM, STTS_CD, REG_DT)
+        VALUES (#{poNo}, TO_CHAR(SYSDATE, 'YYYYMMDD'), #{vendCd}, #{itemCd}, #{qty}, #{unitPrice}, #{payTerm}, 'R', SYSDATE)
+    </insert>
+
+    <!-- 발주 상태 변경 -->
+    <update id="updatePoStatus" parameterType="map">
+        UPDATE TB_PO
+           SET STTS_CD = #{sttsCd}
+             , UPD_DT = SYSDATE
+         WHERE PO_NO = #{poNo}
+    </update>
+
+    <!-- 구 발주 목록: 2018년 이전 승인건 -->
+    <select id="selectOldPoList" resultType="egovMap">
+        <![CDATA[
+        SELECT PO_NO AS poNo, PO_DT AS poDt, VEND_CD AS vendCd, STTS_CD AS sttsCd
+          FROM TB_PO
+         WHERE PO_DT < '20180101'
+         ORDER BY PO_NO
+        ]]>
+    </select>
+
+</mapper>

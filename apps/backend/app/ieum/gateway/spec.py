@@ -106,7 +106,7 @@ def _ai_path(origin_path):
     return '.'.join(re.sub(r'\w+', lambda m: snake(m.group(0)), seg) for seg in origin_path.split('.'))
 
 
-DATE_NAME = re.compile(r'(ymd|_dt$|date|일자|일$)', re.I)
+DATE_NAME = re.compile(r'(ymd|dt$|date|일자|일$)', re.I)   # fromDt, to_dt, poYmd. 값이 YYYYMMDD 일 때만 날짜로 보므로 이름은 느슨해도 된다
 NUM_NAME = re.compile(r'(cnt|count|amt|amount|qty|price|num|total|sum)', re.I)
 
 
@@ -118,7 +118,7 @@ def _guess_rule(name, sch, example):
             return 'mask', 'string'
         if DATE_NAME.search(name) and re.fullmatch(r'\d{8}', ex):
             return 'date', 'string (date)'
-        if NUM_NAME.search(name) and re.fullmatch(r'-?\d+(\.\d+)?', ex):
+        if NUM_NAME.search(name) and re.fullmatch(r'-?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?', ex):
             return 'num', 'number'
     return None, None
 

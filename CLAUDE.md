@@ -160,8 +160,36 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 원본 시스템 인증 정보는 Fernet 으로 암호화해 `source_secrets.enc` 에 두는데, 키는
 `IEUM_SECRET_KEY` 또는 같은 폴더의 `.secret_key` 다. 둘은 짝이라 하나만 지우면 못 읽는다.
 
+**API 자동 탐색은 이음의 2차 범위다** (`app/ieum/discovery/`, 화면 `apps/web/ieum/js/menu/discovery.js`).
+명세가 없는 레거시 시스템에서 API 를 찾는다. 헤드리스 브라우저(`crawler.py`)가 서비스 계정으로 로그인해 메뉴를
+돌며 요청을 캡처하고, Git 소스 분석(`scan/`)이 컨트롤러·매퍼를 읽고, `merge.py` 가 둘을 경로로 맞추고,
+`verify.py` 가 읽기 API 를 다시 불러 확인하고, `jobs.py` 가 작업 수명(이벤트 스트림, 취소, 예약, 등록)을 맡는다.
+화면은 `GET /api/ieum/discovery/jobs/{id}/?after=<seq>` 를 폴링해서 이벤트를 그대로 그린다. 헤드리스 브라우저가
+보는 화면은 `.../shot` 이 돌려주는 실제 JPEG 이다. 작업은 JSON(`discovery.jobs`)에 남고, 서버가 재시작되면 돌던 작업은
+`interrupted` 가 된다. 시연 대상은 `demo_legacy/`(가짜 구매관리 사이트와 Java 소스 샘플)이며 실제 시스템이 아니다.
+**쓰기를 막는 곳은 클릭 선택이 아니라 네트워크다.** 누르지 않을 단어는 사람이 읽을 이유를 남기려는 1차 장치이고,
+안전을 지키는 것은 `crawler._route_inner` 가 POST/PUT/PATCH/DELETE 를 전부 가로채 운영에 보내지 않는 것이다(로그인과
+사용자가 지정한 조회용 POST 만 예외). 로드 시 XHR 로 부르는 GET 중 이름이 쓰기처럼 보이는 것(`policy.risky_call`)도 가로챈다.
+금지어를 비워도 쓰기가 닿지 않는다는 것을 `test_ieum_discovery_e2e.py` 가 서버 데이터로 확인한다. 이 규칙을 느슨하게 하지 않는다.
+**소스 분석은 별도 프로세스에서 돈다**(`scan_proc.py`, 시간 제한 120초). 사용자가 준 저장소의 병적인 파일(열린 괄호 수만 개 등)은
+정규식을 역추적에 빠뜨리는데, 파이썬 정규식은 GIL 을 놓지 않아서 스레드로 돌리면 **서버 전체가 멈춘다**. 프로세스로 돌리면
+제한을 넘는 순간 강제로 끝내고 취소도 즉시 먹는다. 스캐너를 직접 부르는 시험(`test_ieum_scan.py`)과 달리 작업 경로는 항상 `scan_proc.run` 을 거친다.
+심볼릭 링크는 따라가지 않고 1MB 넘는 파일은 건너뛴다.
+읽기 검증 호출(`verify.py`)은 읽기로 증명된 것(화면이 이미 GET 으로 성공했거나 소스가 SELECT 로 확인)만 운영에 보내고,
+쓰기는 사용자가 스테이징 주소를 줬을 때만 스테이징에 보낸다.
+등록한 도구는 `session` 인증으로 실행된다: 탐색이 로그인 요청에서 알아낸 레시피(필드 이름)로 `gateway/session_auth.py` 가
+서비스 계정에 로그인하고, 세션이 끊기면 한 번 다시 로그인해 재시도한다. 계정 비밀번호와 Git 토큰은 작업 설정에 남기지 않고
+금고(`disc:<작업 id>` 키)에만 둔다. 브라우저는 번들 Chromium → 시스템 Chrome → Edge 순이라 `playwright install` 없이도 돈다.
+
 ## 밟으면 아픈 것들
 
+- **콘솔 JS 는 classic script 라 파일 간 전역 선언이 충돌한다.** `const hostOf` 를 두 파일에 선언하면 한쪽이 통째로
+  실행되지 않아 화면이 빈 채로 뜬다. `node --check` 는 파일 단위라 이걸 못 잡는다. 전역 이름을 새로 만들 때는 먼저 grep 한다.
+- **콘솔 정적 파일은 `Cache-Control: no-cache` 로 서빙한다**(`console.py`). 빌드 해시가 없어서, 헤더가 없으면 브라우저가
+  방금 고친 JS 대신 캐시를 쓴다.
+- **`display` 를 지정한 요소에는 `hidden` 속성이 안 먹는다.** 전역 `[hidden]{display:none!important}` 가 console.css 에 있다.
+- **브라우저 e2e 시험은 시간이 걸린다**(`test_ieum_discovery_*`: 크롤 한 번 20~40초). 브라우저가 없거나
+  `IEUM_SKIP_BROWSER_TESTS=1` 이면 건너뛴다. 시연 사이트는 모듈 단위 상태를 들고 있어 시험 사이에 `demo_legacy.reset()` 이 필요하다(`ieum_state` 픽스처가 한다).
 - **전역 gitignore 에 `*.json` 을 둔 개발자는 새 JSON 이 조용히 빠진다.** 이음 시드
   (`app/ieum/data/**`)는 `.gitignore` 에 예외를 뒀다. 다른 곳에 JSON 을 새로 추가하면
   `git status` 에 안 보이니 `git check-ignore -v <파일>` 로 확인한다.

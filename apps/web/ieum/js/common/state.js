@@ -1,8 +1,7 @@
 /* 서버(FastAPI)에서 받아 채우는 데이터와 화면 상태 */
 let WS = {}, SOURCES = [], TOOLS = {}, MODELS = {}, PG_CHAT = false, TOOLSETS = [], KEYS = [], LOGS = [];
-let DISC_CFG = {}, DISC_APIS = [], DISC_EVENTS = [], PO_STTS = [], PR_STTS = [], DEPT = [];
 let WZ_MODES = [], BAN_WORDS = [], GOV_APIS = [];
-const SRC = {}, DA = {};
+const SRC = {};
 const ACT = {}, INP = {}, CHG = {};
 
 /* ---------- 조회 ---------- */

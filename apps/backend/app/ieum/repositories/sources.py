@@ -5,7 +5,6 @@ sources = JsonStore("sources", "sources")
 wizard_modes = JsonStore("sources", "wizard_modes")
 ban_words = JsonStore("sources", "ban_words")
 gov_apis = JsonStore("sources", "gov_apis")
-discovery = JsonStore("sources", "discovery")
 
 
 def list_sources():

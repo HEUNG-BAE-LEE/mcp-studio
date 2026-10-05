@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE sqlMap PUBLIC "-//ibatis.apache.org//DTD SQL Map 2.0//EN" "http://ibatis.apache.org/dtd/sql-map-2.dtd">
+
+<!-- 예산 모듈은 아직 iBatis(sqlMap) 다. 구문 id 앞에 DAO 빈 이름을 붙이는 전자정부 관례를 따른다. -->
+<sqlMap namespace="Budget">
+
+    <typeAlias alias="egovMap" type="egovframework.rte.psl.dataaccess.util.EgovMap"/>
+    <typeAlias alias="budgetSearchVO" type="egovframework.po.service.BudgetSearchVO"/>
+
+    <!-- 부서별 예산 잔액 조회 -->
+    <select id="budgetDAO.selectBudgetRemain" parameterClass="budgetSearchVO" resultClass="egovMap">
+        SELECT DEPT_CD                       AS deptCd
+             , YYYY                          AS yyyy
+             , BUDGET_AMT                    AS budgetAmt
+             , USED_AMT                      AS usedAmt
+             , BUDGET_AMT - USED_AMT         AS remainAmt
+          FROM TB_BUDGET
+         WHERE DEPT_CD = #deptCd#
+           AND YYYY = #yyyy#
+    </select>
+
+</sqlMap>

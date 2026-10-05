@@ -10,7 +10,7 @@ from xml.sax.saxutils import escape
 
 import httpx
 
-from app.ieum.gateway import credentials
+from app.ieum.gateway import credentials, session_auth
 
 TIMEOUT = 10
 MAX_BODY = 1024 * 1024
@@ -78,7 +78,7 @@ def _from_origin(r, v):
         return "%s:%s" % (s[:2], s[2:4]) if re.fullmatch(r"\d{4}", s) else v
     if rule == "num":
         try:
-            f = float(v)
+            f = float(str(v).replace(",", ""))
             return int(f) if f.is_integer() else f
         except (TypeError, ValueError):
             return v
@@ -182,6 +182,11 @@ def auth_headers(source, cred):
         headers["Authorization"] = "Basic " + base64.b64encode(("%s:%s" % (cred.get("username", ""), cred.get("password", ""))).encode()).decode()
     elif t == "oauth":
         headers["Authorization"] = "Bearer " + _oauth_token(source["id"], cred)
+    elif t == "session":
+        try:
+            headers["Cookie"] = session_auth.cookie_header(source["id"], source["base"], cred)
+        except session_auth.LoginError as exc:
+            raise ToolError(str(exc))
     return headers, query
 
 
@@ -349,8 +354,20 @@ def read_capped(resp, limit):
     return bytes(buf[:limit + 1])
 
 
+class _SessionExpired(Exception):
+    """세션 로그인 원본 시스템이 "로그인하라"고 답했다. 다시 로그인해서 한 번 더 보낸다."""
+
+
 def invoke(source, tool, args, ctx=None):
     """도구를 실제로 실행한다. {'result', 'trace'} 를 돌려주고, 실패하면 trace 를 담은 ToolError 를 일으킨다."""
+    try:
+        return _invoke_once(source, tool, args, ctx, retry=True)
+    except _SessionExpired:
+        session_auth.invalidate(source["id"])
+        return _invoke_once(source, tool, args, ctx, retry=False)
+
+
+def _invoke_once(source, tool, args, ctx, retry):
     ctx = ctx or {}
     trace = {"args": args}
     t0 = time.time()
@@ -383,6 +400,11 @@ def invoke(source, tool, args, ctx=None):
     trace["sourceMs"] = int((time.time() - t1) * 1000)
     trace["originResponse"] = {"status": resp.status_code, "headers": {k: v for k, v in resp.headers.items() if k.lower() in ("content-type", "content-length")},
                                "body": _clip(text)}
+    if credentials.get(source["id"]).get("type") == "session" and session_auth.expired(
+            resp.status_code, resp.headers.get("Location"), resp.headers.get("Content-Type", ""), text):
+        if retry:
+            raise _SessionExpired()
+        raise ToolError("서비스 계정으로 다시 로그인했지만 원본 시스템이 로그인을 요구합니다. 계정 권한을 확인해 주세요.", trace)
     if resp.status_code >= 400:
         raise ToolError("원본 시스템이 오류를 돌려줬습니다. (HTTP %d) %s" % (resp.status_code, _clip(text, 200)), trace)
 
