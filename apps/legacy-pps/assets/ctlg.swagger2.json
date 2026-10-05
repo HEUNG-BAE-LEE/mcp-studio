@@ -1,0 +1,397 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "CTLG 목록정보 관리 (가상)",
+    "version": "1.3.2",
+    "description": "시연용 가상 시스템. actionLogin.do 로 세션을 받는다."
+  },
+  "host": "10.70.1.10:8001",
+  "basePath": "/",
+  "schemes": [
+    "http"
+  ],
+  "securityDefinitions": {
+    "JSESSIONID": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "Cookie"
+    }
+  },
+  "paths": {
+    "/ctlg/clsfc/selectPrdctClsfcList.do": {
+      "get": {
+        "operationId": "selectPrdctClsfcList",
+        "summary": "물품분류(세부품명) 목록 조회",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "PRDCT_CLSFC_NO",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "물품분류번호(앞자리 일치)"
+          },
+          {
+            "name": "DTL_PRDCT_CLSFC_NM",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "세부품명"
+          },
+          {
+            "name": "pageIndex",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "페이지 번호"
+          },
+          {
+            "name": "recordCountPerPage",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "페이지당 건수"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "정상(세션 만료 시에도 200 + text/html)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "resultCode": {
+                  "type": "string"
+                },
+                "resultMsg": {
+                  "type": "string"
+                },
+                "totCnt": {
+                  "type": "integer"
+                },
+                "resultList": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "PRDCT_CLSFC_NO": {
+                        "type": "string",
+                        "description": "물품분류번호 8자리(대·중·소·세분류 각 2자리, UNSPSC 기반)"
+                      },
+                      "DTL_PRDCT_CLSFC_NO": {
+                        "type": "string",
+                        "description": "세부품명번호 10자리(물품분류번호+2자리)"
+                      },
+                      "DTL_PRDCT_CLSFC_NM": {
+                        "type": "string",
+                        "description": "세부품명"
+                      },
+                      "SGMNT_CD": {
+                        "type": "string",
+                        "description": "대분류(Segment) 2자리"
+                      },
+                      "FMLY_CD": {
+                        "type": "string",
+                        "description": "중분류(Family) 4자리"
+                      },
+                      "CLS_CD": {
+                        "type": "string",
+                        "description": "소분류(Class) 6자리"
+                      },
+                      "UNIT_NM": {
+                        "type": "string",
+                        "description": "단위"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JSESSIONID": []
+          }
+        ]
+      }
+    },
+    "/ctlg/idnt/selectPrdctIdntList.do": {
+      "get": {
+        "operationId": "selectPrdctIdntList",
+        "summary": "물품식별번호 목록 조회",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "DTL_PRDCT_CLSFC_NO",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "세부품명번호 10자리"
+          },
+          {
+            "name": "MAKER_NM",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "제조사명"
+          },
+          {
+            "name": "pageIndex",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "페이지 번호"
+          },
+          {
+            "name": "recordCountPerPage",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "페이지당 건수"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "정상(세션 만료 시에도 200 + text/html)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "resultCode": {
+                  "type": "string"
+                },
+                "resultMsg": {
+                  "type": "string"
+                },
+                "totCnt": {
+                  "type": "integer"
+                },
+                "resultList": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "PRDCT_IDNT_NO": {
+                        "type": "string",
+                        "description": "물품식별번호 8자리"
+                      },
+                      "DTL_PRDCT_CLSFC_NO": {
+                        "type": "string",
+                        "description": "세부품명번호 10자리(물품분류번호+2자리)"
+                      },
+                      "DTL_PRDCT_CLSFC_NM": {
+                        "type": "string",
+                        "description": "세부품명"
+                      },
+                      "MODEL_NM": {
+                        "type": "string",
+                        "description": "모델명"
+                      },
+                      "MAKER_NM": {
+                        "type": "string",
+                        "description": "제조사명"
+                      },
+                      "UNIT_PRCE": {
+                        "type": "string",
+                        "description": "단가(원)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JSESSIONID": []
+          }
+        ]
+      }
+    },
+    "/ctlg/idnt/selectPrdctIdntDtl.do": {
+      "get": {
+        "operationId": "selectPrdctIdntDtl",
+        "summary": "물품식별번호 상세 조회",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "PRDCT_IDNT_NO",
+            "in": "query",
+            "type": "string",
+            "required": true,
+            "description": "물품식별번호 8자리"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "정상(세션 만료 시에도 200 + text/html)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "resultCode": {
+                  "type": "string"
+                },
+                "resultMsg": {
+                  "type": "string"
+                },
+                "totCnt": {
+                  "type": "integer"
+                },
+                "resultList": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "PRDCT_IDNT_NO": {
+                        "type": "string",
+                        "description": "물품식별번호 8자리"
+                      },
+                      "PRDCT_CLSFC_NO": {
+                        "type": "string",
+                        "description": "물품분류번호 8자리(대·중·소·세분류 각 2자리, UNSPSC 기반)"
+                      },
+                      "DTL_PRDCT_CLSFC_NO": {
+                        "type": "string",
+                        "description": "세부품명번호 10자리(물품분류번호+2자리)"
+                      },
+                      "DTL_PRDCT_CLSFC_NM": {
+                        "type": "string",
+                        "description": "세부품명"
+                      },
+                      "MODEL_NM": {
+                        "type": "string",
+                        "description": "모델명"
+                      },
+                      "MAKER_BIZRNO": {
+                        "type": "string",
+                        "description": "제조사 사업자등록번호"
+                      },
+                      "MAKER_NM": {
+                        "type": "string",
+                        "description": "제조사명"
+                      },
+                      "UNIT_NM": {
+                        "type": "string",
+                        "description": "단위"
+                      },
+                      "UNIT_PRCE": {
+                        "type": "string",
+                        "description": "단가(원)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JSESSIONID": []
+          }
+        ]
+      }
+    },
+    "/ctlg/entrps/selectEntrpsList.do": {
+      "get": {
+        "operationId": "selectEntrpsList",
+        "summary": "조달업체 목록 조회",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "CORP_NM",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "업체명"
+          },
+          {
+            "name": "BIZRNO",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "사업자등록번호"
+          },
+          {
+            "name": "pageIndex",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "페이지 번호"
+          },
+          {
+            "name": "recordCountPerPage",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "페이지당 건수"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "정상(세션 만료 시에도 200 + text/html)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "resultCode": {
+                  "type": "string"
+                },
+                "resultMsg": {
+                  "type": "string"
+                },
+                "totCnt": {
+                  "type": "integer"
+                },
+                "resultList": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "BIZRNO": {
+                        "type": "string",
+                        "description": "사업자등록번호"
+                      },
+                      "CORP_NM": {
+                        "type": "string",
+                        "description": "업체명"
+                      },
+                      "RPRSV_NM": {
+                        "type": "string",
+                        "description": "대표자명(가림)"
+                      },
+                      "RGN_NM": {
+                        "type": "string",
+                        "description": "소재지 시도"
+                      },
+                      "ENTRPS_DIV_NM": {
+                        "type": "string",
+                        "description": "업체구분"
+                      },
+                      "TELNO": {
+                        "type": "string",
+                        "description": "전화번호(가림)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JSESSIONID": []
+          }
+        ]
+      }
+    }
+  }
+}
