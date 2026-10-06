@@ -1,4 +1,4 @@
-"""STCK 비축물자 재고 — 가상 레거시 (SOAP 1.1, port 8004).
+"""STCK 비축물자 재고 — 가상 레거시 (SOAP 1.1, port 18004).
 
 시연용 가상 시스템이다. 조달청 원자재 비축 사업의 품목군(비철금속)만 빌렸고, 재고량과 기지 이름은 지어낸 것이다.
 인증은 WS-Security UsernameToken. 문서는 WSDL 하나 (/stck/StockService?wsdl).

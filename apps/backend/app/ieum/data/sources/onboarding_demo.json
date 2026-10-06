@@ -5,7 +5,7 @@
  "hosts": [
   {
    "host": "{LEGACY_HOST}",
-   "port": 8001,
+   "port": 18001,
    "context": "/ctlg",
    "label": "CTLG 목록정보 관리",
    "era": "2009년식",
@@ -17,20 +17,20 @@
   },
   {
    "host": "{LEGACY_HOST}",
-   "port": 8002,
+   "port": 18002,
    "context": "/dhgw",
    "label": "DHGW 조달데이터 연계",
    "era": "신형",
    "auth": {
     "type": "oauth",
-    "tokenUrl": "http://{LEGACY_HOST}:8002/oauth2/token",
+    "tokenUrl": "http://{LEGACY_HOST}:18002/oauth2/token",
     "clientId": "dhgw-ieum",
     "clientSecret": "dhgw-secret-26"
    }
   },
   {
    "host": "{LEGACY_HOST}",
-   "port": 8003,
+   "port": 18003,
    "context": "/finl",
    "label": "FINL 재정 연계",
    "era": "2015년식",
@@ -41,13 +41,13 @@
     "key": "FINL-KEY-2015"
    },
    "sample": {
-    "req": "curl -H \"X-API-KEY: FINL-KEY-2015\" \"http://{LEGACY_HOST}:8003/finl/pymnt/selectPymntSttus?CNTRCT_NO=R26TA5699956600\"",
+    "req": "curl -H \"X-API-KEY: FINL-KEY-2015\" \"http://{LEGACY_HOST}:18003/finl/pymnt/selectPymntSttus?CNTRCT_NO=R26TA5699956600\"",
     "res": "{\"RESULT_CODE\":\"S\",\"RESULT_MSG\":\"정상 처리되었습니다.\",\"DATA_CNT\":1,\"DATA\":[{\"PYMNT_REQ_NO\":\"P2600000\",\"CNTRCT_NO\":\"R26TA5699956600\",\"DMINSTT_CD\":\"9990301\",\"BIZRNO\":\"434-81-95994\",\"REQ_YMD\":\"20260925\",\"REQ_AMT\":\"4,648,370\",\"PYMNT_STTS_CD\":\"30\",\"PYMNT_STTS_NM\":\"지급완료\",\"PYMNT_YMD\":\"20260930\",\"BDGT_ACNT_NM\":\"일반회계\"}]}"
    }
   },
   {
    "host": "{LEGACY_HOST}",
-   "port": 8004,
+   "port": 18004,
    "context": "/stck/StockService",
    "label": "STCK 비축물자 재고",
    "era": "SOAP",

@@ -10,4 +10,4 @@ start() {
   (cd "$HERE" && nohup "$PY" -m uvicorn "legacy_pps.$name.main:app" --host "${HOST:-127.0.0.1}" --port "$port" > "$PID_DIR/$name.log" 2>&1 & echo $! > "$pid_file")
   echo "[start] $name :$port"
 }
-start ctlg 8001; start dhgw 8002; start finl 8003; start stck 8004
+start ctlg 18001; start dhgw 18002; start finl 18003; start stck 18004

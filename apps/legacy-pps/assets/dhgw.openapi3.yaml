@@ -4,7 +4,7 @@ info:
   version: 2.1.0
   description: 시연용 가상 시스템. 값은 모두 문자열이다.
 servers:
-- url: http://10.70.1.10:8002
+- url: http://10.70.1.10:18002
 components:
   securitySchemes:
     oauth2:

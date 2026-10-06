@@ -5,7 +5,7 @@
     "version": "1.3.2",
     "description": "시연용 가상 시스템. actionLogin.do 로 세션을 받는다."
   },
-  "host": "10.70.1.10:8001",
+  "host": "10.70.1.10:18001",
   "basePath": "/",
   "schemes": [
     "http"

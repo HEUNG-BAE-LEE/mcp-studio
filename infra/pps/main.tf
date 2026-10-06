@@ -105,7 +105,7 @@ resource "azurerm_network_security_group" "legacy" {
     source_address_prefix      = var.subnet_aca
     source_port_range          = "*"
     destination_address_prefix = "*"
-    destination_port_ranges    = ["8001-8004"]
+    destination_port_ranges    = ["18001-18004"]
   }
   security_rule {
     name                       = "Deny-All-Inbound"

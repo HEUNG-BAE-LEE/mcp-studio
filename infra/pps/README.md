@@ -15,7 +15,7 @@ KT 쪽은 KT G-Cloud 사용자 Guide V1.3(2022.10)·D1 Server Guide·KT Cloud �
 |---|---|---|
 | 천안 CDC 공공 전용 존 | koreacentral + 전용 리소스 그룹 | 물리 분리 아님 — 논리 분리 |
 | DMZ Tier / Private Tier (D1: Tier = /24 가상 서브넷) | `snet-pps-aca` (이음), `snet-pps-pg` (DB) | Tier 개념을 서브넷으로 |
-| 기관 전산실 → 전용회선/VPN/CIP-Hybrid → 외부연동 F/W → Private | `snet-pps-legacy` + `nsg-pps-legacy` (이음 서브넷에서 8001~8004 만 허용) | **전용회선 연결형**을 같은 VNet 안 경로로 모사 |
+| 기관 전산실 → 전용회선/VPN/CIP-Hybrid → 외부연동 F/W → Private | `snet-pps-legacy` + `nsg-pps-legacy` (이음 서브넷에서 18001~18004 만 허용) | **전용회선 연결형**을 같은 VNet 안 경로로 모사 |
 | DMZ F/W · Private F/W · 외부연동 F/W (보안 매니지드) | Container Apps ingress IP 제한 · `nsg-pps-pg` · `nsg-pps-legacy` | SW 규칙. CC 인증 H/W 아님 |
 | VR(가상라우터) NAT / Port Forwarding | 레거시 VM 공인 IP 없음, 관리 채널(run-command)만 | 반입 경로를 하나로 |
 | DBaaS (공공존 MySQL — PostgreSQL 관리형 제공 여부는 공개 자료로 미확인) | PostgreSQL Flexible Server, 위임 서브넷, 공개 접근 차단 | |

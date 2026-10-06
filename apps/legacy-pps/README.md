@@ -8,10 +8,10 @@
 
 | 시스템 | 포트 | 시대 · 인증 | 문서 | 시연 포인트 |
 |---|---|---|---|---|
-| CTLG 목록정보 관리 | 8001 | 2009년식 · 세션 로그인(JSESSIONID) | `/ctlg/v2/api-docs` Swagger 2.0 | 세션이 없으면 **200 + HTML "세션이 만료되었습니다"**, 로그인 실패도 200 + `resultCode 9001` |
-| DHGW 조달데이터 연계 게이트웨이 | 8002 | 신형 · OAuth2 client_credentials | `/dhgw/openapi.yaml` OpenAPI 3.0 | 공개 오픈API 와 같은 경로·필드·봉투·오류코드(03·06·07·08), 조회기간 최대 1개월 |
-| FINL 재정 연계 인터페이스 | 8003 | 2015년식 · `X-API-KEY` | **명세 없음.** `assets/finl_인터페이스정의서.xlsx` 뿐 | 정의서의 `ACNT_DIV_CD` 가 실제 응답에 없다(매설 결함 — 고치지 말 것) |
-| STCK 비축물자 재고 | 8004 | SOAP 1.1 · WS-Security | `/stck/StockService?wsdl` | SOAP 레거시도 같은 MCP 도구로 |
+| CTLG 목록정보 관리 | 18001 | 2009년식 · 세션 로그인(JSESSIONID) | `/ctlg/v2/api-docs` Swagger 2.0 | 세션이 없으면 **200 + HTML "세션이 만료되었습니다"**, 로그인 실패도 200 + `resultCode 9001` |
+| DHGW 조달데이터 연계 게이트웨이 | 18002 | 신형 · OAuth2 client_credentials | `/dhgw/openapi.yaml` OpenAPI 3.0 | 공개 오픈API 와 같은 경로·필드·봉투·오류코드(03·06·07·08), 조회기간 최대 1개월 |
+| FINL 재정 연계 인터페이스 | 18003 | 2015년식 · `X-API-KEY` | **명세 없음.** `assets/finl_인터페이스정의서.xlsx` 뿐 | 정의서의 `ACNT_DIV_CD` 가 실제 응답에 없다(매설 결함 — 고치지 말 것) |
+| STCK 비축물자 재고 | 18004 | SOAP 1.1 · WS-Security | `/stck/StockService?wsdl` | SOAP 레거시도 같은 MCP 도구로 |
 | `pps_legacy` DB | 55432(로컬) | PostgreSQL | — | FK 없음, 문자열 일자·금액, `USE_YN`, 변경차수 행, 공통코드 분리, 개인정보 열 |
 
 모든 응답에 `X-Demo-System: virtual` 헤더가 붙는다. 데이터는 `legacy_pps/common/seed.py` 한 곳에서 결정적으로 만든다 —

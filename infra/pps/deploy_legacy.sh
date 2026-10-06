@@ -61,7 +61,7 @@ chown -R legacy:legacy /opt/legacy-pps
 cp deploy/*.service /etc/systemd/system/
 systemctl daemon-reload
 for s in ctlg dhgw finl stck; do systemctl enable --now "$s"; systemctl restart "$s"; done
-sleep 2; for p in 8001 8002 8003 8004; do curl -s -o /dev/null -w "port $p → %{http_code}\n" "http://127.0.0.1:$p/" || true; done
+sleep 2; for p in 18001 18002 18003 18004; do curl -s -o /dev/null -w "port $p → %{http_code}\n" "http://127.0.0.1:$p/" || true; done
 EOS
 )
 az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript \

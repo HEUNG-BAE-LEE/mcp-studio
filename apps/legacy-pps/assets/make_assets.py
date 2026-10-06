@@ -63,7 +63,7 @@ def swagger2(sys_key, base, title):
                 "resultList": {"type": "array", "items": {"type": "object", "properties": props}}}}}},
             "security": [{"JSESSIONID": []}]}}
     return {"swagger": "2.0", "info": {"title": title, "version": "1.3.2", "description": "시연용 가상 시스템. actionLogin.do 로 세션을 받는다."},
-            "host": "10.70.1.10:8001", "basePath": "/", "schemes": ["http"],
+            "host": "10.70.1.10:18001", "basePath": "/", "schemes": ["http"],
             "securityDefinitions": {"JSESSIONID": {"type": "apiKey", "in": "header", "name": "Cookie"}}, "paths": paths}
 
 
@@ -82,7 +82,7 @@ def openapi3(sys_key, title):
                                                               "items": {"type": "array", "items": {"type": "object", "properties": props}}}}}}}}}}},
                           "401": {"description": "토큰 없음·만료 {\"error\":\"invalid_token\"}"}}}}
     return {"openapi": "3.0.3", "info": {"title": title, "version": "2.1.0", "description": "시연용 가상 시스템. 값은 모두 문자열이다."},
-            "servers": [{"url": "http://10.70.1.10:8002"}],
+            "servers": [{"url": "http://10.70.1.10:18002"}],
             "components": {"securitySchemes": {"oauth2": {"type": "oauth2", "flows": {"clientCredentials": {"tokenUrl": "/oauth2/token", "scopes": {}}}}}},
             "security": [{"oauth2": []}], "paths": paths}
 
