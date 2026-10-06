@@ -7,7 +7,8 @@ PID_DIR="$HERE/.pids"; mkdir -p "$PID_DIR"
 start() {
   local name="$1" port="$2" pid_file="$PID_DIR/$1.pid"
   if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then echo "[skip]  $name 실행 중"; return; fi
-  (cd "$HERE" && nohup "$PY" -m uvicorn "legacy_pps.$name.main:app" --host "${HOST:-127.0.0.1}" --port "$port" > "$PID_DIR/$name.log" 2>&1 & echo $! > "$pid_file")
+  # & 는 nohup 한 명령에만 건다. `cd && nohup … &` 로 묶으면 $! 가 서브셸 PID 라 stop_all 이 python 을 못 죽인다
+  (cd "$HERE"; nohup "$PY" -m uvicorn "legacy_pps.$name.main:app" --host "${HOST:-127.0.0.1}" --port "$port" > "$PID_DIR/$name.log" 2>&1 & echo $! > "$pid_file")
   echo "[start] $name :$port"
 }
 start ctlg 18001; start dhgw 18002; start finl 18003; start stck 18004
