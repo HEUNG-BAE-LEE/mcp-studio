@@ -110,28 +110,28 @@ cd apps/backend && .venv/bin/python -c \
 ./start.sh
 ```
 
-백엔드(:8000)와 관리자 화면(:5173)을 함께 띄웁니다. 같은 포트를 쓰는 프로세스가
+백엔드(:18000)와 관리자 화면(:15173)을 함께 띄웁니다. 같은 포트를 쓰는 프로세스가
 있으면 먼저 종료하고 실행하며, `Ctrl+C` 한 번으로 둘 다 내려갑니다.
 로그는 `$TMPDIR/mcp-studio-{backend,admin}.log` 에 남습니다.
 
-포트를 바꾸려면 `BACKEND_PORT=8001 ADMIN_PORT=5174 ./start.sh` 처럼 넘깁니다.
+포트를 바꾸려면 `BACKEND_PORT=28000 ADMIN_PORT=25173 ./start.sh` 처럼 넘깁니다.
 
 이음 게이트웨이(§10)도 같은 백엔드 프로세스에 올라가며, 관리 콘솔은
-`http://localhost:8000/ieum/` 에서 열립니다.
+`http://localhost:18000/ieum/` 에서 열립니다.
 
 <details>
 <summary>따로 띄우기 (터미널 두 개)</summary>
 
 ```bash
-# 터미널 1 — 백엔드 (:8000)
-cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
+# 터미널 1 — 백엔드 (:18000)
+cd apps/backend && .venv/bin/uvicorn app.main:app --port 18000
 ```
 
 기동 시 테이블 생성과 시드 데이터 삽입이 자동으로 끝납니다. 별도 마이그레이션이나
 시드 명령은 없습니다.
 
 ```bash
-# 터미널 2 — 관리자 화면 (:5173)
+# 터미널 2 — 관리자 화면 (:15173)
 cd apps/admin && npm run dev
 ```
 
@@ -157,7 +157,7 @@ cd apps/extension && npm run build
 확장 없이 30초 안에 핵심 동작을 확인할 수 있습니다. 시드에 액션이 하나 들어 있기
 때문입니다.
 
-브라우저에서 <http://localhost:5173/projects/1/console> 을 열고 입력창에 이렇게 칩니다:
+브라우저에서 <http://localhost:15173/projects/1/console> 을 열고 입력창에 이렇게 칩니다:
 
 ```
 광화문 근처 아파트 단지 알려줘
@@ -311,8 +311,8 @@ cd apps/extension && npm run compile
 
 ```bash
 rm -f apps/backend/data/dev.db
-lsof -ti tcp:8000 -sTCP:LISTEN | xargs kill     # 아래 "문제가 생기면" 참고
-cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
+lsof -ti tcp:18000 -sTCP:LISTEN | xargs kill     # 아래 "문제가 생기면" 참고
+cd apps/backend && .venv/bin/uvicorn app.main:app --port 18000
 ```
 
 ---
@@ -320,21 +320,21 @@ cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
 ## 7. 문제가 생기면
 
 **콘솔이 404를 냅니다.**
-포트 8000을 쥐고 있는 낡은 `uvicorn`이 이전 코드를 서빙하고 있을 가능성이 높습니다.
+포트 18000을 쥐고 있는 낡은 `uvicorn`이 이전 코드를 서빙하고 있을 가능성이 높습니다.
 `kill $(cat /tmp/backend.pid)`는 pid 파일이 낡아 실패할 수 있으니 이렇게 잡습니다:
 
 ```bash
-lsof -ti tcp:8000 -sTCP:LISTEN | xargs kill
+lsof -ti tcp:18000 -sTCP:LISTEN | xargs kill
 ```
 
-`-sTCP:LISTEN`을 빼면 안 됩니다. 그러면 8000번에 **접속한** 프로세스까지 잡히는데,
+`-sTCP:LISTEN`을 빼면 안 됩니다. 그러면 18000번에 **접속한** 프로세스까지 잡히는데,
 관리자 화면을 열어둔 Chrome이 거기 포함됩니다(실측 3개 중 2개가 Chrome이었습니다).
 브라우저가 통째로 닫힙니다.
 
 서버가 최신 코드를 서빙하는지는 라우트 존재로 확인합니다:
 
 ```bash
-curl -s http://localhost:8000/openapi.json | python3 -c \
+curl -s http://localhost:18000/openapi.json | python3 -c \
   "import json,sys; print('/api/projects/{project_id}/llm-test' in json.load(sys.stdin)['paths'])"
 ```
 
@@ -413,6 +413,6 @@ apps/backend/app/ieum/   routers/ 메뉴별 API · repositories/ 저장소 · ga
 apps/web/ieum/           관리 콘솔
 ```
 
-`./start.sh` 로 띄운 뒤 <http://localhost:8000/ieum/> 를 엽니다. 시연용 원본 시스템이
+`./start.sh` 로 띄운 뒤 <http://localhost:18000/ieum/> 를 엽니다. 시연용 원본 시스템이
 같은 서버에 들어 있어 바로 연결해 볼 수 있습니다. 명세가 없는 시스템은 **API 자동 탐색**(헤드리스 브라우저 + Git 소스 분석)으로 API 를 찾습니다. 사용법, 안전 설계, 환경변수, 데이터 위치는
 [`apps/web/ieum/README.md`](apps/web/ieum/README.md) 에 있습니다.
