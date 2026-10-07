@@ -1,0 +1,11 @@
+/* 토큰 원본. 값의 뜻과 쓰는 곳은 docs/DESIGN.md — 값은 1단계 결정(T2B.1)으로 채운다 */
+:root {
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  }
+}
+
+:root[data-theme='dark'] {
+}

@@ -1,0 +1,95 @@
+{
+  // oxlint 설정 — design-guide eslint.config.js의 규칙을 옮긴 것(D3). oxlint로 못 하는 것은 lint/check-source.js가 본다
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "jsx-a11y"],
+  // eslint js recommended · typescript-eslint recommended의 대부분이 correctness에 있다. 나머지는 아래 rules에 하나씩 켠다
+  "categories": { "correctness": "error" },
+  "env": { "browser": true, "es2024": true },
+  "ignorePatterns": ["dist/**", "node_modules/**"],
+  "rules": {
+    // @eslint/js recommended 중 correctness 밖
+    "no-case-declarations": "error",
+    "no-empty": "error",
+    "no-fallthrough": "error",
+    "no-prototype-builtins": "error",
+    "no-redeclare": "error",
+    "no-regex-spaces": "error",
+    "no-unexpected-multiline": "error",
+    // typescript-eslint recommended 중 correctness 밖
+    "no-array-constructor": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      { "ts-expect-error": "allow-with-description", "ts-ignore": true, "ts-nocheck": true, "ts-check": false, "minimumDescriptionLength": 3 }
+    ],
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-namespace": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-unsafe-function-type": "error",
+    // `_`로 시작하는 이름과 rest 형제는 의도된 미사용으로 본다
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "ignoreRestSiblings": true }],
+    // react-hooks
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    // jsx-a11y recommended(6.10.2)과 같게: 옵션이 있는 규칙은 recommended 값, recommended에서 꺼진 규칙은 끈다
+    "jsx-a11y/interactive-supports-focus": [
+      "error",
+      { "tabbable": ["button", "checkbox", "link", "searchbox", "spinbutton", "switch", "textbox"] }
+    ],
+    "jsx-a11y/no-interactive-element-to-noninteractive-role": ["error", { "tr": ["none", "presentation"], "canvas": ["img"] }],
+    "jsx-a11y/no-noninteractive-element-interactions": [
+      "error",
+      {
+        "handlers": ["onClick", "onError", "onLoad", "onMouseDown", "onMouseUp", "onKeyPress", "onKeyDown", "onKeyUp"],
+        "alert": ["onKeyUp", "onKeyDown", "onKeyPress"],
+        "body": ["onError", "onLoad"],
+        "dialog": ["onKeyUp", "onKeyDown", "onKeyPress"],
+        "iframe": ["onError", "onLoad"],
+        "img": ["onError", "onLoad"]
+      }
+    ],
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": [
+      "error",
+      {
+        "ul": ["listbox", "menu", "menubar", "radiogroup", "tablist", "tree", "treegrid"],
+        "ol": ["listbox", "menu", "menubar", "radiogroup", "tablist", "tree", "treegrid"],
+        "li": ["menuitem", "menuitemradio", "menuitemcheckbox", "option", "row", "tab", "treeitem"],
+        "table": ["grid"],
+        "td": ["gridcell"],
+        "fieldset": ["radiogroup", "presentation"]
+      }
+    ],
+    "jsx-a11y/no-noninteractive-tabindex": ["error", { "tags": [], "roles": ["tabpanel"], "allowExpressionValues": true }],
+    "jsx-a11y/no-static-element-interactions": [
+      "error",
+      { "allowExpressionValues": true, "handlers": ["onClick", "onMouseDown", "onMouseUp", "onKeyPress", "onKeyDown", "onKeyUp"] }
+    ],
+    "jsx-a11y/control-has-associated-label": "off",
+    "jsx-a11y/lang": "off",
+    "jsx-a11y/no-aria-hidden-on-focusable": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
+    // 이음 CLAUDE.md — window.confirm · alert · prompt를 쓰지 않는다(D6). window. · globalThis. 경유도 잡는다
+    "no-alert": "error",
+    // 라우터는 react-router-dom 7(D3). react-router는 그 안의 의존성이라 직접 가져오지 않는다 — 하위 경로(react-router/dom 등)도 막는다
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [{ "name": "react-router", "message": "react-router-dom에서 가져온다 (D3)" }],
+        "patterns": [{ "group": ["react-router/*"], "message": "react-router-dom에서 가져온다 (D3)" }]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      // 화면과 컴포넌트는 fetch를 직접 부르지 않는다 — api/hooks를 거친다. window.fetch 우회는 check-source.js가 잡는다
+      "files": ["src/screens/**/*.{ts,tsx}", "src/ui/**/*.{ts,tsx}"],
+      "rules": { "no-restricted-globals": ["error", { "name": "fetch", "message": "api/hooks로 데이터를 받는다" }] }
+    },
+    {
+      // 설정 · 도구 스크립트는 Node에서 돈다
+      "files": ["lint/**/*.js", "vite.config.ts"],
+      "env": { "browser": false, "node": true }
+    }
+  ]
+}
