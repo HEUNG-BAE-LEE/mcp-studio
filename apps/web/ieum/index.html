@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>이음 관리 콘솔</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/console.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" aria-label="서비스 메뉴">
+    <button type="button" data-ico="apps" aria-label="전체 서비스"></button>
+    <span class="sp"></span>
+    <button type="button" class="on" data-ico="plug" aria-label="게이트웨이 관리" aria-current="page"></button>
+    <button type="button" data-ico="doc" aria-label="개발자 문서"></button>
+    <button type="button" data-ico="users" aria-label="팀과 권한"></button>
+    <button type="button" data-ico="chart" aria-label="사용량"></button>
+    <button type="button" data-ico="sliders" aria-label="설정"></button>
+  </aside>
+  <div class="main">
+    <header class="gnb">
+      <div class="logo" aria-label="이음 AI 프로토콜 변압기"><span id="logoMark" style="display:grid"></span>이음<span class="ed">AI 프로토콜 변압기</span></div>
+      <button class="company" type="button"><i></i><span id="wsCompany"></span></button>
+      <div class="gnb-r">
+        <button class="mvp" type="button" data-act="scope">1차 개발 범위</button>
+        <span class="gi hide-sm" data-ico="doc" data-s="22"></span>
+        <span class="gi" data-ico="bell" data-s="22"></span>
+        <span class="gi hide-sm" data-ico="help" data-s="22"></span>
+        <span class="me"><span class="avatar" id="wsAvatar"></span><span class="hide-sm" id="wsUser"></span></span>
+      </div>
+    </header>
+    <div class="lnb">
+      <h1>이음 관리 콘솔</h1>
+      <nav aria-label="이음 관리 메뉴" id="nav"></nav>
+    </div>
+    <main class="content" id="view"></main>
+  </div>
+</div>
+<div class="overlay" id="ov"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle"></aside>
+<div class="overlay m" id="mov"></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="js/common/state.js"></script>
+<script src="js/common/rules.js"></script>
+<script src="js/common/util.js"></script>
+<script src="js/common/overlay.js"></script>
+<script src="js/common/convert.js"></script>
+<script src="js/common/api.js"></script>
+<script src="js/menu/dashboard.js"></script>
+<script src="js/menu/sources.js"></script>
+<script src="js/menu/discovery.js"></script>
+<script src="js/menu/studio.js"></script>
+<script src="js/menu/playground.js"></script>
+<script src="js/menu/deploy.js"></script>
+<script src="js/menu/logs.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

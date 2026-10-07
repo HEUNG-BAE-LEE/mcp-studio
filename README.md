@@ -116,6 +116,9 @@ cd apps/backend && .venv/bin/python -c \
 
 포트를 바꾸려면 `BACKEND_PORT=8001 ADMIN_PORT=5174 ./start.sh` 처럼 넘깁니다.
 
+이음 게이트웨이(§10)도 같은 백엔드 프로세스에 올라가며, 관리 콘솔은
+`http://localhost:8000/ieum/` 에서 열립니다.
+
 <details>
 <summary>따로 띄우기 (터미널 두 개)</summary>
 
@@ -280,7 +283,7 @@ HTTP 200 · 126ms
 ## 5. 자동 테스트
 
 ```bash
-# 백엔드 — 136개
+# 백엔드 — 162개 (이음 26개 포함)
 cd apps/backend && .venv/bin/pytest tests/ -v
 
 # 확장 — 22개
@@ -388,9 +391,28 @@ apps/
                화면(사이드바·브레드크럼·5단계 스테퍼), 후보 목록, 액션 편집, LLM 콘솔.
                첫 화면은 프로젝트 목록이고, 수집은 프로젝트 안 `+ 수집 시작` 팝업에서
                방식(트래픽/포털/문서)을 고르는 데서 시작한다
+  web/ieum/    이음 관리 콘솔 (바닐라 JS, 빌드 없음) — 백엔드가 /ieum/ 에서 서빙
 docs/
   demo-script.md        촬영 대본
   screenshots/          화면 예시
+  ieum/                 이음 제안서·목업·PoC (코드가 아닌 자료)
 ```
 
 DB는 `apps/backend/data/dev.db` 파일 하나입니다.
+
+---
+
+## 10. 이음 게이트웨이
+
+레거시 원본 시스템(OpenAPI, WSDL, 호출 샘플, 공공데이터포털)의 명세를 읽어 AI 도구로
+바꾸고, 도구 묶음을 **MCP 서버**로 배포합니다. 위의 수집·액션·LLM 콘솔과는 별개의
+기능이라 데이터도 따로 갑니다(SQLite 가 아니라 JSON 파일).
+
+```
+apps/backend/app/ieum/   routers/ 메뉴별 API · repositories/ 저장소 · gateway/ 명세 파서·변환 엔진 · runtime/ MCP 서버 배포
+apps/web/ieum/           관리 콘솔
+```
+
+`./start.sh` 로 띄운 뒤 <http://localhost:8000/ieum/> 를 엽니다. 시연용 원본 시스템이
+같은 서버에 들어 있어 바로 연결해 볼 수 있습니다. 묶음을 **배포**하면 그 묶음의 MCP 서버가 이 컴퓨터의 프로세스로 뜹니다(`http://127.0.0.1:81xx/mcp`). 명세가 없는 시스템은 **API 자동 탐색**(헤드리스 브라우저 + Git 소스 분석)으로 API 를 찾습니다. 사용법, 안전 설계, 환경변수, 데이터 위치는
+[`apps/web/ieum/README.md`](apps/web/ieum/README.md) 에 있습니다.

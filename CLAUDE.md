@@ -19,6 +19,7 @@ document(문서 변환, 미구현) 셋이며, RecordingSession.kind 로 갈린�
 cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
 cd apps/backend && .venv/bin/pytest tests/ -v
 cd apps/backend && .venv/bin/pytest tests/test_masking.py -k 마스킹 -v   # 일부만 실행
+cd apps/backend && .venv/bin/pytest tests/test_ieum_gateway.py tests/test_ieum_units.py -v   # 이음
 
 # 관리자 화면 (:5173)
 cd apps/admin && npm run dev
@@ -46,6 +47,7 @@ cd apps/extension && npm run compile    # tsc --noEmit
 apps/extension/  Chrome 확장 (WXT + React) — 트래픽 기록 + 포털 명세 감지·전송
 apps/backend/    FastAPI + SQLModel + SQLite — 점수화·스키마 추론·실행·LLM
 apps/admin/      React + Vite — 프로젝트 → 세션 → 액션 계층 화면
+apps/web/ieum/   이음 관리 콘솔 (바닐라 JS, 빌드 없음) — 백엔드가 /ieum/ 에서 서빙
 ```
 
 DB 는 `apps/backend/data/dev.db` 파일 하나다. 마이그레이션은 없고 기동 시 생성된다.
@@ -147,7 +149,74 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 **`/sources` 에 산출물 숫자를 다시 넣지 않는다** — 프로젝트 목록 배지와 범위가 달라
 (전체 합산 vs 프로젝트 하나) 두 숫자가 어긋나면 버그로 읽힌다.
 
+**이음 게이트웨이는 별개 기능이다** (`apps/backend/app/ieum/`, 콘솔은 `apps/web/ieum`).
+레거시 시스템의 명세(OpenAPI·WSDL·호출 샘플)를 AI 도구로 바꿔 MCP 서버로 배포한다.
+수집·액션·LLM 콘솔과 코드를 공유하지 않고 SQLite 도 쓰지 않는다 — 모든 데이터는 JSON
+파일(`store.JsonStore`)이다. 메뉴별 시드(`app/ieum/data/`)를 읽고 변경분은
+`apps/backend/data/ieum/` 에 쓴다. 같은 `app.main` 에 붙으므로 `./start.sh` 가 함께 띄운다.
+`app.main` 에서 `include_router(ieum_router)` 와 `mount_console(app)` 은 맨 아래 관리자 화면의
+`/` 마운트보다 **먼저** 불러야 한다. 앞선 `/` 마운트가 `/ieum/` 요청을 삼킨다.
+응답은 `{resultCode, resultMsg, resultData}` 봉투이고 HTTP 상태도 resultCode 와 같다(`responses.py`).
+원본 시스템 인증 정보는 Fernet 으로 암호화해 `source_secrets.enc` 에 두는데, 키는
+`IEUM_SECRET_KEY` 또는 같은 폴더의 `.secret_key` 다. 둘은 짝이라 하나만 지우면 못 읽는다.
+
+**API 자동 탐색은 이음의 2차 범위다** (`app/ieum/discovery/`, 화면 `apps/web/ieum/js/menu/discovery.js`).
+명세가 없는 레거시 시스템에서 API 를 찾는다. 헤드리스 브라우저(`crawler.py`)가 서비스 계정으로 로그인해 메뉴를
+돌며 요청을 캡처하고, Git 소스 분석(`scan/`)이 컨트롤러·매퍼를 읽고, `merge.py` 가 둘을 경로로 맞추고,
+`verify.py` 가 읽기 API 를 다시 불러 확인하고, `jobs.py` 가 작업 수명(이벤트 스트림, 취소, 예약, 등록)을 맡는다.
+화면은 `GET /api/ieum/discovery/jobs/{id}/?after=<seq>` 를 폴링해서 이벤트를 그대로 그린다. 헤드리스 브라우저가
+보는 화면은 `.../shot` 이 돌려주는 실제 JPEG 이다. 작업은 JSON(`discovery.jobs`)에 남고, 서버가 재시작되면 돌던 작업은
+`interrupted` 가 된다. 시연 대상은 `demo_legacy/`(가짜 구매관리 사이트와 Java 소스 샘플)이며 실제 시스템이 아니다.
+**쓰기를 막는 곳은 클릭 선택이 아니라 네트워크다.** 누르지 않을 단어는 사람이 읽을 이유를 남기려는 1차 장치이고,
+안전을 지키는 것은 `crawler._route_inner` 가 POST/PUT/PATCH/DELETE 를 전부 가로채 운영에 보내지 않는 것이다(로그인과
+사용자가 지정한 조회용 POST 만 예외). 로드 시 XHR 로 부르는 GET 중 이름이 쓰기처럼 보이는 것(`policy.risky_call`)도 가로챈다.
+금지어를 비워도 쓰기가 닿지 않는다는 것을 `test_ieum_discovery_e2e.py` 가 서버 데이터로 확인한다. 이 규칙을 느슨하게 하지 않는다.
+**소스 분석은 별도 프로세스에서 돈다**(`scan_proc.py`, 시간 제한 120초). 사용자가 준 저장소의 병적인 파일(열린 괄호 수만 개 등)은
+정규식을 역추적에 빠뜨리는데, 파이썬 정규식은 GIL 을 놓지 않아서 스레드로 돌리면 **서버 전체가 멈춘다**. 프로세스로 돌리면
+제한을 넘는 순간 강제로 끝내고 취소도 즉시 먹는다. 스캐너를 직접 부르는 시험(`test_ieum_scan.py`)과 달리 작업 경로는 항상 `scan_proc.run` 을 거친다.
+심볼릭 링크는 따라가지 않고 1MB 넘는 파일은 건너뛴다.
+읽기 검증 호출(`verify.py`)은 읽기로 증명된 것(화면이 이미 GET 으로 성공했거나 소스가 SELECT 로 확인)만 운영에 보내고,
+쓰기는 사용자가 스테이징 주소를 줬을 때만 스테이징에 보낸다.
+등록한 도구는 `session` 인증으로 실행된다: 탐색이 로그인 요청에서 알아낸 레시피(필드 이름)로 `gateway/session_auth.py` 가
+서비스 계정에 로그인하고, 세션이 끊기면 한 번 다시 로그인해 재시도한다. 계정 비밀번호와 Git 토큰은 작업 설정에 남기지 않고
+금고(`disc:<작업 id>` 키)에만 둔다. 브라우저는 번들 Chromium → 시스템 Chrome → Edge 순이라 `playwright install` 없이도 돈다.
+
+**이음의 배포는 별도 프로세스다** (`app/ieum/runtime/`). 묶음을 배포하면 그 묶음의 MCP 서버가 이 컴퓨터의 프로세스
+(`python -m app.ieum.runtime.server`, `127.0.0.1:81xx/mcp`)로 뜬다. 콘솔(제어면)이 `deployer`→`supervisor` 로 띄우고
+내리고 살피며, 서버(데이터면)는 스냅샷 파일 하나(`data/ieum/deployments/<id>/manifest.json`)와 상태 폴더만 보고 돈다.
+**배포는 스냅샷이다** — 배포하는 순간의 도구 정의가 얼어 들어가므로 스튜디오에서 고쳐도 새 버전을 배포하기 전에는 서버에 닿지 않는다
+("다음 배포 때 반영됩니다"라는 화면 문구가 사실이어야 한다). 새 버전 배포는 프로세스를 다시 띄우지 않고 서버가 요청마다 파일 시그니처를 보고
+바꿔 읽는다. 인증 정보는 스냅샷에 넣지 않는다(서버가 금고에서 읽는다). 서버는 콘솔과 함께 죽고(`--parent` 감시, `kill -9` 에도 1초 안에
+스스로 끝난다) 콘솔이 뜰 때 `main.py` 의 startup 이 `deployer.restore_all()` 로 같은 포트·같은 스냅샷으로 되살린다.
+다른 곳(컨테이너)에 배포하려면 `supervisor` 자리만 바꾼다. 예전에 있던 콘솔 안의 `/mcp/<ws>/<slug>` 라우트는 없앴다 —
+같은 묶음을 두 방식으로 서빙하면 한쪽은 스냅샷이고 한쪽은 실시간이라 어긋난다.
+
 ## 밟으면 아픈 것들
+
+- **콘솔 JS 는 classic script 라 파일 간 전역 선언이 충돌한다.** `const hostOf` 를 두 파일에 선언하면 한쪽이 통째로
+  실행되지 않아 화면이 빈 채로 뜬다. `node --check` 는 파일 단위라 이걸 못 잡는다. 전역 이름을 새로 만들 때는 먼저 grep 한다.
+- **콘솔 정적 파일은 `Cache-Control: no-cache` 로 서빙한다**(`console.py`). 빌드 해시가 없어서, 헤더가 없으면 브라우저가
+  방금 고친 JS 대신 캐시를 쓴다.
+- **`display` 를 지정한 요소에는 `hidden` 속성이 안 먹는다.** 전역 `[hidden]{display:none!important}` 가 console.css 에 있다.
+- **브라우저 e2e 시험은 시간이 걸린다**(`test_ieum_discovery_*`: 크롤 한 번 20~40초). 브라우저가 없거나
+  `IEUM_SKIP_BROWSER_TESTS=1` 이면 건너뛴다. 시연 사이트는 모듈 단위 상태를 들고 있어 시험 사이에 `demo_legacy.reset()` 이 필요하다(`ieum_state` 픽스처가 한다).
+- **전역 gitignore 에 `*.json` 을 둔 개발자는 새 JSON 이 조용히 빠진다.** 이음 시드
+  (`app/ieum/data/**`)는 `.gitignore` 에 예외를 뒀다. 다른 곳에 JSON 을 새로 추가하면
+  `git status` 에 안 보이니 `git check-ignore -v <파일>` 로 확인한다.
+- **이음 상태 파일은 프로세스 여럿이 쓴다.** 배포한 MCP 서버가 호출 로그·키 사용 시각을 콘솔과 같은 JSON 에 쓴다. 파일 전체를
+  읽고-고쳐-쓰는 구간은 `with store.LOCK:`(스레드 락 + 파일 락)으로 감싼다. 안 감싸면 겹친 요청이 서로의 변경을 지운다 — 실제로
+  도구 셋을 한꺼번에 저장하는 요청 셋 중 하나만 남았다(`studio.save_tool`). 폐기한 키가 마지막 사용 시각을 쓰는 서버 때문에 되살아나는 것도 같은 문제다.
+  `LOCK` 을 쥔 채 프로세스를 띄우거나 기다리지 않는다(서버도 같은 락이 필요해서 서로 막힌다).
+- **스튜디오의 "공개"는 저장해야 서버가 안다.** 스위치를 켜기만 하면 브라우저에만 있고 서버는 `review` 그대로다. 배포가 "공개 중인 도구가 없다"며
+  400 을 낸 원인이 이것이었다. 배포 창은 저장하지 않은 도구를 먼저 저장한 뒤 배포한다.
+- **배포 시험은 진짜 프로세스를 띄운다.** `ieum_state` 픽스처가 끝날 때 `supervisor.shutdown()` 으로 남은 서버를 내린다. `tests/conftest.py` 가
+  `IEUM_MCP_AUTORESTORE=0` 을 기본으로 둬서 `app.main` 을 띄우는 다른 시험이 개발자 PC 의 배포를 되살리지 않는다. 복구를 시험할 때만 켠다.
+- **배포 프로세스는 부모와 같은 CPU 아키텍처로 뜬다.** Apple 실리콘에서 Rosetta 터미널이 띄운 콘솔은 x86_64 venv 를 쓰고, 자식도 그걸 이어받는다
+  (`arch` 로 따로 지정하지 않는다). arm64 셸에서 x86_64 venv 를 그냥 돌리면 콘솔 자체가 `pydantic_core` 에서 죽는다 — 시험은 `arch -x86_64 .venv/bin/pytest`.
+- **이음 테스트는 `app.main` 으로 서버를 띄우지 않는다.** 기동할 때 `dev.db` 를 시드하기
+  때문이다. `tests/conftest.py` 의 `ieum_server` 는 이음 라우터만 실은 앱을 진짜 포트에
+  띄우고(변환 엔진이 HTTP 로 `/demo-origin` 을 부른다), `ieum_state` 는 상태 폴더를
+  임시로 돌린다.
 
 - **WAF.** 대상 사이트는 `User-Agent`·`Referer`·`X-Requested-With` 가 없으면 400 을
   낸다. 헤더를 골라 저장하는 쪽은 `services/schema_infer.py` 의 `PRESERVED_HEADERS`,

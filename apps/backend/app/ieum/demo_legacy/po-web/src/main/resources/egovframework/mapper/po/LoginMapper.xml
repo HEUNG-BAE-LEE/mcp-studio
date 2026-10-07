@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="egovframework.po.service.impl.LoginMapper">
+
+    <!-- 로그인 사용자 조회: 아이디와 비밀번호(SHA-256 해시)가 모두 맞는 재직자 -->
+    <select id="selectLoginUser" parameterType="egovframework.po.service.LoginVO" resultType="egovframework.po.service.LoginVO">
+        SELECT USER_ID AS userId
+             , USER_NM AS userNm
+          FROM TB_USER
+         WHERE USER_ID = #{userId}
+           AND USER_PW = #{userPw}
+           AND USE_YN = 'Y'
+    </select>
+
+</mapper>
