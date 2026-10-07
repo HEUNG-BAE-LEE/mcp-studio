@@ -1,6 +1,8 @@
 // /api/ieum 호출 한 곳. 봉투 {resultCode, resultMsg, resultData}를 풀고 실패는 ApiError로 던진다
 // 경로는 백엔드 라우터 그대로(끝 슬래시 포함) — 빠지면 307로 출처가 바뀐다
-import { NETWORK_FAILED, UNEXPECTED_RESPONSE, statusFailed } from '../copy/errors';
+// 실패 문구(D11 Q7 · 옛 js/common/api.js:14): 봉투 실패는 resultMsg 그대로, 비었거나 봉투가 아니면({detail} 포함) statusFailed.
+// 서버 detail · 본문 원문은 화면 문구로 쓰지 않는다(영문이 화면에 나오지 않게 — 원문은 ApiError.raw에만)
+import { NETWORK_FAILED, statusFailed } from '../copy/errors';
 import { ApiError, NETWORK_STATUS } from './errors';
 import { emptyOf, scenarioDelay, scenarioFailure } from './scenario';
 
@@ -13,11 +15,21 @@ export type RequestOptions = Readonly<{ region?: boolean; signal?: AbortSignal }
 
 const isEnvelope = (v: unknown): v is Envelope =>
   typeof v === 'object' && v !== null && 'resultCode' in v && 'resultMsg' in v;
-const detailText = (v: unknown): string | null =>
-  typeof v === 'object' && v !== null && 'detail' in v && typeof v.detail === 'string' ? v.detail : null;
 // 비었거나 문자열이 아닌 resultMsg는 서버 문장으로 보지 않는다 — 옛 콘솔 api.js:14도 상태 코드 문구로 대신했다
-const serverMessage = (json: Envelope): string | null =>
-  typeof json.resultMsg === 'string' && json.resultMsg.trim() !== '' ? json.resultMsg : null;
+const serverMessage = (json: unknown): string | null =>
+  isEnvelope(json) && typeof json.resultMsg === 'string' && json.resultMsg.trim() !== '' ? json.resultMsg : null;
+
+const parseJson = (text: string): unknown => {
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** 실패 응답 하나를 ApiError로. 실제 응답과 ?mock 실패 시나리오가 같은 길을 지난다 */
+const failureOf = (status: number, text: string, json: unknown = parseJson(text)): ApiError =>
+  new ApiError(status, serverMessage(json) ?? statusFailed(status), text);
 
 // fetch 예외 · 본문 읽기 예외를 status 0 하나로 모은다(원문은 콘솔에만). 중단(AbortError)은 부른 쪽이 알도록 그대로 돌려준다
 const toNetworkError = (error: unknown, context: string): unknown => {
@@ -26,17 +38,11 @@ const toNetworkError = (error: unknown, context: string): unknown => {
   return new ApiError(NETWORK_STATUS, NETWORK_FAILED);
 };
 
-async function readBody(res: Response, label: string): Promise<{ text: string; json: unknown }> {
-  let text: string;
+async function readText(res: Response, label: string): Promise<string> {
   try {
-    text = await res.text();
+    return await res.text();
   } catch (error) {
     throw toNetworkError(error, `body read failure ${label}`);
-  }
-  try {
-    return { text, json: text ? JSON.parse(text) : null };
-  } catch {
-    return { text, json: null };
   }
 }
 
@@ -44,7 +50,7 @@ export async function request<T>(method: Method, path: string, body?: unknown, o
   if (import.meta.env.DEV) {
     await scenarioDelay();
     const failure = scenarioFailure({ method, path, region: options.region });
-    if (failure) throw new ApiError(failure.status, failure.message, failure.raw);
+    if (failure) throw failureOf(failure.status, failure.body);
   }
   const label = `${method} ${path}`;
   let res: Response;
@@ -58,16 +64,12 @@ export async function request<T>(method: Method, path: string, body?: unknown, o
   } catch (error) {
     throw toNetworkError(error, `network failure ${label}`);
   }
-  const { text, json } = await readBody(res, label);
-  if (isEnvelope(json)) {
-    if (res.ok && json.resultCode < HTTP_ERROR_FROM) {
-      const data = json.resultData as T;
-      return import.meta.env.DEV ? (emptyOf(method, path, data) as T) : data;
-    }
-    throw new ApiError(res.status, serverMessage(json) ?? statusFailed(res.status), text);
-  }
-  if (res.ok) throw new ApiError(res.status, UNEXPECTED_RESPONSE, text);
-  throw new ApiError(res.status, detailText(json) ?? statusFailed(res.status), text);
+  const text = await readText(res, label);
+  const json = parseJson(text);
+  // 성공은 HTTP 2xx이면서 봉투 resultCode가 400 미만일 때만. 그 밖은 모두 실패(옛 api.js:14와 같은 조건)
+  if (!res.ok || !isEnvelope(json) || json.resultCode >= HTTP_ERROR_FROM) throw failureOf(res.status, text, json);
+  const data = json.resultData as T;
+  return import.meta.env.DEV ? (emptyOf(method, path, data) as T) : data;
 }
 
 export const api = {

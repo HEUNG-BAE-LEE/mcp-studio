@@ -1,8 +1,10 @@
-// 서버 문장이 없을 때의 실패 문구. 서버 resultMsg가 있으면 그것을 그대로 쓴다
-export const NETWORK_FAILED = '서버에 연결하지 못했습니다. 백엔드가 켜져 있는지 확인해 주세요.';
-export const VALIDATION_FAILED = '보낸 값의 형식이 맞지 않습니다.';
-export const UNEXPECTED_RESPONSE = '서버 응답을 읽지 못했습니다.';
-export const SCENARIO_FAILED = '시험용 실패입니다(?mock 시나리오).';
-const HTTP_UNPROCESSABLE = 422;
-export const statusFailed = (status: number) =>
-  status === HTTP_UNPROCESSABLE ? VALIDATION_FAILED : `요청에 실패했습니다. (HTTP ${status})`;
+// 데이터 층(api/client.ts)이 만드는 실패 문구. 봉투 실패에 서버 resultMsg가 있으면 그것을 그대로 쓰고, 그 밖은 아래 문구다(D11 Q7)
+/** fetch 예외(status 0) — 옛 콘솔에 없던 새 문구(Q7-b). 옛 콘솔은 브라우저 영문 원문(Failed to fetch)을 그대로 보였다 */
+export const NETWORK_FAILED = '서버에 연결하지 못했습니다.';
+/** 봉투가 아닌 응답({detail} · 422 detail 배열 · 빈 본문 · text/plain) · resultMsg가 빈 봉투 실패 — 옛 js/common/api.js:14 문구 그대로 */
+export const statusFailed = (status: number) => `요청에 실패했습니다 (${status})`;
+/**
+ * 개발용 ?mock 실패 시나리오가 봉투 resultMsg로 보내는 문장 — 백엔드 MESSAGES[500](apps/backend/app/ieum/responses.py)을 흉내 낸다.
+ * 끝의 표시는 운영 dist에 이 문장이 없는지 grep하는 표식이다(api/scenario만 쓰고, 그곳은 import.meta.env.DEV 안에서만 불린다)
+ */
+export const SCENARIO_SERVER_ERROR = '서버 오류가 났습니다. [mock]';

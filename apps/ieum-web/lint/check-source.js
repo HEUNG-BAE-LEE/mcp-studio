@@ -4,6 +4,10 @@
 // 2) 값 없음 표기 · 금지어(목록은 T2B.2)  3) 화면 폴더끼리 import(정적 · 동적 · export from)
 // 4) 화면 · ui의 전역 우회(window.fetch 등 — oxlint no-restricted-globals는 맨 이름만 본다), 화면의 toLocale*String · Intl
 // 5) 테스트 파일 금지(앱 폴더 전체)  6) oxlint · eslint 끄는 주석은 규칙 이름과 `-- <사유>`를 단다
+// 7) JSX `style` 속성(src/ 전체, _guide 포함 — D10 Q4-d에 예외 없음): 객체 리터럴의 키는 CSS 사용자 속성('--…')만(inline-style-literal,
+//    끌 수 없음). 객체 리터럴이 아닌 값(변수 · 호출 · 삼항)과 리터럴 속 펼침은 Q4-d가 정하지 않아 실패로 보고(inline-style-dynamic),
+//    `style` 속성이 있는 줄 바로 위에 `check-source-disable-next-line inline-style-dynamic -- <사유>`를 단 것만 통과 — 태그 안이면 `// …`, JSX 자식 사이면 `{/* … */}`
+//    (여러 줄 태그에서 태그 위에 둔 주석은 먹지 않는다). 규칙 · 사유가 없거나 끈 것이 없으면 실패
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +38,17 @@ const FORMAT_GLOBAL = 'Intl';
 const LINT_DIRECTIVE = /^(?:\/\/|\/\*)\s*(oxlint|eslint)-disable(-next-line|-line)?(?=[\s*]|$)([\s\S]*?)(?:\*\/)?$/;
 const REASON_SPLIT = /\s--(?:\s|$)/;
 const RULE_LIST_SPLIT = /[\s,]+/;
+const STYLE_ATTRIBUTE = 'style';
+const CUSTOM_PROPERTY_PREFIX = '--';
+const RULE = Object.freeze({
+  styleLiteral: 'inline-style-literal',
+  styleDynamic: 'inline-style-dynamic',
+  directive: 'disable-comment',
+});
+// check-source-disable-next-line로 끌 수 있는 규칙. inline-style-literal은 D10 Q4-d가 막기로 정해 끄지 못한다
+const DISABLEABLE_RULES = new Set([RULE.styleDynamic]);
+const SOURCE_DIRECTIVE = /^(?:\/\/|\/\*)\s*check-source-disable(\S*)\s*([\s\S]*?)\s*(?:\*\/)?$/;
+const NEXT_LINE = '-next-line';
 
 const MESSAGE = Object.freeze({
   hangul: '화면 문장은 copy/에서 만든다 (DESIGN 핵심 규칙 9)',
@@ -46,6 +61,15 @@ const MESSAGE = Object.freeze({
   unscoped: '끄는 주석에는 끌 규칙 이름을 적는다',
   noReason: '끄는 주석에는 `-- <사유>`를 단다',
   noSource: 'src/에 .ts · .tsx 파일이 하나도 없다 — 검사 경로를 확인한다(R7)',
+  styleKey: (key) =>
+    `style 객체에는 CSS 사용자 속성('--…') 키만 쓴다 — ${key}는 클래스 · 토큰으로 옮기고 비율 · 좌표만 '--…'로 넘긴다 (DESIGN 핵심 규칙 1)`,
+  styleDynamic: (what) =>
+    `style에 ${what}을 넘기지 않는다 — '--…' 키만 있는 객체 리터럴로 쓰거나, \`style\` 속성이 있는 줄 바로 위(태그 안이면 \`// …\`, JSX 자식 사이면 \`{/* … */}\`)에 check-source-disable${NEXT_LINE} ${RULE.styleDynamic} -- <사유>`,
+  directiveNotNextLine: (suffix) => `check-source-disable${suffix}: 바로 윗줄 끄기(check-source-disable${NEXT_LINE})만 쓴다`,
+  directiveNoRule: '끌 규칙 이름을 적는다',
+  directiveUnknownRule: (rule) => `${rule}: 끌 수 있는 규칙이 아니다 (${[...DISABLEABLE_RULES].join(' · ')})`,
+  directiveNoReason: '사유를 `-- <사유>`로 적는다',
+  directiveUnused: '끈 것이 없는 주석이다 — 지운다',
 });
 
 const toPosix = (path) => path.split(sep).join('/');
@@ -197,6 +221,75 @@ const directiveProblems = (sf, nodes) =>
     );
   });
 
+// ── 7) JSX style 속성 ──
+const lineOf = (sf, pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+// 타입 단언 · 괄호는 값의 모양을 바꾸지 않는다(`{ '--w': x } as CSSProperties`)
+const unwrap = (node) =>
+  ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node)
+    ? unwrap(node.expression)
+    : node;
+const keyTextOf = (name) => {
+  if (ts.isStringLiteralLike(name) || ts.isIdentifier(name) || ts.isNumericLiteral(name)) return name.text;
+  if (ts.isComputedPropertyName(name) && ts.isStringLiteralLike(name.expression)) return name.expression.text;
+  return null;
+};
+const isCustomPropertyKey = (name) =>
+  !ts.isIdentifier(name) && (keyTextOf(name) ?? '').startsWith(CUSTOM_PROPERTY_PREFIX);
+
+const memberFinding = (sf, member) => {
+  const line = lineOf(sf, member.getStart(sf));
+  if (ts.isSpreadAssignment(member))
+    return { rule: RULE.styleDynamic, line, text: MESSAGE.styleDynamic('펼침(...)') };
+  if (ts.isPropertyAssignment(member) && isCustomPropertyKey(member.name)) return null;
+  const key = member.name ? (keyTextOf(member.name) ?? member.name.getText(sf)) : member.getText(sf);
+  return { rule: RULE.styleLiteral, line, text: MESSAGE.styleKey(key) };
+};
+const styleFindings = (sf, attribute) => {
+  const init = attribute.initializer;
+  if (!init) return [];
+  const line = lineOf(sf, attribute.getStart(sf));
+  const value = ts.isJsxExpression(init) ? init.expression && unwrap(init.expression) : init;
+  if (!value) return [];
+  if (ts.isStringLiteralLike(value)) return [{ rule: RULE.styleLiteral, line, text: MESSAGE.styleKey(value.text) }];
+  if (!ts.isObjectLiteralExpression(value))
+    return [{ rule: RULE.styleDynamic, line, text: MESSAGE.styleDynamic('객체 리터럴이 아닌 값(변수 · 호출 · 삼항)') }];
+  return value.properties.map((member) => memberFinding(sf, member)).filter(Boolean);
+};
+const isStyleAttribute = (node) =>
+  ts.isJsxAttribute(node) && ts.isIdentifier(node.name) && node.name.text === STYLE_ATTRIBUTE;
+
+const parseSourceDirective = (sf, { pos, body }) => {
+  const m = SOURCE_DIRECTIVE.exec(body);
+  if (!m) return null;
+  const [rulePart, ...reasonParts] = ` ${m[2]}`.split(REASON_SPLIT);
+  const rules = rulePart.split(RULE_LIST_SPLIT).filter(Boolean);
+  const errors = [
+    ...(m[1] === NEXT_LINE ? [] : [MESSAGE.directiveNotNextLine(m[1])]),
+    ...(rules.length === 0 ? [MESSAGE.directiveNoRule] : []),
+    ...rules.filter((rule) => !DISABLEABLE_RULES.has(rule)).map(MESSAGE.directiveUnknownRule),
+    ...(reasonParts.join(' -- ').trim() ? [] : [MESSAGE.directiveNoReason]),
+  ];
+  const commentLine = lineOf(sf, pos + body.length);
+  return { commentLine, line: commentLine + 1, rules, errors };
+};
+const isSuppressedBy = (finding, directive) =>
+  directive.errors.length === 0 && directive.line === finding.line && directive.rules.includes(finding.rule);
+
+const styleProblems = (sf, nodes) => {
+  const findings = nodes.filter(isStyleAttribute).flatMap((attribute) => styleFindings(sf, attribute));
+  const directives = commentsOf(sf, nodes)
+    .map((comment) => parseSourceDirective(sf, comment))
+    .filter(Boolean);
+  const directiveErrors = directives.flatMap((d) => d.errors.map((text) => ({ rule: RULE.directive, line: d.commentLine, text })));
+  const unused = directives
+    .filter((d) => d.errors.length === 0 && !findings.some((f) => isSuppressedBy(f, d)))
+    .map((d) => ({ rule: RULE.directive, line: d.commentLine, text: MESSAGE.directiveUnused }));
+  const remaining = findings.filter((f) => !directives.some((d) => isSuppressedBy(f, d)));
+  return [...remaining, ...directiveErrors, ...unused]
+    .toSorted((a, b) => a.line - b.line)
+    .map((f) => `${relOf(sf.fileName)}:${f.line}: [${f.rule}] ${f.text}`);
+};
+
 function checkScript(path) {
   const rel = relOf(path);
   const sf = parse(path);
@@ -208,6 +301,7 @@ function checkScript(path) {
   return [
     ...directiveProblems(sf, nodes),
     ...textProblems(sf, nodes, rel),
+    ...styleProblems(sf, nodes),
     ...(screen !== null ? importProblems(sf, nodes, screen) : []),
     ...(isScreenOrUi ? bypassProblems(sf, nodes) : []),
     ...(isScreenText ? formatProblems(sf, nodes) : []),

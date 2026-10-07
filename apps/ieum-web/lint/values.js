@@ -15,3 +15,11 @@ export const SCREEN_ALLOWED_VALUES = Object.freeze({});
 export const EMPTY_MARKS = Object.freeze([]);
 /** 화면에 쓰지 않는 말. 문자열 · JSX 텍스트에 들어 있으면 잡는다 */
 export const BANNED_WORDS = Object.freeze([]);
+/** 부품 · 레이아웃 CSS(*.module.css)에서 쓰는 @media 조건 — 이음 브레이크포인트 다섯 개(규칙 11, D11 Q5 안 C). 화면 CSS는 @media를 쓰지 않는다 */
+export const ALLOWED_MEDIA = Object.freeze([
+  '(max-width: 1680px)',
+  '(max-width: 1500px)',
+  '(max-width: 1360px)',
+  '(max-width: 1100px)',
+  '(max-width: 760px)',
+]);

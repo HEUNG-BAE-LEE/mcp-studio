@@ -1,11 +1,13 @@
 // CSS Modules 검사 — design-guide의 stylelint 설정 + 플러그인 셋(no-literal-px · known-custom-property · disable-reason)을
 // 의존성 없이 옮긴 것(D3). 대상은 src/**/*.module.css이고, 하나도 없으면 실패한다(R7 — 조용히 꺼지지 않게)
-// 규칙: color-literal · literal-px · unknown-custom-property · property-value · screen-property
+// 규칙: color-literal · literal-px · unknown-custom-property · property-value · screen-property · screen-media · media-query
+// @media(D11 Q5-b): 화면 CSS(src/screens/**, _guide 제외)는 쓰지 않는다(screen-media). 그 밖(ui · 레이아웃)은
+// values.js ALLOWED_MEDIA(문자열 배열) 중 하나와 공백을 정규화해 글자 그대로 같을 때만 통과(media-query)
 // 끄기: 바로 윗줄에 `/* check-css-disable-next-line <규칙>[, <규칙>] -- <사유> */`. 규칙 이름 · 사유가 없거나 끈 것이 없으면 실패
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ALLOWED_VALUES, DISALLOWED_VALUES, SCREEN_ALLOWED_VALUES, SCREEN_DISALLOWED_PROPS } from './values.js';
+import * as values from './values.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const SOURCE_DIR = join(ROOT, 'src');
@@ -15,12 +17,16 @@ const SKIP_DIRS = new Set(['node_modules', 'dist']);
 const SCREENS_DIR = 'src/screens/';
 const GUIDE_DIR = 'src/screens/_guide/';
 
+const { ALLOWED_VALUES, DISALLOWED_VALUES, SCREEN_ALLOWED_VALUES, SCREEN_DISALLOWED_PROPS } = values;
+
 const RULE = Object.freeze({
   color: 'color-literal',
   px: 'literal-px',
   token: 'unknown-custom-property',
   value: 'property-value',
   screen: 'screen-property',
+  screenMedia: 'screen-media',
+  media: 'media-query',
 });
 const RULE_IDS = new Set(Object.values(RULE));
 const DIRECTIVE_RULE = 'disable-comment';
@@ -118,6 +124,14 @@ const toPosix = (path) => path.split(sep).join('/');
 const matchesPattern = (value, pattern) =>
   typeof pattern === 'string' ? value === pattern : value.search(pattern) !== -1;
 const own = (table, key) => (Object.hasOwn(table, key) ? table[key] : undefined);
+// 공백 정규화: 연속 공백은 하나로, 괄호 안쪽 · 콜론 앞 공백은 지우고 콜론 뒤는 하나로
+const normalizeMedia = (condition) =>
+  condition
+    .replace(/\s+/g, ' ')
+    .replace(/\(\s/g, '(')
+    .replace(/\s\)/g, ')')
+    .replace(/\s?:\s?/g, ': ')
+    .trim();
 const definedIn = (maskedCss) => new Set([...maskedCss.matchAll(DEFINITION)].map((m) => m[1]));
 
 const TOKEN_NAMES = definedIn(mask(readFileSync(TOKENS_FILE, 'utf8')));
@@ -140,6 +154,11 @@ const declarationsOf = (css, masked) =>
       },
     ];
   });
+
+// @media 조건(머리 부분)과 줄. 가린 CSS에서 찾으므로 주석 · 문자열 속 @media는 잡지 않는다
+const MEDIA = /@media\b([^{;]*)\{/gi;
+const mediaRulesOf = (css, masked) =>
+  [...masked.matchAll(MEDIA)].map((m) => ({ line: lineAt(css, m.index), condition: normalizeMedia(m[1]) }));
 
 const commentsOf = (css) =>
   [...css.matchAll(MASKABLE)]
@@ -202,6 +221,36 @@ const screenProblems = ({ prop }) => {
   return hint ? [{ rule: RULE.screen, text: `화면 CSS에서 ${prop}를 쓰지 않는다: ${hint}` }] : [];
 };
 
+// ALLOWED_MEDIA는 디자인 세션이 values.js에 채운다(값 5개). 아직 없으면 빈 목록 — ui · 레이아웃의 @media도 모두 실패한다
+const allowedMediaList = values.ALLOWED_MEDIA ?? [];
+if (!Array.isArray(allowedMediaList) || !allowedMediaList.every((v) => typeof v === 'string')) {
+  console.error('check-css: values.js ALLOWED_MEDIA는 문자열 배열이어야 한다');
+  process.exit(1);
+}
+const ALLOWED_MEDIA = new Set(allowedMediaList.map(normalizeMedia));
+const allowedMediaText = ALLOWED_MEDIA.size > 0 ? [...ALLOWED_MEDIA].join(' · ') : '(비어 있음)';
+
+const mediaProblems = ({ condition }, isScreen) => {
+  if (isScreen)
+    return [
+      {
+        rule: RULE.screenMedia,
+        text:
+          `@media ${condition}: 화면 CSS에서 @media를 쓰지 않는다 (D11 Q5-b). ` +
+          '폭에 따라 접히는 배치는 레이아웃 부품(SplitLayout · TwoColumn · FieldPair)이 맡는다',
+      },
+    ];
+  if (ALLOWED_MEDIA.has(condition)) return [];
+  return [
+    {
+      rule: RULE.media,
+      text:
+        `@media ${condition}: 허용 목록(lint/values.js ALLOWED_MEDIA)에 없는 조건이다 — ${allowedMediaText}. ` +
+        '새 조건은 design-change 스킬로 문서와 values.js에 먼저 더한다',
+    },
+  ];
+};
+
 // ── 끄는 주석 ──
 const parseDirective = ({ endLine, body }) => {
   const m = DIRECTIVE.exec(body);
@@ -238,14 +287,18 @@ function checkFile(path) {
       ...(isScreen ? screenProblems(decl) : []),
     ].map((p) => ({ ...p, line: decl.line })),
   );
+  const mediaFound = mediaRulesOf(css, masked).flatMap((media) =>
+    mediaProblems(media, isScreen).map((p) => ({ ...p, line: media.line })),
+  );
   const directives = commentsOf(css).map(parseDirective).filter(Boolean);
+  const allFound = [...found, ...mediaFound];
   const directiveErrors = directives.flatMap((d) =>
     d.errors.map((text) => ({ rule: DIRECTIVE_RULE, line: d.commentLine, text })),
   );
   const unused = directives
-    .filter((d) => d.errors.length === 0 && !found.some((p) => isSuppressedBy(p, d)))
+    .filter((d) => d.errors.length === 0 && !allFound.some((p) => isSuppressedBy(p, d)))
     .map((d) => ({ rule: DIRECTIVE_RULE, line: d.commentLine, text: '끈 것이 없는 주석이다 — 지운다' }));
-  const remaining = found.filter((p) => !directives.some((d) => isSuppressedBy(p, d)));
+  const remaining = allFound.filter((p) => !directives.some((d) => isSuppressedBy(p, d)));
 
   return [...remaining, ...directiveErrors, ...unused]
     .toSorted((a, b) => a.line - b.line)
