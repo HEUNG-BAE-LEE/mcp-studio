@@ -10,7 +10,7 @@ AI 프로토콜 변압기 "이음"의 관리 콘솔입니다. 바닐라 JS, 빌�
 | 원본 시스템 | `js/menu/sources.js`, `js/menu/discovery.js` | `sources.py`, `discovery.py` | OpenAPI/WSDL/호출 샘플/공공데이터 명세를 읽어 시스템 등록, 도구 후보 생성, 명세 재읽기(변경 감지), 삭제. 명세가 없으면 **API 자동 탐색** |
 | 변환 스튜디오 | `js/menu/studio.js` | `studio.py` | 도구 설명, 파라미터·응답 매핑, 변환 규칙, 실행 정책 편집. 설명 다시 쓰기는 `ANTHROPIC_API_KEY` 필요 |
 | 테스트 실행 | `js/menu/playground.js` | `playground.py` | 도구를 실제로 호출해 원본 요청, 응답, 변환 결과를 단계별로 확인. 자연어 질문은 `ANTHROPIC_API_KEY` 필요 |
-| AI 연결 배포 | `js/menu/deploy.js` | `deploy.py`, `mcp.py` | 도구 묶음 구성과 배포, 액세스 키 발급, **MCP 서버**(`/mcp/<워크스페이스>/<묶음>`) |
+| AI 연결 배포 | `js/menu/deploy.js` | `deploy.py` + `runtime/` | 도구 묶음 구성, 액세스 키 발급, **MCP 서버 배포**(묶음마다 이 컴퓨터에 프로세스로 뜸. 아래 "배포") |
 | 호출 로그 | `js/menu/logs.js` | `logs.py` | MCP·테스트 실행의 모든 호출 기록과 변환 과정 |
 
 공통 코드는 `js/common/`(상태, 유틸, 변환 과정 표시, API 호출), 진입점은 `js/main.js`.
@@ -65,16 +65,40 @@ AI 프로토콜 변압기 "이음"의 관리 콘솔입니다. 바닐라 JS, 빌�
 
 저장소 칸에는 `https://` 주소 외에 서버의 폴더 경로도 쓸 수 있지만, 서버가 아무 폴더나 읽으면 안 되므로 **허용한 폴더만** 읽습니다. 번들된 시연용 소스 외에는 `IEUM_LOCAL_REPO_ROOTS` 에 상위 폴더를 적어야 합니다.
 
+## 배포 (MCP 서버)
+
+**배포하기**를 누르면 묶음 하나가 **MCP 서버 프로세스 하나**로 이 컴퓨터에 뜹니다(`python -m app.ieum.runtime.server`).
+주소는 `http://127.0.0.1:<포트>/mcp`(포트는 8100~8199 중 처음 받은 것을 계속 씁니다), 전송은 Streamable HTTP, 인증은 발급한 액세스 키(Bearer)입니다.
+
+- **배포는 스냅샷이다.** 배포하는 순간의 도구 정의와 연결 정보가 `data/ieum/deployments/<묶음 id>/manifest.json` 에 얼려 들어가고, 서버는 그 파일만 봅니다.
+  스튜디오에서 설명을 고치거나 공개를 꺼도 **새 버전을 배포하기 전에는 서버에 닿지 않습니다.** 인증 정보는 스냅샷에 없고, 서버가 호출할 때 금고에서 읽습니다.
+- **스튜디오의 공개 설정은 저장해야 서버가 압니다.** "공개"는 화면에서 켜기만 하면 브라우저에만 있고, "변경사항 저장"을 눌러야 서버에 갑니다. 배포 창은 저장하지 않은 도구가 있으면 먼저 저장하고 배포합니다.
+- **새 버전 배포는 서버를 다시 띄우지 않습니다.** 떠 있는 프로세스가 다음 요청부터 새 스냅샷으로 답하므로 연결된 AI 앱이 끊기지 않습니다(`v1.0` → `v1.1`). 새 스냅샷을 서버가 읽지 못하면 배포가 실패하고 이전 버전이 그대로 서비스됩니다.
+- **시작·중지·로그.** 화면에서 서버를 중지하고 같은 버전·같은 주소로 다시 시작할 수 있습니다. 서버 로그(`deployments/<묶음 id>/server.log`)는 "서버 로그"에서 봅니다. 서버가 죽으면 화면에 "비정상 종료"로 보입니다.
+- **콘솔과 함께 움직입니다.** 콘솔(백엔드)이 내려가면 서버도 내려가고(강제 종료돼도 서버가 1초쯤 뒤 스스로 끝나 포트가 남지 않습니다), 콘솔이 다시 뜨면 배포 중이던 묶음을 **같은 스냅샷, 같은 포트로** 다시 띄웁니다. 사람이 중지한 묶음은 올리지 않습니다.
+- **키는 바로 막힙니다.** 서버는 호출마다 키 저장소를 읽으므로 키를 폐기하면 다시 띄우지 않아도 그 순간부터 401 입니다. 호출 기록은 콘솔의 호출 로그에 같이 쌓입니다.
+
+연결 예(같은 컴퓨터의 Claude Code):
+
+```bash
+claude mcp add --transport http ieum-hr http://127.0.0.1:8100/mcp --header "Authorization: Bearer <발급한 키>"
+```
+
+**한계.** 서버는 이 컴퓨터(127.0.0.1)에서만 열립니다. 같은 컴퓨터의 Claude Code, Gemini CLI 는 연결되지만 클라우드에서 도는 AI(OpenAI API, 웹 커넥터)는 이 주소에 닿지 못합니다.
+브라우저가 보낸 요청은 Origin 이 이 컴퓨터가 아니면 막습니다(DNS 리바인딩). 콘솔 프로세스는 하나라고 가정합니다(`uvicorn --workers N` 이면 같은 묶음을 N 번 띄웁니다).
+서버를 다른 곳(컨테이너 등)으로 옮기려면 `runtime/supervisor.py` 자리만 바꾸면 됩니다. 서버(`runtime/server.py`)는 스냅샷 파일과 상태 폴더만 있으면 돕니다.
+
 ## 바로 써 보기
 
 시연용 레거시 인사 시스템(REST + SOAP)이 백엔드 안에 들어 있습니다.
 원본 시스템 연결 → REST → 명세 URL `http://localhost:8000/demo-origin/openapi.json`, 인증 API Key(헤더 `X-API-KEY`, 값 `demo-key`).
 SOAP은 `http://localhost:8000/demo-origin/hr.wsdl`, 인증 없음.
 
-연결 후: 변환 스튜디오에서 검토 후 공개 → AI 연결 배포에서 묶음 만들기, 배포, 키 발급 → 발급된 키로 MCP 연결.
+연결 후: 변환 스튜디오에서 검토 후 공개(**변경사항 저장**까지) → AI 연결 배포에서 묶음 만들기, 배포, 키 발급 → 발급된 키로 MCP 연결.
 
 ```bash
-curl http://localhost:8000/mcp/ieum/<묶음 주소 이름> -H "Authorization: Bearer <키>" \
+# 주소는 배포 화면의 "MCP 서버 주소" 입니다
+curl http://127.0.0.1:8100/mcp -H "Authorization: Bearer <키>" \
   -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
@@ -90,6 +114,10 @@ curl http://localhost:8000/mcp/ieum/<묶음 주소 이름> -H "Authorization: Be
 | `IEUM_STATE_DIR` | 변경분을 저장할 폴더 (기본 `apps/backend/data/ieum`) |
 | `IEUM_WEB_ROOT` | 콘솔 정적 파일 위치 (기본 `apps/web/ieum`) |
 | `IEUM_LOCAL_REPO_ROOTS` | 자동 탐색이 폴더 경로로 읽을 수 있는 상위 폴더들 (경로 구분자 `:` 로 여러 개). 시연용 소스는 항상 허용 |
+| `IEUM_MCP_PORTS` | 배포한 MCP 서버가 쓸 포트 범위 (기본 `8100-8199`). 쓰는 중인 포트는 건너뜁니다 |
+| `IEUM_MCP_HOST` | 배포한 MCP 서버가 열 주소 (기본 `127.0.0.1`). 바꾸면 같은 네트워크에 노출되니 키 관리에 유의 |
+| `IEUM_MCP_AUTORESTORE` | `0` 이면 콘솔이 뜰 때 배포 중이던 서버를 다시 띄우지 않습니다 (테스트가 쓴다) |
+| `IEUM_MCP_ALLOWED_ORIGINS` | 로컬 외에 허용할 브라우저 Origin (쉼표로 구분) |
 
 ## 데이터
 
@@ -107,6 +135,7 @@ curl http://localhost:8000/mcp/ieum/<묶음 주소 이름> -H "Authorization: Be
 cd apps/backend && .venv/bin/pytest tests/test_ieum_*.py -v
 ```
 
+배포 시험(`test_ieum_deploy.py`)은 진짜 서버 프로세스를 띄워 배포, 새 버전, 중지·시작, 강제 종료, 콘솔 재시작 복구까지 확인하고 20초쯤 걸립니다.
 자동 탐색의 전 구간 시험(`test_ieum_discovery_e2e.py`)은 실제 헤드리스 브라우저로 시연용 사이트를 탐색해서 2분쯤 걸립니다. 브라우저가 없거나 `IEUM_SKIP_BROWSER_TESTS=1` 이면 건너뜁니다.
 
 테스트는 상태 파일을 임시 폴더로 돌려 쓰므로 `data/ieum` 을 건드리지 않습니다.

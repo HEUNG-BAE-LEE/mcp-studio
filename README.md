@@ -409,10 +409,10 @@ DB는 `apps/backend/data/dev.db` 파일 하나입니다.
 기능이라 데이터도 따로 갑니다(SQLite 가 아니라 JSON 파일).
 
 ```
-apps/backend/app/ieum/   routers/ 메뉴별 API · repositories/ 저장소 · gateway/ 명세 파서·변환 엔진
+apps/backend/app/ieum/   routers/ 메뉴별 API · repositories/ 저장소 · gateway/ 명세 파서·변환 엔진 · runtime/ MCP 서버 배포
 apps/web/ieum/           관리 콘솔
 ```
 
 `./start.sh` 로 띄운 뒤 <http://localhost:8000/ieum/> 를 엽니다. 시연용 원본 시스템이
-같은 서버에 들어 있어 바로 연결해 볼 수 있습니다. 명세가 없는 시스템은 **API 자동 탐색**(헤드리스 브라우저 + Git 소스 분석)으로 API 를 찾습니다. 사용법, 안전 설계, 환경변수, 데이터 위치는
+같은 서버에 들어 있어 바로 연결해 볼 수 있습니다. 묶음을 **배포**하면 그 묶음의 MCP 서버가 이 컴퓨터의 프로세스로 뜹니다(`http://127.0.0.1:81xx/mcp`). 명세가 없는 시스템은 **API 자동 탐색**(헤드리스 브라우저 + Git 소스 분석)으로 API 를 찾습니다. 사용법, 안전 설계, 환경변수, 데이터 위치는
 [`apps/web/ieum/README.md`](apps/web/ieum/README.md) 에 있습니다.

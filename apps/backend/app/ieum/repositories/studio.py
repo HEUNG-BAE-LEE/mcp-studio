@@ -1,4 +1,4 @@
-from app.ieum.store import JsonStore
+from app.ieum.store import LOCK, JsonStore
 
 tools = JsonStore("studio", "tools")
 
@@ -25,21 +25,25 @@ def find_tool(tool_id):
     return None, None
 
 
+# 아래 저장 함수는 모두 파일 전체를 읽고-고쳐-쓴다. 락 없이 겹치면 나중에 쓴 쪽이 앞선 변경을 지운다
+# (도구 셋을 한꺼번에 저장하는 요청 셋 중 하나만 남았다).
 def replace_source_tools(source_id, arr):
-    data = all_tools()
-    data[source_id] = [clean(t) for t in arr]
-    tools.save(data)
-    return data[source_id]
+    with LOCK:
+        data = all_tools()
+        data[source_id] = [clean(t) for t in arr]
+        tools.save(data)
+        return data[source_id]
 
 
 def save_tool(tool_id, patch):
-    data = all_tools()
-    for arr in data.values():
-        for i, t in enumerate(arr):
-            if t["id"] == tool_id:
-                arr[i] = {**t, **clean(patch), "id": tool_id}
-                tools.save(data)
-                return arr[i]
+    with LOCK:
+        data = all_tools()
+        for arr in data.values():
+            for i, t in enumerate(arr):
+                if t["id"] == tool_id:
+                    arr[i] = {**t, **clean(patch), "id": tool_id}
+                    tools.save(data)
+                    return arr[i]
     return None
 
 
@@ -55,6 +59,7 @@ def with_defaults(tool, source):
 
 
 def delete_source_tools(source_id):
-    data = all_tools()
-    data.pop(source_id, None)
-    tools.save(data)
+    with LOCK:
+        data = all_tools()
+        data.pop(source_id, None)
+        tools.save(data)

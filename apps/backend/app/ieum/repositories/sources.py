@@ -1,4 +1,4 @@
-from app.ieum.store import JsonStore
+from app.ieum.store import LOCK, JsonStore
 
 workspace = JsonStore("sources", "workspace")
 sources = JsonStore("sources", "sources")
@@ -16,16 +16,18 @@ def get_source(source_id):
 
 
 def upsert_source(src):
-    rows = list_sources()
-    for i, s in enumerate(rows):
-        if s["id"] == src["id"]:
-            rows[i] = {**s, **src}
-            break
-    else:
-        rows.append(src)
-    sources.save(rows)
-    return next(s for s in rows if s["id"] == src["id"])
+    with LOCK:
+        rows = list_sources()
+        for i, s in enumerate(rows):
+            if s["id"] == src["id"]:
+                rows[i] = {**s, **src}
+                break
+        else:
+            rows.append(src)
+        sources.save(rows)
+        return next(s for s in rows if s["id"] == src["id"])
 
 
 def delete_source(source_id):
-    sources.save([s for s in list_sources() if s["id"] != source_id])
+    with LOCK:
+        sources.save([s for s in list_sources() if s["id"] != source_id])

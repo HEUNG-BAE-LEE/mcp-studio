@@ -10,6 +10,7 @@ from app.seed import backfill_action_source_kind, seed, seed_credentials, seed_p
 from app.routers import sessions, analysis, actions, llm, spec
 from app.ieum.console import mount_console
 from app.ieum.routers import router as ieum_router
+from app.ieum.runtime import deployer as ieum_deployer
 from app.routers import sessions, analysis, actions, llm, spec, market, skills, autocrawl
 
 app = FastAPI(title="MCP Studio")
@@ -25,7 +26,7 @@ app.include_router(analysis.router)
 app.include_router(actions.router)
 app.include_router(llm.router)
 app.include_router(spec.router)
-# 이음 게이트웨이: API(/api/ieum), MCP 서버(/mcp), 시연용 원본(/demo-origin), 콘솔(/ieum/).
+# 이음 게이트웨이: API(/api/ieum), 시연용 원본(/demo-origin), 콘솔(/ieum/). 배포한 MCP 서버는 별도 프로세스로 뜬다.
 # 콘솔 마운트는 아래 관리자 화면의 `/` 마운트보다 먼저여야 한다.
 app.include_router(ieum_router)
 mount_console(app)
@@ -44,6 +45,14 @@ def _startup() -> None:
     seed_call_logs()
     # 액션이 만들어진 뒤에 돈다 — 무슨 키가 필요한지는 액션 스펙이 정한다.
     seed_credentials()
+    # 이음: 배포 중이던 MCP 서버를 같은 스냅샷으로 다시 띄운다. 기다리지 않고 돌아온다.
+    ieum_deployer.restore_all()
+
+
+@app.on_event("shutdown")
+def _shutdown() -> None:
+    # 이음의 MCP 서버 프로세스는 콘솔과 함께 내려간다(남겨 두면 고아가 된다).
+    ieum_deployer.shutdown()
 
 @app.get("/health")
 def health() -> dict:

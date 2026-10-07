@@ -1,54 +1,15 @@
-"""이음 게이트웨이 통합 테스트: 시연용 원본 시스템을 연결해 변환, MCP 호출, 로그까지 확인한다."""
+"""이음 게이트웨이 통합 테스트: 시연용 원본 시스템을 연결해 변환, MCP 호출, 로그까지 확인한다.
+
+MCP 호출은 배포가 띄운 서버 프로세스로 간다(콘솔과 다른 프로세스). 배포 자체의 시험은 test_ieum_deploy.py.
+"""
 import json
 
 import httpx
-import pytest
-
-
-class Console:
-    """콘솔 API({resultCode, resultMsg, resultData})와 MCP 엔드포인트를 부르는 도우미."""
-
-    def __init__(self, base):
-        self.base = base
-
-    def api(self, method, path, body=None):
-        r = httpx.request(method, self.base + "/api/ieum" + path, json=body)
-        j = r.json()
-        assert r.status_code == j["resultCode"], "HTTP 상태와 resultCode 가 같아야 한다"
-        return j["resultCode"], j["resultData"] if j["resultCode"] < 400 else j["resultMsg"]
-
-    def mcp(self, key, method, params=None, slug="hr", raw=None, content=None):
-        """raw 는 JSON-RPC 본문을 통째로, content 는 JSON 이 아닌 바이트를 보낼 때 쓴다."""
-        url, headers = "%s/mcp/ieum/%s" % (self.base, slug), {"Authorization": "Bearer " + key}
-        if content is not None:
-            r = httpx.post(url, headers=dict(headers, **{"Content-Type": "application/json"}), content=content)
-        else:
-            r = httpx.post(url, headers=headers, json=raw or {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}})
-        return r.status_code, (r.json() if r.content else None)
-
-    def connect_demo(self):
-        st, d = self.api("POST", "/sources/connect/", {
-            "mode": "rest", "name": "demo", "specUrl": self.base + "/demo-origin/openapi.json",
-            "auth": {"type": "key", "key": "demo-key", "in": "header", "name": "X-API-KEY"}})
-        assert st == 201
-        return d
-
-
-@pytest.fixture
-def console(ieum_server):
-    return Console(ieum_server)
 
 
 def publish_hr(console, ids):
     """도구를 공개하고 묶음을 배포해 (묶음, 키 발급 응답)을 돌려준다."""
-    for tid in ids:
-        assert console.api("PUT", "/studio/%s/" % tid, {"status": "done"})[0] == 200
-    st, ts = console.api("POST", "/deploy/toolsets/", {"name": "HR", "slug": "hr", "tools": ids})
-    assert st == 201
-    assert console.api("POST", "/deploy/toolsets/%s/deploy/" % ts["id"])[0] == 200
-    st, key = console.api("POST", "/deploy/keys/", {"name": "t"})
-    assert st == 201
-    return ts, key
+    return console.publish(ids)
 
 
 def test_end_to_end(console, ieum_state):
@@ -110,12 +71,12 @@ def test_mcp_protocol(console):
     st, body = console.mcp(secret, None, content=b"{not json")
     assert st == 400 and body["error"]["code"] == -32700
 
-    # 배포하지 않은 묶음 주소, 서버 푸시 스트림(GET)
-    assert console.mcp(secret, "ping", slug="nope")[0] == 404
-    assert httpx.get(console.base + "/mcp/ieum/hr").status_code == 405
-    assert httpx.options(console.base + "/mcp/ieum/hr").status_code == 204
+    # 서버 푸시 스트림(GET)은 쓰지 않는다
+    url = console.urls["hr"]
+    assert httpx.get(url).status_code == 405
+    assert httpx.options(url).status_code == 204
     # 끝 슬래시가 있어도 같다
-    assert httpx.post(console.base + "/mcp/ieum/hr/", headers={"Authorization": "Bearer " + secret}, json={"jsonrpc": "2.0", "id": 9, "method": "ping"}).json()["result"] == {}
+    assert httpx.post(url + "/", headers={"Authorization": "Bearer " + secret}, json={"jsonrpc": "2.0", "id": 9, "method": "ping"}).json()["result"] == {}
 
     # 키를 특정 묶음에만 묶으면 다른 묶음은 403
     st, scoped = console.api("POST", "/deploy/keys/", {"name": "scoped", "toolsets": ["ts-other"]})
@@ -171,6 +132,8 @@ def test_source_lifecycle(console):
     assert tools == {}
     st, sets = console.api("GET", "/deploy/toolsets/")
     assert sets[0]["tools"] == [] and sets[0]["deployed"] == []
+    # 이미 떠 있는 서버도 지운 도구를 더는 내놓지 않는다(배포 스냅샷에서 빠진다)
+    assert console.mcp(key["secret"], "tools/list")[1]["result"]["tools"] == []
     assert console.api("DELETE", "/deploy/toolsets/%s/" % ts["id"])[0] == 200
     assert console.api("DELETE", "/deploy/toolsets/%s/" % ts["id"])[0] == 404
 

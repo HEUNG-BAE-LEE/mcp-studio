@@ -6,10 +6,10 @@ import httpx
 from fastapi import APIRouter, Body
 
 from app.ieum.gateway import credentials, engine, session_auth, spec
-from app.ieum.repositories import deploy as deploy_repo
 from app.ieum.repositories import sources as repo
 from app.ieum.repositories import studio as tool_repo
 from app.ieum.responses import fail, ok
+from app.ieum.runtime import deployer
 
 router = APIRouter(prefix="/api/ieum/sources", tags=["ieum-sources"])
 
@@ -221,9 +221,5 @@ def source_delete(source_id: str):
     tool_repo.delete_source_tools(source_id)
     credentials.delete(source_id)
     session_auth.invalidate(source_id)
-    rows = deploy_repo.toolsets.load()
-    for ts in rows:
-        ts["tools"] = [i for i in ts["tools"] if i not in ids]
-        ts["deployed"] = [i for i in ts.get("deployed", []) if i not in ids]
-    deploy_repo.toolsets.save(rows)
+    deployer.drop_tools(ids)
     return ok({"deleted": source_id})

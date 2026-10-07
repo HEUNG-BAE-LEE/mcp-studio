@@ -26,7 +26,7 @@ function markDirty() { const t = curTool(); t._dirty = true; const b = $('#saveB
 
 /* 동작 */
 Object.assign(ACT, {
-  nav: a => { go(a.dataset.v); if (a.dataset.v === 'dash') refreshDash(); if (a.dataset.v === 'logs') refreshLogs(); if (a.dataset.v === 'src') refreshJobs(); },
+  nav: a => { go(a.dataset.v); if (a.dataset.v === 'dash') refreshDash(); if (a.dataset.v === 'logs') refreshLogs(); if (a.dataset.v === 'src') refreshJobs(); if (a.dataset.v === 'deploy') refreshToolsets().then(changed => changed && render()).catch(() => {}); },
   scope: () => openModal('1차 개발 범위', `<div class="scope-g">
       <div><h5>${svg('check', 16, 2.4)}1차에 포함</h5><ul>
         <li>REST(OpenAPI), SOAP(WSDL), 공공데이터포털 연결</li><li>명세 없는 레거시의 호출 샘플 추론</li>

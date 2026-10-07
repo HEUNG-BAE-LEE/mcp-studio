@@ -32,9 +32,13 @@ def rate_ok(bucket, tool):
         return True
 
 
-def run_tool(tool_id, args, client="mcp", user="", ctx=None, require_published=True, bucket="-"):
-    """{'ok', 'result'|'error', 'trace', 'log'}"""
-    source, tool = find(tool_id)
+def run_tool(tool_id, args, client="mcp", user="", ctx=None, require_published=True, bucket="-", resolve=None):
+    """{'ok', 'result'|'error', 'trace', 'log'}
+
+    resolve(tool_id) -> (원본 시스템, 도구). 배포한 MCP 서버는 배포 시점의 스냅샷에서 찾는다.
+    없으면 저장소의 현재 정의를 쓴다(테스트 실행).
+    """
+    source, tool = (resolve or find)(tool_id)
     if tool is None:
         return {"ok": False, "error": "도구를 찾을 수 없습니다: %s" % tool_id, "trace": {}}
     if require_published and tool.get("status") != "done":

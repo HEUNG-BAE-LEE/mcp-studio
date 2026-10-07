@@ -23,6 +23,7 @@ const I = {
   plus:'<path d="M12 5v14"/><path d="M5 12h14"/>',
   copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   play:'<path d="M7 4.5v15l12.5-7.5z"/>',
+  stop:'<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
   refresh:'<path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/>',
   key:'<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8"/><path d="m17 6 3 3"/><path d="m14.5 8.5 2 2"/>',
   server:'<rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="18" height="7" rx="1.5"/><path d="M7 6.5h.01"/><path d="M7 17.5h.01"/>',

@@ -1,7 +1,7 @@
 import time
 import uuid
 
-from app.ieum.store import JsonStore
+from app.ieum.store import LOCK, JsonStore
 
 logs = JsonStore("logs", "logs")
 
@@ -16,9 +16,10 @@ def list_logs():
 def append(client, tool, status, convert_ms, source_ms, user, note=None, trace=None):
     row = {"id": uuid.uuid4().hex[:12], "ts": time.time(), "client": client, "tool": tool, "status": status,
            "convertMs": convert_ms, "sourceMs": source_ms, "user": user, "note": note, "trace": trace}
-    rows = list_logs()
-    rows.insert(0, row)
-    logs.save(rows[:MAX_ROWS])
+    with LOCK:      # 콘솔과 배포한 MCP 서버 프로세스가 함께 쓴다
+        rows = list_logs()
+        rows.insert(0, row)
+        logs.save(rows[:MAX_ROWS])
     return row
 
 

@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import time
 
-from app.ieum.store import JsonStore
+from app.ieum.store import LOCK, JsonStore
 
 toolsets = JsonStore("deploy", "toolsets")
 keys = JsonStore("deploy", "keys")
@@ -19,11 +19,17 @@ def find_key(secret):
 
 
 def touch_key(key_id):
-    rows = keys.load()
-    for k in rows:
-        if k["id"] == key_id:
-            k["last"] = time.strftime("%m-%d %H:%M")
-    keys.save(rows)
+    """마지막 사용 시각을 남긴다. 키 목록 전체를 다시 쓰므로 폐기와 겹치지 않게 락 안에서 읽고 쓴다."""
+    now = time.strftime("%m-%d %H:%M")
+    with LOCK:
+        rows = keys.load()
+        changed = False
+        for k in rows:
+            if k["id"] == key_id and k.get("last") != now:
+                k["last"] = now
+                changed = True
+        if changed:
+            keys.save(rows)
 
 
 def get_toolset(toolset_id=None, slug=None):
