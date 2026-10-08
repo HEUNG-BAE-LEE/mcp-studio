@@ -21,6 +21,9 @@ ENV PYTHONUNBUFFERED=1
 COPY apps/backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY apps/backend/app ./app
+# 이음 관리 콘솔(정적 파일). 이 줄이 없으면 /ieum/ 이 컨테이너에서 빈 화면이 된다
+COPY apps/web/ieum ./web/ieum
+ENV IEUM_WEB_ROOT=/app/web/ieum
 # app/main.py 가 /app/static 을 찾는다
 COPY --from=admin /src/apps/admin/dist ./static
 EXPOSE 8000
