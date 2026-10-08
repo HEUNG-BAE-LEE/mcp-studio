@@ -10,7 +10,8 @@ import { buildTraceSteps, outcomeFromLog } from '../../app/trace/buildTraceSteps
 import { toolLink } from '../../app/studio/links';
 import { LOGS } from '../../copy/dashboard-logs';
 import { Button, Drawer, EmptyState, KeyValueGrid, Notice, TraceView } from '@/ui';
-import { LOG_PARAM, withParam } from './logFilter';
+import { withParam } from '../../app/searchParams';
+import { LOG_PARAM } from './logFilter';
 import { LogStatusChip } from './LogStatusChip';
 import { logDetailText, toolSourceOf, type LogContext, type LogDetailText } from './logView';
 import styles from './LogDetailDrawer.module.css';

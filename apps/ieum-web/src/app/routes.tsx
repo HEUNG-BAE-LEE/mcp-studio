@@ -3,12 +3,17 @@ import { Navigate, type RouteObject } from 'react-router-dom';
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
 import { LogsScreen } from '../screens/logs/LogsScreen';
 import { PendingScreen } from '../screens/pending/PendingScreen';
+import { SourcesScreen } from '../screens/sources/SourcesScreen';
 import { REDIRECT_ROUTE, SCREENS, type ScreenId } from './nav';
 import { RootLayout } from './RootLayout';
 import { RouteError } from './RouteError';
 
 // 옮긴 메뉴의 화면. 여기 없는 메뉴는 자리표시 화면을 그린다 — 메뉴를 옮길 때마다 한 줄씩 더한다
-const PORTED: Readonly<Partial<Record<ScreenId, ComponentType>>> = { dashboard: DashboardScreen, logs: LogsScreen };
+const PORTED: Readonly<Partial<Record<ScreenId, ComponentType>>> = {
+  dashboard: DashboardScreen,
+  sources: SourcesScreen,
+  logs: LogsScreen,
+};
 // 카탈로그(/_guide)는 셸 밖에 둔다 — 화면이 아니라 부품 목록이다
 const OUTSIDE_SHELL: ReadonlySet<ScreenId> = new Set(['guide']);
 

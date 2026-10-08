@@ -4,7 +4,7 @@
 // 서버 detail · 본문 원문은 화면 문구로 쓰지 않는다(영문이 화면에 나오지 않게 — 원문은 ApiError.raw에만)
 import { NETWORK_FAILED, statusFailed } from '../copy/errors';
 import { ApiError, NETWORK_STATUS } from './errors';
-import { emptyOf, scenarioDelay, scenarioFailure } from './scenario';
+import { scenarioData, scenarioDelay, scenarioFailure } from './scenario';
 
 const API_ROOT = '/api/ieum';
 const HTTP_ERROR_FROM = 400;
@@ -69,7 +69,7 @@ export async function request<T>(method: Method, path: string, body?: unknown, o
   // 성공은 HTTP 2xx이면서 봉투 resultCode가 400 미만일 때만. 그 밖은 모두 실패(옛 api.js:14와 같은 조건)
   if (!res.ok || !isEnvelope(json) || json.resultCode >= HTTP_ERROR_FROM) throw failureOf(res.status, text, json);
   const data = json.resultData as T;
-  return import.meta.env.DEV ? (emptyOf(method, path, data) as T) : data;
+  return import.meta.env.DEV ? (scenarioData(method, path, data) as T) : data;
 }
 
 // POST는 본문이 없어도 {}와 JSON 헤더를 보낸다 — 옛 api.js:18(api.post = (p, b = {})). PUT은 옛처럼 기본값이 없다

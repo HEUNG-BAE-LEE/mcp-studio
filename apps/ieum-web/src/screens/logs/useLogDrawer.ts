@@ -18,7 +18,8 @@ import { isLogId, useLogDetail } from '../../api/hooks/useLogs';
 import type { LogDetail } from '../../api/types';
 import { toast } from '../../app/toast';
 import { NOT_FOUND } from '../../copy/errors';
-import { LOG_PARAM, withParam } from './logFilter';
+import { withParam } from '../../app/searchParams';
+import { LOG_PARAM } from './logFilter';
 
 /** 드로어에 그린 기록. at은 그 응답을 받은 시각 — 같은 열기의 같은 응답으로 다시 열지 않는 표지. 닫혀도 기록은 남긴다(닫히는 전환 동안 비지 않게) */
 export type ShownLog = Readonly<{ log: LogDetail; at: number; open: boolean }>;

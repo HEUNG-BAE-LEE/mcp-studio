@@ -54,6 +54,56 @@ export type Wizard = Readonly<{ modes: readonly WizardMode[]; banWords: readonly
 
 export type SourcesResponse = Readonly<{ workspace: Workspace; sources: readonly Source[]; wizard: Wizard }>;
 
+// ── 원본 시스템 쓰기 POST /sources/connect/ · /sources/{id}/reauth/ · DELETE /sources/{id}/ ──
+
+/** 연결 마법사에서 고르는 연결 방식(카드 v 중 연결 요청으로 가는 것). 서버는 이 값을 원본의 proto로 저장한다 */
+export type ConnectMode = Known<'rest' | 'soap' | 'gov' | 'sample'>;
+
+/**
+ * 인증 정보 — 마법사 · 재인증 입력 그대로. 방식을 바꿔도 다른 방식의 칸이 남아 함께 간다(옛 js/menu/sources.js:185,188).
+ * 서버가 type에 맞는 칸만 골라 검사 · 저장한다(routers/sources.py _clean_cred)
+ */
+export type SourceCred = Readonly<{
+  type: AuthType;
+  /** key 방식의 전달 위치 */
+  in?: 'header' | 'query';
+  /** key 방식의 헤더 · 쿼리 이름 */
+  name?: string;
+  /** key 방식의 키 · bearer 방식의 토큰 */
+  key?: string;
+  /** basic · wss · session 방식 */
+  username?: string;
+  password?: string;
+  /** oauth 방식 */
+  tokenUrl?: string;
+  clientId?: string;
+  clientSecret?: string;
+}>;
+
+/** POST /sources/connect/ 본문 — 모드와 상관없이 아홉 칸을 모두 보낸다(옛 js/menu/sources.js:117-118). 서버가 모드에 맞는 칸만 읽는다 */
+export type ConnectSourceBody = Readonly<{
+  mode: ConnectMode;
+  /** 비면 서버가 명세의 이름을 쓴다 */
+  name: string;
+  specUrl: string;
+  /** 올린 명세 파일 본문. 있으면 서버는 specUrl보다 이것을 쓴다 */
+  specText: string;
+  base: string;
+  /** 공공데이터포털 API id(wizard.govApis의 첫 칸). 목록이 비면 없다 — JSON에서 빠진다(옛과 같다) */
+  gov: string | undefined;
+  auth: SourceCred;
+  sampleRequest: string;
+  sampleResponse: string;
+}>;
+/** 연결 응답(201) — 새 원본과 그 원본의 도구. 도구는 모두 review로 시작한다 */
+export type ConnectSourceResult = Readonly<{ source: Source; tools: readonly ToolRecord[] }>;
+
+/** POST /sources/{id}/reauth/ 본문. 응답은 고친 원본 전체(Source, err:false — repositories/sources.py upsert_source) */
+export type ReauthBody = Readonly<{ auth: SourceCred }>;
+
+/** DELETE /sources/{id}/ 응답 */
+export type DeletedResult = Readonly<{ deleted: string }>;
+
 // ── 도구 GET /studio/ ──
 
 export type ToolStatus = Known<'done' | 'review' | 'drift' | 'off'>;

@@ -1,0 +1,4 @@
+/* RadioCard 절 — 넓은 카드 칸(옛 .mode-card.wide 줄 전체 칸). 격자는 CardGrid가 맡는다 */
+.wide {
+  grid-column: 1 / -1;
+}

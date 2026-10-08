@@ -1,4 +1,4 @@
-/* Button — 이음 .btn(css/console.css:175-179) · 비활성(css/console.css:640-642). 변형은 data-variant, 크기는 data-size */
+/* Button — 이음 .btn(css/console.css:175-179) · 비활성(css/console.css:640-642). 변형은 data-variant, 크기는 data-size, 요청 중 잠금은 aria-disabled */
 .root {
   display: inline-flex;
   align-items: center;
@@ -42,18 +42,21 @@
   font-size: var(--fs-ui-sm);
 }
 
-/* 비활성 — 투명도 하나(--opacity-disabled), hover 모양이 바뀌지 않는다 */
-.root:disabled {
+/* 비활성 — 투명도 하나(--opacity-disabled), hover 모양이 바뀌지 않는다. 요청 중 잠금(pending — aria-disabled)도 같은 모양 */
+.root:disabled,
+.root[aria-disabled='true'] {
   opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
-.root:disabled:hover {
+.root:disabled:hover,
+.root[aria-disabled='true']:hover {
   border-color: var(--line-control);
   color: var(--text);
 }
 
-.root[data-variant='primary']:disabled:hover {
+.root[data-variant='primary']:disabled:hover,
+.root[data-variant='primary'][aria-disabled='true']:hover {
   border-color: var(--primary);
   background: var(--primary);
   color: var(--on-fill);

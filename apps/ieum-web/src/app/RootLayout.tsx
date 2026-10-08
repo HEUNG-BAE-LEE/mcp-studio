@@ -1,5 +1,5 @@
 // RootLayout — 모든 화면을 감싸는 레이아웃 라우트. 셸(shell/Shell — 레일 · GNB · LNB)을 그리고, 셸이 본문 자리에 Outlet을 그린다.
-// 앱에 하나인 토스트를 셸 옆에 붙인다(값은 app/toast 저장소, 그리기는 ui Toast)
+// 앱에 하나인 토스트를 셸 옆에 붙인다(값은 app/toast 저장소, 그리기는 ui Toast). 여러 화면이 여는 층(드로어 · 모달 칸)도 셸 옆 LayerHost가 그린다
 // 위치가 바뀔 때 두 가지를 한다:
 // - 메뉴별 마지막 주소 기록(app/lastPath — LNB는 useMenuHref로 읽는다). 바꾸기 라우트(nav.ts REDIRECT_ROUTE_IDS)에 걸린 주소는 건너뛴다 —
 //   자식 <Navigate>가 이동을 예약한 같은 커밋에서 이 effect가 옛 주소로 돌기 때문(/sources/bogus가 원본 메뉴 주소로 남던 것)
@@ -8,6 +8,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation, useMatches } from 'react-router-dom';
 import { Toast } from '@/ui';
+import { LayerHost } from './LayerHost';
 import { recordLastPath } from './lastPath';
 import { REDIRECT_ROUTE_IDS, firstSegment } from './nav';
 import { Shell } from './shell/Shell';
@@ -40,6 +41,7 @@ export function RootLayout() {
   return (
     <>
       <Shell />
+      <LayerHost />
       <AppToast />
     </>
   );

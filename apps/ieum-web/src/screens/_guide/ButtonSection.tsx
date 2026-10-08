@@ -1,4 +1,5 @@
-// 카탈로그 Button 절 — 변형(default · primary) × 크기(md · sm) × 아이콘 유무 × 비활성. hover는 포인터를 올려 본다
+// 카탈로그 Button 절 — 변형(default · primary) × 크기(md · sm) × 아이콘 유무 × 비활성(disabled) × 요청 중 잠금(pending). hover는 포인터를 올려 본다.
+// pending은 Tab으로 닿고(포커스 링) 눌러도 아무것도 하지 않는다 — disabled는 Tab이 건너뛴다
 import { Button, type ButtonSize, type ButtonVariant } from '../../ui';
 import catalog from './catalog.module.css';
 
@@ -10,7 +11,8 @@ export function ButtonSection() {
     <div className={catalog.section}>
       <p className={catalog.note}>
         이음 .btn — 테두리 버튼과 주 액션 필 둘, 높이 md(--h-md) · sm(--h-sm). 아이콘 크기는 버튼 크기를 따른다. 비활성은
-        --opacity-disabled 하나이고 hover 모양이 바뀌지 않는다.
+        --opacity-disabled 하나이고 hover 모양이 바뀌지 않는다. disabled는 조건이 안 맞아 못 누름(포커스를 받지 않는다), pending은
+        요청 중 잠금(쓰기 버튼 — aria-disabled, 누름 무시, 포커스는 버튼에 남는다)이고 모양은 같다.
       </p>
       <div className={catalog.scroll}>
         <table className={catalog.table}>
@@ -24,6 +26,7 @@ export function ButtonSection() {
               ))}
               <th scope="col">아이콘</th>
               <th scope="col">disabled</th>
+              <th scope="col">pending</th>
             </tr>
           </thead>
           <tbody>
@@ -51,6 +54,11 @@ export function ButtonSection() {
                 </td>
                 <td>
                   <Button variant={variant} disabled>
+                    다음
+                  </Button>
+                </td>
+                <td>
+                  <Button variant={variant} pending>
                     배포하는 중…
                   </Button>
                 </td>

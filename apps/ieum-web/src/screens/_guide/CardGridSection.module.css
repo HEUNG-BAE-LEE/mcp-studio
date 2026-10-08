@@ -1,0 +1,9 @@
+/* 격자 칸 예시 — 카탈로그 전용 */
+.cell {
+  padding: var(--s-3);
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-md);
+  background: var(--surface-sub);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}

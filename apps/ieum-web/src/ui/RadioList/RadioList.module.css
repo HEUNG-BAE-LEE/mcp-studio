@@ -1,0 +1,66 @@
+/* RadioList — 이음 .gov-list · .gov-row(css/console.css:830-836). 라벨 줄은 Field와 같은 모양 · 같은 열(라벨만 있는 .field)
+   라벨 줄 아래 간격은 10이다 — 옛은 .field 아래 10과 .gov-list 위 10이 맞닿는 형제 여백이라 겹쳐서(margin collapse) 10으로 계산된다
+   (옛 css로 잰 값 10). 목록에 위 여백을 더해도 같은 겹침이라 10이므로 두지 않는다 */
+.head {
+  display: grid;
+  grid-template-columns: var(--w-field-label) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-2-5);
+  margin-bottom: var(--s-2-5);
+}
+
+.label {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+}
+
+.list {
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-md);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  padding: var(--s-2-5) var(--s-3);
+  border-bottom: 1px solid var(--line-divider);
+  font-size: var(--fs-label);
+  cursor: pointer;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.radio {
+  width: 17px;
+  /* check-css-disable-next-line literal-px -- 브라우저 라디오 고유 치수 17(옛 .gov-row input) */
+  height: 17px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--primary);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.description {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+
+@media (max-width: 760px) {
+  .head {
+    grid-template-columns: 1fr;
+    gap: var(--s-1);
+  }
+}

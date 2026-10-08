@@ -16,7 +16,7 @@ export function DashboardEmpty() {
       size="hero"
       title={DASH.empty.title}
       action={
-        // 연결 마법사 층을 그리는 곳은 원본 시스템 메뉴다 — 그 전에는 눌러도 층이 뜨지 않는다
+        // 연결 마법사는 공용 층 호스트(app/LayerHost)가 그린다 — 원본 목록의 "원본 시스템 연결"과 같은 마법사
         <Button variant="primary" onClick={() => openWizard()}>
           {DASH.empty.action}
         </Button>

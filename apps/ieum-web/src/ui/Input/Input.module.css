@@ -1,0 +1,26 @@
+/* Input — 이음 .inp(css/console.css:307-309) · .inp.mono(:488). 높이 --h-md · 칸 전체 폭. 자리표시는 브라우저 기본 색(옛 규칙 없음) */
+.root {
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-body);
+}
+
+/* 포커스 — 테두리를 --primary로 하고 전역 링은 그대로 둔다 */
+.root:focus {
+  border-color: var(--primary);
+}
+
+.root[data-mono='true'] {
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-mono);
+}
+
+.root:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}

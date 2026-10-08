@@ -2,6 +2,19 @@
 // 부품 절은 group 키 바로 다음에 name 키를 한 줄에 쓴다 — lint/check-docs가 이 쌍을 읽어 docs/COMPONENTS.md의 카탈로그 행과 양방향 대조한다.
 // group이 없는 절(토큰처럼 부품이 아닌 절)은 대조에서 빠진다. 이 파일 주석에 그 쌍 모양을 예시로 적지 않는다(check-docs는 주석도 읽는다)
 import type { ComponentType } from 'react';
+import { InputSection } from './InputSection';
+import { TextareaSection } from './TextareaSection';
+import { FieldSection } from './FieldSection';
+import { RadioListSection } from './RadioListSection';
+import { FileDropSection } from './FileDropSection';
+import { RadioCardSection } from './RadioCardSection';
+import { SectionTitleSection } from './SectionTitleSection';
+import { CardGridSection } from './CardGridSection';
+import { ProtocolBadgeSection } from './ProtocolBadgeSection';
+import { LaterCardsSection } from './LaterCardsSection';
+import { SpinnerSection } from './SpinnerSection';
+import { StepIndicatorSection } from './StepIndicatorSection';
+import { ProgressListSection } from './ProgressListSection';
 import { BoxSection } from './BoxSection';
 import { ButtonSection } from './ButtonSection';
 import { CodeBlockSection } from './CodeBlockSection';
@@ -58,12 +71,21 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'select', group: '입력', name: 'Select', Component: SelectSection },
   { id: 'search-input', group: '입력', name: 'SearchInput', Component: SearchInputSection },
   { id: 'filter-chips', group: '입력', name: 'FilterChips', Component: FilterChipsSection },
+  { id: 'input', group: '입력', name: 'Input', Component: InputSection },
+  { id: 'textarea', group: '입력', name: 'Textarea', Component: TextareaSection },
+  { id: 'field', group: '입력', name: 'Field', Component: FieldSection },
+  { id: 'radio-list', group: '입력', name: 'RadioList', Component: RadioListSection },
+  { id: 'file-drop', group: '입력', name: 'FileDrop', Component: FileDropSection },
+  { id: 'radio-card', group: '입력', name: 'RadioCard', Component: RadioCardSection },
   { id: 'status-chip', group: '표시', name: 'StatusChip', Component: StatusChipSection },
   { id: 'status-dot', group: '표시', name: 'StatusDot', Component: StatusDotSection },
   { id: 'tag', group: '표시', name: 'Tag', Component: TagSection },
   { id: 'inline-code', group: '표시', name: 'InlineCode', Component: InlineCodeSection },
   { id: 'help-text', group: '표시', name: 'HelpText', Component: HelpTextSection },
   { id: 'progress-bar', group: '표시', name: 'ProgressBar', Component: ProgressBarSection },
+  { id: 'spinner', group: '표시', name: 'Spinner', Component: SpinnerSection },
+  { id: 'step-indicator', group: '표시', name: 'StepIndicator', Component: StepIndicatorSection },
+  { id: 'progress-list', group: '표시', name: 'ProgressList', Component: ProgressListSection },
   { id: 'empty-state', group: '상태 표현', name: 'EmptyState', Component: EmptyStateSection },
   { id: 'failure-block', group: '상태 표현', name: 'FailureBlock', Component: FailureBlockSection },
   { id: 'error-block', group: '상태 표현', name: 'ErrorBlock', Component: ErrorBlockSection },
@@ -76,6 +98,8 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'box', group: '레이아웃', name: 'Box', Component: BoxSection },
   { id: 'toolbar', group: '레이아웃', name: 'Toolbar', Component: ToolbarSection },
   { id: 'two-column', group: '레이아웃', name: 'TwoColumn', Component: TwoColumnSection },
+  { id: 'section-title', group: '레이아웃', name: 'SectionTitle', Component: SectionTitleSection },
+  { id: 'card-grid', group: '레이아웃', name: 'CardGrid', Component: CardGridSection },
   { id: 'shell', group: '레이아웃', name: '셸', Component: ShellSection },
   { id: 'key-value-grid', group: '데이터', name: 'KeyValueGrid', Component: KeyValueGridSection },
   { id: 'stat-strip', group: '데이터', name: 'StatStrip', Component: StatStripSection },
@@ -88,4 +112,6 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'flow-line', group: '이음 전용', name: 'FlowLine', Component: FlowLineSection },
   { id: 'topology', group: '이음 전용', name: 'Topology', Component: TopologySection },
   { id: 'trace-view', group: '이음 전용', name: 'TraceView', Component: TraceViewSection },
+  { id: 'protocol-badge', group: '이음 전용', name: 'ProtocolBadge', Component: ProtocolBadgeSection },
+  { id: 'later-cards', group: '이음 전용', name: 'LaterCards', Component: LaterCardsSection },
 ];

@@ -1,0 +1,37 @@
+/* AnalysisStep — 4단계 분석(옛 js/menu/sources.js:72-79)
+   진행 막대 위 4 · 아래 18(옛 .bar-p css/console.css:847), 작업 줄 아래 16(옛 .an :838), 결과 칸 격자 아래 14(옛 .res-grid :849) */
+.bar {
+  margin: var(--s-1) 0 var(--s-4-5);
+}
+
+.list {
+  margin-bottom: var(--s-4);
+}
+
+.results {
+  margin-bottom: var(--s-3-5);
+}
+
+/* 결과 칸 하나 — 이름(작은 흐린 글) 아래 큰 수(옛 .res-grid div · span · b :850-852) */
+.result {
+  padding: var(--s-3) var(--s-3-5);
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-md);
+}
+
+.result-label {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+.result-value {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 쓰기 작업 수는 경고 색(DESIGN Colors ③ — 연결 분석 결과 쓰기 작업 수) */
+.result-value[data-tone='warn'] {
+  color: var(--warn);
+}

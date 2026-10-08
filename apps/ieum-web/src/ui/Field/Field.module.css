@@ -1,0 +1,30 @@
+/* Field — 이음 .field(css/console.css:305-306). 라벨 열 --w-field-label + 입력 열. 760 이하는 한 열(:472) */
+.root {
+  display: grid;
+  grid-template-columns: var(--w-field-label) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-2-5);
+  margin-bottom: var(--s-2-5);
+}
+
+.root[data-align='top'] {
+  align-items: start;
+}
+
+.label {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+}
+
+/* 여러 줄 입력 — 라벨을 입력 첫 줄에 맞춘다(옛 인라인 padding-top 8) */
+.root[data-align='top'] .label {
+  padding-top: var(--s-2);
+}
+
+@media (max-width: 760px) {
+  .root {
+    grid-template-columns: 1fr;
+    gap: var(--s-1);
+  }
+}

@@ -1,5 +1,7 @@
 // 열린 층의 쌓임(ui 안쪽 전용 — closeAllLayers · useOpenLayers만 @/ui로 내보낸다).
-// Esc는 맨 위 층만 닫는다(이음 js/main.js:55 — 모달이 있으면 모달만). 층은 <dialog>.show()라 브라우저가 Esc를 처리하지 않는다 —
+// Esc는 맨 위 층만 닫는다 — 맨 위는 z 순서다: 모달 종류가 드로어 위(DESIGN 쌓임), 같은 종류면 나중에 연 것.
+// 연 순서가 아니다 — 모달이 열린 채(가두지 않으므로) Tab으로 닿은 버튼이 드로어를 열어도 드로어는 모달 아래에 깔리고 Esc는 모달 먼저다
+// (이음 js/main.js:55 — 모달이 보이면 모달만). 층은 <dialog>.show()라 브라우저가 Esc를 처리하지 않는다 —
 // 문서의 keydown 하나로 받는다. 열린 층이 없으면 듣지 않는다
 // 목록은 바꿀 때마다 새 배열로 만든다 — 닫는 도중의 등록 · 해제가 순회를 흔들지 않는다
 // 열린 층의 요약(모달 · 드로어가 있는가)은 구독으로 내보낸다 — useOpenLayers가 쓴다
@@ -25,10 +27,20 @@ let stack: readonly LayerEntry[] = [];
 let openLayers: OpenLayers = NO_OPEN_LAYERS;
 let listeners: readonly (() => void)[] = [];
 
+// z 순위 — 클수록 위에 그린다(--z-drawer < --z-modal)
+const Z_RANK: Readonly<Record<LayerKind, number>> = { drawer: 0, modal: 1 };
+
+/** 맨 위 층 — 순위가 가장 높은 종류 중 나중에 연 것(목록은 연 순서) */
+const topOf = (entries: readonly LayerEntry[]): LayerEntry | undefined =>
+  entries.reduce<LayerEntry | undefined>(
+    (top, entry) => (top === undefined || Z_RANK[entry.layer] >= Z_RANK[top.layer] ? entry : top),
+    undefined,
+  );
+
 const onKeyDown = (event: KeyboardEvent) => {
   // 한글 조합 중 Esc는 조합을 끝내는 키다 — 층을 닫지 않는다
   if (event.key !== 'Escape' || event.isComposing) return;
-  const top = stack.at(-1);
+  const top = topOf(stack);
   if (!top || !top.isDismissible()) return;
   event.preventDefault();
   top.close();
@@ -70,7 +82,7 @@ export function subscribeOpenLayers(listener: () => void): () => void {
 export const getOpenLayers = (): OpenLayers => openLayers;
 
 /**
- * 열린 층을 위에서부터 모두 닫는다(dismissible과 상관없이). 셸이 메뉴가 바뀔 때 부른다.
+ * 열린 층을 나중에 연 것부터 모두 닫는다(dismissible과 상관없이 — 모두 닫으므로 순서는 결과를 바꾸지 않는다). 셸이 메뉴가 바뀔 때 부른다.
  * 화면이 쥔 층은 화면이 사라지며 함께 닫히고, 셸 · 저장소가 쥔 층은 이것으로 닫힌다
  */
 export function closeAllLayers(): void {

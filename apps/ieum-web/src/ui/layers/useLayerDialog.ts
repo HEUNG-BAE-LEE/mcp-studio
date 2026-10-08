@@ -1,6 +1,9 @@
 // 층 공통 동작(ui 안쪽 전용) — <dialog>.show()로 열고 닫기 · 쌓임 등록(Esc · closeAllLayers) · 첫 포커스 · 포커스 복귀.
 // show()라 top layer를 쓰지 않고 포커스를 가두지 않는다(이음 그대로 — 닫은 뒤 포커스 복귀만 더한다). 가림막 · z는 층 부품이 직접 그린다(Overlay)
-// 포커스 복귀: 열 때 포커스가 있던 요소로, 그 요소가 사라졌으면 returnFocusFallback()으로. 닫는 순간 포커스가 층 안에 있거나
+// 포커스 복귀: 열 때 포커스가 있던 요소로. 대체 자리 순서 — 쓰는 곳의 returnFocusFallback() → 지금 화면의 PageHead 제목
+// (h2[data-page-title]) → 셸 본문 <main>(tabIndex=-1) — 는 두 경우에 모두 탄다: (a) 연 컨트롤이 사라졌을 때, (b) 열 때 층 밖에
+// 포커스된 요소가 없었을 때(포커스가 body에 있었음 — 닫은 뒤에도 body에 남지 않게). 셋 다 없으면 옮기지 않는다(하나라도 있으면 그곳으로
+// 옮긴다 — 카탈로그의 <main>은 tabIndex가 없어 focus()가 아무것도 하지 않으므로 포커스가 그대로다). 닫는 순간 포커스가 층 안에 있거나
 // 사라졌을 때(body)만 옮긴다 — 층 밖으로 Tab해 간 포커스(예: 열린 채 LNB 링크로 메뉴 이동)는 빼앗지 않는다
 // 다시 열기(contentKey): 열린 채 값이 바뀌면 그 순간 포커스가 있던 요소를 복귀 대상으로 다시 잡고 첫 포커스로 옮긴다
 // (이음 openDrawer가 열려 있어도 부를 때마다 lastFocus를 잡고 ✕로 옮긴 것 — js/common/overlay.js:5,8)
@@ -16,14 +19,27 @@ export type LayerDialogOptions = {
   dismissible: boolean;
   /** 열린 뒤 포커스를 둘 요소. null이면 show()가 고른 첫 포커스 요소에 둔다 */
   initialFocus: (dialog: HTMLDialogElement) => HTMLElement | null;
-  /** 연 컨트롤이 닫힐 때 사라졌으면 포커스를 둘 곳 */
+  /** 연 컨트롤이 닫힐 때 사라졌으면 포커스를 둘 곳. 없거나 null이면 화면 제목 → 본문 */
   returnFocusFallback?: () => HTMLElement | null;
   /** 보이는 항목 — 열린 채 바뀌면 다시 연 것으로 친다(복귀 대상 다시 잡기 + 첫 포커스). 없으면 open 토글 때만 */
   contentKey?: string | number;
 };
 
-const focusTargetOf = (opener: HTMLElement | null, fallback?: () => HTMLElement | null): HTMLElement | null =>
-  opener?.isConnected ? opener : (fallback?.() ?? null);
+// 기본 대체 자리 — PageHead 제목의 표지(ui/PageHead) · 셸 본문(app/shell/Shell)
+const PAGE_TITLE_SELECTOR = '[data-page-title]';
+const MAIN_SELECTOR = 'main';
+
+/** 연 요소가 사라졌을 때 포커스를 둘 곳 — 쓰는 곳이 준 곳 → 화면 제목 → 본문 */
+const fallbackTargetOf = (doc: Document, fallback?: () => HTMLElement | null): HTMLElement | null =>
+  fallback?.() ??
+  doc.querySelector<HTMLElement>(PAGE_TITLE_SELECTOR) ??
+  doc.querySelector<HTMLElement>(MAIN_SELECTOR);
+
+const focusTargetOf = (
+  doc: Document,
+  opener: HTMLElement | null,
+  fallback?: () => HTMLElement | null,
+): HTMLElement | null => (opener?.isConnected ? opener : fallbackTargetOf(doc, fallback));
 
 /** 지금 포커스가 있는 층 밖 요소 — 복귀 대상 후보. body · 층 안이면 없다 */
 const outsideFocusOf = (dialog: HTMLDialogElement): HTMLElement | null => {
@@ -71,7 +87,7 @@ export function useLayerDialog(dialogRef: RefObject<HTMLDialogElement | null>, o
       const shouldReturnFocus = ownsFocus(dialog);
       dialog.close();
       if (!shouldReturnFocus) return;
-      focusTargetOf(openerRef.current, latest.current.returnFocusFallback)?.focus();
+      focusTargetOf(dialog.ownerDocument, openerRef.current, latest.current.returnFocusFallback)?.focus();
     };
   }, [open, dialogRef]);
 

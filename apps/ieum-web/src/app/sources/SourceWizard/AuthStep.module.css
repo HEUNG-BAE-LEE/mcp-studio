@@ -1,0 +1,4 @@
+/* AuthStep — 인증 안내 상자는 칸 아래 14(옛 인라인 margin-top:14px — js/menu/sources.js:71) */
+.notice {
+  margin-top: var(--s-3-5);
+}

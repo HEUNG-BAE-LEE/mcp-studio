@@ -3,6 +3,7 @@
 //   실패는 본문 자리 실패 상자 — 레일 · GNB · LNB는 남는다(옛 부트 js/main.js:65-67는 메뉴까지 비웠다). 화면은 자기 조회를 다시 ScreenState로 감싼다
 // - 현재 메뉴 = menuOf(pathname)(탐색 작업 주소는 원본). 메뉴가 바뀌면 열린 층을 모두 닫는다
 // - 스크롤은 문서(window)가 한다 — 맨 위 스크롤은 RootLayout(첫 경로 조각이 바뀔 때만)
+// - 본문 <main>은 tabIndex=-1 — 층 포커스 복귀의 마지막 대체 자리(화면 제목이 없을 때 — ui/layers useLayerDialog). Tab 순서에는 들지 않는다
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useSources } from '../../api/hooks/useSources';
@@ -39,7 +40,7 @@ export function Shell() {
       <div className={styles.main}>
         <Gnb workspace={sources.data?.workspace} onScopeOpen={() => setScopeOpen(true)} />
         <Lnb current={current} />
-        <main className={styles.content}>
+        <main className={styles.content} tabIndex={-1}>
           <ScreenState gate={gate}>{() => <Outlet />}</ScreenState>
         </main>
       </div>

@@ -1,5 +1,5 @@
 // AlertsBox — "확인이 필요한 항목" 상자: 줄마다 아이콘 · 굵은 제목 · 본문 · 오른쪽 작은 버튼. 옛 js/menu/dashboard.js:50-59
-// 인증 만료 줄의 버튼은 재인증 층을 열고(층을 그리는 곳은 원본 시스템 메뉴 — 그 전에는 눌러도 뜨지 않는다), 나머지는 도구를 연 스튜디오로 간다
+// 인증 만료 줄의 버튼은 재인증 층을 열고(공용 층 호스트 app/LayerHost가 그린다), 나머지는 도구를 연 스튜디오로 간다
 import { Fragment } from 'react';
 import { useNavigate, type NavigateFunction } from 'react-router-dom';
 import type { Source } from '../../api/types';

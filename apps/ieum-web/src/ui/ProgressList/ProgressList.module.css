@@ -1,0 +1,47 @@
+/* ProgressList — 이음 .an(css/console.css:838-845). 원은 고유 치수 22 · 테 --bw-dashed, run 줄의 도는 원은 Spinner lg.
+   줄 위아래 9 → --s-2-5(9px는 위 단계로 올린다 — 줄 높이 +2px, DESIGN 이식 기간 허용 차이 값 정규화). 행간 · 자간은 옛이 적지 않아 물려받는다 */
+.root {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  padding: var(--s-2-5) 0;
+  border-bottom: 1px solid var(--line-divider);
+  color: var(--text-faint);
+  font-size: var(--fs-body);
+}
+
+.item[data-state='run'],
+.item[data-state='done'] {
+  color: var(--text);
+}
+
+/* 원 — wait은 빈 테, done은 --primary 필 + check */
+.mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  /* check-css-disable-next-line literal-px -- 원 고유 지름 22(한 변 = 다른 변, 이음 .an li .ic) */
+  height: 22px;
+  border: var(--bw-dashed) solid var(--line-control);
+  border-radius: 50%;
+}
+
+.item[data-state='done'] .mark {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-fill);
+}
+
+/* 오른쪽 작은 요약(옛 .an li em) */
+.note {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}

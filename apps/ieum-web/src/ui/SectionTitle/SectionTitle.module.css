@@ -1,0 +1,16 @@
+/* SectionTitle — 이음 .sec-t(css/console.css:607-608). 위 32 · 아래 10은 어느 화면에서나 같다 */
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2-5);
+  margin: var(--s-8) 0 var(--s-2-5);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+}
+
+.description {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+}

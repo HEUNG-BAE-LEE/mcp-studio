@@ -1,0 +1,4 @@
+/* SectionTitle 절 — 좁은 폭 예시 */
+.narrow {
+  max-width: 280px;
+}
