@@ -196,6 +196,24 @@ for _ in $(seq 1 40); do
   sleep 0.5
 done
 
+# ── 한 번에 연결(온보딩 위자드) 화면 ─────────────────────────
+# React 화면이라 빌드 산출물(apps/web/ieum/onboarding)을 콘솔이 iframe 으로 띄운다.
+# 산출물이 없거나 소스가 더 새로우면 다시 빌드한다. 1초 남짓이다.
+if [ -d apps/onboarding ]; then
+  OB_OUT=apps/web/ieum/onboarding/index.html
+  if [ ! -f "$OB_OUT" ] || [ -n "$(find apps/onboarding/src apps/onboarding/index.html apps/onboarding/vite.config.js -newer "$OB_OUT" -print -quit)" ]; then
+    printf "  한 번에 연결 화면 빌드"
+    if npm run build -w apps/onboarding > "$LOG_DIR/mcp-studio-onboarding-build.log" 2>&1; then
+      echo " → 완료"
+    else
+      echo
+      echo "✗ 한 번에 연결 화면을 빌드하지 못했습니다. 로그: $LOG_DIR/mcp-studio-onboarding-build.log"
+      tail -15 "$LOG_DIR/mcp-studio-onboarding-build.log"
+      exit 1
+    fi
+  fi
+fi
+
 # ── 관리자 화면 ──────────────────────────────────────────────
 # --strictPort 를 준다. 15173 이 막혀 있으면 vite 는 조용히 다음 포트로 옮겨가는데,
 # 확장이 "관리자에서 열기"로 여는 주소는 15173 으로 고정돼 있어 어긋난다.
@@ -225,7 +243,7 @@ cat <<EOF
   관리자   http://localhost:$ADMIN_PORT
   수집 엔진 http://localhost:$ADMIN_PORT/sources
   백엔드   http://localhost:$BACKEND_PORT
-  이음 콘솔 http://localhost:$BACKEND_PORT/ieum/
+  이음 콘솔 http://localhost:$BACKEND_PORT/ieum/   (원본 시스템 → 한 번에 연결)
   로그     $BACKEND_LOG
            $ADMIN_LOG
 
