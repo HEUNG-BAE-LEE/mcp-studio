@@ -1,0 +1,53 @@
+/* CompareGrid — 이음 .cmp(css/console.css:727,897) · .cap(:728-729). 두 칸은 같은 폭(최소 0)이고 760 이하에서 한 열 */
+.root {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-3);
+}
+
+.cell {
+  min-width: 0;
+}
+
+/* 캡션 — 색 네모 + 글 + 흐린 보조 글. 보조 글은 캡션의 굵기를 되돌린다 */
+.caption {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  margin: 0 0 var(--s-1-5);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+}
+
+.swatch {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  /* check-css-disable-next-line literal-px -- 색 네모 한 변 = 다른 변(8, 이음 .cap i) */
+  height: 8px;
+  border-radius: var(--r-xs);
+}
+
+.swatch[data-tone='source'] {
+  background: var(--source);
+}
+
+.swatch[data-tone='tool'] {
+  background: var(--tool);
+}
+
+.swatch[data-tone='traffic'] {
+  background: var(--evidence-traffic);
+}
+
+.description {
+  color: var(--text-faint);
+  font-weight: var(--fw-regular);
+}
+
+@media (max-width: 760px) {
+  .root {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

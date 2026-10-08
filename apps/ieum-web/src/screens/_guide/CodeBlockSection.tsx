@@ -1,4 +1,4 @@
-// 카탈로그 CodeBlock 절 — 언어 넷(json · xml · http · plain) × http 본문(json · xml · 없음), 변형 log, 빈 글 · 긴 줄 · 최대 높이.
+// 카탈로그 CodeBlock 절 — 언어 다섯(json · xml · http · java · plain) × http 본문(json · xml · 없음), java 경계, 변형 log, 빈 글 · 긴 줄 · 최대 높이.
 // 상자는 Tab으로 닿고(안쪽 링) 이름은 labelledBy(보이는 소제목) 또는 label이다
 import { useId } from 'react';
 import { CodeBlock } from '../../ui';
@@ -43,6 +43,23 @@ const HTTP_QUERY_LINES = httpCode(`GET /openapi/weather/getVilageFcst HTTP/1.1
     &nx=60
 Accept: application/json`);
 
+// 자동 탐색 근거의 소스 조각 모양(시연 구매관리 PoController.poList + 주석 한 줄)
+const JAVA_SNIPPET = `    @RequestMapping(value = "/poList.do", method = RequestMethod.GET)
+    public @ResponseBody Map<String, Object> poList(@ModelAttribute("searchVO") PoSearchVO searchVO) throws Exception {
+        // 발주 목록 — 기간 · 거래처 조건으로 조회
+        Map<String, Object> result = new HashMap<String, Object>();
+        result.put("list", poService.selectPoList(searchVO));
+        result.put("RSLT", "0000");
+        return result;
+    }`;
+
+// 옛 hlJava와 같은 경계 — 먼저 시작한 것이 이긴다 · 낱말 경계 · 문자 리터럴 '"'은 따로 보지 않아 다음 "까지 문자열이 된다
+const JAVA_EDGE = `String url = "http://erp.local/po"; // 문자열 안 //는 문자열
+// 주석 안 "문자열" · public · @Override도 주석
+private static final List<? extends PoVO> ROWS = new ArrayList<>();
+if (newValue != null) { return className; } else { return ""; }
+char quote = '"'; String next = "다음 따옴표까지";`;
+
 const LOG_TEXT = Array.from(
   { length: 40 },
   (_, i) =>
@@ -58,6 +75,8 @@ export function CodeBlockSection() {
     request: useId(),
     response: useId(),
     query: useId(),
+    java: useId(),
+    javaEdge: useId(),
     plain: useId(),
     empty: useId(),
     long: useId(),
@@ -71,8 +90,8 @@ export function CodeBlockSection() {
     <div className={catalog.section}>
       <p className={catalog.note}>
         --surface-sub 상자 · 고정폭 · 줄바꿈 없음 · 최대 높이 420(넘치면 상자 안 스크롤). 강조는 옛 하이라이터와 같은 자리에서
-        나눈다 — JSON 키 · 문자열 · 수 · 예약 값, XML 주석 · 태그 · 속성, HTTP 메서드 · 쿼리 키 · 헤더 이름. 상자는 Tab으로 닿고 안쪽
-        링이 보인다. 상태는 없다.
+        나눈다 — JSON 키 · 문자열 · 수 · 예약 값, XML 주석 · 태그 · 속성, HTTP 메서드 · 쿼리 키 · 헤더 이름, Java 줄 주석 · 문자열 ·
+        @이름 · 예약어. 상자는 Tab으로 닿고 안쪽 링이 보인다. 상태는 없다.
       </p>
 
       <h3 className={catalog.heading}>json · xml · plain</h3>
@@ -104,6 +123,18 @@ export function CodeBlockSection() {
         <div className={styles.cell}>
           {titled(ids.query, 'http 쿼리 이어진 줄')}
           <CodeBlock code={HTTP_QUERY_LINES} labelledBy={ids.query} />
+        </div>
+      </div>
+
+      <h3 className={catalog.heading}>java — 자동 탐색 근거의 소스 조각 · 경계</h3>
+      <div className={styles.grid}>
+        <div className={styles.cell}>
+          {titled(ids.java, 'java 소스 조각')}
+          <CodeBlock code={{ text: JAVA_SNIPPET, lang: 'java' }} labelledBy={ids.java} />
+        </div>
+        <div className={styles.cell}>
+          {titled(ids.javaEdge, "java 경계 — 문자열 안 // · 주석 안 예약어 · 낱말 경계 · 문자 리터럴 '\"'")}
+          <CodeBlock code={{ text: JAVA_EDGE, lang: 'java' }} labelledBy={ids.javaEdge} />
         </div>
       </div>
 

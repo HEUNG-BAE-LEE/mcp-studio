@@ -1,7 +1,7 @@
-// 카탈로그 Table 절 — 정렬(center · start) · 밀도(fixed · auto) · 행 상태(기본 · hover · selected · 누를 수 있는 행) · 빈 행 · 최소 폭 넷
+// 카탈로그 Table 절 — 정렬(center · start) · 밀도(fixed · auto) · 행 상태(기본 · hover · selected · 누를 수 있는 행) · 체크 칸(kind="check") · 빈 행 · 최소 폭 넷
 import { useState } from 'react';
 import { fmtNum } from '../../copy/format';
-import { EmptyState, Table, TableCell, TableHeadCell, TableRow, type TableMinWidth } from '../../ui';
+import { Checkbox, EmptyState, Table, TableCell, TableHeadCell, TableRow, type TableMinWidth } from '../../ui';
 import catalog from './catalog.module.css';
 import styles from './TableSection.module.css';
 
@@ -22,9 +22,25 @@ const HEAD = (
   </>
 );
 
+const CHECK_HEAD = (
+  <>
+    <TableHeadCell kind="check" />
+    <TableHeadCell align="start">도구</TableHeadCell>
+    <TableHeadCell>이름</TableHeadCell>
+    <TableHeadCell>최근 호출</TableHeadCell>
+  </>
+);
+
+// 마지막 행은 선택할 수 없다(AI 도구로 만들 수 없는 API — 비활성 상자)
+const LOCKED_ID: string = ROWS[2].id;
+
 export function TableSection() {
   const [selectedId, setSelectedId] = useState<string>(ROWS[1].id);
   const [activated, setActivated] = useState<string>('');
+  const [checked, setChecked] = useState<readonly string[]>([ROWS[0].id]);
+  const [opened, setOpened] = useState<string>('');
+  const toggleChecked = (id: string) =>
+    setChecked((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
   return (
     <div className={catalog.section}>
       <p className={catalog.note}>
@@ -68,6 +84,34 @@ export function TableSection() {
             <TableCell>
               <b className={styles.num}>{fmtNum(row.calls)}</b>
             </TableCell>
+            <TableCell>
+              <span className={styles.date}>{row.time}</span>
+            </TableCell>
+          </TableRow>
+        ))}
+      </Table>
+
+      <h3 className={catalog.heading}>체크 칸(kind=&quot;check&quot;) · selected · 비활성 상자 (행을 누른 곳: {opened || '없음'})</h3>
+      <p className={catalog.note}>
+        폭 48 · 가운데. 칸 안(여백 포함)을 눌러도 행 onActivate로 가지 않는다 — 행의 다른 칸을 누르면 그 행이 열린다. 머리 칸은 비어
+        있다. 칸 안 상자는 Checkbox(md)다.
+      </p>
+      <Table minWidth={1040} head={CHECK_HEAD}>
+        {ROWS.map((row) => (
+          <TableRow key={row.id} selected={checked.includes(row.id)} onActivate={() => setOpened(row.id)}>
+            <TableCell kind="check">
+              <Checkbox
+                aria-label={`${row.name} 선택`}
+                checked={checked.includes(row.id)}
+                disabled={row.id === LOCKED_ID}
+                disabledReason={row.id === LOCKED_ID ? 'AI 도구로 만들 수 없는 API입니다' : undefined}
+                onCheckedChange={() => toggleChecked(row.id)}
+              />
+            </TableCell>
+            <TableCell align="start">
+              <span className={styles.mono}>{row.id}</span>
+            </TableCell>
+            <TableCell>{row.name}</TableCell>
             <TableCell>
               <span className={styles.date}>{row.time}</span>
             </TableCell>

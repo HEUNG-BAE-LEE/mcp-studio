@@ -1,0 +1,29 @@
+/* ApprovalCheck — 이음 .own(css/console.css:931-935). 위 14 · 안쪽 14 16 · 경고색 테두리 · 바탕, 켜면 초록 */
+.root {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  margin-top: var(--s-3-5);
+  padding: var(--s-3-5) var(--s-4);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-md);
+  background: var(--warn-bg);
+  cursor: pointer;
+}
+
+.root[data-state='on'] {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.title {
+  display: block;
+  font-size: var(--fs-body);
+}
+
+.description {
+  display: block;
+  margin-top: var(--s-0-5);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}

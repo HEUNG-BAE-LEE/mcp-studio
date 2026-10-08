@@ -7,8 +7,11 @@
 // - 연결 요청: useConnectSource 인스턴스는 시도를 거쳐 남으므로 결과(data · error)는 그 요청의 variables.attemptId가 지금 시도일 때만 읽는다.
 //   이전 시도의 요청은 끝까지 가고 그 결과는 요청 훅이 토스트로 알린다(isWizardShowing이 false — app/sources/useSourceMutations)
 // 비동기로 끝나는 일(파일 읽기)은 끝났을 때 드로어 칸이 아직 이 시도를 보이는지 보고 둔다 — 옛은 닫혔으면 버리고, 다시 열었으면 새 마법사에 넣었다
+// 탐색 모드(discover)는 슬롯(discover/useDiscoverSlot)이 맡는다 — 탐색 개요는 드로어가 이 시도를 보이고 탐색 모드일 때만 읽고(닫힌 마법사의
+// 관찰자가 남아 메뉴 다시 받기 · 무효화에 끌려 받지 않게), 준비되면 그 시도의 탐색 입력을 한 번 만든다
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useCachedDiscoveryOverview } from '../../../api/hooks/useDiscovery';
 import { useSources } from '../../../api/hooks/useSources';
 import type { GovApi, SourceCred, WizardMode } from '../../../api/types';
 import { SOURCES } from '../../../copy/sources';
@@ -16,6 +19,7 @@ import { isWizardShowing } from '../../layers';
 import { studioSrcLink, toolLink } from '../../studio/links';
 import { toast } from '../../toast';
 import { useConnectSource } from '../useSourceMutations';
+import { useDiscoverSlot, type DiscoverSlot } from './discover/useDiscoverSlot';
 import { readSpecFile } from './readSpecFile';
 import { useFakeProgress } from './useFakeProgress';
 import {
@@ -24,11 +28,13 @@ import {
   changeText,
   connectBodyOf,
   initialWizard,
+  isDiscoverMode,
   loadSpecFile,
   selectGov,
   selectMode,
   toNextStep,
   toPrevStep,
+  withDiscover,
   type WizardState,
   type WizardTextField,
 } from './wizardState';
@@ -45,7 +51,7 @@ export type WizardActions = Readonly<{
   next: () => void;
   /** 이전 — 분석 실패에서 돌아가면 요청 결과를 비워 다시 시작할 수 있게 */
   prev: () => void;
-  /** 변환 스튜디오에서 검토 — 드로어 닫기 → 새 원본 첫 도구(없으면 그 원본)로 이동 → 완료 토스트 */
+  /** 변환 스튜디오에서 검토 — 새 원본 첫 도구(없으면 그 원본)로 이동 → 완료 토스트(드로어는 셸이 메뉴 이동 뒤 닫는다) */
   finish: () => void;
 }>;
 
@@ -60,6 +66,8 @@ export type WizardSession = Readonly<{
   /** 가짜 진행의 지금 칸(0부터) */
   progressIndex: number;
   actions: WizardActions;
+  /** 탐색 모드 슬롯 — 탐색 개요 판정 · 도크가 기다리는 것 · 탐색 입력 동작 */
+  discover: DiscoverSlot;
 }>;
 
 type ConnectMutation = ReturnType<typeof useConnectSource>;
@@ -125,7 +133,7 @@ function useFinish(analysis: AnalysisView): () => void {
     if (analysis.kind !== 'done') return;
     const { source, tools } = analysis.result;
     const [first] = tools;
-    const link = first ? toolLink(first.id) : studioSrcLink(source.id);
+    const link = first ? toolLink(first.id, { src: source.id }) : studioSrcLink(source.id);
     void navigate(link.to, { state: link.state });
     toast(SOURCES.toast.connected(source.name, tools.length));
   };
@@ -138,7 +146,13 @@ function useFinish(analysis: AnalysisView): () => void {
 export function useWizardSession(attemptId: number, isShowing: boolean): WizardSession {
   const wizard = useSources().data?.wizard;
   const govApis = wizard?.govApis ?? NO_GOV_APIS;
-  const { state, replace, update } = useAttemptState(attemptId, govApis);
+  const attempt = useAttemptState(attemptId, govApis);
+  const { replace, update } = attempt;
+  const overview = useCachedDiscoveryOverview(isShowing && isDiscoverMode(attempt.state.mode));
+  // 탐색 모드인데 탐색 입력이 아직 없고 개요가 준비됐으면 지금 만든다(그리기 전에 — 빈 입력이 한 번도 보이지 않게)
+  const state = withDiscover(attempt.state, overview.data);
+  if (state !== attempt.state) replace(state);
+  const discover = useDiscoverSlot({ attemptId, state, update, overview });
 
   const connect = useConnectSource();
   const analysis = analysisOf(connect, attemptId);
@@ -146,9 +160,11 @@ export function useWizardSession(attemptId: number, isShowing: boolean): WizardS
   const progressIndex = useFakeProgress(`${attemptId}:${state.runs}`, isAnalyzing, LAST_PROGRESS_INDEX);
   const finish = useFinish(analysis);
 
-  // 다음 · 연결하고 분석 시작(옛 wzNext — :154-160): 2단계 검증의 첫 실패만 경고 토스트, 4단계로 들어가는 순간 연결 요청 한 번
+  // 다음 · 연결하고 분석 시작(옛 wzNext — :154-160): 2단계 검증의 첫 실패만 경고 토스트, 4단계로 들어가는 순간 연결 요청 한 번.
+  // 탐색 모드 2단계는 탐색 입력이 준비돼야 간다(도크 버튼도 잠겨 있다)
   const next = () => {
     if (state.step >= ANALYSIS_STEP) return;
+    if (isDiscoverMode(state.mode) && state.step === 2 && state.discover === null) return;
     const problem = validateStep(state);
     if (problem !== null) {
       toast.warn(problem);
@@ -176,5 +192,5 @@ export function useWizardSession(attemptId: number, isShowing: boolean): WizardS
     finish,
   };
 
-  return { state, modes: wizard?.modes ?? NO_MODES, govApis, analysis, progressIndex, actions };
+  return { state, modes: wizard?.modes ?? NO_MODES, govApis, analysis, progressIndex, actions, discover };
 }

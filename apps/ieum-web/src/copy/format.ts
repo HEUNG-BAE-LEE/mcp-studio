@@ -31,7 +31,8 @@ const plain = (n: number): string => String(n);
 export const orNone = (value: number | null | undefined, unit = '', format: (n: number) => string = plain): string =>
   value == null ? NONE : `${format(value)}${unit}`;
 
-const pad2 = (n: number): string => String(n).padStart(TWO_DIGITS, '0');
+/** 두 자리로 앞을 0으로 채운다 — 시각 서식(copy/discovery도 쓴다) */
+export const pad2 = (n: number): string => String(n).padStart(TWO_DIGITS, '0');
 
 const isSameLocalDay = (a: Date, b: Date): boolean =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();

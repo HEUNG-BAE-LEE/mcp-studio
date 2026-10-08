@@ -16,8 +16,8 @@ type PlaygroundOptions = Readonly<{
 export function usePlayground({ region = false }: PlaygroundOptions = {}) {
   return useQuery({
     queryKey: keys.playground(region),
-    queryFn: ({ signal }) => api.get<PlaygroundResponse>(PLAYGROUND_PATH, { region, signal }),
-    // 부팅 자원 — 옛은 부팅 때 한 번 받았다(app/queryClient)
+    // 부팅 자원 — 옛은 부팅 때 한 번 받았다(app/queryClient). 화면이 사라져도 요청을 끊지 않는다(api/hooks/useTools와 같은 까닭)
+    queryFn: () => api.get<PlaygroundResponse>(PLAYGROUND_PATH, { region }),
     staleTime: BOOT_STALE_TIME,
   });
 }

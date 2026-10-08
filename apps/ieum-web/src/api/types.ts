@@ -114,8 +114,8 @@ export type RuleName = Known<
   'name' | 'keep' | 'date' | 'time' | 'num' | 'code' | 'geo' | 'unit' | 'strip' | 'md' | 'filter' | 'inject' | 'page' | 'calc' | 'ctx' | 'pad' | 'mask'
 >;
 export type ParamLoc = Known<'query' | 'path' | 'body' | 'soap' | 'header'>;
-/** 코드표 한 줄 [원본값, AI값, 설명] */
-export type CodeEntry = readonly [origin: string, ai: string, note: string];
+/** 코드표 한 줄 [원본값, AI값, 설명]. AI값은 불리언 · 숫자로도 온다(공공데이터 isHoliday ['Y', true, '쉬는 날']) */
+export type CodeEntry = readonly [origin: string, ai: Scalar, note: string];
 
 /** 입력 매핑. o/ot = 원본 이름 · 타입, a/at = AI 이름 · 타입(a가 빈 문자열이면 AI에게 안 보이는 인자) */
 export type ToolParam = Readonly<{
@@ -151,6 +151,8 @@ export type ToolResField = Readonly<{
   drift?: number;
   newO?: string;
   fixed?: boolean;
+  /** 공공데이터 항목형 응답의 category 값 — 원본 응답 미리보기만 읽는다 */
+  cat?: string;
 }>;
 
 export type EvidenceKind = Known<'src' | 'tr' | 'both' | 'out'>;
@@ -187,6 +189,19 @@ export type ToolRecord = Readonly<{
   disc?: ToolDiscovery;
   driftMsg?: string;
   offReason?: string;
+  // ── 스튜디오 미리보기 · 저장이 읽는 것(화면에 그대로 보이지 않는 필드). 저장 본문은 이 밖의 키도 받은 그대로 싣는다 ──
+  /** 쓰기 도구의 MCP destructiveHint(gateway/spec.py) */
+  destructive?: boolean;
+  /** 공공데이터 원본 응답 미리보기 본문(있으면 그대로 보인다) */
+  resXml?: string;
+  /** 공공데이터 항목형 응답에서 값이 든 요소 이름 */
+  valKey?: string;
+  /** 응답 변환 미리보기의 AI 결과(있으면 응답 매핑 대신 그대로 보인다) */
+  aiOut?: unknown;
+  /** SOAP만 — 화면은 읽지 않고 저장 본문에 받은 그대로 싣는다 */
+  soapAction?: string;
+  inEl?: string;
+  outEl?: string;
 }>;
 
 /** { 원본 id: 그 원본의 도구[] } — 빈 시드는 {} */
@@ -195,6 +210,20 @@ export type StudioResponse = Dict<readonly ToolRecord[]>;
 /** 화면이 쓰는 도구: 원본 id(src)를 붙이고 기본값을 채운 것(옛 indexTools) */
 export type Tool = ToolRecord &
   Readonly<{ src: string; exec: ExecMode; mask: boolean; cache: boolean; limit: number }>;
+
+// ── 변환 스튜디오 쓰기 PUT /studio/{id}/ · POST /studio/{id}/rewrite/ · POST /sources/{id}/reread/ ──
+
+/** PUT /studio/{id}/ 응답 — 서버가 얕게 병합해 저장한 도구 + 원본 id(routers/studio.py tool_save) */
+export type SavedTool = ToolRecord & Readonly<{ src: string }>;
+/** POST /studio/{id}/rewrite/ 응답 — Claude가 다시 쓴 설명 */
+export type RewriteResponse = Readonly<{ desc: string }>;
+/** POST /sources/{id}/reread/ 응답 — 고친 원본, 그 원본의 도구 전체(바뀐 것 · 새것 포함), 새 도구 id · 명세가 바뀐 도구 id */
+export type RereadResponse = Readonly<{
+  source: Source;
+  tools: readonly ToolRecord[];
+  added: readonly string[];
+  drifted: readonly string[];
+}>;
 
 // ── 테스트 실행 GET /playground/ · POST /playground/call/ · /playground/chat/ ──
 
@@ -357,4 +386,204 @@ export type DiscoveryResponse = Readonly<{
   defaults: Readonly<{ ban: readonly string[]; maxPages: number; frameworks: readonly string[] }>;
   jobs: readonly JobSummary[];
   demo: DiscoveryDemo | null;
+}>;
+
+// ── 자동 탐색 작업 GET /discovery/jobs/{id}/?after=<seq> · 쓰기(시작 · 중단 · 다시 탐색 · 등록 · 삭제) ──
+// 시각: startAt은 앱 안에서 epoch ms(서버는 epoch 초). 경과 elapsed와 이벤트 t는 서버가 초(소수 첫째 자리)로 주는 소요 시간인데
+// 앱 안에서는 ms다 — 둘 다 api/discoveryJob의 mergeJob이 받는 순간 한 번 바꾼다(필드 이름은 그대로)
+
+/** 단계 하나의 상태 — wait 대기 · run 진행 · done 끝 · skip 안 함 · fail 실패 */
+export type StageState = Known<'wait' | 'run' | 'done' | 'skip' | 'fail'>;
+/** 단계 다섯 — 소스 분석 · 화면 탐색 · 교차 확인 · 호출 검증 · 결과 검토(옛 D_STAGES 순서, js/menu/discovery.js:8) */
+export type StageKey = 'src' | 'web' | 'merge' | 'verify' | 'review';
+export type JobStage = Readonly<Record<StageKey, StageState>>;
+
+/** 서버가 센 수. 실행 중에는 pages · requests · blocked · skipped · controllers · found가 실시간 값이다 */
+export type JobStats = Readonly<{
+  pages?: number;
+  requests?: number;
+  blocked?: number;
+  skipped?: number;
+  controllers?: number;
+  masked?: number;
+  found?: number;
+  both?: number;
+  src?: number;
+  tr?: number;
+  /** 스테이징에서 부른 쓰기 API 수 */
+  stgVerified?: number;
+}>;
+
+/** 작업을 시작한 설정 중 화면이 읽는 것. 비밀번호 · 토큰은 오지 않는다(서버 금고) */
+export type JobOpts = Readonly<{
+  git: boolean;
+  crawl: boolean;
+  base?: string;
+  repo?: string;
+  maxPages?: number;
+  mask?: boolean;
+  stg?: boolean;
+  stgUrl?: string;
+  /** 승인해 준 담당자 — 사용자가 입력해 서버에 저장한 값 */
+  owner?: string;
+}>;
+
+/** 캡처 화면 위 강조 상자 — 화면 좌표(px)와 그때의 화면 크기 */
+export type HlBox = Readonly<{ x: number; y: number; w: number; h: number; vw: number; vh: number }>;
+/** act 누름 · skip 건너뜀. block은 서버가 보내지 않는다 */
+export type HlKind = Known<'act' | 'skip' | 'block'>;
+/** 네트워크 기록 태그 — 캡처 · 허용(로그인) · 범위 밖 · 차단 · 검증 · 스테이징 검증 · 검증 실패 · 파일 응답 · 없음(옛 D_TAG, js/menu/discovery.js:7) */
+export type NetTagValue = Known<'cap' | 'allow' | 'out' | 'block' | 'ok' | 'stg' | 'err' | 'file' | 'nf'>;
+
+type EventBase = Readonly<{
+  seq: number;
+  /** 작업 시작 뒤 지난 시간 — 앱 안에서는 ms(서버는 초) */
+  t: number;
+}>;
+/** 준비 · 교차 확인 · 검증 같은 전체 단계와 메모 — 화면은 쓰지 않는다(옛 discApply도 버렸다) */
+export type SysEvent = EventBase & Readonly<{ l: 'sys'; k: Known<'note' | 'stage'>; st?: string; msg?: string; det?: string }>;
+export type GitStageEvent = EventBase & Readonly<{ l: 'git'; k: 'stage'; msg: string; det?: string }>;
+/** 컨트롤러 파일에서 찾은 API — m이 비면 화면은 `*` */
+export type GitFileApi = Readonly<{ m: string; path: string; dep: boolean }>;
+export type GitFileEvent = EventBase &
+  Readonly<{ l: 'git'; k: 'file'; f: string; dir: string; apis: readonly GitFileApi[]; note: string }>;
+/** 화면 탐색 이벤트의 캡처 번호 — 그 이벤트 때 찍은 화면(작업의 shotSeq와 같은 번호 수열) */
+type WebBase = EventBase & Readonly<{ l: 'web'; shot?: number }>;
+export type WebPageEvent = WebBase & Readonly<{ k: 'page'; url: string; title: string; cnt: number; msg: string }>;
+export type WebActEvent = WebBase & Readonly<{ k: 'act'; msg: string; hl?: HlBox; hlKind?: HlKind }>;
+export type WebSkipEvent = WebBase & Readonly<{ k: 'skip'; msg: string; hl?: HlBox; hlKind?: HlKind }>;
+/** 캡처한 요청. ms는 원본 응답 시간(ms — 서버도 ms) */
+export type WebReqEvent = WebBase & Readonly<{ k: 'req'; m: string; p: string; tag: NetTagValue; code?: number; ms?: number }>;
+export type WebDoneEvent = WebBase & Readonly<{ k: 'done'; cnt: number; msg: string }>;
+/** 검증 호출. env가 stg면 스테이징에 보낸 것 */
+export type VfyCallEvent = EventBase &
+  Readonly<{ l: 'vfy'; k: 'call'; api: string; m: string; p: string; tag: NetTagValue; code?: number; ms?: number; env?: string }>;
+export type JobEvent =
+  | SysEvent
+  | GitStageEvent
+  | GitFileEvent
+  | WebPageEvent
+  | WebActEvent
+  | WebSkipEvent
+  | WebReqEvent
+  | WebDoneEvent
+  | VfyCallEvent;
+
+export type RecommendKind = Known<'yes' | 'check' | 'no'>;
+/** 파라미터 추론 한 줄. o/ot = 원본 이름 · 소스 타입, a/at = AI 이름 · 타입(a가 비면 AI에게 안 보임), obs = 관찰한 값, v = 헤더 고정 값 */
+export type ApiParam = Readonly<{
+  o: string;
+  ot: string;
+  a: string;
+  at: string;
+  loc: ParamLoc;
+  rule: RuleName;
+  v?: Scalar;
+  obs?: readonly Scalar[];
+}>;
+/** 소스 근거 — sql · mapper는 매퍼까지 따라갔을 때만 */
+export type ApiSource = Readonly<{
+  file: string;
+  line: number;
+  /** 조각 언어(java · js 등) — 옛은 java만 강조했다 */
+  lang: string;
+  snippet: string;
+  sql: string | null;
+  mapper: string | null;
+}>;
+/** 트래픽 근거 — req · res는 HTTP 원문(가린 값 포함), res가 비면 blocked · file로 사유를 보인다 */
+export type ApiTraffic = Readonly<{
+  screen: string;
+  samples: number;
+  req: string;
+  res: string;
+  blocked: boolean;
+  file: boolean;
+}>;
+/** 탐색이 찾은 API 하나(작업이 review · done일 때만 온다). tool이 null이면 AI 도구로 만들 수 없다 */
+export type DiscoveryApi = Readonly<{
+  id: string;
+  m: string;
+  path: string;
+  mode: ToolMode;
+  ev: EvidenceKind;
+  title: string;
+  tool: string | null;
+  rec: RecommendKind;
+  recNote: string;
+  src: ApiSource | null;
+  tr: ApiTraffic | null;
+  verify: Verify;
+  params: readonly ApiParam[];
+}>;
+
+/**
+ * 작업 상세(폴링 응답). events는 seq > after인 것만 최대 600개, seq는 받은 마지막 이벤트(없으면 after 그대로),
+ * more는 남은 이벤트가 더 있음. apis는 review · done일 때만
+ */
+export type JobView = Readonly<{
+  id: string;
+  name: string;
+  status: JobStatus;
+  stage: JobStage;
+  /** 지금 하는 일(서버 문장) — 아직 없으면 null */
+  act: string | null;
+  opts: JobOpts;
+  error: string | null;
+  notes: readonly string[];
+  registered: number;
+  sourceId: string | null;
+  /** 쓴 브라우저 이름 · 감지한 프레임워크 — 실행 중에 채워진다 */
+  browser: string;
+  framework: string;
+  /** 예약 시각 — 앱 안에서는 epoch ms(서버는 epoch 초) */
+  startAt: number | null;
+  /** 마지막 캡처 번호(0이면 아직 없음) */
+  shotSeq: number;
+  events: readonly JobEvent[];
+  seq: number;
+  more: boolean;
+  stats: JobStats;
+  /** 작업 시작 뒤 지난 시간 — 앱 안에서는 ms(서버는 초) */
+  elapsed: number;
+  apis?: readonly DiscoveryApi[];
+}>;
+
+/** POST /discovery/jobs/ 본문 — 마법사 값 전체 + ban · approved, maxPages는 숫자(옛 js/menu/discovery.js:109 — 키 순서도 그대로) */
+export type StartJobBody = Readonly<{
+  name: string;
+  base: string;
+  start: string;
+  account: string;
+  password: string;
+  git: boolean;
+  repo: string;
+  branch: string;
+  token: string;
+  framework: string;
+  crawl: boolean;
+  scope: string;
+  exclude: string;
+  readPost: string;
+  maxPages: number;
+  stg: boolean;
+  stgUrl: string;
+  mask: boolean;
+  when: Known<'now' | 'at'>;
+  /** HH:MM(서버 지역 시각) */
+  startTime: string;
+  owner: string;
+  ok: boolean;
+  ban: readonly string[];
+  approved: boolean;
+}>;
+
+/** POST …/register/ 본문 */
+export type RegisterBody = Readonly<{ ids: readonly string[] }>;
+/** 등록 응답(201) — 원본 하나(새로 만들거나 같은 운영 주소의 것)와 그 원본의 도구 전체, 새로 더한 수, 로그인 방법을 알아냈는지 */
+export type RegisterResult = Readonly<{
+  source: Source;
+  tools: readonly ToolRecord[];
+  added: number;
+  loginKnown: boolean;
 }>;

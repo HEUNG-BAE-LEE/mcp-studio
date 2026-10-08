@@ -13,18 +13,22 @@ type CommonProps = {
   children: ReactNode;
 };
 
-/** 이동 링크 — onClick은 이동 전에 부른다(메뉴 다시 받기 등). disabled는 버튼일 때만 */
+/** 이동 링크 — onClick은 이동 전에 부른다(메뉴 다시 받기 등). disabled · pending은 버튼일 때만 */
 type LinkProps = CommonProps & {
   to: To;
   onClick?: MouseEventHandler<HTMLAnchorElement>;
   disabled?: never;
+  pending?: never;
 };
 
 /** 동작 버튼 — to가 없으면 onClick이 필수다 */
 type ActionProps = CommonProps & {
   to?: undefined;
   onClick: MouseEventHandler<HTMLButtonElement>;
+  /** 조건이 안 맞아 못 누름(native — 포커스를 받지 않는다) */
   disabled?: boolean;
+  /** 요청 중 잠금(Button pending과 같은 계약) — aria-disabled · 누름 · Enter · Space 무시, 포커스는 버튼에 남는다. 모양은 바뀌지 않는다(옛 .link에 비활성 모양이 없다) */
+  pending?: boolean;
 };
 
 export type LinkButtonProps = LinkProps | ActionProps;
@@ -45,8 +49,24 @@ export function LinkButton(props: LinkButtonProps) {
       </Link>
     );
   }
+  const { onClick, pending = false } = props;
+  // 잠긴 동안은 쓰는 곳의 onClick을 부르지 않는다(Enter · Space도 click으로 온다) — native disabled가 아니라 포커스가 버튼에 남는다
+  const handleClick: MouseEventHandler<HTMLButtonElement> = (event) => {
+    if (pending) {
+      event.preventDefault();
+      return;
+    }
+    onClick(event);
+  };
   return (
-    <button type="button" onClick={props.onClick} disabled={props.disabled} className={styles.root} data-variant={variant}>
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={props.disabled}
+      aria-disabled={pending || undefined}
+      className={styles.root}
+      data-variant={variant}
+    >
       {content}
     </button>
   );

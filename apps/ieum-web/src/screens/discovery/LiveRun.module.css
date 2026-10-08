@@ -1,0 +1,36 @@
+/* LiveRun — 실시간 화면 배치(옛 .dact · .dk · .dgrid2 css/console.css:948-958 · js/menu/discovery.js:238)
+   지금 하는 일 줄: 위 14 · 안쪽 11 16(위아래는 이웃 단계 10 — 이식 기간 허용 차이 값 정규화) · 주조 바탕 · 주조 선 · 둥근 6 · 14px, 아이콘 주조색, 경과는 오른쪽 끝 13px 옅은 고른 숫자 */
+.act {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  margin-top: var(--s-3-5);
+  padding: var(--s-2-5) var(--s-4);
+  border: 1px solid var(--primary-line);
+  border-radius: var(--r-md);
+  background: var(--primary-bg);
+  font-size: var(--fs-body);
+}
+
+.act-icon {
+  color: var(--primary);
+}
+
+.elapsed {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: var(--fs-ui-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.counters {
+  margin-top: var(--s-3-5);
+}
+
+.grid {
+  margin-top: var(--s-5);
+}
+
+.git {
+  margin-top: var(--s-5);
+}

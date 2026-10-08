@@ -1,4 +1,4 @@
-// 카탈로그 StatStrip 절 — 5칸(대시보드 KPI) · 6칸(탐색 실시간) · 증감(up · down) · 단위 · 값 없음 · danger 수치 · 영역 실패. 폭은 뷰어가 바꾼다(1500 · 1100 · 760)
+// 카탈로그 StatStrip 절 — 5칸(대시보드 KPI) · 6칸(탐색 실시간) · 증감(up · down) · 단위 · 값 없음 · danger · primary 수치 · 영역 실패. 폭은 뷰어가 바꾼다(1500 · 1100 · 760)
 import { NONE, NONE_REASON } from '../../copy/format';
 import { ErrorBlock, StatStrip, type StatItem } from '../../ui';
 import catalog from './catalog.module.css';
@@ -18,7 +18,7 @@ const KPI_NO_VALUE: readonly StatItem[] = KPI.map((item) =>
 
 const DISCOVERY: readonly StatItem[] = [
   { label: '탐색한 요청', value: '412', unit: '건' },
-  { label: '찾은 API', value: '38', unit: '개' },
+  { label: '찾은 API', value: '38', unit: '개', tone: 'primary' },
   { label: '고유 호스트', value: '5' },
   { label: '차단', value: '3', unit: '건', tone: 'danger' },
   { label: '경과', value: '02:41' },
@@ -39,7 +39,7 @@ export function StatStripSection() {
       <h3 className={catalog.heading}>5칸 · 값 없음(NONE — 단위를 붙이지 않는다)</h3>
       <StatStrip columns={5} items={KPI_NO_VALUE} />
 
-      <h3 className={catalog.heading}>6칸 · 탐색 실시간 · tone danger</h3>
+      <h3 className={catalog.heading}>6칸 · 탐색 실시간 · tone primary(찾은 API) · danger(차단)</h3>
       <StatStrip columns={6} items={DISCOVERY} />
 
       <h3 className={catalog.heading}>5칸 · 영역 실패(from 2 — 뒤 세 칸을 합쳐 한 상자)</h3>

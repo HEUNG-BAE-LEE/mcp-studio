@@ -1,0 +1,113 @@
+/* Switch — 이음 .sw(css/console.css:369-375) · .pubsw(:638-639) · .dz-h.ck2(:917-922, 760 :1065).
+   비활성 모양은 변형마다 옛 그대로다 — inline만 묶음이 흐려지고(.pubsw.dis), standalone · heading은 커서만 바뀐다(옛 input:disabled :365 —
+   잠긴 "쓰기 요청 차단"이 진하게 보여야 한다). 전환 .15s는 --m-fast(이식 기간 허용 차이 값 정규화) */
+
+/* 스위치 표시 — 고유 치수 38 × 22 알약 */
+.switch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 38px;
+  /* check-css-disable-next-line literal-px -- 스위치 고유 높이 22(이음 .sw) */
+  height: 22px;
+  vertical-align: middle;
+}
+
+/* 숨긴 입력이 표시 전체를 덮는다 — 누르는 곳 · 커서는 입력이 맡는다 */
+.input {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-raise);
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+.track {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-pill);
+  background: var(--line-control);
+  transition: background var(--m-fast);
+}
+
+/* 점 — 고유 치수 16, 켜지면 오른쪽으로 16(폭 38 − 점 16 − 여백 3 × 2) */
+.track::after {
+  content: '';
+  position: absolute;
+  /* check-css-disable-next-line literal-px -- 점 위치 오프셋 3(이음 .sw span::after top) */
+  top: 3px;
+  /* check-css-disable-next-line literal-px -- 점 위치 오프셋 3(이음 .sw span::after left) */
+  left: 3px;
+  width: 16px;
+  /* check-css-disable-next-line literal-px -- 점 고유 치수 16(한 변 = 다른 변) */
+  height: 16px;
+  border-radius: 50%;
+  background: var(--on-fill);
+  box-shadow: var(--shadow-knob);
+  transition: transform var(--m-fast);
+}
+
+.input:checked + .track {
+  background: var(--primary);
+}
+
+.input:checked + .track::after {
+  /* check-css-disable-next-line literal-px -- 켜짐 점 이동 16(폭 38 − 점 16 − 오프셋 3 × 2) */
+  transform: translateX(16px);
+}
+
+/* 포커스 링 — 숨긴 입력(투명)이 아니라 표시에 그린다(DESIGN 접근성 — 스위치는 감싼 표시에 링) */
+.input:focus-visible + .track {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* inline — 글자(--text-muted) 다음 스위치, 줄바꿈 없음. 비활성이면 묶음 전체가 흐려진다 */
+.root[data-variant='inline'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  white-space: nowrap;
+}
+
+.root[data-variant='inline'][data-disabled='true'] {
+  opacity: var(--opacity-disabled);
+}
+
+/* heading — 스위치 다음 굵은 제목, 아래 줄 설명. 묶음 어디를 눌러도 바뀐다(커서는 옛 그대로 묶음 pointer · 잠긴 스위치 위만 not-allowed) */
+.root[data-variant='heading'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2-5);
+  cursor: pointer;
+}
+
+.title {
+  font-size: var(--fs-subhead);
+  font-weight: var(--fw-bold);
+}
+
+.description {
+  flex-basis: 100%;
+  /* check-css-disable-next-line literal-px -- 설명 들여쓰기 48(스위치 38 + 간격 10 — 제목 글자에 맞춤) */
+  padding-left: 48px;
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+}
+
+@media (max-width: 760px) {
+  .description {
+    padding-left: 0;
+  }
+}

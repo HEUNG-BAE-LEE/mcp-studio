@@ -19,6 +19,10 @@ export const keys = {
   log: (id: string) => ['logs', id] as const,
   /** GET /discovery/ — 원본 화면의 탐색 개요(영역 조회) */
   discoveryOverview: () => ['discovery', { region: true }] as const,
+  /** GET /discovery/jobs/{id}/?after=<seq> — 작업 하나(이벤트를 쌓은 값). 근거 조회는 이 키 아래에 둔다 */
+  discoveryJob: (id: string) => ['discovery', 'jobs', id] as const,
+  /** GET /discovery/jobs/{id}/?after=999999999 — 근거 드로어용 apis · opts만(영역 조회) */
+  discoveryApis: (id: string) => ['discovery', 'jobs', id, 'apis', { region: true }] as const,
   /** GET /deploy/toolsets/ — 도구 묶음 · 배포 상태. 서버 로그는 이 키 아래 따로 둔다 */
   toolsets: () => ['deploy', 'toolsets'] as const,
 };

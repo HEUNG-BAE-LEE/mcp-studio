@@ -1,0 +1,9 @@
+/* SettingRow 절 — 정책 상자 안 라벨 · 카드 묶음의 바깥 여백(쓰는 곳이 주는 값 — 옛 .pol .d-label 아래 8 · .gap.sm 16). 카탈로그 전용 배치.
+   카드 사이 6은 RadioCard option이 가진다 */
+.label {
+  margin-bottom: var(--s-2);
+}
+
+.options {
+  margin-bottom: var(--s-4);
+}

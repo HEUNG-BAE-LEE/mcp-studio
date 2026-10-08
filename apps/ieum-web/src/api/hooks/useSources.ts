@@ -11,7 +11,8 @@ const SOURCES_PATH = '/sources/';
 export function useSources() {
   return useQuery({
     queryKey: keys.sources(),
-    queryFn: ({ signal }) => api.get<SourcesResponse>(SOURCES_PATH, { signal }),
+    // 부팅 자원 — 화면이 사라져도 요청을 끊지 않는다(api/hooks/useTools와 같은 까닭)
+    queryFn: () => api.get<SourcesResponse>(SOURCES_PATH),
     staleTime: BOOT_STALE_TIME,
   });
 }

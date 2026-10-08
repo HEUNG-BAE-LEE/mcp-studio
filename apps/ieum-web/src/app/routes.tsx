@@ -1,9 +1,11 @@
 import type { ComponentType } from 'react';
 import { Navigate, type RouteObject } from 'react-router-dom';
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
+import { DiscoveryScreen } from '../screens/discovery/DiscoveryScreen';
 import { LogsScreen } from '../screens/logs/LogsScreen';
 import { PendingScreen } from '../screens/pending/PendingScreen';
 import { SourcesScreen } from '../screens/sources/SourcesScreen';
+import { StudioScreen } from '../screens/studio/StudioScreen';
 import { REDIRECT_ROUTE, SCREENS, type ScreenId } from './nav';
 import { RootLayout } from './RootLayout';
 import { RouteError } from './RouteError';
@@ -12,6 +14,8 @@ import { RouteError } from './RouteError';
 const PORTED: Readonly<Partial<Record<ScreenId, ComponentType>>> = {
   dashboard: DashboardScreen,
   sources: SourcesScreen,
+  discovery: DiscoveryScreen,
+  studio: StudioScreen,
   logs: LogsScreen,
 };
 // 카탈로그(/_guide)는 셸 밖에 둔다 — 화면이 아니라 부품 목록이다

@@ -1,4 +1,4 @@
-// 카탈로그 KeyValueGrid 절 — 6칸(3열 두 줄 · 760 이하 2열) · 고정폭 값 · 3칸 · 긴 값 · 값 없음 표기(쓰는 곳이 넣는다)
+// 카탈로그 KeyValueGrid 절 — 6칸(3열 두 줄 · 760 이하 2열) · 고정폭 값 · 작은 값(small) · 3칸 · 긴 값 · 값 없음 표기(쓰는 곳이 넣는다)
 // 긴 값 예시는 끊을 곳(하이픈 · 슬래시 · 공백)이 있는 값이다 — 부품은 옛 .lsum처럼 줄바꿈 규칙이 없어 끊을 곳 없는 값은 칸을 넘친다
 import { NONE } from '../../copy/format';
 import { KeyValueGrid, type KeyValueItem } from '../../ui';
@@ -17,12 +17,24 @@ export function KeyValueGridSection() {
   return (
     <div className={catalog.section}>
       <p className={catalog.note}>
-        칸은 키(흐린 작은 글) + 값(본문 글). mono는 요청 ID 같은 값을 고정폭 작은 글자로 낸다. 값이 없는 칸은 쓰는 곳이 값 없음
-        표기를 넣는다.
+        칸은 키(흐린 작은 글) + 값(본문 글). mono는 요청 ID 같은 값을 고정폭 작은 글자로, small은 값을 한 단계 작은 글자로
+        낸다(둘은 함께 쓰지 않는다). 값이 없는 칸은 쓰는 곳이 값 없음 표기를 넣는다.
       </p>
 
       <h3 className={catalog.heading}>6칸 · mono 값</h3>
       <KeyValueGrid items={LOG_DETAIL} />
+
+      <h3 className={catalog.heading}>6칸 · small 값(호출된 화면)</h3>
+      <KeyValueGrid
+        items={[
+          { label: '근거', value: '소스와 트래픽 모두' },
+          { label: '검증', value: '확인됨' },
+          { label: '추천', value: '추천' },
+          { label: '방식', value: '읽기 (SELECT)' },
+          { label: '관찰한 호출', value: '12건' },
+          { label: '호출된 화면', value: '구매관리 > 발주 현황 > 발주 목록', small: true },
+        ]}
+      />
 
       <h3 className={catalog.heading}>3칸 · 값 없음 표기</h3>
       <KeyValueGrid

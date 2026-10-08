@@ -3,7 +3,7 @@
 // 주소: /sources?q=<검색어 원문>&proto=soap|rest|gov|sample|disc — 전체 · 빈 값은 뺀다. 검색 · 필터는 replace.
 //       모르는 proto는 전체로 보고 주소는 고치지 않는다. 층(마법사 · 재인증 · 삭제 확인)은 주소를 만들지 않는다
 // 영역: 머리 = PageHead · 툴바 = Toolbar(SearchInput · Select 연결 방식 · ToolbarSpacer · Button 원본 시스템 연결) · 목록 = SourcesTable(Table 8열) ·
-//       아래 = HelpText(AI 도구 수 안내) · 자동 탐색 작업 = DiscoveryJobsSlot(빈 자리) · 2차 안내 = SectionTitle + LaterCards
+//       아래 = HelpText(AI 도구 수 안내) · 자동 탐색 작업 = DiscoveryJobsSlot(SectionTitle + Table 6열) · 2차 안내 = SectionTitle + LaterCards
 // 조회: 화면 useSources · useTools, 영역 useDiscoveryOverview(region — 들어올 때마다, 화면 판정보다 먼저 부른다). 쓰기 없음(층이 한다)
 // 상태: 첫 로딩 = 본문 비움 + aria-busy · 화면 실패 = 본문 자리 실패 상자 · 빈 상태 = 표 안 한 행(원본 0개 first · 조건 0개 filtered) ·
 //       작업 자리 조회 실패 = 그 자리 안 실패 상자(목록은 그대로)

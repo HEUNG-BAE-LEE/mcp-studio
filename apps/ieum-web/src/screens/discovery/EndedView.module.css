@@ -1,0 +1,8 @@
+/* EndedView — 경고 상자 위 16(옛 인라인 margin-top:16px — js/menu/discovery.js:268) · 두 열 위 20(옛 .dgrid2 css/console.css:959) */
+.notice {
+  margin-top: var(--s-4);
+}
+
+.grid {
+  margin-top: var(--s-5);
+}

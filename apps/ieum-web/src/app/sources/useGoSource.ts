@@ -25,7 +25,7 @@ export function useGoSource(): (sourceId: string) => void {
         return;
       }
       const [first] = tools;
-      const { to, state } = first ? toolLink(first.id) : studioSrcLink(sourceId);
+      const { to, state } = first ? toolLink(first.id, { src: sourceId }) : studioSrcLink(sourceId);
       void navigate(to, { state });
     },
     [navigate, sourceList, bySource],

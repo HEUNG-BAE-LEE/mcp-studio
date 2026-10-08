@@ -1,4 +1,4 @@
-// 카탈로그 LinkButton 절 — 이동 링크 예시는 카탈로그 자기 주소로 가서 본문 iframe 안 화면이 바뀌지 않는다. 변형(underline · mono · back) × 버튼 · 이동 링크 · 비활성. hover 모양은 없고 포커스 링은 Tab으로 본다
+// 카탈로그 LinkButton 절 — 이동 링크 예시는 카탈로그 자기 주소로 가서 본문 iframe 안 화면이 바뀌지 않는다. 변형(underline · mono · back) × 버튼 · 이동 링크 · 비활성 · 요청 중 잠금(pending — Tab으로 닿고 눌러도 동작하지 않는다). hover 모양은 없고 포커스 링은 Tab으로 본다
 import { LinkButton, type LinkButtonVariant } from '../../ui';
 import catalog from './catalog.module.css';
 import { FRAME_SEARCH } from './frameMode';
@@ -27,6 +27,7 @@ export function LinkButtonSection() {
                 <th scope="col">버튼(onClick)</th>
                 <th scope="col">이동 링크(to)</th>
                 <th scope="col">disabled</th>
+                <th scope="col">pending</th>
               </tr>
             </thead>
             <tbody>
@@ -47,6 +48,11 @@ export function LinkButtonSection() {
                   </td>
                   <td>
                     <LinkButton variant={variant} onClick={noop} disabled>
+                      {LABEL[variant]}
+                    </LinkButton>
+                  </td>
+                  <td>
+                    <LinkButton variant={variant} onClick={noop} pending>
                       {LABEL[variant]}
                     </LinkButton>
                   </td>

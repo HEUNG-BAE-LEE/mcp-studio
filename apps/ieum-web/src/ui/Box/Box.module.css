@@ -1,4 +1,4 @@
-/* Box — 이음 .box · .box-h · .box-b(css/console.css:502-506). 그림자 없음(DESIGN 핵심 규칙 4).
+/* Box — 이음 .box · .box-h · .box-b(css/console.css:502-506) · .box.pol(css/console.css:702). 그림자 없음(DESIGN 핵심 규칙 4).
    머리 위아래 13 → --s-3(이웃 단계로 묶음) */
 .root {
   min-width: 0;
@@ -39,4 +39,9 @@
 
 .body {
   padding: var(--s-4-5);
+}
+
+/* 정책 상자 — 안쪽 14/16/16(.pol .box-b) */
+.root[data-variant='policy'] .body {
+  padding: var(--s-3-5) var(--s-4) var(--s-4);
 }

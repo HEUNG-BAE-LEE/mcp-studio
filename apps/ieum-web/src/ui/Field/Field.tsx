@@ -1,4 +1,5 @@
 // Field — 이음 .field(css/console.css:305-306, 760 :472). 라벨 + 입력 한 줄. 라벨은 <label for>로 입력과 이어진다
+// FieldNote — 칸 묶음 아래 흐린 안내. 옛 .pv-note + 인라인 margin:0 0 4px 106px(js/menu/discovery.js:56,65, 760 css/console.css:1069)
 import { useId, type ReactNode } from 'react';
 import { cx } from '../lib/cx';
 import styles from './Field.module.css';
@@ -31,4 +32,16 @@ export function Field({ label, align = 'center', children, className }: FieldPro
       {children({ id })}
     </div>
   );
+}
+
+export type FieldNoteProps = {
+  /** 안내 문장 — 강조 <b>는 굵게(색은 그대로) */
+  children: ReactNode;
+  /** 배치만 */
+  className?: string;
+};
+
+/** 라벨 열만큼 들여 입력 열에 맞춘 안내 — 어느 한 칸이 아니라 묶음 전체 안내라 입력에 잇지 않는다 */
+export function FieldNote({ children, className }: FieldNoteProps) {
+  return <p className={cx(styles.note, className)}>{children}</p>;
 }

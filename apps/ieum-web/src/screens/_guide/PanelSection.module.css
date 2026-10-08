@@ -1,0 +1,5 @@
+/* Panel 절 — 목록 열 폭 안에서 보인다(옛 스튜디오 · 배포 왼쪽 열 --w-list-aside). 폭이 좁으면 열이 줄어든다 */
+.aside {
+  width: var(--w-list-aside);
+  max-width: 100%;
+}

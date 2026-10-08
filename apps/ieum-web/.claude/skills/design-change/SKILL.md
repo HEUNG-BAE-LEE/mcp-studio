@@ -43,7 +43,7 @@ src/ui/<Name>/
   <Name>.module.css   var(--*)만 · 클래스는 kebab-case(TSX에서는 camelCase로 읽는다)
   index.ts            + src/ui/index.ts 내보내기
 ```
-- 층(모달 · 드로어 · 도크 · 토스트)은 `ui/layers` 위에 만든다 — `<dialog>.show()`로 열고 포커스를 가두지 않으며, 닫으면 연 컨트롤로 포커스를 돌린다(DESIGN `## 접근성` 층)
+- 모달 · 드로어는 `ui/layers` 위에 만든다 — `<dialog>.show()`로 열고 포커스를 가두지 않으며, 닫으면 연 컨트롤로 포커스를 돌린다(DESIGN `## 접근성` 층). 같은 `## 층` 묶음이라도 토스트는 Popover, 도크는 `<dialog>`가 아닌 고정 영역(`role="region"`)이고 열린 층을 `useOpenLayers`로 읽어 숨는다(COMPONENTS 각 절)
 - 리터럴 px는 바로 윗줄에 `/* check-css-disable-next-line literal-px -- <사유> */`(범위는 DESIGN Layout `리터럴 px 예외 주석`). `@media`는 `ALLOWED_MEDIA` 다섯 값만 쓰고, 폭 동작은 COMPONENTS 그 절의 `폭` 줄에 적는다
 - 아이콘은 DESIGN Iconography, 애니메이션은 DESIGN Motion(시간 토큰 — 모션 줄이기를 따른다), `aria-*` · 키보드는 DESIGN `## 접근성`
 - 이름이 바뀌면 타입이 옛 이름을 받지 않게 한다

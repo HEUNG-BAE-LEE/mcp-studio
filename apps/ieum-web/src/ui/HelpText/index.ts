@@ -1,1 +1,1 @@
-export { HelpText, type HelpTextProps, type HelpTextSize } from './HelpText';
+export { HelpText, type HelpTextProps, type HelpTextSize, type HelpTextVariant } from './HelpText';

@@ -1,0 +1,123 @@
+/* BrowserView — 이음 .bw · .bw-bar · .bw-view.sh · .sh-img · .sh-blank · .sh-hl(css/console.css:964-980).
+   틀 높이는 내용 높이다 — 칸 높이를 채우지 않는다(옛 .bw의 flex 1은 감싼 칸이 늘이기 영역이 아니어서 효과가 없었다).
+   캡처 영역은 두 테마 모두 밝은 화면(--capture-*)이고 최소 높이 300은 고유 치수다.
+   강조 상자 — 좌표는 --hl-*(이미지 크기에 대한 백분율 숫자), 이동은 --m-fade, 둘레 맥박 --m-pulse 한 번씩 반복(DESIGN 이식 기간 유지 — 반복 모션). 모션 줄이기면 base.css가 끈다 */
+.root {
+  margin: var(--s-3-5);
+  overflow: hidden;
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-lg);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1-75) var(--s-3);
+  border-bottom: 1px solid var(--line-divider);
+  background: var(--surface-sub);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+}
+
+.bar-icon {
+  flex: none;
+}
+
+.url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view {
+  /* check-css-disable-next-line literal-px -- 캡처 영역 고유 최소 높이(이음 .bw-view min-height 300) */
+  min-height: 300px;
+  overflow: hidden;
+  background: var(--capture-bg);
+}
+
+/* 이미지를 감싼 틀 — 강조 상자 백분율의 기준(이미지 크기와 같다) */
+.shot {
+  position: relative;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* check-css-disable-next-line literal-px -- 캡처 영역 고유 최소 높이(이음 .sh-blank min-height 300) */
+  min-height: 300px;
+  color: var(--capture-text);
+  font-size: var(--fs-ui-sm);
+  text-align: center;
+}
+
+.blank-icon {
+  margin-bottom: var(--s-1-5);
+  color: var(--capture-icon);
+}
+
+.highlight {
+  --hl-x: 0; /* 기본값 — TSX style이 백분율 숫자(0~100)를 넘긴다 */
+  --hl-y: 0;
+  --hl-w: 0;
+  --hl-h: 0;
+  position: absolute;
+  z-index: var(--z-raise);
+  top: calc(var(--hl-y) * 1%);
+  left: calc(var(--hl-x) * 1%);
+  width: calc(var(--hl-w) * 1%);
+  height: calc(var(--hl-h) * 1%);
+  border-radius: var(--r-sm);
+  outline: 2px solid var(--capture-hl);
+  outline-offset: 2px;
+  pointer-events: none;
+  transition:
+    top var(--m-fade),
+    left var(--m-fade),
+    width var(--m-fade),
+    height var(--m-fade);
+  animation: pulse var(--m-pulse) ease-in-out infinite;
+}
+
+.highlight[data-kind='skip'] {
+  outline: 2px dashed var(--capture-hl-block);
+}
+
+/* 라벨 — 상자 오른쪽 위 바깥. 옛 10.5px 글자는 이웃 단계(--fs-micro)로 묶었다 */
+.label {
+  position: absolute;
+  /* check-css-disable-next-line literal-px -- 캡처 라벨 위치 오프셋(이음 .sh-hl::after top -21px) */
+  top: -21px;
+  /* check-css-disable-next-line literal-px -- 캡처 라벨 위치 오프셋(이음 .sh-hl::after right -6px) */
+  right: -6px;
+  padding: 0 var(--s-1-5);
+  border-radius: var(--r-pill);
+  background: var(--capture-hl);
+  color: var(--on-fill);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-bold);
+  /* check-css-disable-next-line literal-px -- 캡처 라벨 고유 행간(높이 16, 이음 .sh-hl::after) */
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.highlight[data-kind='skip'] .label {
+  background: var(--capture-hl-block);
+}
+
+/* 이음 @keyframes hlp(css/console.css:980) — 둘레가 한 번 벌어졌다 돌아온다 */
+@keyframes pulse {
+  50% {
+    outline-offset: 4px;
+  }
+}

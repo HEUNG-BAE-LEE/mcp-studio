@@ -1,4 +1,4 @@
-/* StatStrip — 이음 .kpi(css/console.css:530-537) · .dk(css/console.css:953-958). 칸 사이 선은 칸의 왼쪽 · 위쪽 선으로 긋고, 폭마다 열 수에 맞춰 다시 긋는다 */
+/* StatStrip — 이음 .kpi(css/console.css:530-537) · .dk(css/console.css:953-958) · .num(css/console.css:508). 칸 사이 선은 칸의 왼쪽 · 위쪽 선으로 긋고, 폭마다 열 수에 맞춰 다시 긋는다 */
 .root {
   display: grid;
   grid-template-columns: repeat(var(--stat-columns, 5), minmax(0, 1fr));
@@ -46,6 +46,10 @@
 
 .value[data-tone='danger'] {
   color: var(--danger);
+}
+
+.value[data-tone='primary'] {
+  color: var(--primary);
 }
 
 .unit {

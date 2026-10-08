@@ -1,1 +1,1 @@
-export { SectionTitle, type SectionTitleProps } from './SectionTitle';
+export { SectionTitle, type SectionTitleLevel, type SectionTitleProps } from './SectionTitle';

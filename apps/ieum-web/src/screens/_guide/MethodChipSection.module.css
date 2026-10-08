@@ -1,0 +1,12 @@
+/* MethodChip 절 — 표식 곁에 경로가 놓이는 모양(결과 표 API 칸 · 네트워크 기록 줄처럼 flex 한 줄) */
+.api {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.path {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+}

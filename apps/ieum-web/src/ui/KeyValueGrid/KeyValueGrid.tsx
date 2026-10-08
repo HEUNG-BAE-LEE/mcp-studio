@@ -4,12 +4,22 @@ import type { ReactNode } from 'react';
 import { cx } from '../lib/cx';
 import styles from './KeyValueGrid.module.css';
 
+// mono(고정폭 작은 글자)와 small(한 단계 작은 글자)은 값 글자를 서로 다르게 정해 함께 받지 않는다
 export type KeyValueItem = {
   label: ReactNode;
   value: ReactNode;
-  /** 값을 고정폭 작은 글자로(요청 ID) */
-  mono?: boolean;
-};
+} & (
+  | {
+      /** 값을 고정폭 작은 글자로(요청 ID) */
+      mono?: boolean;
+      small?: never;
+    }
+  | {
+      mono?: never;
+      /** 값을 한 단계 작은 글자로(탐색 근거 "호출된 화면") */
+      small?: boolean;
+    }
+);
 
 export type KeyValueGridProps = {
   /** 칸 — 순서대로 채운다 */
@@ -24,7 +34,7 @@ export function KeyValueGrid({ items, className }: KeyValueGridProps) {
       {items.map((item, index) => (
         <div key={index} className={styles.item}>
           <dt className={styles.key}>{item.label}</dt>
-          <dd className={styles.value} data-mono={item.mono ? '' : undefined}>
+          <dd className={styles.value} data-mono={item.mono ? '' : undefined} data-small={item.small ? '' : undefined}>
             {item.value}
           </dd>
         </div>

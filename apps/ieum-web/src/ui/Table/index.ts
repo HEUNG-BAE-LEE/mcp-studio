@@ -3,6 +3,7 @@ export {
   TableCell,
   TableHeadCell,
   TableRow,
+  type TableCellKind,
   type TableCellProps,
   type TableDensity,
   type TableHeadCellProps,

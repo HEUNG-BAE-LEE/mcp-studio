@@ -1,7 +1,7 @@
 // ModeCard — 연결 방식 카드 하나(옛 .mode-card — js/menu/sources.js:55, css/console.css:260-269,821-822,911-914). RadioCard + Tag + iconOf
 // 계약: mode(서버 wizard.modes 한 항목) · selected · onSelect(v). 카드 글자 · 아이콘 이름은 서버 값 그대로 그린다(모르는 아이콘은 iconOf 기본 아이콘)
-// - 잠긴 카드(isModeLocked — 서버 dis · 아직 단계가 없는 자동 탐색)는 RadioCard disabled라 Tab이 닿지 않고 표지까지 흐려진다
-// - 표지: dis → "2차"(neutral), rec → 추천(ok). 자동 탐색 카드는 잠긴 채 추천 표지만 — 새 문구가 없다
+// - 잠긴 카드(isModeLocked — 서버 dis)는 RadioCard disabled라 Tab이 닿지 않고 표지까지 흐려진다
+// - 표지: dis → "2차"(neutral), rec → 추천(ok). 자동 탐색 카드는 추천 표지를 단 넓은 카드다
 // - rec 카드는 줄 전체 칸(옛 .mode-card.wide)
 import type { WizardMode } from '../../../api/types';
 import { SOURCES } from '../../../copy/sources';

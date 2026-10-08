@@ -1,0 +1,44 @@
+/* SettingRow — 이음 .tg(css/console.css:712-717). 위아래 11 → --s-2-5(10 — 이식 기간 허용 차이 값 정규화).
+   묶음의 첫 줄(앞 형제가 SettingRow가 아닌 줄)은 선이 없고 위 여백이 작다(옛 .tg.first — 위 4). 컨트롤은 위에 맞춘다 */
+.root {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-1) 0 var(--s-2-5);
+}
+
+.root + .root {
+  padding-top: var(--s-2-5);
+  border-top: 1px solid var(--line-divider);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  display: block;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+}
+
+.description {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-body);
+}
+
+/* 설명 아래 칸 — 옛 .bans · .radios 위 8(css/console.css:924,929) */
+.extra {
+  margin-top: var(--s-2);
+}
+
+/* 오른쪽 컨트롤 — 둘이면 사이 18(옛은 두 컨트롤이 .tg의 flex 항목이라 간격 12 + 시각 칸 오른쪽 여백 6 — css/console.css:712 · js/menu/discovery.js:76) */
+.control {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-4-5);
+}

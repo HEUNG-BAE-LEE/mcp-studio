@@ -1,0 +1,4 @@
+/* SegmentedTabs 절 — 좁은 자리(묶음 안 가로 스크롤을 보이는 카탈로그 전용 폭) */
+.narrow {
+  max-width: 240px;
+}

@@ -1,12 +1,14 @@
-// 카탈로그 PageHead 절 — 메뉴 화면 머리(제목 + 설명)와 설명 없는 머리. 좁은 폭(760 이하)에서 제목이 한 단계 작아지고 설명이 아래로 접힌다.
+// 카탈로그 PageHead 절 — 메뉴 화면 머리(제목 + 설명)와 설명 없는 머리 · 탐색 작업 머리(back · status · actions). 좁은 폭(760 이하)에서 제목이 한 단계 작아지고 설명이 아래로 접힌다.
 // 포커스 대체 예시: 모달을 연 채 층 안 "연 버튼 지우기"로 연 버튼을 없애고 닫는다 — returnFocusFallback이 없으면 지금 화면의 첫 PageHead 제목
 // (이 절 맨 위 — 앞 절에는 PageHead가 없다)으로, 있으면 그것이 돌려준 곳으로 포커스가 간다. "되살리기"로 지운 버튼을 다시 그린다
 import { useId, useState } from 'react';
 import { PAGE_DESCRIPTION, SCREEN_LABEL } from '../../copy/shell';
-import { Button, Modal, PageHead } from '../../ui';
+import { Button, LinkButton, Modal, PageHead, StatusChip } from '../../ui';
 import catalog from './catalog.module.css';
 
 type FallbackExample = 'title' | 'custom';
+
+const noop = () => undefined;
 
 export function PageHeadSection() {
   const [opened, setOpened] = useState<FallbackExample | null>(null);
@@ -26,6 +28,28 @@ export function PageHeadSection() {
       <PageHead title={SCREEN_LABEL.dashboard} description={PAGE_DESCRIPTION.dashboard} />
       <PageHead title={SCREEN_LABEL.sources} description={PAGE_DESCRIPTION.sources} />
       <PageHead title={SCREEN_LABEL.logs} />
+
+      <p className={catalog.note}>
+        탐색 작업 머리 — back은 머리 줄 위(사이 --s-1-5), status는 제목 바로 뒤에서 세로 가운데, actions는 설명 뒤 남은 폭을
+        비우고 줄 오른쪽 끝에 놓인다. 좁으면 줄바꿈으로 접힌다(폭 전환으로 본다).
+      </p>
+      <PageHead
+        back={
+          <LinkButton variant="back" onClick={noop}>
+            원본 시스템
+          </LinkButton>
+        }
+        title="주문 시스템 자동 탐색"
+        status={<StatusChip tone="ok">정상</StatusChip>}
+        description="Git 소스 분석, 운영 화면 탐색, 운영 https://erp.example.com"
+        actions={
+          <Button icon="refresh" onClick={noop}>
+            같은 설정으로 다시 탐색
+          </Button>
+        }
+      />
+      <PageHead title="주문 시스템 자동 탐색" status={<StatusChip tone="warn">검토 필요</StatusChip>} />
+      <PageHead title="주문 시스템 자동 탐색" description="설명 + 동작만" actions={<Button onClick={noop}>탐색 중단</Button>} />
 
       <p className={catalog.note}>
         포커스 대체 — 모달 안 &quot;연 버튼 지우기&quot; 뒤 닫으면, returnFocusFallback이 없을 때는 이 절 첫 제목으로, 있을 때는 그

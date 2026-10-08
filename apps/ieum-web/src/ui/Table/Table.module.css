@@ -1,5 +1,5 @@
 /* Table — 이음 .twrap(css/console.css:596) · .utbl(css/console.css:199-212,599-606). 가로 넘침은 상자 안 스크롤.
-   최소 폭 820 · 960 · 980 · 1040은 min-width라 폭 계열 속성의 리터럴 예외다(간격 단계 밖의 고유 치수) */
+   최소 폭 820 · 960 · 980 · 1040 · 체크 칸 폭 48은 폭 계열 속성의 리터럴 예외다(간격 단계 밖의 고유 치수) */
 .wrap {
   border-top: var(--bw-strong) solid var(--line-strong);
   border-bottom: 1px solid var(--line-divider);
@@ -64,6 +64,12 @@
 .head-cell[data-align='start'],
 .cell[data-align='start'] {
   text-align: left;
+}
+
+/* 선택 상자 칸 — 폭 48(고유 치수). 머리 칸은 비어 있다 */
+.head-cell[data-kind='check'],
+.cell[data-kind='check'] {
+  width: 48px;
 }
 
 .table[data-density='auto'] .cell {

@@ -1,4 +1,5 @@
-/* Input — 이음 .inp(css/console.css:307-309) · .inp.mono(:488). 높이 --h-md · 칸 전체 폭. 자리표시는 브라우저 기본 색(옛 규칙 없음) */
+/* Input — 이음 .inp(form — css/console.css:307-309) · .map .mini(cell — :1074-1076) · .tg .inp(setting — :716) · .inp.mono(:488).
+   모양은 data-variant, 폭은 data-width. 자리표시는 브라우저 기본 색(옛 규칙 없음). number · time의 조절 단추 · 펼침은 브라우저 기본 */
 .root {
   width: 100%;
   height: var(--h-md);
@@ -10,9 +11,34 @@
   font-size: var(--fs-body);
 }
 
-/* 포커스 — 테두리를 --primary로 하고 전역 링은 그대로 둔다 */
-.root:focus {
+/* 포커스 — form · setting은 테두리를 --primary로 하고 전역 링은 그대로 둔다. cell은 전역 링만(옛 .mini에 포커스 모양이 없다) */
+.root:focus:not([data-variant='cell']) {
   border-color: var(--primary);
+}
+
+/* 표 안 작은 칸 — 옛 .map .mini */
+.root[data-variant='cell'] {
+  min-width: 90px;
+  height: var(--h-xs);
+  padding: 0 var(--s-1-75);
+  font-size: var(--fs-small);
+}
+
+/* 정책 · 설정 줄 오른쪽 칸 — 옛 .tg .inp(정책 숫자 칸 78 × 30) */
+.root[data-variant='setting'] {
+  width: 78px;
+  height: var(--h-sm);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 폭 — 모양 뒤에 둬 같은 무게의 모양 규칙을 덮는다 */
+.root[data-width='auto'] {
+  width: auto;
+}
+
+.root[data-width='narrow'] {
+  width: 120px;
 }
 
 .root[data-mono='true'] {

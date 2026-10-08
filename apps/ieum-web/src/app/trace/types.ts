@@ -2,7 +2,7 @@
 import type { RuleKey } from '../../copy/trace';
 
 /** 코드 상자 언어. 객체는 이미 JSON 글(2칸 들여쓰기)로 바뀌어 온다 */
-export type CodeLang = 'json' | 'xml' | 'http' | 'plain';
+export type CodeLang = 'json' | 'xml' | 'http' | 'java' | 'plain';
 
 export type TraceCode = Readonly<{
   text: string;

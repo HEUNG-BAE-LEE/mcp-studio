@@ -11,6 +11,11 @@ import { QueryClient } from '@tanstack/react-query';
 const STALE_MS = 30_000;
 /** 부팅 자원의 staleTime — 한 번 받으면 쓰기 응답으로만 고친다 */
 export const BOOT_STALE_TIME = Infinity;
+/**
+ * 비밀(비밀번호 · 토큰 · 인증값)이 본문에 실린 쓰기의 gcTime — 부른 컴포넌트가 떠나면(관찰자 0) mutation 캐시에서 바로 버린다.
+ * 붙어 있는 동안은 그 useMutation 결과(variables · data · error)가 그대로 남아 화면이 읽는 값은 같다
+ */
+export const SECRET_MUTATION_GC_TIME = 0;
 
 export const queryClient = new QueryClient({
   defaultOptions: {

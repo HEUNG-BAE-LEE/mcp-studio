@@ -1,0 +1,4 @@
+/* DiscoveryScreen — 없는 작업 주소의 경고 상자는 뒤로 링크 아래 6(머리의 뒤로 링크 · 제목 줄 사이와 같다 — PageHead back) */
+.missing {
+  margin-top: var(--s-1-5);
+}

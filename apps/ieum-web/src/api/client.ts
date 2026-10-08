@@ -6,7 +6,8 @@ import { NETWORK_FAILED, statusFailed } from '../copy/errors';
 import { ApiError, NETWORK_STATUS } from './errors';
 import { scenarioData, scenarioDelay, scenarioFailure } from './scenario';
 
-const API_ROOT = '/api/ieum';
+/** 백엔드 이음 API 뿌리. fetch를 거치지 않는 주소(탐색 캡처 `<img src>` — app/discovery/shotUrl)도 이 값으로 만든다 */
+export const API_ROOT = '/api/ieum';
 const HTTP_ERROR_FROM = 400;
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 // resultMsg는 서버가 무엇을 보낼지 모르므로 unknown으로 받고 쓸 때 좁힌다

@@ -52,6 +52,32 @@ import { ToolbarSection } from './ToolbarSection';
 import { TopologySection } from './TopologySection';
 import { TraceViewSection } from './TraceViewSection';
 import { TwoColumnSection } from './TwoColumnSection';
+import { SwitchSection } from './SwitchSection';
+import { SegmentedTabsSection } from './SegmentedTabsSection';
+import { SegmentedRadioSection } from './SegmentedRadioSection';
+import { SelectableListItemSection } from './SelectableListItemSection';
+import { SplitLayoutSection } from './SplitLayoutSection';
+import { PanelSection } from './PanelSection';
+import { DetailHeadSection } from './DetailHeadSection';
+import { SettingRowSection } from './SettingRowSection';
+import { GroupLabelSection } from './GroupLabelSection';
+import { CompactTableSection } from './CompactTableSection';
+import { CompareGridSection } from './CompareGridSection';
+import { ToolStatusChipSection } from './ToolStatusChipSection';
+import { JobStatusChipSection } from './JobStatusChipSection';
+import { ModeTagSection } from './ModeTagSection';
+import { PipelineSection } from './PipelineSection';
+import { FieldPairSection } from './FieldPairSection';
+import { CheckboxSection } from './CheckboxSection';
+import { TagInputSection } from './TagInputSection';
+import { LiveIndicatorSection } from './LiveIndicatorSection';
+import { DockSection } from './DockSection';
+import { MethodChipSection } from './MethodChipSection';
+import { EvidenceBadgeSection } from './EvidenceBadgeSection';
+import { NetLogSection } from './NetLogSection';
+import { GitFileListSection } from './GitFileListSection';
+import { BrowserViewSection } from './BrowserViewSection';
+import { DiscoveryZoneSection } from './DiscoveryZoneSection';
 
 export type GuideSection = {
   /** 본문 앵커 · 목차 이동에 쓰는 id(영문 소문자) */
@@ -74,9 +100,16 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'input', group: '입력', name: 'Input', Component: InputSection },
   { id: 'textarea', group: '입력', name: 'Textarea', Component: TextareaSection },
   { id: 'field', group: '입력', name: 'Field', Component: FieldSection },
+  { id: 'field-pair', group: '입력', name: 'FieldPair', Component: FieldPairSection },
   { id: 'radio-list', group: '입력', name: 'RadioList', Component: RadioListSection },
   { id: 'file-drop', group: '입력', name: 'FileDrop', Component: FileDropSection },
   { id: 'radio-card', group: '입력', name: 'RadioCard', Component: RadioCardSection },
+  { id: 'switch', group: '입력', name: 'Switch', Component: SwitchSection },
+  { id: 'segmented-tabs', group: '입력', name: 'SegmentedTabs', Component: SegmentedTabsSection },
+  { id: 'segmented-radio', group: '입력', name: 'SegmentedRadio', Component: SegmentedRadioSection },
+  { id: 'selectable-list-item', group: '입력', name: 'SelectableListItem', Component: SelectableListItemSection },
+  { id: 'checkbox', group: '입력', name: 'Checkbox', Component: CheckboxSection },
+  { id: 'tag-input', group: '입력', name: 'TagInput', Component: TagInputSection },
   { id: 'status-chip', group: '표시', name: 'StatusChip', Component: StatusChipSection },
   { id: 'status-dot', group: '표시', name: 'StatusDot', Component: StatusDotSection },
   { id: 'tag', group: '표시', name: 'Tag', Component: TagSection },
@@ -84,6 +117,7 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'help-text', group: '표시', name: 'HelpText', Component: HelpTextSection },
   { id: 'progress-bar', group: '표시', name: 'ProgressBar', Component: ProgressBarSection },
   { id: 'spinner', group: '표시', name: 'Spinner', Component: SpinnerSection },
+  { id: 'live-indicator', group: '표시', name: 'LiveIndicator', Component: LiveIndicatorSection },
   { id: 'step-indicator', group: '표시', name: 'StepIndicator', Component: StepIndicatorSection },
   { id: 'progress-list', group: '표시', name: 'ProgressList', Component: ProgressListSection },
   { id: 'empty-state', group: '상태 표현', name: 'EmptyState', Component: EmptyStateSection },
@@ -94,24 +128,42 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'modal', group: '층', name: 'Modal', Component: ModalSection },
   { id: 'drawer', group: '층', name: 'Drawer', Component: DrawerSection },
   { id: 'toast', group: '층', name: 'Toast', Component: ToastSection },
+  { id: 'dock', group: '층', name: 'Dock', Component: DockSection },
   { id: 'page-head', group: '레이아웃', name: 'PageHead', Component: PageHeadSection },
   { id: 'box', group: '레이아웃', name: 'Box', Component: BoxSection },
   { id: 'toolbar', group: '레이아웃', name: 'Toolbar', Component: ToolbarSection },
   { id: 'two-column', group: '레이아웃', name: 'TwoColumn', Component: TwoColumnSection },
+  { id: 'split-layout', group: '레이아웃', name: 'SplitLayout', Component: SplitLayoutSection },
+  { id: 'panel', group: '레이아웃', name: 'Panel', Component: PanelSection },
+  { id: 'detail-head', group: '레이아웃', name: 'DetailHead', Component: DetailHeadSection },
+  { id: 'setting-row', group: '레이아웃', name: 'SettingRow', Component: SettingRowSection },
+  { id: 'group-label', group: '레이아웃', name: 'GroupLabel', Component: GroupLabelSection },
   { id: 'section-title', group: '레이아웃', name: 'SectionTitle', Component: SectionTitleSection },
   { id: 'card-grid', group: '레이아웃', name: 'CardGrid', Component: CardGridSection },
   { id: 'shell', group: '레이아웃', name: '셸', Component: ShellSection },
   { id: 'key-value-grid', group: '데이터', name: 'KeyValueGrid', Component: KeyValueGridSection },
   { id: 'stat-strip', group: '데이터', name: 'StatStrip', Component: StatStripSection },
   { id: 'table', group: '데이터', name: 'Table', Component: TableSection },
+  { id: 'compact-table', group: '데이터', name: 'CompactTable', Component: CompactTableSection },
   { id: 'code-block', group: '데이터', name: 'CodeBlock', Component: CodeBlockSection },
+  { id: 'compare-grid', group: '데이터', name: 'CompareGrid', Component: CompareGridSection },
   { id: 'icons', group: '아이콘', name: 'Icon', Component: IconsSection },
   { id: 'logo', group: '아이콘', name: 'Logo', Component: LogoSection },
   { id: 'source-status', group: '이음 전용', name: 'SourceStatus', Component: SourceStatusSection },
+  { id: 'tool-status-chip', group: '이음 전용', name: 'ToolStatusChip', Component: ToolStatusChipSection },
+  { id: 'job-status-chip', group: '이음 전용', name: 'JobStatusChip', Component: JobStatusChipSection },
   { id: 'rule-chip', group: '이음 전용', name: 'RuleChip', Component: RuleChipSection },
   { id: 'flow-line', group: '이음 전용', name: 'FlowLine', Component: FlowLineSection },
   { id: 'topology', group: '이음 전용', name: 'Topology', Component: TopologySection },
+  { id: 'pipeline', group: '이음 전용', name: 'Pipeline', Component: PipelineSection },
   { id: 'trace-view', group: '이음 전용', name: 'TraceView', Component: TraceViewSection },
   { id: 'protocol-badge', group: '이음 전용', name: 'ProtocolBadge', Component: ProtocolBadgeSection },
+  { id: 'mode-tag', group: '이음 전용', name: 'ModeTag', Component: ModeTagSection },
   { id: 'later-cards', group: '이음 전용', name: 'LaterCards', Component: LaterCardsSection },
+  { id: 'method-chip', group: '이음 전용', name: 'MethodChip', Component: MethodChipSection },
+  { id: 'evidence-badge', group: '이음 전용', name: 'EvidenceBadge', Component: EvidenceBadgeSection },
+  { id: 'net-log', group: '이음 전용', name: 'NetLog', Component: NetLogSection },
+  { id: 'git-file-list', group: '이음 전용', name: 'GitFileList', Component: GitFileListSection },
+  { id: 'browser-view', group: '이음 전용', name: 'BrowserView', Component: BrowserViewSection },
+  { id: 'discovery-zone', group: '이음 전용', name: 'DiscoveryZone', Component: DiscoveryZoneSection },
 ];

@@ -1,1 +1,1 @@
-export { Select, type SelectProps, type SelectVariant } from './Select';
+export { Select, type SelectProps, type SelectVariant, type SelectWidth } from './Select';

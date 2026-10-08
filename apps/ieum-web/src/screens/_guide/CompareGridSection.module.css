@@ -1,0 +1,8 @@
+/* CompareGrid 절 — 단독 캡션 묶음(코드 상자의 긴 줄이 절 폭을 밀어내지 않게 min-width 0)과 둘째 캡션 위 여백(쓰는 곳이 주는 값 — 옛 탐색 근거 캡처 응답 캡션 위 12) */
+.standalone {
+  min-width: 0;
+}
+
+.second {
+  margin-top: var(--s-3);
+}

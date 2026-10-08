@@ -21,8 +21,8 @@ export type StatItem = {
   value: ReactNode;
   /** 수치 뒤 단위. 값이 없으면 넘기지 않는다 */
   unit?: ReactNode;
-  /** 수치 색 — 차단 수 */
-  tone?: 'danger';
+  /** 수치 색 — danger = 차단 수, primary = 강조 수치(발견한 API 후보) */
+  tone?: 'danger' | 'primary';
   /** 보조 줄 앞 증감 — up만 --ok 굵게 */
   trend?: StatTrend;
   /** 보조 줄 */

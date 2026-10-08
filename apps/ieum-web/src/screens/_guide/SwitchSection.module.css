@@ -1,0 +1,21 @@
+/* Switch 절 — 스위치 옆 설명 글자 · 보이는 사유 글 자리 · 바깥 <label> 줄(카탈로그 전용 배치) */
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+
+.reason {
+  margin-top: var(--s-2);
+}
+
+.outer {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  cursor: pointer;
+}

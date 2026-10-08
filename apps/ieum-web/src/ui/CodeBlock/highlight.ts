@@ -1,4 +1,4 @@
-// 코드 강조 — 옛 hlJSON · hlXML · hlHTTP(js/common/convert.js:137-158)를 원문 위에서 같은 경계로 나눈다.
+// 코드 강조 — 옛 hlJSON · hlXML · hlHTTP(js/common/convert.js:137-158) · hlJava(js/menu/discovery.js:321-324)를 원문 위에서 같은 경계로 나눈다.
 // 옛은 이스케이프한 글(&quot; · &lt; · &amp;) 위에서 정규식을 돌렸다 — 여기서는 그 엔티티를 원문 글자(" · < · &)로 바꾼 같은 정규식을 쓴다.
 // 결과는 글 조각과 강조 조각의 트리이고, 그리기(React 노드)는 CodeBlock이 한다(dangerouslySetInnerHTML 없음)
 import type { TraceCode } from '@/app/trace/types';
@@ -97,6 +97,20 @@ export function highlightHttp(text: string, bodyLang: TraceCode['bodyLang']): Co
   return body ? [...headParts, HEAD_BODY_GAP, ...highlightBody(body, bodyLang)] : headParts;
 }
 
+// ── Java — 줄 주석(//부터 줄 끝) · 큰따옴표 문자열 · @이름 · 예약어 10개(낱말 경계). 왼쪽에서 먼저 맞는 것이 이기고, 같은 자리면
+// 주석 → 문자열 → @이름 → 예약어 순이다(문자열 안의 //는 문자열, 주석 안의 문자열 · 예약어는 주석). 문자열은 같은 줄의 다음 "에서
+// 끝난다 — 문자 리터럴 '"' · 이스케이프 \" 도 옛처럼 따로 보지 않는다. 옛 &quot;는 원문 "와 한 글자씩 맞고, 이스케이프되던
+// 다섯 글자(& < > " ')는 모두 낱말 밖 글자라 \b 경계도 원문 위에서 같다. 블록 주석은 옛처럼 나누지 않는다 ──
+const JAVA_TOKEN = /(\/\/.*$)|(".*?")|(@\w+)|\b(public|return|new|private|void|static|final|class|if|else)\b/gm;
+
+export const highlightJava = (text: string): CodeSegment[] =>
+  splitBy(text, JAVA_TOKEN, (match) => {
+    const [, comment, str, annotation] = match;
+    if (comment !== undefined) return [token('comment', comment)];
+    if (str !== undefined) return [token('string', str)];
+    return annotation !== undefined ? [token('key', annotation)] : [token('tag', group(match, 4))];
+  });
+
 /** 언어별 강조. plain은 나누지 않는다 */
 export function highlightCode({ text, lang, bodyLang }: TraceCode): CodeSegment[] {
   switch (lang) {
@@ -106,6 +120,8 @@ export function highlightCode({ text, lang, bodyLang }: TraceCode): CodeSegment[
       return highlightXml(text);
     case 'http':
       return highlightHttp(text, bodyLang);
+    case 'java':
+      return highlightJava(text);
     case 'plain':
       return asText(text);
   }

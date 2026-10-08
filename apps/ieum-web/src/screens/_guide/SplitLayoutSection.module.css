@@ -1,0 +1,16 @@
+/* SplitLayout 절 — 칸 자리표시(열 폭 · 접힘이 보이도록 높이가 다른 두 칸) */
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--h-row);
+  padding: var(--s-3);
+  border: 1px dashed var(--line-control);
+  background: var(--surface-sub);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+
+.tall {
+  min-height: calc(var(--h-row) * 3);
+}

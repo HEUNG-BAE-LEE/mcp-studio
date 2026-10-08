@@ -5,6 +5,7 @@
 // 문서의 keydown 하나로 받는다. 열린 층이 없으면 듣지 않는다
 // 목록은 바꿀 때마다 새 배열로 만든다 — 닫는 도중의 등록 · 해제가 순회를 흔들지 않는다
 // 열린 층의 요약(모달 · 드로어가 있는가)은 구독으로 내보낸다 — useOpenLayers가 쓴다
+import { isImeComposing } from '../lib/ime';
 
 /** 층 종류 — z 짝을 고르고(DESIGN 쌓임) 열린 층 요약의 갈래가 된다 */
 export type LayerKind = 'modal' | 'drawer';
@@ -38,8 +39,8 @@ const topOf = (entries: readonly LayerEntry[]): LayerEntry | undefined =>
   );
 
 const onKeyDown = (event: KeyboardEvent) => {
-  // 한글 조합 중 Esc는 조합을 끝내는 키다 — 층을 닫지 않는다
-  if (event.key !== 'Escape' || event.isComposing) return;
+  // 한글 조합 중 Esc는 조합을 끝내는 키다 — 층을 닫지 않는다(판정은 금지어 입력과 같은 ui/lib/ime)
+  if (event.key !== 'Escape' || isImeComposing(event)) return;
   const top = topOf(stack);
   if (!top || !top.isDismissible()) return;
   event.preventDefault();

@@ -1,4 +1,4 @@
-/* Select — 이음 .sel-f(css/console.css:399) · .inp(css/console.css:307-308) · .map .mini(css/console.css:1074-1077). 모양은 data-variant. 펼침 화살표는 브라우저 기본 */
+/* Select — 이음 .sel-f(css/console.css:399) · .inp(:307-308) · .map .mini(:1074-1077) · .tg .inp(:716). 모양은 data-variant, 툴바 최대 폭은 data-width. 펼침 화살표는 브라우저 기본 */
 .root {
   border: 1px solid var(--line-control);
   background: var(--surface);
@@ -14,6 +14,11 @@
   border-radius: 0;
 }
 
+/* 스튜디오 원본 선택 — 옛 인라인 max-width:280px(js/menu/studio.js:128) */
+.root[data-width='wide'] {
+  max-width: 280px;
+}
+
 .root[data-variant='form'] {
   width: 100%;
   height: var(--h-md);
@@ -21,8 +26,18 @@
   border-radius: var(--r-sm);
 }
 
-/* 포커스 — 테두리를 --primary로 하고 전역 링은 그대로 둔다 */
-.root[data-variant='form']:focus {
+/* 정책 · 설정 줄 오른쪽 선택 — 옛 .tg .inp + 인라인 width:auto(js/menu/discovery.js:76). 폭은 내용 */
+.root[data-variant='setting'] {
+  height: var(--h-sm);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 포커스 — form · setting은 테두리를 --primary로 하고 전역 링은 그대로 둔다 */
+.root[data-variant='form']:focus,
+.root[data-variant='setting']:focus {
   border-color: var(--primary);
 }
 

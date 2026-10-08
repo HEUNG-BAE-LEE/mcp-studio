@@ -34,6 +34,10 @@
   font-size: var(--fs-body);
 }
 
+.value[data-small] {
+  font-size: var(--fs-ui-sm);
+}
+
 .value[data-mono] {
   font-family: var(--font-mono);
   font-size: var(--fs-small);

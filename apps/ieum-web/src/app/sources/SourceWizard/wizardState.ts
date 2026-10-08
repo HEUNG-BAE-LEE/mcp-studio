@@ -1,9 +1,12 @@
 // 연결 마법사 상태와 바꾸기 — 순수 함수 · 불변(받은 상태는 고치지 않고 새로 만든다). 옛 S.wz(js/menu/sources.js:46-50)와 그 동작(:153-196)
 // 시도(attemptId)마다 처음부터다 — 열 때마다 새로 만들고 닫으면 버린다(옛 wzOpen · closeDrawer — js/common/overlay.js:12).
 // 입력은 글자마다 쌓이고 단계를 오가도 남는다. 모드를 바꿔도 이름 · 주소 · 파일 · 샘플 · 인증 값은 그대로다(옛 wzMode는 mode만 바꿨다)
-// 탐색 모드의 입력(옛 w.d · w.ban — discWzInit)은 자동 탐색을 옮길 때 더한다
-import type { ConnectSourceBody, GovApi, SourceCred } from '../../../api/types';
+// 탐색 모드의 입력(옛 w.d · w.ban — discWzInit)은 discover 묶음 하나로 따로 둔다 — 처음은 null이고, 탐색 개요(GET /discovery/)가 준비된 뒤
+// 탐색 모드일 때 한 번 만든다(withDiscover). 그 뒤 모드를 오가도 그대로 남는다(옛 :49 — 열 때 만들어 모드와 상관없이 들고 있었다).
+// 탐색 모드는 3단계(연결 방식 · 탐색 대상 · 안전 설정)이고 분석 단계가 없다 — 마지막 단계의 버튼이 탐색 시작이다(옛 js/menu/discovery.js:80-88)
+import type { ConnectSourceBody, DiscoveryResponse, GovApi, SourceCred } from '../../../api/types';
 import { coerceAuthType, initialCred } from '../authOptions';
+import { initialDiscover, type DiscoverState } from './discover/discoverState';
 
 export type WizardState = Readonly<{
   /** 이 상태를 만든 시도 — 드로어 칸의 attemptId */
@@ -29,6 +32,8 @@ export type WizardState = Readonly<{
   cred: SourceCred;
   /** 분석을 시작한 횟수 — 가짜 진행을 처음부터 다시 세는 표지(옛 wzAnalyze가 w.an = 0) */
   runs: number;
+  /** 탐색 모드 입력 — 탐색 개요가 준비된 뒤 처음 탐색 모드일 때 만든다. 그 전에는 null */
+  discover: DiscoverState | null;
 }>;
 
 /** 마법사 입력 중 글자 칸 하나로 고치는 것 */
@@ -40,6 +45,12 @@ export const ANALYSIS_STEP = 4;
 const AUTH_STEP = 3;
 /** 열 때 고른 연결 방식(옛 :47) */
 export const DEFAULT_MODE = 'rest';
+/** 자동 탐색 모드(서버 wizard.modes의 v) */
+export const DISCOVER_MODE = 'discover';
+/** 탐색 모드의 마지막 단계 — 안전 설정. 이 단계의 앞으로 가는 버튼이 탐색 시작이다 */
+export const DISCOVER_LAST_STEP = 3;
+
+export const isDiscoverMode = (mode: string): boolean => mode === DISCOVER_MODE;
 
 /** 새 시도의 처음 상태 — 1단계 · REST · 인증 없음(헤더 · X-API-KEY) · 공공데이터 첫 API(옛 :47-48) */
 export function initialWizard(attemptId: number, govApis: readonly GovApi[]): WizardState {
@@ -58,8 +69,22 @@ export function initialWizard(attemptId: number, govApis: readonly GovApi[]): Wi
     gov: govApis[0]?.[0],
     cred: initialCred(),
     runs: 0,
+    discover: null,
   };
 }
+
+/**
+ * 탐색 모드인데 탐색 입력이 아직 없고 개요가 준비됐으면 처음 상태를 만든다(옛 discWzInit · ban 복사 — :33-35). 그 밖에는 받은 상태 그대로.
+ * 시도마다 한 번이다 — 이미 있으면 개요가 다시 와도 바꾸지 않는다
+ */
+export function withDiscover(state: WizardState, overview: DiscoveryResponse | undefined): WizardState {
+  if (!isDiscoverMode(state.mode) || state.discover !== null || overview === undefined) return state;
+  return { ...state, discover: initialDiscover(overview) };
+}
+
+/** 탐색 입력을 바꾼다 — 아직 없으면 그대로 */
+export const updateDiscover = (state: WizardState, change: (d: DiscoverState) => DiscoverState): WizardState =>
+  state.discover === null ? state : { ...state, discover: change(state.discover) };
 
 /** 연결 방식 카드를 고른다 — 다른 입력은 그대로(인증 방식은 3단계로 들어갈 때 맞춘다) */
 export const selectMode = (state: WizardState, mode: string): WizardState => ({ ...state, mode });
@@ -89,9 +114,10 @@ export function loadSpecFile(state: WizardState, fileName: string, specText: str
 
 /**
  * 다음 단계로. 인증 단계로 들어갈 때 그 모드에 없는 인증 방식을 첫 선택지로 맞추고(옛은 인증 칸을 그릴 때 — :87),
- * 분석 단계로 들어갈 때 진행을 처음부터 센다. 단계 검증은 부르는 쪽이 먼저 한다(wizardSteps validateStep)
+ * 분석 단계로 들어갈 때 진행을 처음부터 센다. 탐색 모드는 안전 설정(3단계)까지만 간다. 단계 검증은 부르는 쪽이 먼저 한다(wizardSteps validateStep)
  */
 export function toNextStep(state: WizardState): WizardState {
+  if (isDiscoverMode(state.mode)) return state.step >= DISCOVER_LAST_STEP ? state : { ...state, step: state.step + 1 };
   if (state.step >= ANALYSIS_STEP) return state;
   const step = state.step + 1;
   if (step === AUTH_STEP) return { ...state, step, cred: coerceAuthType(state.mode, state.cred) };

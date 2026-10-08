@@ -1,7 +1,7 @@
 /* Tag — 이음 .gs-tag · .p2 · .rec · .ntag(css/console.css:269,526-527,997-1000) · .md-tag · .evb(523,1041-1044) · .pr.sample(522).
    높이는 태그 고유 치수(18 · 20 · 22)이고 테두리가 있어도 높이가 같게 border-box로 고정한다.
    info = 연한 파랑 면 + --primary-ink, mute = 모르는 값 · 제외 면 + 1px 테두리, neutral = 상태가 아닌 일반 표지(.p2 · .pr.sample)
-   variant — dashed = 테두리만 점선, off = 바탕 투명 + 점선 + 취소선("없음" 표지 .evb.off) */
+   variant — dashed = 테두리만 점선, off = 바탕 투명 + 점선 + 취소선("없음" 표지 .evb.off), value = mute 면 · 테두리 + 고정폭 --text 보통 굵기 글자(관찰 값 칩 .codes span · span i :694-695) */
 .root {
   display: inline-flex;
   box-sizing: border-box;
@@ -83,6 +83,22 @@
   border: 1px dashed var(--line-control);
   background: transparent;
   text-decoration: line-through;
+}
+
+/* 관찰 값 칩 — mute의 면 · 테두리 그대로, 글자는 고정폭 · --text · 보통 굵기다. 옛 칩 안 글은 고정폭 값 <i> 하나뿐이라
+   보이는 글자가 .codes span i(css/console.css:695)다 — span의 --text-2 · 굵기 400은 그 글자에 닿지 않는다. 다른 톤에는 닿지 않는다 */
+.root[data-tone='mute'][data-variant='value'] {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-regular);
+}
+
+/* 관찰 값이 없을 때의 칩("관찰 없음") — 옛은 .muted span이 .codes span 칩 모양을 그대로 받았다: 색은 .codes span의 --text-2가 이기고
+   (.muted보다 구체적), 글자 크기는 인라인 12px(js/menu/discovery.js:351). 본문 글꼴 · 보통 굵기 */
+.root[data-tone='mute'][data-variant='value-empty'] {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
 }
 
 .root[title] {

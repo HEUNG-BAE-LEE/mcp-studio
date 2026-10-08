@@ -1,4 +1,4 @@
-/* Field — 이음 .field(css/console.css:305-306). 라벨 열 --w-field-label + 입력 열. 760 이하는 한 열(:472) */
+/* Field — 이음 .field(css/console.css:305-306). 라벨 열 --w-field-label + 입력 열. 760 이하는 한 열(:472) · FieldNote 들여쓰기 없음(:1069) */
 .root {
   display: grid;
   grid-template-columns: var(--w-field-label) minmax(0, 1fr);
@@ -22,9 +22,20 @@
   padding-top: var(--s-2);
 }
 
+/* 칸 묶음 아래 안내 — 옛 .pv-note 글자(12.5 · 흐림 · 행간 물려받음) + 라벨 열 + 간격만큼 들여쓰기(106) · 아래 4 */
+.note {
+  margin: 0 0 var(--s-1) calc(var(--w-field-label) + var(--s-2-5));
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
 @media (max-width: 760px) {
   .root {
     grid-template-columns: 1fr;
     gap: var(--s-1);
+  }
+
+  .note {
+    margin-left: 0;
   }
 }
