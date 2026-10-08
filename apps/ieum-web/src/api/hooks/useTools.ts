@@ -2,6 +2,7 @@
 // 원본 id(src)를 붙이고 exec · mask · cache · limit이 없으면 기본값을 채운다. 받은 객체는 고치지 않고 새 객체를 만든다
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { BOOT_STALE_TIME } from '../../app/queryClient';
 import { api } from '../client';
 import type { Source, StudioResponse, Tool, ToolRecord } from '../types';
 import { keys } from './keys';
@@ -52,6 +53,8 @@ export function useTools(): ToolsQuery {
   const studio = useQuery({
     queryKey: keys.tools(),
     queryFn: ({ signal }) => api.get<StudioResponse>(STUDIO_PATH, { signal }),
+    // 부팅 자원 — 한 번 받은 뒤에는 쓰기 응답으로만 고친다(app/queryClient)
+    staleTime: BOOT_STALE_TIME,
   });
   const sources = useSources();
   const studioData = studio.data;

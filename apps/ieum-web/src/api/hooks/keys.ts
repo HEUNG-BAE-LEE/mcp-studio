@@ -15,6 +15,8 @@ export const keys = {
   dashboardSummary: () => ['dashboard', 'summary'] as const,
   /** GET /logs/ — 호출 로그 목록. 상세는 ['logs', id]로 이 키 아래에 둔다 */
   logs: () => ['logs'] as const,
+  /** GET /logs/{id}/ — 호출 기록 하나(영역 조회). logs()의 하위 키라 목록을 접두로 무효화하면 상세도 따라 stale이 된다 */
+  log: (id: string) => ['logs', id] as const,
   /** GET /discovery/ — 원본 화면의 탐색 개요(영역 조회) */
   discoveryOverview: () => ['discovery', { region: true }] as const,
   /** GET /deploy/toolsets/ — 도구 묶음 · 배포 상태. 서버 로그는 이 키 아래 따로 둔다 */

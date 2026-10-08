@@ -36,7 +36,7 @@
 .hero-title {
   margin: 0 0 var(--s-2);
   color: var(--text);
-  font-size: var(--fs-section);
+  /* 크기는 적지 않고 h3 기본(1.17em = 본문 14px의 16.38px)을 쓴다 — 옛 인라인 h3(js/menu/dashboard.js:61)도 크기를 적지 않았다. --fs-section(16px)으로 적으면 제목이 4.7px 좁아지고 상자가 0.56px 낮아진다 */
   font-weight: var(--fw-bold);
 }
 

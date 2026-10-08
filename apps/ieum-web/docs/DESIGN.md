@@ -22,10 +22,10 @@ platform: web
 | # | 규칙 | 왜 | 막는 수단 |
 |---|---|---|---|
 | 1 | 스타일 값은 `tokens.css`의 CSS 변수만. `.module.css`에 색 리터럴(hex · rgb · hsl 등) · 임의 px 금지 — 예외는 0 · 테두리 1px · 폭 계열 속성과, 부품 CSS의 파생 치수 끄는 주석(`check-css-disable-next-line literal-px -- <사유>`). TSX `style={{…}}`에 리터럴 값을 쓰지 않는다 — 인라인 style은 클래스 · 토큰으로 옮기고 비율 · 좌표만 CSS 사용자 속성으로 넘긴다 | 값이 한 곳에 있어야 바꿀 때 한 번에 바뀐다 | `check-css` `color-literal` · `literal-px` · `unknown-custom-property` · `disable-comment` · `check-docs`(문서 토큰 ↔ `tokens.css` · 다크 블록 대조) · `check-source` `inline-style-literal` · `inline-style-dynamic` · ui-review #1 |
-| 2 | 색은 다섯 뜻에만 — ① 주조 `--primary*`: 주 액션 필 · 현재 선택 · 링크 · 포커스 · 진행과 완료 표시 ② 브랜드 띠 `--brand-band`: 셸 띠 · 층 머리 · 드로어 윗선 ③ 상태 `--ok*` · `--warn*` · `--danger*`(정보는 `--primary-bg` + `--primary-ink`) ④ 구성요소 `--ai*` · `--tool*` · `--source*`: 연결 흐름(AI ↔ 이음 ↔ 원본)에서 어느 쪽인지 ⑤ 표지 · 고정 색 — 토큰 목록에 이름이 있는 것만(`--evidence-*` · `--rule-inject*` · `--netlog-flag*` · `--proto-*` · `--code-*` · `--chart-bar` · `--inverse-*` · `--on-fill*` · `--on-band-hover` · `--toast-bg` · `--rail-*` · `--avatar-*` · `--capture-*` · `--danger-hover-bg`). 그 밖은 무채색(`--text*` · `--surface*` · `--line*`). 주 버튼은 `--primary` 필이다. 완료는 파랑이고 초록은 자원 상태(정상 · 공개 중)에만 | 사용자가 보는 것은 "AI ↔ 이음 ↔ 원본" 흐름이다. 쪽마다 색이 정해져 있어야 구조도 · 파이프라인 · 변환 과정에서 같은 쪽을 같은 색으로 읽는다. ⑤는 뜻이 하나뿐인 표지라 이름을 따로 두어 ①~④와 섞이지 않게 한다(값이 같아도 별칭으로 두지 않는다) | `check-css` `color-literal` · `unknown-custom-property`(토큰 이름은 `tokens.css` 목록과 대조) · ui-review #2 |
+| 2 | 색은 다섯 뜻에만 — ① 주조 `--primary*`: 주 액션 필 · 현재 선택 · 링크 · 포커스 · 진행과 완료 표시 · 강조 수치 ② 브랜드 띠 `--brand-band`: 셸 띠 · 층 머리 · 드로어 윗선 ③ 상태 `--ok*` · `--warn*` · `--danger*`(정보는 `--primary-bg` + `--primary-ink`) ④ 구성요소 `--ai*` · `--tool*` · `--source*`: 연결 흐름(AI ↔ 이음 ↔ 원본)에서 어느 쪽인지 ⑤ 표지 · 고정 색 — 토큰 목록에 이름이 있는 것만(`--evidence-*` · `--rule-inject*` · `--netlog-flag*` · `--proto-*` · `--code-*` · `--chart-bar` · `--inverse-*` · `--on-fill*` · `--on-band-hover` · `--toast-bg` · `--rail-*` · `--avatar-*` · `--capture-*` · `--danger-hover-bg`). 그 밖은 무채색(`--text*` · `--surface*` · `--line*`). 주 버튼은 `--primary` 필이다. 완료는 파랑이고 초록은 자원 상태(정상 · 공개 중)에만 | 사용자가 보는 것은 "AI ↔ 이음 ↔ 원본" 흐름이다. 쪽마다 색이 정해져 있어야 구조도 · 파이프라인 · 변환 과정에서 같은 쪽을 같은 색으로 읽는다. ⑤는 뜻이 하나뿐인 표지라 이름을 따로 두어 ①~④와 섞이지 않게 한다(값이 같아도 별칭으로 두지 않는다) | `check-css` `color-literal` · `unknown-custom-property`(토큰 이름은 `tokens.css` 목록과 대조) · ui-review #2 |
 | 3 | 상태 색은 Colors ③의 쓰는 곳 목록(메서드 표식 GET = `--ok` · 그 밖 = `--warn` 포함)에만. 상태 칩은 **점 + 글자**다(`StatusChip`). 색만으로 상태를 말하지 않는다 — 글자 · 아이콘 · 시각 숨김 글자가 함께 간다(구조도 상태 점도 시각 숨김 글자 — [접근성](#접근성) ARIA 보강) | 상태 색이 목록 밖으로 퍼지면 색만 보고 상태를 읽을 수 없다. 이음은 칩에 점을 넣어 왔다 | `copy/status` lookup · ui-review #3 |
 | 4 | 그림자는 `--shadow-float`(도크 · 드로어 · 모달 · 토스트), `--shadow-brand` · `--shadow-brand-sm`(연결 허브 카드 둘)과 부품 안 표시 넷(`--shadow-knob` · `--ring-selected` · `--edge-active` · `--halo-current`)뿐. 카드 · 표 · 패널에는 쓰지 않는다 | 그림자는 떠 있는 층과 연결의 중심(허브)만 표시한다. 카드에 쓰면 층과 구분되지 않는다 | `check-css` `property-value`(`box-shadow` — `ALLOWED_VALUES`) · ui-review #4 |
-| 5 | 웨이트는 `--fw-*` 넷 — 400 · 500 · 700, 600은 고정폭 글꼴에서만. 700은 제목 · 수치 · 활성 항목 · 원 안 숫자 · 머리글자. 자간은 `--tracking-body`(-.01em) · `--tracking-mono`(0) · `--tracking-logo` · `--tracking-control`(normal — 옛 `<button>` 기본 자간, 링크로 바뀐 컨트롤) 넷뿐. 화면 CSS의 글자 값(크기 · 웨이트 · 행간 · 자간 · 글꼴)은 그 축의 토큰(`--fs-*` · `--fw-*` · `--lh-*` · `--tracking-*` · `--font-*`) 하나만, 줄임 속성 `font`는 쓰지 않는다 | 불러오는 웨이트가 Noto Sans KR 400 · 500 · 700, JetBrains Mono 400 · 500 · 600이다(`index.html:9`). 그 밖 값은 브라우저가 흉내 낸 굵기가 된다. 화면이 글자 값을 직접 고르면 단계가 흩어진다 | `check-css` `property-value`(`font-weight` · `letter-spacing` — `ALLOWED_VALUES`, 화면 글자 다섯 축 — `SCREEN_ALLOWED_VALUES`) · `screen-property`(`font` — `SCREEN_DISALLOWED_PROPS`) · ui-review #5 — 600 = 고정폭, 부품 CSS의 글자 크기 · 행간 · 글꼴 토큰 사용은 검사가 아니라 ui-review로만 본다([Typography](#typography)) |
+| 5 | 웨이트는 `--fw-*` 넷 — 400 · 500 · 700, 600은 고정폭 글꼴에서만. 700은 제목 · 수치 · 활성 항목 · 원 안 숫자 · 머리글자. 자간은 `--tracking-body`(-.01em — 옛이 자간을 적지 않아 `body` 자간을 물려받은 자리는 다시 적지 않고 물려받는다) · `--tracking-mono`(0) · `--tracking-logo` · `--tracking-control`(normal — 옛 `<button>` 기본 자간, 링크로 바뀐 컨트롤) 넷뿐. 화면 CSS의 글자 값(크기 · 웨이트 · 행간 · 자간 · 글꼴)은 그 축의 토큰(`--fs-*` · `--fw-*` · `--lh-*` · `--tracking-*` · `--font-*`) 하나만, 줄임 속성 `font`는 쓰지 않는다 | 불러오는 웨이트가 Noto Sans KR 400 · 500 · 700, JetBrains Mono 400 · 500 · 600이다(`index.html:9`). 그 밖 값은 브라우저가 흉내 낸 굵기가 된다. 화면이 글자 값을 직접 고르면 단계가 흩어진다 | `check-css` `property-value`(`font-weight` · `letter-spacing` — `ALLOWED_VALUES`, 화면 글자 다섯 축 — `SCREEN_ALLOWED_VALUES`) · `screen-property`(`font` — `SCREEN_DISALLOWED_PROPS`) · ui-review #5 — 600 = 고정폭, 부품 CSS의 글자 크기 · 행간 · 글꼴 토큰 사용은 검사가 아니라 ui-review로만 본다([Typography](#typography)) |
 | 6 | 값이 없는 자리는 자리마다 정해진 이음 표기를 `copy/`의 이름 붙은 문구로 쓴다. 숫자 · 시간 칸은 `—`이고 단위를 붙이지 않는다. 사유를 아는 자리(호출 전 · 미검증 · 관찰 없음 · 전일 기록 없음 등)는 사유 문구를 쓴다. 빈 문자열 · `undefined` · `null`을 그대로 그리지 않는다 | 이음은 칸의 성격에 따라 `—`와 사유 문구를 나눠 쓴다. 표기가 한 곳에 있어야 같은 값이 화면마다 다르게 보이지 않고, `—ms` 같은 깨진 표기가 생기지 않는다 | `check-source` 값 없음 표기(`EMPTY_MARKS` — 문자열 전체가 `—`인 리터럴을 `src/copy/` 밖에서 막는다) · 단위가 붙는 자리(`—ms` 류)는 검사가 잡지 않는다 — `orNone(v, unit)`이 값이 없으면 단위를 붙이지 않고, ui-review #6으로 본다 |
 | 7 | 빈 상태는 네 종류 — 처음(다음 할 일과 그 메뉴로 가는 링크/버튼) · 조건(검색 · 필터 결과 없음) · 부분(화면 안 한 영역이 빔 · 한 줄) · 실행 전(동작하면 채워질 자리 · 아이콘 + 안내). 모양은 그릇이 정한다: 표 = 표 안 한 행, 패널 = 점선 상자(기본 · 작은 판), 상자 안 = 테두리 없는 한 줄, 큰 자리 = 테두리 없는 아이콘 안내. 대시보드 큰 상자는 처음 · 패널의 `hero` 크기. 설명 문단 · 코드 상자 안 문장은 빈 상태 부품이 아니라 그 자리의 글이다 | 이음 화면 27곳의 빈 상태가 이 넷으로 나뉜다. 같은 상황이 같은 모양이어야 바로 읽힌다 | `EmptyState` `kind`(`first` · `filtered` · `section` · `idle`) · `container` 타입(typecheck) · ui-review #7 |
 | 8 | 실패는 이음 알림 상자(`FailureBlock` — 경고 아이콘 + 굵은 한 줄(있는 자리만) + 서버 문장 원문, 복사 버튼 없음, `tone`은 자리마다 지금 그대로)로 보인다. 원문은 `resultMsg` 그대로 줄바꿈을 지킨다. 서버 문장이 없으면 "요청에 실패했습니다 ({status})", 네트워크 실패는 "서버에 연결하지 못했습니다.". 자리: 화면 첫 조회 실패 → 본문 자리(셸은 남김 · 재시도 버튼 없음) · 화면 안 영역 첫 조회 실패 → 그 상자 안(원문만 · 머리 문장 없음 · warn) · 층 안 요청 → 그 층 안 · 버튼 한 번의 쓰기 → 경고 토스트 · 새로 받기 · 폴링 실패 → 표시 없이 이전 값. 첫 로딩 중에는 본문 · 상자를 비우고 `aria-busy`만 켠다. 조회는 재시도하지 않는다 | 이음은 서버가 원인을 한국어 문장으로 준다. 요약하면 원인을 잃는다. 자리 규칙과 재시도 없음은 지금 콘솔 그대로다 | `FailureBlock` · `ErrorBlock` · `ScreenState` · `toast.warn` · `app/queryClient` `retry: false` · ui-review #8 |
@@ -56,7 +56,7 @@ platform: web
 ### ① 주조
 | 토큰 | 뜻 | 쓰는 곳 |
 |---|---|---|
-| `--primary` | 주조 | 주 버튼 필 · 현재 선택(레일 표시 · 필터 알약 · 세그먼트 필 · 옵션) · 링크 · 포커스 링 · 입력 포커스 테두리 · 진행 막대 · 도는 원 · 단계 완료 |
+| `--primary` | 주조 | 주 버튼 필 · 현재 선택(레일 표시 · 필터 알약 · 세그먼트 필 · 옵션) · 링크 · 포커스 링 · 입력 포커스 테두리 · 진행 막대 · 도는 원 · 단계 완료 · 강조 수치(표 수치 칸 · 드로어 발 선택 수 — 옛 `.num` · `.d-foot .info b`) |
 | `--primary-hover` | 주조 hover | 주 버튼 · 차트 막대 hover |
 | `--primary-bg` · `--primary-ink` | 정보 · 선택 면과 그 위 글자 | 정보 칩 · 안내 상자 · 선택 카드 바탕 / 그 위 진한 파랑 글자 |
 | `--primary-line` | 연한 파랑 테두리 | 안내 상자 · 선택 카드 테두리 |
@@ -158,8 +158,8 @@ platform: web
 | `--fw-medium` | 기본 강조 |
 | `--fw-bold` | 제목 · 수치 · 활성 항목 · 원 · 표식 안 숫자 · 머리글자(14px 미만 700은 이 자리뿐) |
 | `--fw-mono-strong` | 고정폭 글꼴에서만 쓰는 강조(sans에 쓰지 않는다 — ui-review) |
-| `--tracking-body` | 본문(`body`) · 도구 상세 제목 |
-| `--tracking-mono` | 고정폭 글자 · 로고 옆 라벨 · 메서드 표식 |
+| `--tracking-body` | 본문(`body`) · 도구 상세 제목. 옛이 자간을 적지 않아 `body` 자간을 물려받은 자리(인라인 코드 등)는 부품에서 다시 적지 않고 물려받는다 — 다시 적으면 그 부품의 글자 크기로 다시 계산되어 옛과 어긋난다 |
+| `--tracking-mono` | 옛이 자간 0을 준 고정폭 글자(`.mono` `css/console.css:488`) · 로고 옆 라벨 · 메서드 표식 |
 | `--tracking-logo` | 로고 |
 | `--tracking-control` | 옛 `<button>`이 링크로 바뀐 컨트롤(LNB 메뉴) — 버튼은 `body` 자간을 물려받지 않아 `normal`이었다. 링크가 `body` 자간을 물려받아 좁아지지 않게 이 값을 준다 |
 
@@ -202,9 +202,9 @@ platform: web
 |---|---|
 | 1680 | 앱 셸 본문 여백 |
 | 1500 | LNB · KPI 묶음 |
-| 1360 | 두 열 레이아웃 `TwoColumn`(`collapseAt` 1360 — 스튜디오 상세 + 정책 · 대시보드 · 배포 · 탐색 요약) |
-| 1100 | 목록 + 상세 `SplitLayout`(스튜디오 · 배포 · 테스트 실행) · `TwoColumn`(`collapseAt` 1100 — 탐색 기록) · KPI · 요약 격자 · 구조도 · 대화 · GNB 회사 버튼 |
-| 760 | 셸(레일 · GNB · LNB · 도크) · `Field` · `FieldPair` · `Drawer` · 격자 부품 · 파이프라인 · 로그 행 |
+| 1360 | 두 열 레이아웃 `TwoColumn`(`layout` `main-side` · `main-aside` · `half` · `summary` — 대시보드 · 스튜디오 상세 + 정책 · 배포 · 탐색 요약) |
+| 1100 | 목록 + 상세 `SplitLayout`(스튜디오 · 배포 · 테스트 실행) · `TwoColumn`(`layout` `live` — 탐색 기록) · `StatStrip` · 요약 격자 · `Topology` · `FlowLine` · 대화 · GNB 회사 버튼 |
+| 760 | 셸(레일 · GNB · LNB · 도크) · `Field` · `FieldPair` · `Drawer` · `KeyValueGrid` · `StatStrip` · `Toolbar` · `SearchInput` · 격자 부품 · 파이프라인(`FlowLine`) · 로그 행 |
 
 부품별 폭 동작은 COMPONENTS 그 절의 `1680:` … `760:` 줄에 적는다.
 
@@ -278,7 +278,7 @@ platform: web
 | `--scrim` | 가림막 | 드로어 · 모달 뒤 |
 
 ### 쌓임
-`--z-*`는 아래 행일수록 위에 그린다. 층은 `<dialog>.show()`로 열고(브라우저 top layer를 쓰지 않는다) 가림막 · z를 부품이 직접 준다.
+`--z-*`는 아래 행일수록 위에 그린다. 층은 `<dialog>.show()`로 열고(브라우저 top layer를 쓰지 않는다) 가림막 · z를 부품이 직접 준다. 토스트만 Popover(`popover="manual"`)로 최상층에 올려 열린 층보다 늘 위에 그린다(옛 순서 모달 < 토스트 그대로 — COMPONENTS `Toast`).
 
 | 토큰 | 쓰는 곳 |
 |---|---|
@@ -298,6 +298,7 @@ platform: web
 |---|---|
 | `--opacity-disabled` | 비활성 버튼 · 카드 · 옵션 · 공개 스위치 묶음 — 비활성은 이 값 하나 |
 | `--opacity-skipped` | 탐색 단계 "안 함" — 비활성이 아니라 건너뜀 표시라 따로 둔다 |
+| `--opacity-flow` | 연결선 흐름 점선(구조도 · 파이프라인 — `FlowLine`) — 주조 점선을 한 단계 물린다(옛 `.tp-link i` `opacity .7`) |
 
 ## Shapes
 
@@ -428,7 +429,13 @@ platform: web
 
 ### 상태 값
 - 라벨 · 색은 `copy/status`의 자원별 목록 하나에서 찾는다(`statusOf(resource, value)` → `{ label, tone, known }`). 화면이 상태 맵을 따로 두지 않는다
-- 목록에 없는 값은 값 그대로 + `mute` 칩 + 개발 콘솔 `warnOnce` 한 번([핵심 규칙 10](#핵심-규칙))
+- `resource`는 자원 이름 유니온(`StatusResource`)이고 메뉴를 옮기며 자원을 더한다. `tone`은 `StatusChip`의 `StatusTone`(`ok` · `warn` · `danger` · `info` · `mute`)이다. 아는 값 목록 `STATUS_VALUES[resource]`는 카탈로그가 전 값을 늘어놓는 데 쓴다
+- 목록에 없는 값은 값 그대로 + `mute` 칩 + 개발 콘솔 `warnOnce` 한 번([핵심 규칙 10](#핵심-규칙)) — `known: false`. 렌더를 멈추지 않는다
+
+| `resource` | 값 → 라벨 · `tone` | 옛 근거 |
+|---|---|---|
+| `log` | `ok` "성공" · `ok` / `err` "실패" · `danger` | `js/menu/logs.js:3` |
+| `source` | `ok` "정상" · `ok` / `review` "검토 필요" · `warn` / `drift` "명세 변경 감지" · `warn` / `err` "인증 만료" · `danger`([이식 기간](#이식-기간) 보존) | `js/common/state.js:26` |
 - 서버가 내지 않는 값(로그 `wait` · `cache`, 원본 `busy`, 탐색 `queued`)은 목록에 두지 않는다 — 오면 모르는 값 폴백이 맡는다
 - 칩 표기에 붙는 문구(버전 등)는 `copy/`의 틀이 만든다
 - 쓰지 않는 말(`BANNED_WORDS`)은 지금 비어 있다 — 같은 개념의 여러 이름을 이식 기간에는 자리별 지금 이름 그대로 옮기기 때문이다
@@ -483,6 +490,7 @@ platform: web
 | 접근성 | 탐색 네트워크 기록 · 배포 서버 로그 스크롤 상자에 `tabindex`가 없다 | `tabindex="0"` + 이름 + 안쪽 링(옛 코드 상자 `js/common/convert.js:159`와 같은 꼴) | `js/menu/discovery.js:236,269` · `js/menu/deploy.js:167` |
 | 접근성 | 대시보드 시간대 차트 값이 마우스 `<title>` 툴팁에만 있다 | 24칸 값을 시각 숨김 표로(보이는 차이 0) | `js/menu/dashboard.js:38` |
 | 결함 | 모르는 상태 값 · 파이프라인 허브의 모르는 규칙 키에서 예외로 렌더가 멈추고, 연결 방식 배지는 "undefined"가 된다 | 모르는 값 폴백 하나 — 값 그대로 + mute 칩 + 경고 한 번([핵심 규칙 10](#핵심-규칙)). 허브 규칙 요약도 값 그대로 + 개수 | `js/common/state.js:35,36` · `js/menu/studio.js:88` |
+| 결함 | 도구가 가리키는 원본을 원본 목록에서 찾지 못하면 예외로 렌더가 멈춘다(대시보드 많이 쓰인 도구 · 확인이 필요한 항목, 호출 로그 표) | 멈추지 않는다 — 대시보드 순위 · 알림은 원본 id, 로그 표 · 상세는 `—`로 그린다. 서버가 `topTools`를 원본 있는 도구로 거르므로 거의 닿지 않는다 | `js/menu/dashboard.js:48,52,56` · `js/menu/logs.js:13` |
 | 결함 | 서버가 내지 않는 상태 값 — 로그 `wait` · `cache`, 원본 `busy`의 라벨과 분기, 탐색 `queued`(라벨 없음) | `copy/status` 목록에서 뺀다 — 오면 모르는 값 폴백. 탐색 폴링 간격 판정에만 `queued`를 남긴다 | `js/menu/logs.js:3` · `js/common/state.js:20,26` · `js/menu/discovery.js:5,9,19` |
 | 결함 | 부트 실패면 메뉴가 비고 `aria-busy`가 남는다 | 셸은 그리고 본문 자리에 실패 상자(머리는 옛 문장 그대로), `aria-busy` 해제, 재시도 버튼 없음 | `js/main.js:65-67` |
 | 결함 | 명세 다시 읽기 실패를 무엇이든 그 원본의 로컬 `err`로 박아 "인증 만료"가 대시보드 · 목록 · 구조도로 번진다 | 로컬로 고치지 않고 실패 뒤 원본 조회를 다시 받는다(서버 값이 기준) | `js/menu/studio.js:175` |
@@ -540,6 +548,7 @@ platform: web
 - 탐색 예약 시각은 브라우저 시간대로 표시한다(`js/menu/discovery.js:13`) — 서버를 다른 시간대로 옮기면 어긋난다
 - 변환 과정 1단계 제목 `${label}가 도구를 골랐습니다`(`js/common/convert.js:169`) — 라벨이 받침으로 끝나게 바뀌면 그때 조사를 처리한다
 - 키 이름 "새 액세스 키" · 묶음 사용 대상 "전 직원" 기본값을 화면에도 둔다(`js/menu/deploy.js:173,194`) — 서버 기본값과 같다
+- 로그 표 사용자 칸은 사용자가 없으면 빈 칸이다(`js/menu/logs.js:13`) — 값 없음 규칙의 `—`로 바꾸지 않고 옛 그대로 둔다
 
 ### 유지 — 가이드 규칙과 다르지만 이음 그대로
 옛 콘솔과는 같고 가이드의 일반 관례와만 다른 것이다. 옛과 대조하면 "같음"이고, ui-review는 위반으로 잡지 않는다.
@@ -598,4 +607,4 @@ platform: web
 | 폰트 파일 | `index.html`이 Google Fonts에서 Noto Sans KR 400 · 500 · 700, JetBrains Mono 400 · 500 · 600을 불러온다(옛 콘솔과 같음) | 사내망 · 오프라인 배포가 필요하면 woff2 파일을 앱에 넣을지(새 의존성 없이 `public/`) — 사용자 결정 |
 | 서버 사실과 다른 옛 문구 갱신 | [이식 기간](#이식-기간) 보존 목록의 옛 문구 · 표시를 지금 그대로 옮긴다(옛 콘솔과 문구 · 출력 대조 기준) | 전환 뒤 별도 과제 — 서버가 근거 데이터를 내거나 사용자가 새 문구를 승인하면 행마다 고치고 목록에서 지운다 |
 | 쓰이지 않는 토큰 다시 세기(메뉴 이식 뒤) | 정한 토큰을 처음에 모두 두었다 — 부품 · 화면이 아직 없어 대부분 쓰이지 않는다 | 마지막 메뉴(자동 탐색)를 옮긴 뒤 `var(--*)` 사용을 세어 쓰이지 않는 토큰을 지우거나 쓰일 자리를 적는다 |
-| 투명도 .7 · .25 | 옛 연결선 흐름 점선 `opacity .7`(구조도) · 깜빡임 키프레임 `opacity .25`(입력 중 점 · 녹화 중 점)가 `opacity` 허용 값(`0` · `1` · `--opacity-*`) 밖이다 | 그 메뉴 이식 때 `design-change`로 토큰(예: `--opacity-flow` · `--opacity-blink`)을 더하거나, 그 부품 CSS에 `property-value` 끄는 주석과 사유 |
+| 투명도 .25 | 깜빡임 키프레임 `opacity .25`(입력 중 점 · 녹화 중 점)가 `opacity` 허용 값(`0` · `1` · `--opacity-*`) 밖이다(흐름 점선 .7은 `--opacity-flow`로 정했다) | 테스트 실행 이식 때 `design-change`로 토큰(예: `--opacity-blink`)을 더하거나, 그 부품 CSS에 `property-value` 끄는 주석과 사유 |

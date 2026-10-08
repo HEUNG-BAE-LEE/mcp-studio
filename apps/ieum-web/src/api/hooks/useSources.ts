@@ -1,6 +1,7 @@
 // 원본 시스템 · workspace · 연결 마법사 값(GET /sources/). 셸 GNB · 대시보드 · 원본 · 스튜디오 · 테스트 실행 · 배포가 함께 쓴다
-// 셸 조회라 region이 아니다
+// 셸 조회라 region이 아니다. 부팅 자원이라 한 번 받은 뒤에는 쓰기 응답으로만 고친다(app/queryClient)
 import { useQuery } from '@tanstack/react-query';
+import { BOOT_STALE_TIME } from '../../app/queryClient';
 import { api } from '../client';
 import type { SourcesResponse } from '../types';
 import { keys } from './keys';
@@ -11,5 +12,6 @@ export function useSources() {
   return useQuery({
     queryKey: keys.sources(),
     queryFn: ({ signal }) => api.get<SourcesResponse>(SOURCES_PATH, { signal }),
+    staleTime: BOOT_STALE_TIME,
   });
 }

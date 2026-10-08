@@ -1,0 +1,10 @@
+/* 카탈로그 CodeBlock 절 — 예시 상자를 나란히(좁으면 한 열). 격자 칸은 min-width 0이라 긴 줄이 페이지를 밀지 않는다 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--s-4);
+}
+
+.cell {
+  min-width: 0;
+}

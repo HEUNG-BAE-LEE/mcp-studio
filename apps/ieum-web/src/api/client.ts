@@ -72,9 +72,10 @@ export async function request<T>(method: Method, path: string, body?: unknown, o
   return import.meta.env.DEV ? (emptyOf(method, path, data) as T) : data;
 }
 
+// POST는 본문이 없어도 {}와 JSON 헤더를 보낸다 — 옛 api.js:18(api.post = (p, b = {})). PUT은 옛처럼 기본값이 없다
 export const api = {
   get: <T>(path: string, options?: RequestOptions) => request<T>('GET', path, undefined, options),
-  post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('POST', path, body, options),
+  post: <T>(path: string, body: unknown = {}, options?: RequestOptions) => request<T>('POST', path, body, options),
   put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PUT', path, body, options),
   del: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
 };

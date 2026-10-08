@@ -1,0 +1,80 @@
+/* Tag — 이음 .gs-tag · .p2 · .rec · .ntag(css/console.css:269,526-527,997-1000) · .md-tag · .evb(523,1041-1044) · .pr.sample(522).
+   높이는 태그 고유 치수(18 · 20 · 22)이고 테두리가 있어도 높이가 같게 border-box로 고정한다.
+   info = 연한 파랑 면 + --primary-ink, mute = 모르는 값 · 제외 면 + 1px 테두리 */
+.root {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  border-radius: var(--r-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* 크기 — 높이는 고유 치수 */
+.root[data-size='sm'] {
+  /* check-css-disable-next-line literal-px -- 태그 고유 높이(컨트롤 높이 단계와 다른 축) */
+  height: 18px;
+  padding: 0 var(--s-1-5);
+  font-size: var(--fs-micro);
+}
+
+.root[data-size='md'] {
+  /* check-css-disable-next-line literal-px -- 태그 고유 높이(컨트롤 높이 단계와 다른 축) */
+  height: 20px;
+  padding: 0 var(--s-1-75);
+  font-size: var(--fs-tag);
+}
+
+.root[data-size='lg'] {
+  /* check-css-disable-next-line literal-px -- 태그 고유 높이(컨트롤 높이 단계와 다른 축) */
+  height: 22px;
+  padding: 0 var(--s-2);
+  font-size: var(--fs-caption);
+}
+
+.root[data-shape='round'] {
+  border-radius: var(--r-pill);
+}
+
+.root[data-shape='round'][data-size='sm'] {
+  padding: 0 var(--s-1-75);
+}
+
+/* 색 */
+.root[data-tone='ok'] {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.root[data-tone='warn'] {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.root[data-tone='danger'] {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.root[data-tone='info'] {
+  background: var(--primary-bg);
+  color: var(--primary-ink);
+}
+
+.root[data-tone='mute'] {
+  border: 1px solid var(--line-divider);
+  background: var(--surface-sub);
+  color: var(--text-faint);
+}
+
+.root[data-dashed] {
+  border: 1px dashed var(--line-control);
+}
+
+.root[data-strike] {
+  text-decoration: line-through;
+}
+
+.root[title] {
+  cursor: help;
+}

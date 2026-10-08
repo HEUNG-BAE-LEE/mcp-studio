@@ -1,0 +1,18 @@
+/* Toolbar — 이음 .toolbar · .sp(css/console.css:596-598) · 760 이하 빈칸 숨김(css/console.css:899) */
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* 빈칸이 사라지면 검색(SearchInput variant="toolbar")이 남은 폭을 채운다 */
+@media (max-width: 760px) {
+  .spacer {
+    display: none;
+  }
+}

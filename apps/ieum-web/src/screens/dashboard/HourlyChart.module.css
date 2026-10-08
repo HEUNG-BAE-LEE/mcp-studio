@@ -1,0 +1,62 @@
+/* HourlyChart — 이음 .chart · .legend2(css/console.css:567-574). 한 화면만 쓰고 @media가 없는 조각이라 화면 폴더에 둔다.
+   바깥 여백 14 → --s-3-5 · 10 → --s-2-5 · 범례 사각 한 변 10 → --s-2-5 · 범례 글자 사이 5 → --s-1-5(이웃 단계로 묶음) */
+.chart {
+  padding: var(--s-3-5) var(--s-4-5) var(--s-2-5);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.grid-line {
+  stroke: var(--line-divider);
+  stroke-width: 1;
+}
+
+.axis-label {
+  fill: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+
+.bar {
+  fill: var(--chart-bar);
+}
+
+.bar:hover {
+  fill: var(--primary-hover);
+}
+
+.bar-fail {
+  fill: var(--danger);
+}
+
+.legend {
+  display: flex;
+  gap: var(--s-4);
+  padding: 0 var(--s-4-5) var(--s-3-5);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+
+.legend-item {
+  display: inline-flex;
+  gap: var(--s-1-5);
+  align-items: center;
+}
+
+/* 사각은 보정값 없이 항목의 가운데 맞춤으로 글자 가운데에 선다(옛 .legend2 i의 vertical-align -1px 자리) */
+.swatch {
+  width: var(--s-2-5);
+  height: var(--s-2-5);
+  border-radius: var(--r-xs);
+}
+
+.swatch[data-tone='ok'] {
+  background: var(--chart-bar);
+}
+
+.swatch[data-tone='fail'] {
+  background: var(--danger);
+}

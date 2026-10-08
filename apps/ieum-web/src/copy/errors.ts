@@ -4,6 +4,11 @@ export const NETWORK_FAILED = '서버에 연결하지 못했습니다.';
 /** 봉투가 아닌 응답({detail} · 422 detail 배열 · 빈 본문 · text/plain) · resultMsg가 빈 봉투 실패 — 옛 js/common/api.js:14 문구 그대로 */
 export const statusFailed = (status: number) => `요청에 실패했습니다 (${status})`;
 /**
+ * 요청하기 전에 없다고 판단한 자원(주소의 id가 모양부터 틀림) — 서버 404 문장(apps/backend/app/ieum/responses.py MESSAGES[404])과
+ * 같은 글자라 서버까지 갔다 온 실패와 구분되지 않는다
+ */
+export const NOT_FOUND = '찾을 수 없습니다.';
+/**
  * 개발용 ?mock 실패 시나리오가 봉투 resultMsg로 보내는 문장 — 백엔드 MESSAGES[500](apps/backend/app/ieum/responses.py)을 흉내 낸다.
  * 끝의 표시는 운영 dist에 이 문장이 없는지 grep하는 표식이다(api/scenario만 쓰고, 그곳은 import.meta.env.DEV 안에서만 불린다)
  */

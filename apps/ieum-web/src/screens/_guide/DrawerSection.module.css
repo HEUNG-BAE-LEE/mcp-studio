@@ -1,0 +1,6 @@
+/* Drawer 절 — 예시 본문 문단(본문 부품은 각 메뉴를 옮길 때 만든다 — 스크롤 · 포커스 확인용 글) */
+.text {
+  margin: 0 0 var(--s-2);
+  color: var(--text-muted);
+  line-height: var(--lh-note);
+}

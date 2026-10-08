@@ -1,0 +1,16 @@
+/* 대시보드 배치 — 머리 → KPI 띠 → 두 열. 폭에 따라 접히는 것은 StatStrip · TwoColumn이 맡는다(화면 CSS에 @media 없음) */
+.kpi {
+  margin-top: var(--s-6);
+}
+
+.columns {
+  margin-top: var(--s-5);
+}
+
+/* 한 열 안의 상자들(옛 .dcol) */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}

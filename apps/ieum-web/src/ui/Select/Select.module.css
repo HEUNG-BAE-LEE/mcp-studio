@@ -1,0 +1,41 @@
+/* Select — 이음 .sel-f(css/console.css:399) · .inp(css/console.css:307-308) · .map .mini(css/console.css:1074-1077). 모양은 data-variant. 펼침 화살표는 브라우저 기본 */
+.root {
+  border: 1px solid var(--line-control);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.root[data-variant='toolbar'] {
+  height: var(--h-lg);
+  max-width: 220px;
+  padding: 0 var(--s-2-5);
+  border-radius: 0;
+}
+
+.root[data-variant='form'] {
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+}
+
+/* 포커스 — 테두리를 --primary로 하고 전역 링은 그대로 둔다 */
+.root[data-variant='form']:focus {
+  border-color: var(--primary);
+}
+
+.root[data-variant='cell'] {
+  width: 100%;
+  min-width: 90px;
+  height: var(--h-xs);
+  padding: 0 var(--s-1);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-small);
+}
+
+.root:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}

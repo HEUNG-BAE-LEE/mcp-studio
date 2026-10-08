@@ -229,15 +229,48 @@ export type LogRow = Readonly<{
   client: ModelId;
   tool: string;
   status: LogStatus;
-  convertMs: number;
+  /** 서버는 값이 없는 호출에 0을 넣지만(gateway/runner.py), 옛 화면이 null도 받아 `??`로 처리해 타입은 null을 막지 않는다 */
+  convertMs: number | null;
   sourceMs: number | null;
-  /** MCP 호출이면 키 이름, 테스트 실행이면 workspace.user */
+  /** MCP 호출이면 키 이름, 테스트 실행이면 workspace.user. 없으면 빈 문자열 */
   user: string;
   note: string | null;
 }>;
 /** 화면은 rows만 읽는다(필터는 화면에서) */
 export type LogsResponse = Readonly<{ rows: readonly LogRow[] }>;
-export type LogDetail = LogRow & Readonly<{ trace: CallTrace }>;
+/**
+ * 서버는 변환 과정을 남기지 못한 호출(도구 한도 초과 · 예기치 못한 오류)에 trace를 null로 저장한다.
+ * 도구 실행 실패는 {} 또는 부분 trace다 — "남기지 못했습니다"(null)와 "단계를 그린다"({})를 섞지 않는다
+ */
+export type LogDetail = LogRow & Readonly<{ trace: CallTrace | null }>;
+
+// ── 대시보드 GET /dashboard/summary/ ──
+
+/** 화면이 읽는 KPI만. 서버의 sources · sourcesOk · publishedTools · pendingTools는 화면이 원본 · 도구 조회로 직접 센다 */
+export type DashboardKpi = Readonly<{
+  /** 최근 24시간 호출 수 */
+  calls24h: number;
+  /** 전일 대비 증감 %(소수 첫째 자리, 음수 가능). 전일 기록이 없으면 null */
+  callsDeltaPct: number | null;
+  /** 변환 성공률 %. 호출이 없으면 null */
+  successRate: number | null;
+  failedCalls: number;
+  /** 평균 변환 시간 ms. 호출이 없으면 null */
+  convertMs: number | null;
+  /** 평균 원본 응답 시간 ms. 원본 응답을 받은 호출이 없으면 null */
+  sourceMs: number | null;
+}>;
+/** 시간대 한 칸. hour는 서버 로컬 시(0~23 정수)라 시각 변환 대상이 아니다. 배열은 오래된 칸이 앞(24칸) */
+export type HourlyBucket = Readonly<{ hour: number; calls: number; errors: number }>;
+/** 많이 쓰인 도구 한 줄. 서버가 호출 수 내림차순 최대 6개를 준다 */
+export type TopTool = Readonly<{ id: string; src: string; calls: number }>;
+/** clientCalls는 { 모델 키: 최근 24시간 호출 수 } — 호출이 없는 모델은 키가 없다 */
+export type DashboardSummary = Readonly<{
+  kpi: DashboardKpi;
+  hourly: readonly HourlyBucket[];
+  clientCalls: Dict<number>;
+  topTools: readonly TopTool[];
+}>;
 
 // ── 자동 탐색 GET /discovery/ (원본 화면의 작업 표 · 탐색 마법사) ──
 

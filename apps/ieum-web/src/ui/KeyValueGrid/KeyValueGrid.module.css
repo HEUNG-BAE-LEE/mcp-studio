@@ -1,0 +1,59 @@
+/* KeyValueGrid — 이음 .lsum(css/console.css:804-809 · 760 이하 css/console.css:901-904). 칸 사이 선은 칸의 왼쪽 · 위쪽 선으로 긋는다 */
+.root {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-md);
+  background: var(--surface-sub);
+}
+
+.item {
+  min-width: 0;
+  padding: var(--s-2-5) var(--s-3-5);
+  border-left: 1px solid var(--line-divider);
+}
+
+.item:nth-child(3n + 1) {
+  border-left: 0;
+}
+
+.item:nth-child(n + 4) {
+  border-top: 1px solid var(--line-divider);
+}
+
+.key {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+
+.value {
+  display: block;
+  margin: var(--s-0-5) 0 0;
+  font-size: var(--fs-body);
+}
+
+.value[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  letter-spacing: var(--tracking-mono);
+}
+
+@media (max-width: 760px) {
+  .root {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .item:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .item:nth-child(even) {
+    border-left: 1px solid var(--line-divider);
+  }
+
+  .item:nth-child(n + 3) {
+    border-top: 1px solid var(--line-divider);
+  }
+}

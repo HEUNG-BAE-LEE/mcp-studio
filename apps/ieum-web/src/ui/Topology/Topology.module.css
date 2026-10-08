@@ -1,0 +1,183 @@
+/* Topology — 이음 .topo · .tp-*(css/console.css:541-565,880-882). 열 폭은 옛 격자 그대로의 고유 치수다.
+   간격 · 글자는 이웃 토큰 단계로 묶었다(노드 gap 9 → 8 · 안쪽 11 → 12 · 허브 목록 gap 5 → 6 — DESIGN 이식 기간 허용 차이 값 정규화) */
+.root {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 1fr) minmax(62px, 0.42fr) minmax(176px, 0.95fr) minmax(62px, 0.42fr)
+    minmax(180px, 1.15fr);
+  align-items: center;
+  padding: var(--s-5-5) var(--s-5);
+}
+
+/* ── 열(AI · 원본) ── */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.head {
+  margin-bottom: var(--s-0-5);
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+.head-aside {
+  float: right;
+}
+
+/* 노드 — AI(div) · 원본(button)이 같은 모양이고, hover · 커서는 원본만 */
+.node {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  text-align: left;
+}
+
+.node[data-kind='source'] {
+  cursor: pointer;
+}
+
+.node[data-kind='source']:hover {
+  border-color: var(--primary-line);
+  background: var(--surface-hover);
+}
+
+.icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  /* check-css-disable-next-line literal-px -- 아이콘 칸 한 변 = 다른 변(26, 이음 .tp-node .ic) */
+  height: 26px;
+  border-radius: var(--r-md);
+}
+
+.node[data-kind='ai'] .icon {
+  background: var(--ai-bg);
+  color: var(--ai);
+}
+
+.node[data-kind='source'] .icon {
+  background: var(--source-bg);
+  color: var(--source);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  line-height: var(--lh-tight);
+}
+
+.name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-tag);
+  font-weight: var(--fw-regular);
+}
+
+.calls {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── 연결 칸 — 가운데 흐름선(FlowLine) + 선 위 라벨 ── */
+.link {
+  position: relative;
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+}
+
+.link-label {
+  position: absolute;
+  right: var(--s-0-5);
+  bottom: calc(50% + var(--s-1-75));
+  left: var(--s-0-5);
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* ── 이음 허브 — 연결의 중심이라 브랜드 그림자를 쓴다(DESIGN 핵심 규칙 4) ── */
+.hub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1-5);
+  padding: var(--s-4-5) var(--s-4-5) var(--s-4);
+  border-radius: var(--r-xl);
+  background: var(--primary);
+  box-shadow: var(--shadow-brand);
+  color: var(--on-fill);
+}
+
+.hub-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.hub-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1-5);
+  margin: var(--s-1-5) 0 0;
+  padding: var(--s-2-5) 0 0;
+  border-top: 1px solid var(--on-fill-line);
+  color: var(--on-fill-soft);
+  font-size: var(--fs-ui-sm);
+  list-style: none;
+  word-break: keep-all;
+}
+
+.hub-list b {
+  color: var(--on-fill);
+}
+
+/* 1100 이하 — 한 열 세로: 열 · 연결 · 허브가 위에서 아래로, 연결 칸은 고유 높이 · 라벨은 선 오른쪽 */
+@media (max-width: 1100px) {
+  .root {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: var(--s-4-5);
+  }
+
+  .link {
+    /* check-css-disable-next-line literal-px -- 세로 연결 칸 고유 높이 44(이음 .tp-link 1100 이하) */
+    height: 44px;
+  }
+
+  .link-label {
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    left: calc(50% + var(--s-3));
+    transform: translateY(-50%);
+    text-align: left;
+    white-space: nowrap;
+  }
+}

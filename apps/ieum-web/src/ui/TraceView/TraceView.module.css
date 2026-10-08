@@ -1,0 +1,125 @@
+/* TraceView — 이음 .trace · .step · .step-h · .rules · .model-note(css/console.css:753-764,778-779) · .drawer .trace(:810).
+   글자 14.5px(단계 제목)은 --fs-subhead로, 행간 1.55(모델 안내)는 --lh-note로, 반지름 5px은 --r-md로 묶었다(이웃 단계) */
+.root {
+  margin: 0;
+  padding: var(--s-1) var(--s-5) var(--s-5);
+  list-style: none;
+}
+
+.root[data-container='drawer'] {
+  padding: 0;
+}
+
+.step {
+  position: relative;
+  padding: var(--s-4) 0 var(--s-1) var(--s-10);
+}
+
+/* 단계 사이 세로 연결선 — 원 아래에서 다음 단계 원 위까지. 마지막 단계 뒤는 없다 */
+.step::before {
+  content: '';
+  position: absolute;
+  /* check-css-disable-next-line literal-px -- 연결선 위치 오프셋(원 지름 28의 가운데 — 이음 .step::before left 13px) */
+  left: 13px;
+  /* check-css-disable-next-line literal-px -- 연결선 위치 오프셋(원 아래 끝 — 이음 .step::before top 46px) */
+  top: 46px;
+  /* check-css-disable-next-line literal-px -- 연결선 위치 오프셋(다음 원 위까지 — 이음 .step::before bottom -12px) */
+  bottom: -12px;
+  width: 2px;
+  background: var(--line-divider);
+}
+
+.step:last-child::before {
+  display: none;
+}
+
+/* 번호 원 — 고유 지름 28. 색은 단계 쪽(ai · src · hold), 이음 · 실패 단계는 기본 */
+.no {
+  display: grid;
+  position: absolute;
+  /* check-css-disable-next-line literal-px -- 번호 원 위치 오프셋(머리 줄 가운데 — 이음 .step .no top 14px) */
+  top: 14px;
+  left: 0;
+  width: 28px;
+  /* check-css-disable-next-line literal-px -- 번호 원 고유 지름(한 변 = 다른 변) */
+  height: 28px;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  color: var(--on-fill);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+}
+
+.step[data-kind='ai'] .no {
+  background: var(--ai);
+}
+
+.step[data-kind='src'] .no {
+  background: var(--source);
+}
+
+.step[data-kind='hold'] .no {
+  background: var(--warn);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1-5) var(--s-2-5);
+  /* check-css-disable-next-line literal-px -- 머리 줄 최소 높이 = 번호 원 지름 28 */
+  min-height: 28px;
+  margin-bottom: var(--s-2);
+}
+
+.title {
+  font-size: var(--fs-subhead);
+  font-weight: var(--fw-bold);
+}
+
+.who {
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+
+/* 소요 칩 — 오른쪽 알약 · 고유 높이 20(행간 = 높이) */
+.ms {
+  margin-left: auto;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-pill);
+  background: var(--surface-sub);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  /* check-css-disable-next-line literal-px -- 소요 칩 고유 높이 20을 행간으로 낸다(이음 .step-h .ms line-height 20px) */
+  line-height: 20px;
+}
+
+.rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  margin-bottom: var(--s-2);
+}
+
+/* 모델 안내 — AI 쪽 연한 면 + 정보 아이콘 */
+.model-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  padding: var(--s-2) var(--s-2-5);
+  border-radius: var(--r-md);
+  background: var(--ai-bg);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-note);
+}
+
+/* 아이콘을 첫 줄 글자 가운데에 맞추는 광학 보정(이음 .model-note svg margin-top 2px) */
+.model-note-icon {
+  margin-top: var(--s-0-5);
+  color: var(--ai);
+}

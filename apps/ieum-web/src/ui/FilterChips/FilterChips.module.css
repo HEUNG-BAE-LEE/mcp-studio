@@ -1,0 +1,41 @@
+/* FilterChips — 이음 .tl-f(css/console.css:615-619). 묶음 모양은 data-variant, 고른 칩은 aria-pressed */
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+
+.root[data-variant='band'] {
+  padding: var(--s-2-5) var(--s-3);
+  border-bottom: 1px solid var(--line-divider);
+}
+
+.chip {
+  height: var(--h-xs);
+  padding: 0 var(--s-2-5);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.count {
+  margin-left: var(--s-1);
+  color: var(--text-faint);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+  color: var(--primary-ink);
+  font-weight: var(--fw-medium);
+}
+
+.chip[aria-pressed='true'] .count {
+  color: var(--primary-ink);
+}

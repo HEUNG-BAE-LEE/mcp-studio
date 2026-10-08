@@ -1,0 +1,36 @@
+/* RuleChip — 이음 .rl(css/console.css:696-700). 알약 · 고유 높이 20(태그 md와 같은 높이 — 행간 = 높이).
+   cv의 --primary-strong은 --primary-ink, ij의 --ont는 --rule-inject로 옮겼다(COMPONENTS RuleChip). 도움말 커서는 설명이 있을 때만 */
+.root {
+  display: inline-block;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-tag);
+  font-weight: var(--fw-medium);
+  /* check-css-disable-next-line literal-px -- 칩 고유 높이 20을 행간으로 낸다(이음 .rl line-height 20px) */
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.root[title] {
+  cursor: help;
+}
+
+.root[data-category='name'] {
+  background: var(--surface-sub);
+  color: var(--text-muted);
+}
+
+.root[data-category='convert'] {
+  background: var(--primary-bg);
+  color: var(--primary-ink);
+}
+
+.root[data-category='inject'] {
+  background: var(--rule-inject-bg);
+  color: var(--rule-inject);
+}
+
+.root[data-category='mask'] {
+  background: var(--danger-bg);
+  color: var(--danger);
+}

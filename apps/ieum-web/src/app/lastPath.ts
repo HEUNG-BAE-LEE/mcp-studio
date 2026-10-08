@@ -1,8 +1,12 @@
-// 메뉴별 마지막 주소. LNB는 메뉴를 다시 누르면 그 메뉴에서 마지막으로 본 주소(id · 필터 포함)로 간다 —
+// 메뉴별 마지막 주소. LNB는 다른 메뉴에서 돌아올 때 그 메뉴에서 마지막으로 본 주소(id · 필터 포함)로 간다 —
 // 옛 콘솔이 메뉴를 오가도 S의 필터 · 선택을 남기던 동작(js/main.js:29)을 주소로 옮긴 것.
 // 모듈 저장소라 새로고침하면 비고 기본 경로로 돌아간다(브라우저 저장소에 쓰지 않는다).
-// 원본 메뉴는 탐색 작업 주소(/sources/discovery/*)를 기록하지 않고(목록 주소가 남는다), ?log=(로그 행 상세)는 빼고 기록한다
+// 원본 메뉴는 탐색 작업 주소(/sources/discovery/*)를 기록하지 않고(목록 주소가 남는다), ?log=(로그 행 상세)는 빼고 기록한다 —
+// 다른 메뉴에서 돌아오면 드로어 없이 목록이 열린다.
+// 지금 보고 있는 메뉴를 다시 누르면 지금 주소 그대로(log 포함) 간다 — 옛 go(js/main.js:15)는 열린 드로어를 닫지 않았다.
+// 탐색 작업 주소에서는 지금처럼 원본 목록 주소로 간다. 다시 누르기의 새로 받기는 app/menuRefresh가 한다
 import { useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { SCREENS, TOP_NAV, firstSegment, type ScreenId } from './nav';
 import { createStore, useStore } from './store';
 
@@ -43,10 +47,14 @@ export function recordLastPath(pathname: string, search: string): void {
 }
 
 /**
- * LNB 링크 주소: 그 메뉴의 마지막 주소, 없으면 nav.ts의 기본 경로. basename 없는 라우트 경로라
- * `<Link to={href}>` · `<NavLink to={href}>`에 그대로 넣는다(새 탭 · 복사 주소는 Link가 basename을 붙인다)
+ * LNB 링크 주소: 지금 주소가 그 메뉴의 화면이면(탐색 작업 주소 제외) 지금 주소 그대로, 아니면 그 메뉴의 마지막 주소,
+ * 그것도 없으면 nav.ts의 기본 경로. basename 없는 라우트 경로라 `<Link to={href}>` · `<NavLink to={href}>`에 그대로 넣는다
+ * (새 탭 · 복사 주소는 Link가 basename을 붙인다). 지금 주소로 가는 링크는 react-router가 히스토리를 쌓지 않고 replace한다
  */
 export function useMenuHref(menu: ScreenId): string {
+  const { pathname, search } = useLocation();
   const select = useCallback((paths: LastPaths) => paths[menu], [menu]);
-  return useStore(lastPathStore, select) ?? DEFAULT_PATH[menu] ?? '/';
+  const lastPath = useStore(lastPathStore, select);
+  if (menuOf(pathname) === menu && !SKIPPED_PATH.test(pathname)) return pathname + search;
+  return lastPath ?? DEFAULT_PATH[menu] ?? '/';
 }

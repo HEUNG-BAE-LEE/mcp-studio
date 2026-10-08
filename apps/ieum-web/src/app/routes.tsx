@@ -1,14 +1,21 @@
+import type { ComponentType } from 'react';
 import { Navigate, type RouteObject } from 'react-router-dom';
+import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
+import { LogsScreen } from '../screens/logs/LogsScreen';
 import { PendingScreen } from '../screens/pending/PendingScreen';
 import { REDIRECT_ROUTE, SCREENS, type ScreenId } from './nav';
 import { RootLayout } from './RootLayout';
 import { RouteError } from './RouteError';
 
-// 메뉴를 옮길 때마다 해당 행의 element를 실제 화면으로 바꾼다
+// 옮긴 메뉴의 화면. 여기 없는 메뉴는 자리표시 화면을 그린다 — 메뉴를 옮길 때마다 한 줄씩 더한다
+const PORTED: Readonly<Partial<Record<ScreenId, ComponentType>>> = { dashboard: DashboardScreen, logs: LogsScreen };
 // 카탈로그(/_guide)는 셸 밖에 둔다 — 화면이 아니라 부품 목록이다
 const OUTSIDE_SHELL: ReadonlySet<ScreenId> = new Set(['guide']);
 
-const toRoute = (s: (typeof SCREENS)[number]): RouteObject => ({ path: s.path, element: <PendingScreen id={s.id} /> });
+const toRoute = (s: (typeof SCREENS)[number]): RouteObject => {
+  const Screen = PORTED[s.id];
+  return { path: s.path, element: Screen ? <Screen /> : <PendingScreen id={s.id} /> };
+};
 
 // 카탈로그는 tokens.css 원문(?raw)을 싣으므로 따로 쪼개 불러온다. 운영 빌드에서도 열린다(검수용)
 const loadGuide = () => import('../screens/_guide/GuideScreen').then((m) => ({ Component: m.GuideScreen }));
