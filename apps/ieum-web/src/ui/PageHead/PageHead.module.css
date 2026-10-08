@@ -1,0 +1,28 @@
+/* PageHead — 이음 .page-head(css/console.css:109-111) · 760 이하 제목(css/console.css:462) */
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3-5);
+  padding-bottom: var(--s-4-5);
+  border-bottom: 1px solid var(--line-divider);
+}
+
+.title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-page);
+  font-weight: var(--fw-bold);
+}
+
+.description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+}
+
+@media (max-width: 760px) {
+  .title {
+    font-size: var(--fs-title-sm);
+  }
+}

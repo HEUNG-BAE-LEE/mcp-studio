@@ -1,11 +1,12 @@
-// 소스 검사 — oxlint(.oxlintrc.json)로 못 하는 것을 typescript 컴파일러 API로 본다(D3 · design-guide eslint no-restricted-syntax 자리)
+// 소스 검사 — oxlint(.oxlintrc.json)로 못 하는 것을 typescript 컴파일러 API로 본다(새 의존성 없이 — design-guide eslint no-restricted-syntax 자리)
 // 1) src/copy/ 밖의 한글 문자열 · JSX 텍스트(화면 문장은 copy/ — 핵심 규칙 9). _guide 카탈로그 예시와
 //    개발자 메시지(console.* · warnOnce · new Error)는 뺀다
-// 2) 값 없음 표기 · 금지어(목록은 T2B.2)  3) 화면 폴더끼리 import(정적 · 동적 · export from)
+// 2) 값 없음 표기 · 금지어(목록은 lint/values.js)  3) 화면 폴더끼리 import(정적 · 동적 · export from)
+//    값 없음 표기 검사(EMPTY_MARKS)는 src/copy/ 안에서 하지 않는다 — 문구 원본(NONE = '—')이 거기 있다. 한글 · 금지어 검사의 범위는 그대로
 // 4) 화면 · ui의 전역 우회(window.fetch 등 — oxlint no-restricted-globals는 맨 이름만 본다), 화면의 toLocale*String · Intl
 // 5) 테스트 파일 금지(앱 폴더 전체)  6) oxlint · eslint 끄는 주석은 규칙 이름과 `-- <사유>`를 단다
-// 7) JSX `style` 속성(src/ 전체, _guide 포함 — D10 Q4-d에 예외 없음): 객체 리터럴의 키는 CSS 사용자 속성('--…')만(inline-style-literal,
-//    끌 수 없음). 객체 리터럴이 아닌 값(변수 · 호출 · 삼항)과 리터럴 속 펼침은 Q4-d가 정하지 않아 실패로 보고(inline-style-dynamic),
+// 7) JSX `style` 속성(src/ 전체, _guide 포함 — 예외 없음): 객체 리터럴의 키는 CSS 사용자 속성('--…')만(inline-style-literal,
+//    끌 수 없음). 객체 리터럴이 아닌 값(변수 · 호출 · 삼항)과 리터럴 속 펼침은 키를 미리 확인할 수 없어 실패로 보고(inline-style-dynamic),
 //    `style` 속성이 있는 줄 바로 위에 `check-source-disable-next-line inline-style-dynamic -- <사유>`를 단 것만 통과 — 태그 안이면 `// …`, JSX 자식 사이면 `{/* … */}`
 //    (여러 줄 태그에서 태그 위에 둔 주석은 먹지 않는다). 규칙 · 사유가 없거나 끈 것이 없으면 실패
 import { readdirSync, readFileSync } from 'node:fs';
@@ -33,6 +34,8 @@ const DEV_ERROR_CLASSES = new Set(['Error', 'TypeError', 'RangeError']);
 const GLOBAL_OBJECTS = new Set(['window', 'globalThis', 'self']);
 // 화면 · ui가 전역 객체로 우회해 부르지 않는 것. 맨 이름(fetch)은 oxlint no-restricted-globals가 막는다
 const SCREEN_UI_GLOBALS = new Set(['fetch']);
+// 어디서도 부르지 않는 브라우저 대화상자(저장소 규칙 — 자동화를 막고 촬영 화면에서 튄다). 맨 이름 · window. · globalThis.는 oxlint no-alert가 막고, self.는 여기서 막는다
+const DIALOG_GLOBALS = new Set(['alert', 'confirm', 'prompt']);
 const FORMAT_METHODS = new Set(['toLocaleString', 'toLocaleDateString', 'toLocaleTimeString']);
 const FORMAT_GLOBAL = 'Intl';
 const LINT_DIRECTIVE = /^(?:\/\/|\/\*)\s*(oxlint|eslint)-disable(-next-line|-line)?(?=[\s*]|$)([\s\S]*?)(?:\*\/)?$/;
@@ -45,7 +48,7 @@ const RULE = Object.freeze({
   styleDynamic: 'inline-style-dynamic',
   directive: 'disable-comment',
 });
-// check-source-disable-next-line로 끌 수 있는 규칙. inline-style-literal은 D10 Q4-d가 막기로 정해 끄지 못한다
+// check-source-disable-next-line로 끌 수 있는 규칙. inline-style-literal은 끌 수 없다(DESIGN 핵심 규칙 1)
 const DISABLEABLE_RULES = new Set([RULE.styleDynamic]);
 const SOURCE_DIRECTIVE = /^(?:\/\/|\/\*)\s*check-source-disable(\S*)\s*([\s\S]*?)\s*(?:\*\/)?$/;
 const NEXT_LINE = '-next-line';
@@ -56,11 +59,12 @@ const MESSAGE = Object.freeze({
   banned: (word) => `"${word}"는 금지어다 (DESIGN Copy)`,
   screenImport: '다른 화면 폴더를 import하지 않는다 — 공용 조각은 ui/ · app/ · api/ · copy/로 옮긴다 (README ## 구조)',
   bypass: (name) => `${name}를 전역 객체로 우회해 부르지 않는다 — api/hooks로 데이터를 받는다`,
+  dialog: (name) => `${name} 브라우저 대화상자를 쓰지 않는다 — 앱 안 Modal을 쓴다`,
   format: '숫자 · 날짜 서식은 copy/ 함수로 만든다 (DESIGN Copy 서식)',
   test: '테스트 파일을 두지 않는다 (CLAUDE.md 우선 블록)',
   unscoped: '끄는 주석에는 끌 규칙 이름을 적는다',
   noReason: '끄는 주석에는 `-- <사유>`를 단다',
-  noSource: 'src/에 .ts · .tsx 파일이 하나도 없다 — 검사 경로를 확인한다(R7)',
+  noSource: 'src/에 .ts · .tsx 파일이 하나도 없다 — 검사 경로를 확인한다',
   styleKey: (key) =>
     `style 객체에는 CSS 사용자 속성('--…') 키만 쓴다 — ${key}는 클래스 · 토큰으로 옮기고 비율 · 좌표만 '--…'로 넘긴다 (DESIGN 핵심 규칙 1)`,
   styleDynamic: (what) =>
@@ -135,17 +139,18 @@ const isInJsxSlot = (node) => {
 const isWholeString = (node) => ts.isJsxText(node) || ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node);
 
 const textProblems = (sf, nodes, rel) => {
-  const checksHangul = !rel.startsWith(COPY_DIR) && !rel.startsWith(GUIDE_DIR);
+  const isCopy = rel.startsWith(COPY_DIR);
+  const checksHangul = !isCopy && !rel.startsWith(GUIDE_DIR);
+  const checksEmptyMark = !isCopy;
   return nodes.flatMap((node) => {
     const text = textOf(node);
     if (text === null || isModuleSpecifier(node)) return [];
     const trimmed = text.trim();
     const hangul = checksHangul && HANGUL.test(text) && !isInDevMessage(node) ? [MESSAGE.hangul] : [];
-    const empty = EMPTY_MARKS.some(
+    const isEmptyMark = EMPTY_MARKS.some(
       (m) => isWholeString(node) && trimmed === m.text && (m.where === 'any' || isInJsxSlot(node)),
-    )
-      ? [MESSAGE.emptyMark]
-      : [];
+    );
+    const empty = checksEmptyMark && isEmptyMark ? [MESSAGE.emptyMark] : [];
     const banned = BANNED_WORDS.filter((word) => text.includes(word)).map(MESSAGE.banned);
     return [...hangul, ...empty, ...banned].map((message) => problemAt(sf, node.getStart(sf), message));
   });
@@ -181,13 +186,16 @@ const memberOf = (node) => {
     return { object: node.expression, name: node.argumentExpression.text };
   return null;
 };
-const bypassProblems = (sf, nodes) =>
+// 전역 객체(window · globalThis · self)를 거쳐 names 중 하나를 부르는 곳
+const globalMemberProblems = (sf, nodes, names, message) =>
   nodes.flatMap((node) => {
     const member = memberOf(node);
-    const isBypass =
-      member && ts.isIdentifier(member.object) && GLOBAL_OBJECTS.has(member.object.text) && SCREEN_UI_GLOBALS.has(member.name);
-    return isBypass ? [problemAt(sf, node.getStart(sf), MESSAGE.bypass(`${member.object.text}.${member.name}`))] : [];
+    const isHit =
+      member && ts.isIdentifier(member.object) && GLOBAL_OBJECTS.has(member.object.text) && names.has(member.name);
+    return isHit ? [problemAt(sf, node.getStart(sf), message(`${member.object.text}.${member.name}`))] : [];
   });
+const bypassProblems = (sf, nodes) => globalMemberProblems(sf, nodes, SCREEN_UI_GLOBALS, MESSAGE.bypass);
+const dialogProblems = (sf, nodes) => globalMemberProblems(sf, nodes, DIALOG_GLOBALS, MESSAGE.dialog);
 const formatProblems = (sf, nodes) =>
   nodes.flatMap((node) => {
     const member = memberOf(node);
@@ -304,6 +312,7 @@ function checkScript(path) {
     ...styleProblems(sf, nodes),
     ...(screen !== null ? importProblems(sf, nodes, screen) : []),
     ...(isScreenOrUi ? bypassProblems(sf, nodes) : []),
+    ...dialogProblems(sf, nodes),
     ...(isScreenText ? formatProblems(sf, nodes) : []),
   ];
 }

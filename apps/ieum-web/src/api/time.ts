@@ -1,4 +1,4 @@
-// 서버 시각 단위 맞추기(D14 · R27). 서버는 epoch 초(float)로 주고, 앱 안에서는 epoch ms로 쓴다.
+// 서버 시각 단위 맞추기. 서버는 epoch 초(float)로 주고, 앱 안에서는 epoch ms로 쓴다.
 // 훅의 select에서 한 번만 바꾼다 — 화면 · copy는 늘 ms를 받는다(표시 서식은 DESIGN Copy 절). 소요 시간은 서버도 ms라 바꾸지 않는다
 const MS_PER_SEC = 1000;
 

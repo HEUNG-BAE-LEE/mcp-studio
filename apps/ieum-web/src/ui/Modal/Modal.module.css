@@ -1,0 +1,81 @@
+/* Modal — 이음 .modal · .m-head · .m-body · .m-foot(css/console.css:402-411).
+   <dialog>.show()라 top layer가 아니다 — 위치 · z를 직접 준다. 닫힌 dialog는 브라우저 기본으로 display:none이고,
+   열림 · 닫힘 전환은 display를 allow-discrete로 함께 옮긴다(이음 .16s 페이드 + 이동) */
+.root {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  z-index: var(--z-modal);
+  flex-direction: column;
+  width: min(var(--w-modal), calc(100vw - 2 * var(--s-4)));
+  max-width: none;
+  max-height: calc(100vh - 2 * var(--s-6));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  color: var(--text);
+  opacity: 0;
+  transform: translate(-50%, -48%);
+  transition:
+    opacity var(--m-modal),
+    transform var(--m-modal),
+    display var(--m-modal) allow-discrete;
+}
+
+.root[data-size='wide'] {
+  width: min(var(--w-modal-wide), calc(100vw - 2 * var(--s-4)));
+}
+
+.root[open] {
+  display: flex;
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+@starting-style {
+  .root[open] {
+    opacity: 0;
+    transform: translate(-50%, -48%);
+  }
+}
+
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--h-modal-head);
+  padding: 0 var(--s-2) 0 var(--s-5);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: var(--brand-band);
+  color: var(--on-fill);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+}
+
+/* 행간 1.7 → --lh-prose(이웃 단계로 묶음) */
+.body {
+  overflow: auto;
+  padding: var(--modal-pad) var(--modal-pad) var(--s-1-5);
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+}
+
+.body b {
+  color: var(--text);
+}
+
+.foot {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--modal-pad) var(--modal-pad);
+}
+
+.foot > button {
+  min-width: 96px;
+}

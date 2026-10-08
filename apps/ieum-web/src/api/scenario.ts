@@ -29,7 +29,7 @@ export function scenarioFailure(req: ScenarioRequest): ScenarioFailure | null {
     (current === 'write-failed' && req.method !== 'GET') ||
     (current === 'region-failed' && req.region === true);
   if (!fails) return null;
-  // 실제 백엔드 실패와 같은 봉투(responses.py fail) — 서버 resultMsg를 그대로 그리는 주된 경로를 지난다(설계 3절 개발용 시나리오 층)
+  // 실제 백엔드 실패와 같은 봉투(responses.py fail) — 서버 resultMsg를 그대로 그리는 주된 경로를 지난다
   const body = { resultCode: HTTP_INTERNAL, resultMsg: SCENARIO_SERVER_ERROR, resultData: null };
   return { status: HTTP_INTERNAL, body: JSON.stringify(body) };
 }
@@ -37,7 +37,7 @@ export function scenarioFailure(req: ScenarioRequest): ScenarioFailure | null {
 export const scenarioDelay = () =>
   current === 'slow' ? new Promise<void>((r) => setTimeout(r, SLOW_DELAY_MS)) : Promise.resolve();
 
-// 자원별 빈 응답 = 상태 폴더가 빈 백엔드(:8010)가 실제로 내는 응답(audit layers-nav.md F 끝 · api-contract.md §1.1).
+// 자원별 빈 응답 = 상태 폴더가 빈 백엔드(:8010)가 실제로 내는 응답이다.
 // 사용자가 만든 자원(원본 · 도구 · 묶음 · 키 · 로그 · 탐색 작업)만 비우고 서버 설정 값은 남긴다 —
 // /sources/의 workspace · wizard, /discovery/의 capabilities · defaults · demo, /dashboard/summary/의 24칸 hourly.
 // /playground/(models · chatEnabled)는 설정 값뿐이라 표에 없다

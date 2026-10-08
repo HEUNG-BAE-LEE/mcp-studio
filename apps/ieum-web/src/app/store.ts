@@ -1,5 +1,5 @@
-// 화면 간 공유 상태의 틀 — useSyncExternalStore 위 모듈 저장소(D3 · 설계 3절 "화면 간 공유 상태").
-// 저장소 자체(스튜디오 초안 · 테스트 실행 상태 · Toast 한 칸)는 3단계 ② ③ ④가 createStore로 만든다.
+// 화면 간 공유 상태의 틀 — useSyncExternalStore 위 모듈 저장소(새 의존성을 들이지 않으려 zustand 같은 라이브러리 없이 직접 만든다).
+// 저장소 자체(스튜디오 초안 · 테스트 실행 상태 · Toast 한 칸)는 해당 화면을 옮길 때 createStore로 만든다.
 // 모듈 상태라 새로고침하면 비고, 브라우저 저장소에 쓰지 않는다
 import { useCallback, useSyncExternalStore } from 'react';
 

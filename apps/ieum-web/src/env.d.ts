@@ -8,7 +8,7 @@ declare global {
   const __IEUM_BACKEND__: string;
 }
 
-// D16: style은 '--*' 키만 쓴다(check-source inline-style-literal) — 타입 단언 없이 쓰도록 CSSProperties가 사용자 속성 키를 받게 한다
+// style은 '--*' 키만 쓴다(check-source inline-style-literal) — 타입 단언 없이 쓰도록 CSSProperties가 사용자 속성 키를 받게 한다
 declare module 'react' {
   interface CSSProperties {
     [key: `--${string}`]: string | number | undefined;

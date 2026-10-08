@@ -1,5 +1,5 @@
-// 원본 시스템 · workspace · 연결 마법사 값(GET /sources/). 셸 GNB · 대시보드 · 원본 · 스튜디오 · 테스트 실행 · 배포가 함께 쓴다(R20)
-// 셸 조회라 region이 아니다(audit layers-nav.md Q-01)
+// 원본 시스템 · workspace · 연결 마법사 값(GET /sources/). 셸 GNB · 대시보드 · 원본 · 스튜디오 · 테스트 실행 · 배포가 함께 쓴다
+// 셸 조회라 region이 아니다
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../client';
 import type { SourcesResponse } from '../types';

@@ -7,8 +7,16 @@ export const keys = {
   /** GET /studio/ — 원본별 도구 */
   tools: () => ['studio'] as const,
   /**
-   * GET /playground/ — 같은 경로를 분류마다 따로 캐시한다(audit layers-nav.md Q-03 · critic K-18).
+   * GET /playground/ — 같은 경로를 분류마다 따로 캐시한다(먼저 받은 쪽의 실패가 다른 쪽에 남지 않게).
    * 테스트 실행은 화면 조회 ['playground'], 대시보드 구조도 · 로그 필터 · 모델 라벨은 region 조회 ['playground', {region:true}]
    */
   playground: (region = false) => (region ? (['playground', { region: true }] as const) : (['playground'] as const)),
+  /** GET /dashboard/summary/ — 대시보드 요약(영역 조회) */
+  dashboardSummary: () => ['dashboard', 'summary'] as const,
+  /** GET /logs/ — 호출 로그 목록. 상세는 ['logs', id]로 이 키 아래에 둔다 */
+  logs: () => ['logs'] as const,
+  /** GET /discovery/ — 원본 화면의 탐색 개요(영역 조회) */
+  discoveryOverview: () => ['discovery', { region: true }] as const,
+  /** GET /deploy/toolsets/ — 도구 묶음 · 배포 상태. 서버 로그는 이 키 아래 따로 둔다 */
+  toolsets: () => ['deploy', 'toolsets'] as const,
 };

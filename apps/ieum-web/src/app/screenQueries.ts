@@ -1,6 +1,6 @@
 // 쿼리 여럿의 실패 판정 — 주 자원 404면 not-found, 받은 값이 없는 쿼리가 실패했으면 error.
-// 다시 받기(retry · refetch)는 두지 않는다 — 첫 화면 실패에 재시도 버튼이 없다(D11 Q7-c — 옛 js/main.js:65-67). 필요해지면 그때 더한다
-// design-guide api/screenQueries.ts의 코드 경로를 옮겼다. 이음 ApiError에는 code가 없어 "아는 code" 갈래는 뺀다(설계 2절 오류 파이프라인)
+// 다시 받기(retry · refetch)는 두지 않는다 — 첫 화면 실패에 재시도 버튼이 없다(옛 js/main.js:65-67). 필요해지면 그때 더한다
+// design-guide api/screenQueries.ts의 코드 경로를 옮겼다. 이음 ApiError에는 code가 없어 "아는 code" 갈래는 뺀다
 import { ApiError } from '../api/errors';
 
 const HTTP_NOT_FOUND = 404;

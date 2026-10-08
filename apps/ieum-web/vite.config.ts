@@ -11,7 +11,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   css: { modules: { localsConvention: 'camelCaseOnly' } },
-  // 개발 중 대시보드 빈 상태의 시연 원본 주소는 location.origin(:5174)이 아니라 백엔드 주소로 만든다(R6)
+  // 개발 중 대시보드 빈 상태의 시연 원본 주소는 location.origin(:5174)이 아니라 백엔드 주소로 만든다
   define: { __IEUM_BACKEND__: JSON.stringify(BACKEND) },
   build: {
     rolldownOptions: {

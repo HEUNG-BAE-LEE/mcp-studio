@@ -1,0 +1,50 @@
+/* FailureBlock · ErrorBlock — 이음 .notice(css/console.css:270-272) + warn · danger(css/console.css:643-649).
+   반지름 5px은 --r-md(6)로(이웃 단계로 묶음) */
+.root {
+  display: flex;
+  gap: var(--s-2-5);
+  padding: var(--s-3) var(--s-3-5);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+  line-height: var(--lh-prose);
+}
+
+.root[data-tone='warn'] {
+  background: var(--warn-bg);
+}
+
+.root[data-tone='danger'] {
+  background: var(--danger-bg);
+}
+
+.icon {
+  /* check-css-disable-next-line literal-px -- 아이콘을 첫 줄 글자 가운데에 맞추는 광학 보정(이음 .notice>svg margin-top 2px) */
+  margin-top: 2px;
+}
+
+.root[data-tone='warn'] .icon {
+  color: var(--warn);
+}
+
+.root[data-tone='danger'] .icon {
+  color: var(--danger);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  display: block;
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}
+
+/* 서버 원문의 줄바꿈 · 긴 낱말을 지킨다(js/menu/deploy.js:116 white-space:pre-wrap; word-break:break-word) */
+.message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

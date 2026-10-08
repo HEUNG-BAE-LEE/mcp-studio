@@ -1,4 +1,4 @@
-// 도구 목록(GET /studio/)을 원본(GET /sources/)과 이어 화면이 쓰는 모양으로 만든다 — 옛 state.js indexTools(R20)
+// 도구 목록(GET /studio/)을 원본(GET /sources/)과 이어 화면이 쓰는 모양으로 만든다 — 옛 state.js indexTools
 // 원본 id(src)를 붙이고 exec · mask · cache · limit이 없으면 기본값을 채운다. 받은 객체는 고치지 않고 새 객체를 만든다
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';

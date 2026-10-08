@@ -1,7 +1,7 @@
 // CSS Modules 검사 — design-guide의 stylelint 설정 + 플러그인 셋(no-literal-px · known-custom-property · disable-reason)을
-// 의존성 없이 옮긴 것(D3). 대상은 src/**/*.module.css이고, 하나도 없으면 실패한다(R7 — 조용히 꺼지지 않게)
+// 의존성 없이 옮긴 것(새 의존성을 들이지 않는다). 대상은 src/**/*.module.css이고, 하나도 없으면 실패한다(조용히 꺼지지 않게)
 // 규칙: color-literal · literal-px · unknown-custom-property · property-value · screen-property · screen-media · media-query
-// @media(D11 Q5-b): 화면 CSS(src/screens/**, _guide 제외)는 쓰지 않는다(screen-media). 그 밖(ui · 레이아웃)은
+// @media: 화면 CSS(src/screens/**, _guide 제외)는 쓰지 않는다(screen-media). 그 밖(ui · 레이아웃)은
 // values.js ALLOWED_MEDIA(문자열 배열) 중 하나와 공백을 정규화해 글자 그대로 같을 때만 통과(media-query)
 // 끄기: 바로 윗줄에 `/* check-css-disable-next-line <규칙>[, <규칙>] -- <사유> */`. 규칙 이름 · 사유가 없거나 끈 것이 없으면 실패
 import { readdirSync, readFileSync } from 'node:fs';
@@ -236,7 +236,7 @@ const mediaProblems = ({ condition }, isScreen) => {
       {
         rule: RULE.screenMedia,
         text:
-          `@media ${condition}: 화면 CSS에서 @media를 쓰지 않는다 (D11 Q5-b). ` +
+          `@media ${condition}: 화면 CSS에서 @media를 쓰지 않는다. ` +
           '폭에 따라 접히는 배치는 레이아웃 부품(SplitLayout · TwoColumn · FieldPair)이 맡는다',
       },
     ];
@@ -315,7 +315,7 @@ const cssFiles = (dir) =>
 
 const files = cssFiles(SOURCE_DIR);
 if (files.length === 0) {
-  console.error('check-css: src/**/*.module.css가 하나도 없다 — 검사 경로를 확인한다(R7)');
+  console.error('check-css: src/**/*.module.css가 하나도 없다 — 검사 경로를 확인한다');
   process.exit(1);
 }
 const problems = files.flatMap(checkFile);

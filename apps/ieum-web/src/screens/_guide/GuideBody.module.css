@@ -1,0 +1,31 @@
+.body {
+  display: grid;
+  gap: var(--s-10);
+  padding: var(--s-6) var(--s-6) var(--s-10);
+}
+
+.section {
+  display: grid;
+  gap: var(--s-4);
+  /* 본문 가로 스크롤(표)이 이 상자를 밀어내지 않게 한다 */
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--line-divider);
+  font-size: var(--fs-page);
+  font-weight: var(--fw-bold);
+}
+
+/* 부품 CSS와 같은 브레이크포인트 — 폭 전환이 이 본문의 @media를 실제로 바꾼다는 것을 눈으로 확인할 수 있다 */
+@media (max-width: 760px) {
+  .body {
+    padding: var(--s-4) var(--s-3-5) var(--s-10);
+  }
+
+  .title {
+    font-size: var(--fs-title-sm);
+  }
+}

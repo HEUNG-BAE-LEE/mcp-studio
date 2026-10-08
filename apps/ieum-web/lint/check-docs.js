@@ -50,14 +50,15 @@ const extraDocs = () =>
     .filter((name) => !DOC_FILES.includes(name))
     .map((name) => `docs/${name}: docs/에는 DESIGN.md · COMPONENTS.md만 둔다`);
 
-// /_guide는 T2B.6에서 생긴다. 없으면 절도 없다 — 그때 COMPONENTS에 카탈로그 행이 있으면 실패한다
+// /_guide 카탈로그 폴더가 없으면 절도 없다 — 그때 COMPONENTS에 카탈로그 행이 있으면 실패한다
+// 절 정의는 주석(`//` · `/* */`)을 가린 뒤 읽는다 — 주석에 적은 예시 `group: '…', name: '…'`가 절로 세어지지 않는다
 const guideSectionNames = () =>
   existsSync(GUIDE_DIR)
     ? new Set(
         readdirSync(GUIDE_DIR)
           .filter((name) => name.endsWith('.tsx'))
           .flatMap((name) => {
-            const source = readFileSync(join(GUIDE_DIR, name), 'utf8');
+            const source = maskComments(readFileSync(join(GUIDE_DIR, name), 'utf8'), SOURCE_COMMENT_OR_STRING);
             return GUIDE_SECTION_NAME_PATTERNS.flatMap((pattern) => [...source.matchAll(pattern)]);
           })
           .map((m) => m[1]),
@@ -133,14 +134,14 @@ const darkTokenMismatches = () => {
   return out;
 };
 
-// 브레이크포인트 대조(R24 · D11 Q5 안 C) — app/breakpoints.ts BREAKPOINTS의 숫자와 values.js ALLOWED_MEDIA 조건의 폭이 같은 집합이다.
+// 브레이크포인트 대조 — app/breakpoints.ts BREAKPOINTS의 숫자와 values.js ALLOWED_MEDIA 조건의 폭이 같은 집합이다.
 // ALLOWED_MEDIA 항목은 공백을 무시하고 maxWidth 모양 `(max-width: Npx)`여야 한다. breakpoints.ts는 주석을 먼저 가린 뒤 목록 리터럴을 정규식으로 읽는다.
 // 두 목록 중 하나라도 비면 오류다 — 빈 둘이 같다고 통과하지 않는다
 const BREAKPOINTS_FILE = join(ROOT, 'src/app/breakpoints.ts');
 const BREAKPOINTS_LIST = /export\s+const\s+BREAKPOINTS\s*=\s*\[([^\]]*)\]\s*as\s+const/;
 const BREAKPOINT_ITEM = /^\d+$/;
-const EMPTY_BREAKPOINTS = 'src/app/breakpoints.ts: BREAKPOINTS가 비었다(R24)';
-const EMPTY_MEDIA = 'lint/values.js: ALLOWED_MEDIA가 비었다(R24)';
+const EMPTY_BREAKPOINTS = 'src/app/breakpoints.ts: BREAKPOINTS가 비었다';
+const EMPTY_MEDIA = 'lint/values.js: ALLOWED_MEDIA가 비었다';
 const MAX_WIDTH_QUERY = /^\(\s*max-width\s*:\s*(\d+)px\s*\)$/;
 
 const breakpointWidths = () => {

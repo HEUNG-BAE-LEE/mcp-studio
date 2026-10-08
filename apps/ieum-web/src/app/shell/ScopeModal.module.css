@@ -1,0 +1,30 @@
+/* 1차 개발 범위 모달 본문 — 이음 .scope-g(css/console.css:855-857) · 760 이하 한 열(css/console.css:900). 행간 1.75 → --lh-loose(이웃 단계로 묶음) */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-4-5);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  margin: 0 0 var(--s-2);
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+}
+
+.list {
+  margin: 0;
+  padding-left: var(--s-4-5);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  line-height: var(--lh-loose);
+}
+
+@media (max-width: 760px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,19 @@
+/* Overlay — 이음 .overlay(css/console.css:239-241). 닫혀 있으면 투명 · 누름 통과, 열리면 보이고 누름을 받는다 */
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-scrim);
+  background: var(--scrim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--m-fade);
+}
+
+.root[data-layer='drawer'] {
+  z-index: var(--z-drawer-scrim);
+}
+
+.root[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}

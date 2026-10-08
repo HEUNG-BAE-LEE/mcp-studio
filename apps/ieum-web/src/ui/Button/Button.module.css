@@ -1,0 +1,60 @@
+/* Button — 이음 .btn(css/console.css:175-179) · 비활성(css/console.css:640-642). 변형은 data-variant, 크기는 data-size */
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1-5);
+  height: var(--h-md);
+  padding: 0 var(--s-3-5);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--m-fast),
+    border-color var(--m-fast),
+    color var(--m-fast);
+}
+
+.root:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.root[data-variant='primary'] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-fill);
+}
+
+.root[data-variant='primary']:hover {
+  border-color: var(--primary-hover);
+  background: var(--primary-hover);
+  color: var(--on-fill);
+}
+
+.root[data-size='sm'] {
+  height: var(--h-sm);
+  padding: 0 var(--s-2-5);
+  font-size: var(--fs-ui-sm);
+}
+
+/* 비활성 — 투명도 하나(--opacity-disabled), hover 모양이 바뀌지 않는다 */
+.root:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.root:disabled:hover {
+  border-color: var(--line-control);
+  color: var(--text);
+}
+
+.root[data-variant='primary']:disabled:hover {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-fill);
+}

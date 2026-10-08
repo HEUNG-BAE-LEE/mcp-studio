@@ -1,6 +1,6 @@
 // 백엔드 /api/ieum 응답 타입(봉투를 푼 resultData). 필드 이름은 백엔드 그대로(o · a · loc 같은 축약 포함), 뜻은 주석에 적는다
-// 기준: .superpowers/audit/api-contract.md(c114af2) 계약표 + :8010 실측. 화면(옛 콘솔 apps/web/ieum/js)이 읽는 필드만 적는다
-// 시각 필드는 앱 안에서는 epoch ms다(훅 select가 서버 epoch 초를 api/time.ts secToMs로 바꾼다, D14). 소요 시간(…Ms)은 서버도 ms라 그대로다.
+// 기준: 백엔드 라우터(apps/backend, c114af2)와 :8010 실측. 화면(옛 콘솔 apps/web/ieum/js)이 읽는 필드만 적는다
+// 시각 필드는 앱 안에서는 epoch ms다(훅 select가 서버 epoch 초를 api/time.ts secToMs로 바꾼다). 소요 시간(…Ms)은 서버도 ms라 그대로다.
 // 서식은 copy/에서(DESIGN Copy 절)
 
 /** 상태 · 종류 값: 아는 값은 자동 완성되고, 모르는 값이 와도 string으로 받는다(화면은 lookup + warnOnce 폴백) */
@@ -28,7 +28,7 @@ export type Source = Readonly<{
   /** 인증 방식 표시 라벨(예: "API Key") */
   auth: string;
   authType: AuthType;
-  /** 서버가 박아 둔 "방금"(R27 — 받은 값 그대로 보인다) */
+  /** 서버가 박아 둔 "방금"(받은 값 그대로 보인다) */
   sync: string;
   /** SOAP만 */
   ns?: string;
@@ -183,7 +183,7 @@ export type ToolsetRuntime = Readonly<{
   port?: number;
   url?: string;
   pid?: number;
-  /** 시작 시각 — 앱 안에서는 epoch ms(서버는 epoch 초 — 3단계 배포 훅에서 select로 바꾼다) */
+  /** 시작 시각 — 앱 안에서는 epoch ms(서버는 epoch 초 — 배포 훅에서 select로 바꾼다) */
   startedAt?: number;
   exitCode?: number;
   message?: string;
@@ -224,7 +224,7 @@ export type LogStatus = Known<'ok' | 'err'>;
 export type LogRow = Readonly<{
   /** 12자 hex — 화면은 req_<id>로 보인다 */
   id: string;
-  /** 호출 시각 — 앱 안에서는 epoch ms(서버는 epoch 초 — 3단계 로그 훅에서 select로 바꾼다) */
+  /** 호출 시각 — 앱 안에서는 epoch ms(서버는 epoch 초 — 로그 훅에서 select로 바꾼다) */
   ts: number;
   client: ModelId;
   tool: string;
@@ -235,7 +235,7 @@ export type LogRow = Readonly<{
   user: string;
   note: string | null;
 }>;
-/** 화면은 rows만 읽는다(필터는 화면에서, R21) */
+/** 화면은 rows만 읽는다(필터는 화면에서) */
 export type LogsResponse = Readonly<{ rows: readonly LogRow[] }>;
 export type LogDetail = LogRow & Readonly<{ trace: CallTrace }>;
 
@@ -249,14 +249,14 @@ export type JobSummary = Readonly<{
   name: string;
   status: JobStatus;
   opts: Readonly<{ git: boolean; crawl: boolean; base?: string; repo?: string }>;
-  /** 예약 시각(scheduled일 때) — 앱 안에서는 epoch ms(서버는 epoch 초 — 3단계 탐색 훅에서 select로 바꾼다) */
+  /** 예약 시각(scheduled일 때) — 앱 안에서는 epoch ms(서버는 epoch 초 — 탐색 훅에서 select로 바꾼다) */
   startAt: number | null;
   stats: Readonly<{ found: number }>;
   /** 찾은 API 수(범위 밖 제외) */
   apiCount: number;
   registered: number;
 }>;
-/** 마법사 "시연용 값 채우기" — 시연 계정 비밀번호가 평문으로 온다(시연용, 감사 §7-1) */
+/** 마법사 "시연용 값 채우기" — 시연 계정 비밀번호가 평문으로 온다(시연용) */
 export type DiscoveryDemo = Readonly<{
   name: string;
   base: string;

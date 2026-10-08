@@ -1,0 +1,142 @@
+/* GNB — 이음 .gnb · .company · .gnb-r · .gi · .me · .avatar(css/console.css:83-95) · .logo · .mvp(css/console.css:489-493).
+   1100 이하 회사 버튼 숨김(css/console.css:448), 760 이하 좁게 · 범위 버튼 · hide-sm 숨김(css/console.css:452-454,889) */
+.gnb {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  height: var(--h-gnb);
+  padding: 0 var(--gnb-pad-x);
+  border-bottom: 1px solid var(--line-divider);
+  background: var(--surface);
+}
+
+/* 로고 — 뒤 선언(css/console.css:489-491)이 이긴 값. gap 9 → --s-2-5(10 — 이웃 단계로 묶음) */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  color: var(--text);
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-logo);
+  white-space: nowrap;
+}
+
+.logo svg {
+  color: var(--primary);
+}
+
+.badge {
+  /* check-css-disable-next-line literal-px -- 표지 위아래 1px 광학 보정(이음 .logo .ed padding 1px 7px) */
+  padding: 1px var(--s-1-75);
+  border-radius: var(--r-sm);
+  background: var(--primary);
+  color: var(--on-fill);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tracking-mono);
+}
+
+.company {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--h-sm-plus);
+  padding: 0 var(--s-3-5);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dot {
+  width: var(--s-1-5);
+  height: var(--s-1-5);
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.end {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4-5);
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+/* "1차 개발 범위" — 좌우 13 → --s-3(12 — 이웃 단계로 묶음) */
+.scope {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  height: var(--h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--primary-line);
+  border-radius: var(--r-pill);
+  background: var(--primary-bg);
+  color: var(--primary-ink);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scope:hover {
+  border-color: var(--primary);
+}
+
+.decor {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.me {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+}
+
+/* 아바타 32 원 — 단계 밖 고유 치수(이음 .avatar css/console.css:95) */
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  /* check-css-disable-next-line literal-px -- 아바타 원 고유 치수 — 한 변 = 다른 변(width 32) */
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--avatar-from), var(--avatar-to));
+  color: var(--avatar-ink);
+  font-size: var(--fs-ui-sm);
+  font-weight: var(--fw-bold);
+}
+
+@media (max-width: 1100px) {
+  .company {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .gnb {
+    gap: var(--s-2-5);
+    padding: 0 var(--s-3-5);
+  }
+
+  .end {
+    gap: var(--s-3);
+  }
+
+  /* 이음 .mvp · .hide-sm — 범위 버튼 · doc · help · 사용자명(이음 그대로) */
+  .scope,
+  .gnb [data-narrow='hide'] {
+    display: none;
+  }
+}

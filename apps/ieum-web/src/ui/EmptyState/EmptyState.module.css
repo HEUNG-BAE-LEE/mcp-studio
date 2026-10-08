@@ -1,0 +1,81 @@
+/* EmptyState — 그릇마다 이음 모양 그대로. 문장 안 굵은 글은 --text-muted · 500(css/console.css:368) */
+
+/* table — 표 안 한 행(css/console.css:201,212). 테두리 · 행 높이는 표 부품이 준다 */
+.cell {
+  padding: var(--empty-pad-y) 0;
+  background: var(--surface);
+  color: var(--text-faint);
+  font-size: var(--fs-body);
+  text-align: center;
+  cursor: default;
+}
+
+/* panel — 점선 상자(css/console.css:366-367) */
+.panel {
+  padding: var(--empty-pad-panel);
+  border: 1px dashed var(--line-control);
+  border-radius: var(--r-md);
+  color: var(--text-faint);
+  font-size: var(--fs-ui-sm);
+  line-height: var(--lh-prose);
+  text-align: center;
+}
+
+.panel[data-size='sm'] {
+  padding: var(--s-4-5) var(--s-4);
+}
+
+/* panel hero — 대시보드 큰 상자(js/menu/dashboard.js:61 — .box + 인라인 여백 · 가운데) */
+.hero {
+  padding: var(--empty-pad-hero);
+  border: 1px solid var(--line-control);
+  background: var(--surface);
+  text-align: center;
+}
+
+.hero-title {
+  margin: 0 0 var(--s-2);
+  color: var(--text);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+}
+
+/* 보조 문장 — 이음 .tab-hint(css/console.css:289-290) 모양, 여백은 큰 상자 인라인 값 */
+.hero-text {
+  margin: 0 0 var(--s-4-5);
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  line-height: var(--lh-prose);
+}
+
+/* inline — 상자 안 테두리 없는 한 줄(css/console.css:135) */
+.inline {
+  padding: var(--s-10) var(--s-4);
+  color: var(--text-faint);
+  font-size: var(--fs-ui-sm);
+  text-align: center;
+}
+
+/* area — 큰 자리 + 아이콘(css/console.css:769-770) */
+.area {
+  padding: var(--empty-pad-y) var(--s-6);
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+  line-height: var(--lh-loose);
+  text-align: center;
+}
+
+.area-icon {
+  display: block;
+  margin: 0 auto var(--s-1-5);
+  color: var(--line-control);
+}
+
+.cell b,
+.panel b,
+.hero-text b,
+.inline b,
+.area b {
+  color: var(--text-muted);
+  font-weight: var(--fw-medium);
+}

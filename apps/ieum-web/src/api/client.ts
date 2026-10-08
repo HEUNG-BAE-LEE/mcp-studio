@@ -1,6 +1,6 @@
 // /api/ieum 호출 한 곳. 봉투 {resultCode, resultMsg, resultData}를 풀고 실패는 ApiError로 던진다
 // 경로는 백엔드 라우터 그대로(끝 슬래시 포함) — 빠지면 307로 출처가 바뀐다
-// 실패 문구(D11 Q7 · 옛 js/common/api.js:14): 봉투 실패는 resultMsg 그대로, 비었거나 봉투가 아니면({detail} 포함) statusFailed.
+// 실패 문구(옛 js/common/api.js:14): 봉투 실패는 resultMsg 그대로, 비었거나 봉투가 아니면({detail} 포함) statusFailed.
 // 서버 detail · 본문 원문은 화면 문구로 쓰지 않는다(영문이 화면에 나오지 않게 — 원문은 ApiError.raw에만)
 import { NETWORK_FAILED, statusFailed } from '../copy/errors';
 import { ApiError, NETWORK_STATUS } from './errors';

@@ -1,17 +1,17 @@
 // 화면 상태 판정 — 쿼리 묶음을 pending · not-found · error · empty · ready 중 하나로 본다. React 노드를 그리지 않는다.
-// 그리는 쪽(ScreenState · FailureBlock)은 디자인 T2B.5가 만들고 3단계 ①에서 잇는다.
-// 화면 조회와 영역(region) 조회를 나눈다(R10 · audit layers-nav.md F):
+// 그리는 쪽(ScreenState · FailureBlock)은 디자인 쪽 ui 부품이고, 화면을 옮길 때 이 판정을 잇는다.
+// 화면 조회와 영역(region) 조회를 나눈다:
 // - screenGate: 화면 전체를 대표하는 조회만 넣는다. 실패하면 본문 자리에 보인다
-// - regionGate: region 조회 하나(Q-03 구조도 쪽 · Q-04 · Q-06 · Q-07 · Q-09 · Q-12 · Q-13). 그 상자 · 층 안에만 보이고 화면을 막지 않는다
+// - regionGate: region 조회 하나(구조도 · 로그 필터 · 모델 라벨의 모델 목록, 대시보드 요약, 로그 상세, 탐색 작업 목록, 탐색 근거, 배포 키, 배포 서버 로그). 그 상자 · 층 안에만 보이고 화면을 막지 않는다
 //   region 조회를 screenGate에 넣지 않는다 — 넣으면 영역 하나의 실패가 화면 전체를 덮는다
 // - enabled:false 쿼리는 넣지 않는다 — 받지 않는 쿼리는 값도 실패도 없어 pending이 끝나지 않는다(조건이 서면 넣는다)
 //
-// 판정 결과를 쓰는 법(D11 Q7):
-// - pending: 문구 없이 그 자리(화면이면 본문, region이면 그 상자)를 비우고 aria-busy="true"만 단다(Q7-g — 옛 부트 js/main.js:65-66)
-// - error(screenGate): 본문 자리에 실패 상자 하나 — 문장은 (error as ApiError).message. 재시도 버튼은 두지 않는다(Q7-c)
-// - error(regionGate): 그 상자 안에 실패 상자 — message만, 머리 문장 없이, tone warn(Q7-h). 화면의 나머지는 그대로 그린다
-// - 이미 받은 값이 있는 쿼리의 새로 받기 · 폴링 실패는 error가 아니다 — 표시 없이 이전 값으로 ready(Q7-a)
-// - not-found(screenGate의 notFound 자원만): 없음 상태(Q10-a 탐색 작업). empty · ready는 data를 그린다
+// 판정 결과를 쓰는 법:
+// - pending: 문구 없이 그 자리(화면이면 본문, region이면 그 상자)를 비우고 aria-busy="true"만 단다(옛 부트 js/main.js:65-66)
+// - error(screenGate): 본문 자리에 실패 상자 하나 — 문장은 (error as ApiError).message. 재시도 버튼은 두지 않는다(옛 콘솔에도 없다 — js/main.js:65-67)
+// - error(regionGate): 그 상자 안에 실패 상자 — message만, 머리 문장 없이, tone warn. 화면의 나머지는 그대로 그린다
+// - 이미 받은 값이 있는 쿼리의 새로 받기 · 폴링 실패는 error가 아니다 — 표시 없이 이전 값으로 ready
+// - not-found(screenGate의 notFound 자원만): 없음 상태(탐색 작업 — 없는 id 주소). empty · ready는 data를 그린다
 // - 실패 문장은 api/client가 만든다: 봉투 resultMsg 그대로, 그 밖은 "요청에 실패했습니다 ({status})" · "서버에 연결하지 못했습니다."
 //   ApiError.raw(응답 본문 원문)는 화면에 내지 않는다
 import { hasData, queryFailure, type QueryFailure, type ScreenQuery } from './screenQueries';

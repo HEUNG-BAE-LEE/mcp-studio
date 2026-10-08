@@ -1,5 +1,5 @@
 {
-  // oxlint 설정 — design-guide eslint.config.js의 규칙을 옮긴 것(D3). oxlint로 못 하는 것은 lint/check-source.js가 본다
+  // oxlint 설정 — design-guide eslint.config.js의 규칙을 옮긴 것(새 의존성을 들이지 않아 eslint 대신 oxlint를 쓴다). oxlint로 못 하는 것은 lint/check-source.js가 본다
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "jsx-a11y"],
   // eslint js recommended · typescript-eslint recommended의 대부분이 correctness에 있다. 나머지는 아래 rules에 하나씩 켠다
@@ -69,14 +69,14 @@
     "jsx-a11y/lang": "off",
     "jsx-a11y/no-aria-hidden-on-focusable": "off",
     "jsx-a11y/prefer-tag-over-role": "off",
-    // 이음 CLAUDE.md — window.confirm · alert · prompt를 쓰지 않는다(D6). window. · globalThis. 경유도 잡는다
+    // 이음 CLAUDE.md — window.confirm · alert · prompt를 쓰지 않는다. window. · globalThis. 경유도 잡는다
     "no-alert": "error",
-    // 라우터는 react-router-dom 7(D3). react-router는 그 안의 의존성이라 직접 가져오지 않는다 — 하위 경로(react-router/dom 등)도 막는다
+    // 라우터는 react-router-dom 7(admin이 쓰는 패키지 — 새 의존성 금지). react-router는 그 안의 의존성이라 직접 가져오지 않는다 — 하위 경로(react-router/dom 등)도 막는다
     "no-restricted-imports": [
       "error",
       {
-        "paths": [{ "name": "react-router", "message": "react-router-dom에서 가져온다 (D3)" }],
-        "patterns": [{ "group": ["react-router/*"], "message": "react-router-dom에서 가져온다 (D3)" }]
+        "paths": [{ "name": "react-router", "message": "react-router-dom에서 가져온다 (react-router는 그 안의 의존성이다)" }],
+        "patterns": [{ "group": ["react-router/*"], "message": "react-router-dom에서 가져온다 (react-router는 그 안의 의존성이다)" }]
       }
     ]
   },

@@ -1,0 +1,108 @@
+.page {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  height: 100vh;
+  background: var(--bg-page);
+  color: var(--text);
+}
+
+.toc {
+  overflow-y: auto;
+  padding: var(--s-4) var(--s-3);
+  border-right: 1px solid var(--line-divider);
+  background: var(--surface-sub);
+}
+
+.tocTitle {
+  margin: 0 0 var(--s-3);
+  padding: 0 var(--s-2);
+  font-size: var(--fs-subhead);
+  font-weight: var(--fw-bold);
+}
+
+.tocList {
+  display: grid;
+  gap: var(--s-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tocButton {
+  width: 100%;
+  padding: var(--s-1-5) var(--s-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tocButton:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2-5) var(--s-6);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line-divider);
+  background: var(--surface);
+}
+
+/* 폭이 상자보다 크면 이 상자가 가로로 스크롤한다 — iframe 폭은 줄지 않는다 */
+.stage {
+  overflow: auto;
+  padding: var(--s-4);
+  background: var(--surface-sub);
+}
+
+/* 폭은 TSX가 --frame-w로 넘긴다(기본 100% = 맞춤). iframe 안 창 폭이 곧 이 값이라 border를 두지 않는다 —
+   테두리는 폭을 깎아 760 · 761 같은 경계 폭이 어긋나므로 outline으로 그린다 */
+.frame {
+  --frame-w: 100%;
+  display: block;
+  width: var(--frame-w);
+  height: 100%;
+  border: 0;
+  outline: 1px solid var(--line-control);
+  background: var(--bg-page);
+}
+
+/* 이 뷰어도 좁은 창에서 쓸 수 있게 목차를 위로 올린다 */
+@media (max-width: 760px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .toc {
+    padding: var(--s-2-5) var(--s-3);
+    border-right: 0;
+    border-bottom: 1px solid var(--line-divider);
+  }
+
+  .tocTitle {
+    margin-bottom: var(--s-2);
+  }
+
+  .tocList {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .tocButton {
+    width: auto;
+    white-space: nowrap;
+  }
+}
