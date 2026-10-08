@@ -1,0 +1,71 @@
+# 가상조달기관 + 이음 — KT Cloud 공공존 구조를 Azure 로 재현
+
+공공기관이 KT Cloud 공공 클라우드(G-Cloud)를 쓸 때의 구조를 **Azure 위에 그대로 그려 본** 시연 환경이다.
+레거시(가상조달기관 CTLG·DHGW·FINL·STCK + 레거시 DB)는 "기관 업무망", 이음은 "공공존 서비스 계층" 자리에 놓인다.
+
+> **먼저 밝혀 둘 것.** 재현한 것은 **아키텍처 패턴**이지 규제상 효력이 아니다. Azure 가 받은 CSAP 는 하등급(2024-12)뿐이고,
+> 공공 전용 물리 상면·국내 CC 인증 H/W 방화벽·국가정보통신망 직결은 Azure 로 재현할 수 없다. 실제 공공 서비스는 시스템 등급에 맞는
+> 인증 클라우드로 옮기는 것을 전제로 한다.
+
+## KT Cloud 공공존 → Azure 대응
+
+KT 쪽은 KT G-Cloud 사용자 Guide V1.3(2022.10)·D1 Server Guide·KT Cloud 보안백서(2021.3) 공개본 기준이다.
+
+| KT G-Cloud 구성 (공개 매뉴얼) | 이 스택 | 비고 |
+|---|---|---|
+| 천안 CDC 공공 전용 존 | koreacentral + 전용 리소스 그룹 | 물리 분리 아님 — 논리 분리 |
+| DMZ Tier / Private Tier (D1: Tier = /24 가상 서브넷) | `snet-pps-aca` (이음), `snet-pps-pg` (DB) | Tier 개념을 서브넷으로 |
+| 기관 전산실 → 전용회선/VPN/CIP-Hybrid → 외부연동 F/W → Private | `snet-pps-legacy` + `nsg-pps-legacy` (이음 서브넷에서 18001~18004 만 허용) | **전용회선 연결형**을 같은 VNet 안 경로로 모사 |
+| DMZ F/W · Private F/W · 외부연동 F/W (보안 매니지드) | Container Apps ingress IP 제한 · `nsg-pps-pg` · `nsg-pps-legacy` | SW 규칙. CC 인증 H/W 아님 |
+| VR(가상라우터) NAT / Port Forwarding | 레거시 VM 공인 IP 없음, 관리 채널(run-command)만 | 반입 경로를 하나로 |
+| DBaaS (공공존 MySQL — PostgreSQL 관리형 제공 여부는 공개 자료로 미확인) | PostgreSQL Flexible Server, 위임 서브넷, 공개 접근 차단 | |
+| KMS (자체 상품 미확인, 파트너 CloudKey HSM/KMS) | Key Vault + 사설 엔드포인트 | |
+| Watch / ESM 관제 | Log Analytics | 24시간 관제는 재현 안 함 |
+| 반입 후 밀봉 | `internet_lockdown` 2단계 apply | |
+
+N2SF 기준으로 보면 이 구성은 **S·O 등급 시스템을 공공 클라우드에 두고 업무망과 전용회선으로 잇는 형태**다.
+C 등급(망분리 구역)은 이음 온보딩에서도 "설치형 게이트웨이(2차)"로 잠가 둔다.
+
+## 만들어지는 것
+
+`vnet-pps`(10.70.0.0/16) · 서브넷 4 · NSG 2 · 레거시 VM 1(B2s, 10.70.1.10, 22시 자동 종료) · PostgreSQL Flexible(B1ms, `pps_legacy`) ·
+Key Vault + 사설 엔드포인트 · Log Analytics · Container Apps 환경(VNet 연동) + 이음 앱 1 · 관리 ID(AcrPull).
+리소스 그룹과 ACR(**공유 자원 — 만들거나 지우지 않는다**)은 기존 것을 참조만 한다.
+
+## 순서
+
+```bash
+# 0. 상태 저장소 (최초 1회) — 이전 mcp-studio 저장소는 2026-09-21 삭제됐다
+az storage account create -n sttfstateieumpps -g $RG -l koreacentral \
+  --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false
+az storage container create -n tfstate --account-name sttfstateieumpps --auth-mode login
+cp backend.hcl.example backend.hcl && cp terraform.tfvars.example terraform.tfvars   # 공개키·허용 IP 채우기
+
+# 1. 반입 단계
+terraform init -backend-config=backend.hcl
+terraform plan -out tf.plan            # 이 스택(pps-*) 외 리소스가 계획에 없어야 한다
+terraform apply tf.plan
+
+# 2. 이음 이미지 — 로컬 Docker 없이 ACR 클라우드 빌드
+SHA=$(git rev-parse --short HEAD)
+az acr build -r $ACR --image ieum-pps:$SHA --file ../../Dockerfile ../..
+az containerapp update -n $(terraform output -raw container_app_name) -g $RG \
+  --image $ACR.azurecr.io/ieum-pps:$SHA
+
+# 3. 레거시 반입 (관리 채널)
+./deploy_legacy.sh --rg $RG --vm $(terraform output -raw legacy_vm_name) \
+  --kv $(terraform output -raw key_vault_name) --pg $(terraform output -raw pg_fqdn)
+
+# 4. 밀봉 — 레거시 인터넷 아웃바운드 차단, Key Vault 공개 접근 닫기
+terraform apply -var internet_lockdown=true -var kv_public_during_apply=false
+az vm run-command invoke -g $RG -n $(terraform output -raw legacy_vm_name) \
+  --command-id RunShellScript --scripts "curl -s -m 5 https://www.google.com >/dev/null && echo OPEN || echo BLOCKED"   # 기대: BLOCKED
+```
+
+이음 콘솔 → **한 번에 연결** → **시연용 값 채우기** 를 누르면 레거시 주소가 `10.70.1.10`, DB 가 사설 FQDN·읽기 전용 계정(`pps_reader`)으로 채워진다
+(`IEUM_DEMO_*` 환경변수).
+
+## 비용과 정리
+
+상시 비용은 PostgreSQL B1ms · Container Apps 1 레플리카 · Key Vault 사설 엔드포인트가 대부분이다. VM 은 22시에 꺼진다.
+정리는 `terraform destroy` — 리소스 그룹과 ACR 은 이 스택 소유가 아니라 남는다. 상태 저장소 계정은 손으로 지운다.
