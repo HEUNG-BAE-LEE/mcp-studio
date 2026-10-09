@@ -1,4 +1,4 @@
-// 카탈로그 Table 절 — 정렬(center · start) · 밀도(fixed · auto) · 행 상태(기본 · hover · selected · 누를 수 있는 행) · 체크 칸(kind="check") · 빈 행 · 최소 폭 넷
+// 카탈로그 Table 절 — 정렬(center · start) · 밀도(fixed · auto) · 행 상태(기본 · hover · selected · 누를 수 있는 행) · 체크 칸(kind="check") + auto 밀도(탐색 결과 표) · 빈 행 · 최소 폭 넷
 import { useState } from 'react';
 import { fmtNum } from '../../copy/format';
 import { Checkbox, EmptyState, Table, TableCell, TableHeadCell, TableRow, type TableMinWidth } from '../../ui';
@@ -91,12 +91,12 @@ export function TableSection() {
         ))}
       </Table>
 
-      <h3 className={catalog.heading}>체크 칸(kind=&quot;check&quot;) · selected · 비활성 상자 (행을 누른 곳: {opened || '없음'})</h3>
+      <h3 className={catalog.heading}>체크 칸(kind=&quot;check&quot;) · auto 밀도 · selected · 비활성 상자 (행을 누른 곳: {opened || '없음'})</h3>
       <p className={catalog.note}>
         폭 48 · 가운데. 칸 안(여백 포함)을 눌러도 행 onActivate로 가지 않는다 — 행의 다른 칸을 누르면 그 행이 열린다. 머리 칸은 비어
-        있다. 칸 안 상자는 Checkbox(md)다.
+        있다. 칸 안 상자는 Checkbox(md)다. 탐색 결과 표처럼 auto 밀도와 함께 쓴다.
       </p>
-      <Table minWidth={1040} head={CHECK_HEAD}>
+      <Table minWidth={1040} density="auto" head={CHECK_HEAD}>
         {ROWS.map((row) => (
           <TableRow key={row.id} selected={checked.includes(row.id)} onActivate={() => setOpened(row.id)}>
             <TableCell kind="check">

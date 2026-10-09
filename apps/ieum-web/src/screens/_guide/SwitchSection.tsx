@@ -1,4 +1,4 @@
-// 카탈로그 Switch 절 — standalone · inline · heading × 켜짐 · 꺼짐 · 비활성(사유 숨김 글자 · 보이는 사유 글) + 바깥 <label> 안의 standalone.
+// 카탈로그 Switch 절 — standalone · inline · heading × 켜짐 · 꺼짐 · 비활성(사유 숨김 글자 disabledReason · 보이는 사유 글) + 바깥 <label> 안의 standalone.
 // 누르면 바뀐다. 키보드 포커스 링은 Tab으로 닿아 본다(스위치 표시에 그린다). 760 이하에서 heading 설명 들여쓰기가 없어지는 것은 폭 전환으로 본다
 import { useId, useState } from 'react';
 import { HelpText, Icon, Switch } from '../../ui';
@@ -66,7 +66,7 @@ export function SwitchSection() {
         disabledReason은 시각 숨김 글자(aria-describedby) + 마우스 툴팁이고, 사유가 화면에 보이는 글이면 그 id를 aria-describedby로 준다.
       </p>
 
-      <h3 className={catalog.heading}>standalone — 꺼짐 · 켜짐 · 비활성 꺼짐 · 비활성 켜짐</h3>
+      <h3 className={catalog.heading}>standalone — 꺼짐 · 켜짐 · 비활성 꺼짐 · 비활성 켜짐 · 비활성 + disabledReason</h3>
       <div className={catalog.row}>
         <span className={styles.item}>
           <Toggle label="개인정보 마스킹" initial={false} />
@@ -84,6 +84,10 @@ export function SwitchSection() {
           <Switch label="쓰기 요청 차단" checked onCheckedChange={NOOP} disabled />
           비활성 켜짐(끌 수 없는 차단)
         </span>
+        <span className={styles.item}>
+          <Switch label="쓰기 요청 차단" checked onCheckedChange={NOOP} disabled disabledReason="안전을 위해 끌 수 없습니다" />
+          비활성 + disabledReason(숨김 글자 · 마우스 툴팁)
+        </span>
       </div>
 
       <h3 className={catalog.heading}>inline — 켜짐 · 꺼짐 · 비활성 + disabledReason(마우스 툴팁)</h3>
@@ -100,7 +104,7 @@ export function SwitchSection() {
         />
       </div>
 
-      <h3 className={catalog.heading}>heading — 켜짐 · 꺼짐 + description · 비활성 + 보이는 사유 글</h3>
+      <h3 className={catalog.heading}>heading — 켜짐 · 꺼짐 + description · 비활성 + 보이는 사유 글 · 비활성 + disabledReason</h3>
       <div className={catalog.stack}>
         <div className={catalog.frame}>
           <Toggle
@@ -119,6 +123,17 @@ export function SwitchSection() {
           />
         </div>
         <LockedHeading />
+        <div className={catalog.frame}>
+          <Switch
+            variant="heading"
+            label="Git 소스 분석"
+            description="컨트롤러와 매퍼를 읽어 화면에 안 나오는 API까지 찾습니다"
+            checked={false}
+            onCheckedChange={NOOP}
+            disabled
+            disabledReason="이 서버에서는 저장소를 읽을 수 없습니다"
+          />
+        </div>
       </div>
 
       <h3 className={catalog.heading}>바깥 &lt;label&gt; 안의 standalone</h3>

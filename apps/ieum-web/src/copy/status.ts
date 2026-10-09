@@ -11,7 +11,7 @@ export type StatusTone = 'ok' | 'warn' | 'danger' | 'info' | 'mute';
 export type NetTagTone = StatusTone | 'flag';
 
 /** 상태 값을 가진 자원. 메뉴를 옮기며 더한다 */
-export type StatusResource = 'log' | 'source' | 'tool' | 'job' | 'recommend';
+export type StatusResource = 'log' | 'source' | 'tool' | 'job' | 'recommend' | 'toolset' | 'key';
 
 export type StatusInfo = Readonly<{
   label: string;
@@ -39,6 +39,13 @@ export type ToolStatusValue = 'done' | 'review' | 'drift' | 'off';
 export type JobStatusValue = 'scheduled' | 'running' | 'review' | 'done' | 'failed' | 'cancelled' | 'interrupted';
 /** 탐색 결과 추천(옛 js/menu/discovery.js:10) */
 export type RecommendValue = 'yes' | 'check' | 'no';
+/**
+ * 배포 묶음(옛 js/menu/deploy.js:5,10) — 초안이면 draft, 아니면 서버 상태(runtime.state). 값을 고르는 것은 쓰는 곳이다.
+ * 서버가 초안에 주는 none은 목록에 두지 않는다(초안이면 draft로 찾는다)
+ */
+export type ToolsetStatusValue = 'draft' | 'running' | 'starting' | 'stopped' | 'crashed';
+/** 액세스 키(옛 js/menu/deploy.js:48) — 서버의 켜짐 값(on 참 · 거짓)을 on · off로 바꿔 찾는다 */
+export type KeyStatusValue = 'on' | 'off';
 /** 탐색 네트워크 기록 태그(옛 js/menu/discovery.js:7) */
 export type NetTagValue = 'cap' | 'allow' | 'out' | 'block' | 'ok' | 'stg' | 'err' | 'file' | 'nf';
 
@@ -48,6 +55,8 @@ type ValuesOf = {
   tool: ToolStatusValue;
   job: JobStatusValue;
   recommend: RecommendValue;
+  toolset: ToolsetStatusValue;
+  key: KeyStatusValue;
 };
 
 const TABLE: { readonly [R in StatusResource]: Readonly<Record<ValuesOf[R], Entry<StatusTone>>> } = {
@@ -81,6 +90,17 @@ const TABLE: { readonly [R in StatusResource]: Readonly<Record<ValuesOf[R], Entr
     check: { label: '확인 필요', tone: 'warn' },
     no: { label: '제외 추천', tone: 'mute' },
   },
+  toolset: {
+    draft: { label: '초안', tone: 'mute' },
+    running: { label: '배포 중', tone: 'ok' },
+    starting: { label: '시작하는 중', tone: 'info' },
+    stopped: { label: '중지됨', tone: 'mute' },
+    crashed: { label: '비정상 종료', tone: 'danger' },
+  },
+  key: {
+    on: { label: '사용 중', tone: 'ok' },
+    off: { label: '폐기됨', tone: 'mute' },
+  },
 };
 
 /** 네트워크 기록 태그 — 자원 상태가 아니라 기록 줄 표식이라 statusOf 밖에 따로 둔다(allow의 flag 때문) */
@@ -103,6 +123,8 @@ export const STATUS_VALUES: { readonly [R in StatusResource]: readonly ValuesOf[
   tool: ['done', 'review', 'drift', 'off'],
   job: ['scheduled', 'running', 'review', 'done', 'failed', 'cancelled', 'interrupted'],
   recommend: ['yes', 'check', 'no'],
+  toolset: ['draft', 'running', 'starting', 'stopped', 'crashed'],
+  key: ['on', 'off'],
 };
 
 /** 네트워크 기록 태그의 아는 값 목록 — NetLog 카탈로그가 전 값을 늘어놓는 데 쓴다 */

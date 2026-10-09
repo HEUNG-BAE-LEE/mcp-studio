@@ -23,6 +23,7 @@ import { useSources } from '../../api/hooks/useSources';
 import { useTools, type ToolIndex } from '../../api/hooks/useTools';
 import type { DiscoveryResponse, JobSummary, Source, SourceCred } from '../../api/types';
 import type { ModalLayer } from '../layers';
+import type { ModalSize } from '@/ui';
 import { coerceAuthType, initialCred } from './authOptions';
 
 /** 연 순간에 잡은 원본 — 본문 이름 · 도구 수와 재인증 인증 칸의 연결 방식 */
@@ -49,15 +50,23 @@ export type ModalAttempt = Readonly<{
   cred: SourceCred;
 }>;
 
-/** 모달 칸에 보이는 내용 한 종류 */
+/**
+ * 모달 칸에 보이는 내용 한 종류 — 칸의 Modal 하나에 그대로 건다. 확인이 없으면(안내 · 오류 · 서버 로그) confirmLabel을 비운다.
+ * 폭 · 취소 글자 · 취소 없음 · 발 앞 버튼 · 닫힘 막기는 배포 층(app/deploy)만 쓴다 — 없으면 Modal 기본값
+ */
 export type ModalContent = Readonly<{
   title: string;
-  confirmLabel: string;
-  onConfirm: () => void;
+  confirmLabel?: string;
+  onConfirm?: () => void;
   /** 이 대상의 요청이 진행 중인가 — Modal confirmDisabled(확인 버튼 pending) */
-  isLocked: boolean;
+  isLocked?: boolean;
   /** 본문 — 시도마다 새로 마운트되도록 칸이 key = attemptId를 단다 */
   body: ReactNode;
+  size?: ModalSize;
+  cancelLabel?: string;
+  hideCancel?: boolean;
+  extra?: ReactNode;
+  dismissible?: boolean;
 }>;
 
 type PendingState = Readonly<{ isPending: boolean; variables: Readonly<{ sourceId: string }> | undefined }>;
@@ -96,6 +105,8 @@ function startAttempt(layer: ModalLayer, { sources, tools, jobs }: AttemptCache)
     const job = jobs?.find((j) => j.id === layer.jobId);
     return job === undefined ? empty : { ...empty, job: { id: job.id, name: job.name } };
   }
+  // 배포 층은 원본 · 작업을 잡지 않는다(app/deploy/useDeployModalAttempt)
+  if (layer.kind !== 'reauth' && layer.kind !== 'deleteSource') return empty;
   const found = sources?.find((s) => s.id === layer.sourceId);
   const isReady = found !== undefined && (layer.kind === 'reauth' || tools !== undefined);
   if (!isReady) return empty;

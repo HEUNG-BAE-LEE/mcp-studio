@@ -1,11 +1,7 @@
 // 카탈로그 SplitLayout 절 — variant 둘(list · playground) 자리표시 + 목록 + 상세를 부품으로 맞춘 한 벌(Panel · SelectableListItem · DetailHead).
 // 1100 이하 한 열(왼쪽이 위)은 폭 전환으로 본다 — 접어도 간격은 그대로, 목록 스크롤 최대 높이는 280
 import { useState } from 'react';
-import { Button, StatusChip } from '../../ui';
-import { DetailHead } from '../../ui/DetailHead';
-import { Panel } from '../../ui/Panel';
-import { SelectableListItem } from '../../ui/SelectableListItem';
-import { SplitLayout, type SplitLayoutVariant } from '../../ui/SplitLayout';
+import { Button, DetailHead, Panel, SelectableListItem, SplitLayout, StatusChip, type SplitLayoutVariant } from '../../ui';
 import catalog from './catalog.module.css';
 import styles from './SplitLayoutSection.module.css';
 

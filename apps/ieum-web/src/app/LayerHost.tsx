@@ -13,8 +13,11 @@
 // - 마법사 세션(상태 · 연결 요청 · 시작 요청)은 근거가 보이는 동안에도 마지막 마법사 시도로 남는다 — 요청 훅의 상태가 칸을 거쳐 이어지고,
 //   새 마법사를 열면 attemptId가 바뀌어 처음부터다
 //
-// 모달 칸: 재인증 · 원본 삭제 확인 · 탐색 기록 삭제 확인. Modal 하나를 늘 그리고 — 종류가 바뀌어도(재인증 → 삭제 확인) 다시 마운트하지 않는다 — 제목 · 확인 글자 ·
-//   본문만 종류별로 바꾼다(app/sources/ReauthModal · DeleteSourceModal · DeleteJobModal). open = 칸이 차 있는가, onOpenChange(false) → closeLayer('modal')
+// 모달 칸: 재인증 · 원본 삭제 확인 · 탐색 기록 삭제 확인 · AI 연결 배포 층(묶음 만들기 · 수정 · 삭제 확인 · 배포 확인 · 중지 확인 · 시작 실패 · 서버 로그 ·
+//   키 발급 · 키 결과 · 키 폐기 확인). Modal 하나를 늘 그리고 — 종류가 바뀌어도(재인증 → 삭제 확인, 수정 → 묶음 삭제 확인, 키 발급 → 키 결과) 다시
+//   마운트하지 않는다 — 제목 · 확인 글자 · 본문 · 폭 · 발만 종류별로 바꾼다(app/sources/ReauthModal · DeleteSourceModal · DeleteJobModal,
+//   배포는 app/deploy/useDeployModalContent). open = 칸이 차 있는가, onOpenChange(false) → closeLayer('modal')
+// - 키 결과는 "내용은 다음 열기까지 남긴다"의 예외다 — 칸이 닫히는 순간 쥔 층에서 키 원문을 비운다(useHeldModalLayer). 닫힌 <dialog>가 키를 품고 남지 않는다
 // - 같은 칸에 다른 대상을 열면(종류 · 대상 · 같은 대상 다시 열기) contentKey = `${kind}:${대상 id}:${attemptId}`가 바뀌어 Modal이 첫 포커스를
 //   다시 잡는다(옛 openModal은 열려 있어도 부를 때마다 내용을 바꾸고 첫 입력 · 확인으로 포커스를 옮겼다 — js/common/overlay.js:16-23). 본문 key = attemptId
 // - 확인(onConfirm = mutate)과 확인 잠금(confirmDisabled = 요청 중)은 Modal prop이라 요청 훅 · 입력 상태도 이 칸이 쥔다(useModalAttempt).
@@ -27,7 +30,16 @@ import { Fragment, useEffect, useState } from 'react';
 import { Drawer, Modal } from '@/ui';
 import { useDeleteDiscoveryJob } from './discovery/useDiscoveryMutations';
 import { evidenceDrawerOf } from './discovery/EvidenceDrawer';
-import { closeLayer, closeModalIf, modalTargetIdOf, useDrawerLayer, useModalLayer, type ModalLayer } from './layers';
+import { useDeployModalContent } from './deploy/useDeployModalContent';
+import {
+  closeLayer,
+  closeModalIf,
+  isDeployModalLayer,
+  modalTargetIdOf,
+  useDrawerLayer,
+  useModalLayer,
+  type ModalLayer,
+} from './layers';
 import { deleteJobContentOf } from './sources/DeleteJobModal';
 import { deleteContentOf } from './sources/DeleteSourceModal';
 import { reauthContentOf } from './sources/ReauthModal';
@@ -40,6 +52,18 @@ function useHeldLayer<T>(layer: T | null): T | null {
   const [held, setHeld] = useState<T | null>(layer);
   if (layer !== null && layer !== held) setHeld(layer);
   return layer ?? held;
+}
+
+/**
+ * 모달 칸의 마지막 층을 쥔다(useHeldLayer와 같다). 다만 키 결과가 닫히면 쥔 층의 키 원문을 그 그리기에서 비운다 —
+ * 닫힘 전환 동안 키 줄이 먼저 사라지고, 닫힌 층에 원문이 남지 않는다
+ */
+function useHeldModalLayer(layer: ModalLayer | null): ModalLayer | null {
+  const [held, setHeld] = useState<ModalLayer | null>(layer);
+  let next = layer ?? held;
+  if (layer === null && next !== null && next.kind === 'keyReveal' && next.secret !== '') next = { ...next, secret: '' };
+  if (next !== held) setHeld(next);
+  return next;
 }
 
 /** 아직 마법사를 연 적이 없을 때의 시도 번호 — 실제 시도는 1부터다 */
@@ -85,10 +109,13 @@ function ModalFrame({ layer, isOpen }: ModalFrameProps) {
   const reauth = useReauthSource();
   const deleteSource = useDeleteSource();
   const deleteJob = useDeleteDiscoveryJob();
+  const deployContent = useDeployModalContent(layer);
   const { source, job } = attempt;
 
   let content: ModalContent | null = null;
-  if (layer.kind === 'deleteJob') {
+  if (isDeployModalLayer(layer)) {
+    content = deployContent;
+  } else if (layer.kind === 'deleteJob') {
     if (job !== null) content = deleteJobContentOf({ job, deleteJob });
   } else if (source !== null) {
     content =
@@ -111,9 +138,14 @@ function ModalFrame({ layer, isOpen }: ModalFrameProps) {
         if (!next) closeLayer('modal');
       }}
       title={content.title}
+      size={content.size}
       confirmLabel={content.confirmLabel}
       onConfirm={content.onConfirm}
       confirmDisabled={content.isLocked}
+      cancelLabel={content.cancelLabel}
+      hideCancel={content.hideCancel}
+      extra={content.extra}
+      dismissible={content.dismissible}
       contentKey={`${layer.kind}:${modalTargetIdOf(layer)}:${layer.attemptId}`}
     >
       <Fragment key={layer.attemptId}>{content.body}</Fragment>
@@ -121,10 +153,10 @@ function ModalFrame({ layer, isOpen }: ModalFrameProps) {
   );
 }
 
-/** 모달 칸 — 재인증 · 원본 삭제 확인 · 탐색 기록 삭제 확인. 칸이 비면 open만 끄고 그 시도의 내용을 남긴다 */
+/** 모달 칸 — 재인증 · 원본 삭제 확인 · 탐색 기록 삭제 확인 · 배포 층. 칸이 비면 open만 끄고 그 시도의 내용을 남긴다(키 결과는 원문을 비운다) */
 function ModalSlot() {
   const layer = useModalLayer();
-  const shown = useHeldLayer(layer);
+  const shown = useHeldModalLayer(layer);
   if (shown === null) return null;
   return <ModalFrame layer={shown} isOpen={layer !== null} />;
 }

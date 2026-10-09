@@ -14,12 +14,15 @@ const DRAWN_BY: Readonly<Record<StatusResource, string>> = {
   tool: 'ToolStatusChip',
   job: 'JobStatusChip',
   recommend: WIRED_BY_SCREEN,
+  toolset: WIRED_BY_SCREEN,
+  key: WIRED_BY_SCREEN,
 };
-/** 서버가 내지 않아 목록에 두지 않는 값 — 오면 모르는 값 폴백이 맡는다(DESIGN Copy `상태 값`) */
+/** 목록에 두지 않는 값 — 서버가 내지 않거나(wait · busy · queued), 서버가 초안에 주는 none처럼 쓰는 곳이 draft로 바꿔 찾는 값. 오면 모르는 값 폴백이 맡는다(DESIGN Copy `상태 값`) */
 const UNKNOWN_VALUES: readonly (readonly [StatusResource, string])[] = [
   ['log', 'wait'],
   ['source', 'busy'],
   ['job', 'queued'],
+  ['toolset', 'none'],
 ];
 
 export function StatusChipSection() {
@@ -28,7 +31,7 @@ export function StatusChipSection() {
       <p className={catalog.note}>
         점 + 글자. 뜻은 글자가 전하고 점은 장식이다. 라벨 · tone은 statusOf(resource, value)가 찾는다 — 모르는 값은 값 그대로
         + mute이고 개발 콘솔에 한 번 경고한다. 네트워크 기록 태그는 flag 색이 더해져 StatusTone 밖이라 statusOf가 아니라 netTagOf가
-        찾고, 이 부품이 그리지 않는다.
+        찾고, 이 부품이 그리지 않는다. 배포 묶음(toolset)의 값은 초안이면 draft, 아니면 서버 상태이고 고르는 것은 쓰는 곳이다.
       </p>
       <h3 className={catalog.heading}>tone × size</h3>
       <div className={catalog.scroll}>

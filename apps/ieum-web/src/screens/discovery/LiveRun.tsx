@@ -8,7 +8,7 @@ import type { JobData } from '../../api/discoveryJob';
 import { countersOf, liveModeOf } from '../../app/discovery/jobScreen';
 import { DISCOVERY } from '../../copy/discovery';
 import { orNone } from '../../copy/format';
-import { Icon, Spinner, StatStrip, TwoColumn, type StatItem } from '@/ui';
+import { Notice, StatStrip, TwoColumn, type StatItem } from '@/ui';
 import { BrowserPane } from './BrowserPane';
 import { GitPane } from './GitPane';
 import { JobSteps } from './JobSteps';
@@ -33,14 +33,26 @@ function counterItemsOf(job: JobData): readonly StatItem[] {
 function ActLine({ job }: Readonly<{ job: JobData }>) {
   const mode = liveModeOf(job.status);
   const isScheduled = mode === 'scheduled' && job.startAt !== null;
+  const text = isScheduled && job.startAt !== null ? DISCOVERY.live.scheduledAct(job.startAt) : job.act;
+  const trailing = DISCOVERY.live.elapsed(job.elapsed);
+  // 앞자리: 탐색 중 도는 원 · 예약 시계(기본 굵기) · 그 밖 굵은 체크(옛 :227-229)
+  if (mode === 'running') {
+    return (
+      <Notice tone="info" variant="line" spinner trailing={trailing} className={styles.act}>
+        {text}
+      </Notice>
+    );
+  }
   return (
-    <div className={styles.act}>
-      {mode === 'running' ? <Spinner /> : null}
-      {mode === 'scheduled' ? <Icon name="history" size="md-minus" className={styles.actIcon} /> : null}
-      {mode === 'idle' ? <Icon name="check" size="md-minus" stroke="bold" className={styles.actIcon} /> : null}
-      <span>{isScheduled && job.startAt !== null ? DISCOVERY.live.scheduledAct(job.startAt) : job.act}</span>
-      <span className={styles.elapsed}>{DISCOVERY.live.elapsed(job.elapsed)}</span>
-    </div>
+    <Notice
+      tone="info"
+      variant="line"
+      {...(mode === 'scheduled' ? { icon: 'history' } : { icon: 'check', iconStroke: 'bold' })}
+      trailing={trailing}
+      className={styles.act}
+    >
+      {text}
+    </Notice>
   );
 }
 

@@ -248,26 +248,57 @@ export type CallTrace = Readonly<{
 export type PlaygroundCallResult =
   | Readonly<{ hold: true; tool: string }>
   | Readonly<{ ok: true; result: unknown; trace: CallTrace; log: string }>
-  | Readonly<{ ok: false; error: string; trace: CallTrace; log: string }>;
-export type ChatCall = Readonly<{ tool: string; ok: boolean; log: string; trace: CallTrace }>;
+  // log는 호출 로그를 남긴 실패에만 — 도구를 찾지 못함 · 공개되지 않음은 로그 없이 끝난다(gateway/runner.py run_tool :43,45)
+  | Readonly<{ ok: false; error: string; trace: CallTrace; log?: string }>;
+/** 대화 중 Claude가 부른 도구 하나. log는 확인이 필요한 쓰기 도구라 실행하지 않았으면 null이다(routers/playground.py:75,78 out.get("log")) */
+export type ChatCall = Readonly<{ tool: string; ok: boolean; log: string | null; trace: CallTrace }>;
 export type PlaygroundChatResult = Readonly<{ answer: string; calls: readonly ChatCall[] }>;
+
+/**
+ * POST /playground/call/ 본문(옛 js/menu/playground.js:86 — 키 순서도 같게). args는 인자 폼 값을 타입대로 바꾼 것이고 빈 칸은 빠진다.
+ * model이 서버 목록에 없으면 서버가 mcp로 본다. approved는 확인 대기 상자의 "실행"에서만 true. user는 workspace.user(로그 사용자)
+ */
+export type PlaygroundCallBody = Readonly<{
+  tool: string;
+  args: Readonly<Record<string, unknown>>;
+  model: ModelId;
+  approved: boolean;
+  user: string;
+}>;
+/** POST /playground/chat/ 본문 — 이전 대화는 싣지 않는다(서버가 기억하지 않음 — 옛 js/menu/playground.js:97) */
+export type PlaygroundChatBody = Readonly<{ message: string; user: string }>;
 
 // ── AI 연결 배포 GET /deploy/toolsets/ · /deploy/keys/ ──
 
 export type ToolsetStatus = Known<'draft' | 'live' | 'stopped'>;
 export type RuntimeState = Known<'none' | 'stopped' | 'starting' | 'running' | 'crashed'>;
-/** 서버 프로세스. none은 초안일 때만. pid · startedAt은 running, exitCode · message는 crashed */
-export type ToolsetRuntime = Readonly<{
+type ToolsetRuntimeBase = Readonly<{
   state: RuntimeState;
   port?: number;
   url?: string;
   pid?: number;
-  /** 시작 시각 — 앱 안에서는 epoch ms(서버는 epoch 초 — 배포 훅에서 select로 바꾼다) */
-  startedAt?: number;
-  exitCode?: number;
+  /** crashed — 프로세스 종료 코드. 복구를 기다리다 실패하면 null(runtime/supervisor.py exit_code Optional) */
+  exitCode?: number | null;
   message?: string;
 }>;
-export type Toolset = Readonly<{
+/** 서버 프로세스. none은 초안일 때만. pid는 running, startedAt은 프로세스 기록이 있을 때, exitCode · message는 crashed */
+export type ToolsetRuntime = ToolsetRuntimeBase &
+  Readonly<{
+    /** 시작 시각(epoch ms) — useToolsets select가 서버 epoch 초를 바꾼 값 */
+    startedAt?: number;
+  }>;
+/**
+ * epoch 초 — 서버 모양 쪽 표지. 화면이 읽는 ms(number)와 섞이면 컴파일러가 막는다(ms에 넣으려면 api/time secToMs를 거친다).
+ * 응답을 받는 타입에만 붙이고 값을 만들지 않는다
+ */
+export type EpochSec = number & { readonly __unit: 'sec' };
+/** 서버 모양의 런타임 — startedAt이 epoch 초(time.time() 그대로) */
+export type ToolsetRuntimeWire = ToolsetRuntimeBase &
+  Readonly<{
+    /** 시작 시각(epoch 초) */
+    startedAt?: EpochSec;
+  }>;
+type ToolsetBase = Readonly<{
   /** "ts-<slug>" */
   id: string;
   name: string;
@@ -279,10 +310,20 @@ export type Toolset = Readonly<{
   status: ToolsetStatus;
   /** 서버가 박아 둔 "방금" */
   updated: string;
-  runtime: ToolsetRuntime;
 }>;
-/** POST …/deploy/ 만 래퍼가 있다(start · stop은 Toolset 그대로) */
-export type DeployResult = Readonly<{ toolset: Toolset; deployed: readonly string[]; skipped: readonly string[] }>;
+/** 화면이 읽는 묶음 — useToolsets select 결과(runtime.startedAt epoch ms) */
+export type Toolset = ToolsetBase & Readonly<{ runtime: ToolsetRuntime }>;
+/**
+ * 서버 모양의 묶음(runtime.startedAt epoch 초). 쿼리 캐시 ['deploy','toolsets']와 쓰기 응답(만들기 · 고치기 · 시작 · 중지 · 배포)은 이 모양이고,
+ * ms로 바꾸는 곳은 useToolsets의 select 하나뿐이다 — 쓰기 응답을 setQueryData로 넣을 때도 이 모양 그대로 넣는다
+ */
+export type ToolsetWire = ToolsetBase & Readonly<{ runtime: ToolsetRuntimeWire }>;
+/** POST …/deploy/ 만 래퍼가 있다(start · stop은 ToolsetWire 그대로). skipped = 공개 상태가 아니어서 빠진 도구 id */
+export type DeployResultWire = Readonly<{ toolset: ToolsetWire; deployed: readonly string[]; skipped: readonly string[] }>;
+/** POST /deploy/toolsets/ · PUT /deploy/toolsets/{id}/ 본문 — 폼 입력 그대로(검증은 서버 — routers/deploy.py _validate) */
+export type ToolsetBody = Readonly<{ name: string; slug: string; audience: string; tools: readonly string[] }>;
+/** GET /deploy/toolsets/{id}/logs/?lines=N — 서버 프로세스 로그의 마지막 줄들 */
+export type ToolsetLogs = Readonly<{ lines: readonly string[] }>;
 
 /** 액세스 키. key는 가린 값, 전체 키는 발급 응답(KeyCreated.secret)에서 한 번만 */
 export type AccessKey = Readonly<{
@@ -296,6 +337,8 @@ export type AccessKey = Readonly<{
   on: boolean;
 }>;
 export type KeyCreated = AccessKey & Readonly<{ secret: string }>;
+/** POST /deploy/keys/ 본문 */
+export type KeyIssueBody = Readonly<{ name: string }>;
 
 // ── 호출 로그 GET /logs/ · /logs/{id}/ ──
 

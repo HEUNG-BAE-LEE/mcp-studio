@@ -2,8 +2,7 @@
 // · dismissible=false · 드로어 위 모달(Esc는 맨 위 층만) · 열린 채 다른 항목 열기(contentKey). 첫 포커스(머리 ✕) · 가림막 · ✕ · 닫은 뒤 연 버튼으로 포커스 복귀 ·
 // Tab이 층 밖으로 나가는 것(가두지 않음)을 키보드로 본다. 열린 층 줄은 useOpenLayers의 값이다 — 드로어가 열리면 드로어가 켜진다
 import { useState } from 'react';
-import { Button, Modal, useOpenLayers } from '../../ui';
-import { Drawer } from '../../ui/Drawer';
+import { Button, Drawer, Modal, useOpenLayers } from '../../ui';
 import catalog from './catalog.module.css';
 import styles from './DrawerSection.module.css';
 

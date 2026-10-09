@@ -1,5 +1,6 @@
-// 서버가 남긴 호출 기록(trace)을 변환 과정 단계로 — 옛 buildRealTrace(js/common/convert.js:166-185)의 hold가 아닌 갈래.
-// 로그 상세와 테스트 실행 결과가 같이 쓴다. 단계 순서: AI 호출 → (원본 요청) → (원본 응답) → 결과 또는 실패
+// 서버가 남긴 호출 기록(trace)을 변환 과정 단계로 — 옛 buildRealTrace(js/common/convert.js:166-185).
+// 로그 상세와 테스트 실행 결과가 같이 쓴다. 단계 순서: AI 호출 → (원본 요청) → (원본 응답) → 결과 또는 실패.
+// 테스트 실행의 확인 대기(hold)는 AI 호출 → 사용자 확인 두 단계로 끝난다(convert.js:171-176)
 import type { CallTrace, ModelInfo, Source, Tool } from '../../api/types';
 import { TRACE } from '../../copy/trace';
 import { protocolDesc } from '../../copy/protocol';
@@ -7,7 +8,7 @@ import { httpCode, httpRequestText, httpResponseText } from './httpText';
 import { modelCall } from './modelCall';
 import { own } from './own';
 import { AUTH_INJECT_CHIP, NAME_FALLBACK_CHIP, ruleChips } from './ruleChip';
-import type { AiStep, FailStep, IeumStep, SourceStep, TraceCode, TraceStep } from './types';
+import type { AiStep, FailStep, HoldStep, IeumStep, SourceStep, TraceCode, TraceStep } from './types';
 
 /** 테스트 실행 조회의 models. null이면 모델 목록 조회가 실패한 것이다 */
 export type TraceModels = Readonly<Record<string, ModelInfo>> | null;
@@ -33,6 +34,11 @@ export type TraceInput = Readonly<{
   client: string;
   models: TraceModels;
   outcome: TraceOutcome;
+  /**
+   * 테스트 실행 확인 대기 — 화면 phase가 'hold'일 때만 true(결과 모양이 아니라 phase로 가른다 — js/menu/playground.js:79).
+   * true면 원본 단계 · 결과 대신 사용자 확인 단계(보낸 인자 trace.args)로 끝난다. 로그 상세는 넘기지 않는다
+   */
+  isHold?: boolean;
 }>;
 
 /** 로그 상세 → 결과(옛 js/menu/logs.js:33-34) */
@@ -126,6 +132,16 @@ const failStep = ({ outcome }: TraceInput): FailStep => ({
   error: outcome.error || '',
 });
 
+/** 사용자 확인 단계 — 번호를 세지 않고 소요 칩이 없다. 본문(확인 상자)은 그리는 쪽 슬롯이 args로 그린다(convert.js:171-176) */
+const holdStep = (trace: CallTrace): HoldStep => ({
+  kind: 'hold',
+  title: TRACE.hold.title,
+  who: TRACE.hold.who,
+  ms: null,
+  msLabel: null,
+  args: trace.args || {},
+});
+
 /**
  * 변환 과정 단계. trace가 null이면 빈 배열이다 — 로그 상세가 LOGS.detail.noTrace 빈 상태를 보인다(js/menu/logs.js:34,46).
  * 테스트 실행은 옛에서 trace가 없어도 {}로 그렸다(convert.js:167) — 그 자리는 trace ?? {}를 넘긴다
@@ -133,6 +149,7 @@ const failStep = ({ outcome }: TraceInput): FailStep => ({
 export const buildTraceSteps = (input: TraceInput): readonly TraceStep[] => {
   const { trace } = input.outcome;
   if (trace === null) return [];
+  if (input.isHold === true) return [aiStep(input, trace), holdStep(trace)];
   const middle = [requestStep(input, trace), responseStep(input, trace)].filter((step) => step !== null);
   const last = input.outcome.ok ? resultStep(input, trace) : failStep(input);
   return [aiStep(input, trace), ...middle, last];

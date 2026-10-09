@@ -16,6 +16,8 @@ type CommonProps = {
 /** 이동 링크 — onClick은 이동 전에 부른다(메뉴 다시 받기 등). disabled · pending은 버튼일 때만 */
 type LinkProps = CommonProps & {
   to: To;
+  /** 이동 상태 — 라우터 Link state로 그대로 넘긴다(도착 화면이 읽는 표지) */
+  state?: unknown;
   onClick?: MouseEventHandler<HTMLAnchorElement>;
   disabled?: never;
   pending?: never;
@@ -24,6 +26,7 @@ type LinkProps = CommonProps & {
 /** 동작 버튼 — to가 없으면 onClick이 필수다 */
 type ActionProps = CommonProps & {
   to?: undefined;
+  state?: never;
   onClick: MouseEventHandler<HTMLButtonElement>;
   /** 조건이 안 맞아 못 누름(native — 포커스를 받지 않는다) */
   disabled?: boolean;
@@ -44,7 +47,7 @@ export function LinkButton(props: LinkButtonProps) {
 
   if (props.to !== undefined) {
     return (
-      <Link to={props.to} onClick={props.onClick} className={styles.root} data-variant={variant}>
+      <Link to={props.to} state={props.state} onClick={props.onClick} className={styles.root} data-variant={variant}>
         {content}
       </Link>
     );

@@ -38,6 +38,20 @@ const withoutDropped = (search: string): string => {
   return rest ? `?${rest}` : '';
 };
 
+/** 지금 주소의 경로 — RootLayout의 위치 effect가 바꾼다(noteLocation). 마지막 주소 기록과 따로 둔다(만들기 성공 뒤 recordLastPath가 지금 주소를 바꾸지 않게) */
+let currentPathname: string | null = null;
+
+/** 위치가 바뀔 때 RootLayout이 부른다(바꾸기 라우트도 — 지금 주소는 늘 지금 주소다) */
+export function noteLocation(pathname: string): void {
+  currentPathname = pathname;
+}
+
+/**
+ * 지금 주소가 속한 LNB 메뉴. React 밖(쓰기 요청 콜백)이 응답 순간 어느 화면에 있는지 묻는다 — 부른 컴포넌트의 마운트가 아니라 주소로 본다
+ * (요청 중 다른 메뉴에 갔다 돌아와도 돌아온 화면이 답이다). 아직 그린 적이 없으면 null
+ */
+export const currentMenu = (): ScreenId | null => (currentPathname === null ? null : menuOf(currentPathname));
+
 /** 위치가 바뀔 때 RootLayout이 부른다. 같은 주소면 저장소를 바꾸지 않는다(구독자에게 알리지 않음) */
 export function recordLastPath(pathname: string, search: string): void {
   const menu = menuOf(pathname);

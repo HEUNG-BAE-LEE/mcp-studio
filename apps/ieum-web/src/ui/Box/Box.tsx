@@ -1,12 +1,13 @@
-// Box — 제목 줄이 있는 상자. 이음 .box · .box-h · .box-b · .box.pol(css/console.css:502-506,702)
+// Box — 제목 줄이 있는 상자. 이음 .box · .box-h · .box-b · .box.pol · .chat(css/console.css:502-506,702,734-736)
 // 제목(h3)이 있어야 머리 줄을 그린다 — 제목이 없으면 description · actions도 그리지 않는다(배포 정책 요약 js/menu/deploy.js:90)
 // variant policy는 본문을 늘 감싸고 안쪽이 padded보다 작다 — padded와 함께 쓰지 않는다(타입이 막는다)
+// variant chat은 테스트 실행 도구 호출 상자(js/menu/playground.js:41-55) — 제목 · headBelow 필수, 본문을 감싸지 않는다(padded를 타입이 막는다)
 import type { ReactNode } from 'react';
 import { cx } from '../lib/cx';
 import styles from './Box.module.css';
 
-/** default = 일반 상자, policy = 정책 상자(실행 정책 · 보안 정책 요약) */
-export type BoxVariant = 'default' | 'policy';
+/** default = 일반 상자, policy = 정책 상자(실행 정책 · 보안 정책 요약), chat = 테스트 실행 도구 호출 상자 */
+export type BoxVariant = 'default' | 'policy' | 'chat';
 
 type BoxBaseProps = {
   /** 머리 제목(h3). 없으면 머리 줄을 그리지 않는다 */
@@ -15,40 +16,70 @@ type BoxBaseProps = {
   description?: ReactNode;
   /** 머리 오른쪽(LinkButton · 작은 버튼). 제목이 있을 때만 */
   actions?: ReactNode;
+  /** 상자 이름(section aria-label) — 옛에 있던 자리만("도구 호출" · "변환 과정") */
+  label?: string;
   children: ReactNode;
   /** 배치(바깥 여백 · 격자 칸)만 */
   className?: string;
 };
 
-type BodyProps =
+type VariantProps =
   | {
       /** 기본 default */
       variant?: 'default';
       /** 본문 안쪽 여백. 구조도 · 차트처럼 내용이 자기 여백을 가지면 끈다 */
       padded?: boolean;
+      headBelow?: never;
     }
   | {
       /** 본문을 늘 정책 안쪽 여백(위 14 · 좌우 16 · 아래 16)으로 감싼다 */
       variant: 'policy';
       padded?: never;
+      headBelow?: never;
+    }
+  | {
+      /** 세로 흐름 · 최소 높이 660(1100 이하 해제) · 머리 두 줄 · 본문은 감싸지 않는다 */
+      variant: 'chat';
+      /** 머리 제목(h3) — 둘째 줄이 제목 줄에 딸려 chat에서는 필수 */
+      title: ReactNode;
+      /** 머리 둘째 줄(AI 모델 SegmentedRadio) — 머리 폭으로 늘어난다 */
+      headBelow: ReactNode;
+      padded?: never;
     };
 
-export type BoxProps = BoxBaseProps & BodyProps;
+export type BoxProps = BoxBaseProps & VariantProps;
 
-export function Box({ title, description, actions, variant = 'default', padded = false, children, className }: BoxProps) {
-  const isPolicy = variant === 'policy';
+export function Box({
+  title,
+  description,
+  actions,
+  label,
+  variant = 'default',
+  padded = false,
+  headBelow,
+  children,
+  className,
+}: BoxProps) {
+  const isChat = variant === 'chat';
+  const titleRow = (
+    <>
+      <h3 className={styles.title}>
+        {title}
+        {description !== undefined ? <small className={styles.description}>{description}</small> : null}
+      </h3>
+      {actions !== undefined ? <div className={styles.actions}>{actions}</div> : null}
+    </>
+  );
   return (
-    <section className={cx(styles.root, className)} data-variant={variant}>
+    <section className={cx(styles.root, className)} data-variant={variant} aria-label={label}>
       {title !== undefined ? (
         <div className={styles.head}>
-          <h3 className={styles.title}>
-            {title}
-            {description !== undefined ? <small className={styles.description}>{description}</small> : null}
-          </h3>
-          {actions !== undefined ? <div className={styles.actions}>{actions}</div> : null}
+          {/* chat 둘째 줄은 감싸지 않고 머리(세로 flex)의 직계 자식 — 묶음이 머리 폭으로 늘어난다(옛 .chat .box-h align-items: stretch) */}
+          {isChat ? <div className={styles.headRow}>{titleRow}</div> : titleRow}
+          {isChat ? headBelow : null}
         </div>
       ) : null}
-      {padded || isPolicy ? <div className={styles.body}>{children}</div> : children}
+      {padded || variant === 'policy' ? <div className={styles.body}>{children}</div> : children}
     </section>
   );
 }

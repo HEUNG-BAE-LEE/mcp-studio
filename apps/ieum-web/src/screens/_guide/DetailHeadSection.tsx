@@ -1,8 +1,7 @@
 // 카탈로그 DetailHead 절 — 도구 상세(titleMono + 칩 · 표지 + 설명 + code + 동작: 기본 · play 아이콘 · primary 비활성 / pending) · 묶음 상세(본문 글꼴 제목 + 칩 + 설명 + 동작 넷) ·
 // 긴 id가 줄 끝에서 접히는 모양 · 있는 것만 그리는 변형(제목만 · code만). 760 이하 동작 줄 전체 폭은 폭 전환으로 본다
 import { useState } from 'react';
-import { Button, ModeTag, StatusChip, Switch, ToolStatusChip } from '../../ui';
-import { DetailHead } from '../../ui/DetailHead';
+import { Button, DetailHead, ModeTag, StatusChip, Switch, ToolStatusChip } from '../../ui';
 import catalog from './catalog.module.css';
 
 const LONG_ID = 'inventory.warehouse.stock.adjustment.history.search.by.customer.and.period.with.pagination';

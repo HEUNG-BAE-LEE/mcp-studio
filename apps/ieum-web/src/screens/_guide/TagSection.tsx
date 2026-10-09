@@ -6,8 +6,12 @@ import styles from './TagSection.module.css';
 const TONES: readonly TagTone[] = ['ok', 'warn', 'danger', 'info', 'mute', 'neutral'];
 const SHAPES: readonly TagShape[] = ['square', 'round'];
 const SIZES: readonly TagSize[] = ['sm', 'md', 'lg'];
-// variant마다 이음에 있는 자리의 tone · size(없는 조합은 쓰지 않는다)
-const VARIANTS: readonly { variant: TagVariant; tone: TagTone; size: TagSize }[] = [
+// variant마다 이음에 있는 자리의 tone · size(없는 조합은 쓰지 않는다 — value · value-empty는 mute만 받는다)
+type VariantRow = { size: TagSize } & (
+  | { variant: Exclude<TagVariant, 'value' | 'value-empty'>; tone: TagTone }
+  | { variant: 'value' | 'value-empty'; tone: 'mute' }
+);
+const VARIANTS: readonly VariantRow[] = [
   { variant: 'solid', tone: 'neutral', size: 'lg' },
   { variant: 'dashed', tone: 'neutral', size: 'lg' },
   { variant: 'off', tone: 'mute', size: 'md' },
@@ -63,9 +67,9 @@ export function TagSection() {
         조합은 쓰지 않는다.
       </p>
       <div className={catalog.row}>
-        {VARIANTS.map(({ variant, tone, size }) => (
-          <Tag key={variant} tone={tone} variant={variant} size={size}>
-            {variant}
+        {VARIANTS.map((row) => (
+          <Tag key={row.variant} {...row}>
+            {row.variant}
           </Tag>
         ))}
       </div>

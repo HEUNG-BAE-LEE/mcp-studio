@@ -3,8 +3,7 @@
 // 닫기는 --toast-duration 타이머 → onDone(id) → 같은 id면 open만 끈다(app/toast dismissToast와 같다 — 글자는 남는다)
 import { useState } from 'react';
 import type { ToastItem, ToastKind } from '@/app/toast';
-import { Button, Modal } from '../../ui';
-import { Toast } from '../../ui/Toast';
+import { Button, Modal, Toast } from '../../ui';
 import catalog from './catalog.module.css';
 
 const SAMPLES: Readonly<Record<ToastKind, string>> = {

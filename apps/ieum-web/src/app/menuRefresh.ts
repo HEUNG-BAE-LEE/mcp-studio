@@ -5,9 +5,11 @@
 import type { QueryKey } from '@tanstack/react-query';
 import { keys } from '../api/hooks/keys';
 import type { ScreenId } from './nav';
+import { redraw as redrawPlayground } from './playground/store';
 import { queryClient } from './queryClient';
 
-// 변환 스튜디오 · 테스트 실행은 옛 콘솔도 다시 받지 않는다
+// 변환 스튜디오 · 테스트 실행은 옛 콘솔도 다시 받지 않는다. 테스트 실행은 받지 않는 대신 옛 render()처럼 실행 버튼 · 변환 과정을
+// 지금 상태로 다시 맞춘다(app/playground/store — 대화가 실행보다 먼저 끝난 뒤 다시 누르면 실행 잠금이 풀리던 옛 동작)
 const REFRESH_KEYS: Readonly<Partial<Record<ScreenId, readonly QueryKey[]>>> = {
   dashboard: [keys.dashboardSummary()],
   logs: [keys.logs()],
@@ -16,6 +18,7 @@ const REFRESH_KEYS: Readonly<Partial<Record<ScreenId, readonly QueryKey[]>>> = {
 };
 
 export function refreshMenu(menu: ScreenId): void {
+  if (menu === 'playground') redrawPlayground();
   const targets = REFRESH_KEYS[menu] ?? [];
   for (const queryKey of targets) {
     // exact — 상세 · 서버 로그처럼 같은 접두의 하위 키는 다시 받지 않는다

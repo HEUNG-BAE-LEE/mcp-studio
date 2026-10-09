@@ -1,6 +1,6 @@
 // CodeBlock — 이음 코드 상자(pre.code — css/console.css:724-726, code() js/common/convert.js:159). 강조는 highlight.ts가 나누고 여기서 <span>으로 그린다.
 // 스크롤 상자라 tabindex=0 + 이름(labelledBy | label)을 단다 — 이름이 붙도록 role="region"(보이지 않는 ARIA 보강)
-import { useMemo, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { TraceCode } from '@/app/trace/types';
 import { cx } from '../lib/cx';
 import { highlightCode, type CodeSegment, type CodeTokenKind } from './highlight';
@@ -12,13 +12,20 @@ export type CodeBlockVariant = 'code' | 'log';
 /** 스크롤 상자의 이름 — 다른 요소의 id(변환 과정은 그 단계 제목) 또는 글자 */
 type CodeBlockName = { labelledBy: string; label?: never } | { label: string; labelledBy?: never };
 
-export type CodeBlockProps = CodeBlockName & {
+type CodeBlockBase = CodeBlockName & {
   /** 원문과 언어. 객체는 쓰는 곳이 JSON 글(2칸 들여쓰기)로 바꿔 넘긴다 */
   code: TraceCode;
-  variant?: CodeBlockVariant;
   /** 배치(바깥 여백)만 */
   className?: string;
 };
+
+/**
+ * followKey는 log만 받는다(code에 주면 타입 오류). 처음 값과 값이 바뀔 때마다 상자를 맨 아래로 내린다 —
+ * 서버 로그를 열 때 · 새로 읽을 때(js/menu/deploy.js:169). 열 때마다 다른 값(읽은 시각 등)을 준다. 없으면 내리지 않는다
+ */
+export type CodeBlockProps =
+  | (CodeBlockBase & { variant?: 'code'; followKey?: never })
+  | (CodeBlockBase & { variant: 'log'; followKey?: string | number });
 
 const TOKEN_CLASS: Readonly<Record<CodeTokenKind, string | undefined>> = {
   key: styles.key,
@@ -41,13 +48,34 @@ const renderSegments = (segments: readonly CodeSegment[]): ReactNode[] =>
     ),
   );
 
-export function CodeBlock({ code, variant = 'code', labelledBy, label, className }: CodeBlockProps) {
+export function CodeBlock({ code, variant = 'code', followKey, labelledBy, label, className }: CodeBlockProps) {
+  const rootRef = useRef<HTMLPreElement>(null);
   const content = useMemo(
     () => (variant === 'log' ? code.text : renderSegments(highlightCode(code))),
     [code, variant],
   );
+
+  // 닫힌 층(<dialog>) 안이면 상자가 display:none이라 scrollHeight가 0이다 — 보이는 순간(크기가 생길 때) 한 번 내린다
+  useLayoutEffect(() => {
+    const box = rootRef.current;
+    if (followKey === undefined || !box) return;
+    const scrollToEnd = () => {
+      box.scrollTop = box.scrollHeight;
+    };
+    scrollToEnd();
+    if (box.clientHeight > 0) return;
+    const observer = new ResizeObserver(() => {
+      if (box.clientHeight === 0) return;
+      scrollToEnd();
+      observer.disconnect();
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [followKey]);
+
   return (
     <pre
+      ref={rootRef}
       className={cx(styles.root, className)}
       data-variant={variant}
       role="region"

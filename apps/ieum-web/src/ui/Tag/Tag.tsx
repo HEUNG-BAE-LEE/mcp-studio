@@ -12,11 +12,20 @@ export type TagVariant = 'solid' | 'dashed' | 'off' | 'value' | 'value-empty';
 export type TagShape = 'square' | 'round';
 export type TagSize = 'sm' | 'md' | 'lg';
 
-export type TagProps = {
-  /** 색의 뜻 */
-  tone: TagTone;
-  /** 테두리 · 바탕 모양. value · value-empty는 tone mute와만 쓴다 */
-  variant?: TagVariant;
+/** 색 × 모양 — value · value-empty(관찰 값 칩)는 mute의 면 · 테두리만 다시 쓰므로 tone mute와만 받는다(다른 tone이면 타입 오류) */
+type TagLook =
+  | {
+      /** 색의 뜻 */
+      tone: TagTone;
+      /** 테두리 · 바탕 모양 */
+      variant?: Exclude<TagVariant, 'value' | 'value-empty'>;
+    }
+  | {
+      tone: 'mute';
+      variant: 'value' | 'value-empty';
+    };
+
+export type TagProps = TagLook & {
   /** square = 각진 모서리, round = 알약 */
   shape?: TagShape;
   /** 태그 고유 높이 — sm 18 · md 20 · lg 22(컨트롤 높이 단계와 다른 축) */

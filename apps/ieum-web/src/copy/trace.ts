@@ -1,4 +1,4 @@
-// 변환 과정(로그 상세 · 테스트 실행 결과) 문구 — 옛 js/common/convert.js:166-183 · js/menu/logs.js:46 원문 그대로.
+// 변환 과정(로그 상세 · 테스트 실행 결과 · 확인 대기) 문구 — 옛 js/common/convert.js:166-183 · js/menu/logs.js:46 원문 그대로.
 // 단계 데이터는 app/trace/buildTraceSteps가 만들고, 그리는 쪽은 이 문구를 단계에서 받는다
 
 export const TRACE = Object.freeze({
@@ -23,6 +23,8 @@ export const TRACE = Object.freeze({
   failed: '호출에 실패했습니다',
   /** 실패 단계 보조 글(convert.js:183) */
   error: '오류',
+  /** 테스트 실행 확인 대기 단계 머리(convert.js:173). 단계 본문(확인 상자) 글은 copy/playground PLAYGROUND.hold */
+  hold: { title: '사용자 확인', who: '쓰기 작업' },
 });
 
 export type RuleText = Readonly<{ label: string; description: string }>;

@@ -10,12 +10,12 @@ import { cx } from '../lib/cx';
 import styles from './Button.module.css';
 
 export type ButtonVariant = 'default' | 'primary';
-export type ButtonSize = 'sm' | 'md';
+export type ButtonSize = 'sm' | 'md' | 'xl';
 
 export type ButtonProps = Omit<ComponentProps<'button'>, 'type' | 'aria-disabled'> & {
   /** default = 테두리 버튼, primary = 주 액션 필(한 자리에 하나) */
   variant?: ButtonVariant;
-  /** 높이 단계 — sm --h-sm · md --h-md */
+  /** 높이 단계 — sm --h-sm · md --h-md · xl --h-xl(대화 보내기 — 안쪽 · 글자는 md와 같다) */
   size?: ButtonSize;
   /** 글자 앞 아이콘. 크기는 size를 따른다 */
   icon?: IconName;
@@ -25,8 +25,8 @@ export type ButtonProps = Omit<ComponentProps<'button'>, 'type' | 'aria-disabled
   pending?: boolean;
 };
 
-// 버튼 높이 단계 ↔ 아이콘 단계(DESIGN Iconography — sm 버튼 안 sm, 기본 버튼 안 md)
-const ICON_SIZE_OF: Record<ButtonSize, IconSize> = { sm: 'sm', md: 'md' };
+// 버튼 높이 단계 ↔ 아이콘 단계(DESIGN Iconography — sm 버튼 안 sm, 기본 버튼 안 md). xl은 높이만 다르고 아이콘은 md(옛 .ask .btn 안 send 16)
+const ICON_SIZE_OF: Record<ButtonSize, IconSize> = { sm: 'sm', md: 'md', xl: 'md' };
 
 export function Button({
   variant = 'default',

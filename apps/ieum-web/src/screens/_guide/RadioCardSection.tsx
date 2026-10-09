@@ -1,5 +1,5 @@
 // 카탈로그 RadioCard 절 — card: 기본 · 고름 · 잠김(2차 표지) · 잠김 + 추천 표지 · 아이콘 없음 · 설명 없음 · 격자(CardGrid 2열 · 760)에서 고르기
-// option: 정책 열(300) 기본 · 고름 · 잠김, 검증 방식 묶음의 slot(고르면 설명 자리를 입력이 대신) · 잠긴 slot 카드. 호버 · 포커스는 직접 눌러 본다
+// option: 정책 열(300) 기본 · 고름 · 잠김 · 고른 채 잠김, 검증 방식 묶음의 slot(고르면 설명 자리를 입력이 대신) · 잠긴 slot 카드. 호버 · 포커스는 직접 눌러 본다
 import { useId, useState } from 'react';
 import { CardGrid, Input, RadioCard, Tag } from '../../ui';
 import catalog from './catalog.module.css';
@@ -61,11 +61,12 @@ function PolicyOptions() {
         <RadioCard variant="option" title="바로 실행" description="조회처럼 결과만 읽는 작업에 권장합니다" selected={exec === 'auto'} onSelect={() => setExec('auto')} disabled />
         <RadioCard variant="option" title="사용자 확인 후 실행" description="쓰기 작업은 이 방식만 쓸 수 있습니다" selected={exec === 'confirm'} onSelect={() => setExec('confirm')} />
       </div>
-      <h3 className={catalog.heading}>option 상태 — 기본 · 고름 · 잠김 · 설명 없음</h3>
+      <h3 className={catalog.heading}>option 상태 — 기본 · 고름 · 잠김 · 고른 채 잠김 · 설명 없음</h3>
       <div className={styles.policy}>
         <RadioCard variant="option" title="기본" description="고르지 않은 카드" selected={false} onSelect={NOOP} />
         <RadioCard variant="option" title="고름" description="고른 카드 — 안쪽 테 없음" selected onSelect={NOOP} />
         <RadioCard variant="option" title="잠김" description="쓰기 도구의 바로 실행" selected={false} onSelect={NOOP} disabled />
+        <RadioCard variant="option" title="고른 채 잠김" description="두 상태가 겹친 모양" selected onSelect={NOOP} disabled />
         <RadioCard variant="option" title="설명 없음" selected={false} onSelect={NOOP} />
       </div>
     </>

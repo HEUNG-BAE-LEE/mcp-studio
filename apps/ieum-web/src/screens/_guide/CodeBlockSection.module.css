@@ -8,3 +8,7 @@
 .cell {
   min-width: 0;
 }
+
+.actions {
+  margin-top: var(--s-2);
+}

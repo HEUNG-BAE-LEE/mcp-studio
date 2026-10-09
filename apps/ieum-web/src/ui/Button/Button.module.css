@@ -42,6 +42,11 @@
   font-size: var(--fs-ui-sm);
 }
 
+/* 대화 입력 줄의 보내기 — 이음 .ask .btn(css/console.css:752). 높이만 --h-xl이고 안쪽 · 글자는 md 그대로 */
+.root[data-size='xl'] {
+  height: var(--h-xl);
+}
+
 /* 비활성 — 투명도 하나(--opacity-disabled), hover 모양이 바뀌지 않는다. 요청 중 잠금(pending — aria-disabled)도 같은 모양 */
 .root:disabled,
 .root[aria-disabled='true'] {

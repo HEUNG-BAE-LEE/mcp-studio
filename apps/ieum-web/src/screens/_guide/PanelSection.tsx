@@ -1,9 +1,9 @@
 // 카탈로그 Panel 절 — 도구 목록(머리 + 수 · FilterChips band · PanelBand 안 검색 · 스크롤 목록 12개 — 필터 · 검색이 목록만 바꾼다) /
 // 묶음 목록(footer 안 버튼이 칸 폭을 채움) / 빈 목록(EmptyState inline). 1100 이하 스크롤 최대 높이 280은 폭 전환으로 본다
 import { useState } from 'react';
-import { Button, EmptyState, FilterChips, ModeTag, SearchInput, StatusChip, ToolStatusChip, type FilterChipItem, type StatusTone } from '../../ui';
-import { Panel, PanelBand } from '../../ui/Panel';
-import { SelectableListItem } from '../../ui/SelectableListItem';
+import {
+  Button, EmptyState, FilterChips, ModeTag, Panel, PanelBand, SearchInput, SelectableListItem, StatusChip, ToolStatusChip, type FilterChipItem, type StatusTone,
+} from '../../ui';
 import catalog from './catalog.module.css';
 import styles from './PanelSection.module.css';
 

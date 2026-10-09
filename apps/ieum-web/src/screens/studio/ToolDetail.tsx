@@ -11,6 +11,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Source, Tool, ToolParam, ToolResField } from '../../api/types';
 import { opLabel } from '../../app/convert/opLabel';
+import { clearOut } from '../../app/playground/store';
 import { editDraft, useToolDraft, type DraftPatch } from '../../app/studio/drafts';
 import { editParamRow, editResRow, publishPatch } from '../../app/studio/edit';
 import { toast } from '../../app/toast';
@@ -85,7 +86,9 @@ export function ToolDetail({ tool, saved, source, saving, onSave, rewriting, onR
     toast(on ? STUDIO.toast.published(tool.id) : STUDIO.toast.unpublished(tool.id));
   };
 
+  // 테스트 실행의 지난 결과만 누른 순간 한 번 비우고 간다(phase는 그대로 — 옛 js/menu/studio.js:167)
   const onTryRun = () => {
+    clearOut();
     void navigate(`${PLAYGROUND_PATH}?${new URLSearchParams({ tool: tool.id }).toString()}`);
   };
 

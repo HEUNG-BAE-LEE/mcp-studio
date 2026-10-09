@@ -4,9 +4,7 @@
 // 닫으면 다시 보인다) · 선택 수 0이면 주 버튼 disabled · 주 버튼을 누르면 1초 pending. 조각 모음: 링크형 · 구분선 · 주 버튼 상태 · 많으면 접힘.
 // DockSpacer는 점선 틀로 크기를 본다. 760 이하에서 좌우 꽉 참 · 안쪽 여백 줄어듦은 폭 전환으로 본다
 import { useEffect, useState } from 'react';
-import { Button, useOpenLayers } from '../../ui';
-import { Dock, DockButton, DockLinkButton, DockSeparator, DockSpacer } from '../../ui/Dock';
-import { Drawer } from '../../ui/Drawer';
+import { Button, Dock, DockButton, DockLinkButton, DockSeparator, DockSpacer, Drawer, useOpenLayers } from '../../ui';
 import catalog from './catalog.module.css';
 import styles from './DockSection.module.css';
 

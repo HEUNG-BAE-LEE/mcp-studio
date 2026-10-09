@@ -66,9 +66,11 @@
   text-align: center;
 }
 
+/* 아이콘은 글줄 안(inline)에 둔다 — 옛 svg도 글줄 안이고 뒤에 <br>이 온다(js/menu/playground.js:73).
+   그 줄 상자에 글자 strut(기준선 아래 부분)이 붙어 아이콘 줄이 아이콘 + 여백보다 길다. block으로 두면 strut이 빠져 글이 그만큼 올라가고 칸이 짧아진다.
+   가운데는 부모 text-align이 맞춘다 */
 .area-icon {
-  display: block;
-  margin: 0 auto var(--s-1-5);
+  margin-bottom: var(--s-1-5);
   color: var(--line-control);
 }
 

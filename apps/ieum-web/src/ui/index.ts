@@ -9,6 +9,7 @@ export { Logo, LOGO_SIZES, type LogoProps, type LogoSize } from './icons/Logo';
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
 export { IconButton, type IconButtonIconSize, type IconButtonProps, type IconButtonVariant } from './IconButton';
 export { LinkButton, type LinkButtonProps, type LinkButtonVariant } from './LinkButton';
+export { Chip, type ChipProps } from './Chip';
 
 // 입력
 export { Select, type SelectProps, type SelectVariant, type SelectWidth } from './Select';
@@ -26,9 +27,11 @@ export {
   SegmentedRadio, SegmentedTabPanel, SegmentedTabs,
   type SegmentedItem, type SegmentedRadioProps, type SegmentedTabPanelProps, type SegmentedTabsProps,
 } from './Segmented';
+export { Tabs, type TabItem, type TabsProps } from './Tabs';
 export { SelectableListItem, type SelectableListItemProps, type SelectableListItemVariant } from './SelectableListItem';
 export { Checkbox, type CheckboxProps, type CheckboxSize } from './Checkbox';
 export { TagInput, type TagInputProps } from './TagInput';
+export { ChatInput, type ChatInputProps } from './ChatInput';
 
 // 표시
 export { VisuallyHidden, type VisuallyHiddenElement, type VisuallyHiddenProps } from './VisuallyHidden';
@@ -42,6 +45,8 @@ export { Spinner, type SpinnerProps, type SpinnerSize } from './Spinner';
 export { LiveIndicator, type LiveIndicatorProps } from './LiveIndicator';
 export { StepIndicator, type JobStep, type StepIndicatorProps, type StepIndicatorVariant, type WizardStep } from './StepIndicator';
 export { ProgressList, type ProgressItem, type ProgressListProps } from './ProgressList';
+export { ChatBubble, type ChatBubbleProps, type ChatBubbleVariant } from './ChatBubble';
+export { ChatLog, type ChatLogProps } from './ChatLog';
 
 // 상태 표현
 export {
@@ -54,7 +59,7 @@ export {
 } from './EmptyState';
 export { ErrorBlock, FailureBlock, type ErrorBlockProps, type FailureBlockProps, type FailureTone } from './FailureBlock';
 export { ScreenState, type ScreenGate, type ScreenStateProps, type ScreenStateScope } from './ScreenState';
-export { Notice, type NoticeProps, type NoticeTone } from './Notice';
+export { Notice, type NoticeProps, type NoticeTone, type NoticeVariant } from './Notice';
 
 // 층
 export { closeAllLayers, useOpenLayers, type OpenLayers } from './layers';
@@ -76,6 +81,7 @@ export { Panel, PanelBand, type PanelBandProps, type PanelProps } from './Panel'
 export { DetailHead, type DetailHeadProps } from './DetailHead';
 export { SettingRow, type SettingRowProps } from './SettingRow';
 export { GroupLabel, type GroupLabelProps, type GroupLabelSize } from './GroupLabel';
+export { ScrollList, ScrollListHeading, type ScrollListHeadingProps, type ScrollListProps } from './ScrollList';
 export { SectionTitle, type SectionTitleLevel, type SectionTitleProps } from './SectionTitle';
 export { CardGrid, type CardGridProps } from './CardGrid';
 
@@ -91,6 +97,7 @@ export {
   type CompactTableCellProps, type CompactTableHeadCellProps, type CompactTableMinWidth, type CompactTableProps, type CompactTableRowProps,
 } from './CompactTable';
 export { CodeBlock, type CodeBlockProps, type CodeBlockVariant } from './CodeBlock';
+export { CopyField, type CopyFieldProps, type CopyFieldVariant } from './CopyField';
 export { CompareCaption, CompareGrid, type CompareCaptionProps, type CompareGridProps, type CompareTone } from './CompareGrid';
 
 // 이음 전용

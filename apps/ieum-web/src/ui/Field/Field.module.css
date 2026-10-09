@@ -17,6 +17,11 @@
   color: var(--text-muted);
 }
 
+/* 필수 별표 — 옛 인라인 color:var(--danger), 웨이트는 라벨 것(js/menu/playground.js:31) */
+.required {
+  color: var(--danger);
+}
+
 /* 여러 줄 입력 — 라벨을 입력 첫 줄에 맞춘다(옛 인라인 padding-top 8) */
 .root[data-align='top'] .label {
   padding-top: var(--s-2);

@@ -70,6 +70,7 @@ import { PipelineSection } from './PipelineSection';
 import { FieldPairSection } from './FieldPairSection';
 import { CheckboxSection } from './CheckboxSection';
 import { TagInputSection } from './TagInputSection';
+import { ChatInputSection } from './ChatInputSection';
 import { LiveIndicatorSection } from './LiveIndicatorSection';
 import { DockSection } from './DockSection';
 import { MethodChipSection } from './MethodChipSection';
@@ -78,6 +79,12 @@ import { NetLogSection } from './NetLogSection';
 import { GitFileListSection } from './GitFileListSection';
 import { BrowserViewSection } from './BrowserViewSection';
 import { DiscoveryZoneSection } from './DiscoveryZoneSection';
+import { ChipSection } from './ChipSection';
+import { ChatBubbleSection } from './ChatBubbleSection';
+import { ChatLogSection } from './ChatLogSection';
+import { TabsSection } from './TabsSection';
+import { ScrollListSection } from './ScrollListSection';
+import { CopyFieldSection } from './CopyFieldSection';
 
 export type GuideSection = {
   /** 본문 앵커 · 목차 이동에 쓰는 id(영문 소문자) */
@@ -94,6 +101,7 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'button', group: '기본', name: 'Button', Component: ButtonSection },
   { id: 'icon-button', group: '기본', name: 'IconButton', Component: IconButtonSection },
   { id: 'link-button', group: '기본', name: 'LinkButton', Component: LinkButtonSection },
+  { id: 'chip', group: '기본', name: 'Chip', Component: ChipSection },
   { id: 'select', group: '입력', name: 'Select', Component: SelectSection },
   { id: 'search-input', group: '입력', name: 'SearchInput', Component: SearchInputSection },
   { id: 'filter-chips', group: '입력', name: 'FilterChips', Component: FilterChipsSection },
@@ -107,9 +115,11 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'switch', group: '입력', name: 'Switch', Component: SwitchSection },
   { id: 'segmented-tabs', group: '입력', name: 'SegmentedTabs', Component: SegmentedTabsSection },
   { id: 'segmented-radio', group: '입력', name: 'SegmentedRadio', Component: SegmentedRadioSection },
+  { id: 'tabs', group: '입력', name: 'Tabs', Component: TabsSection },
   { id: 'selectable-list-item', group: '입력', name: 'SelectableListItem', Component: SelectableListItemSection },
   { id: 'checkbox', group: '입력', name: 'Checkbox', Component: CheckboxSection },
   { id: 'tag-input', group: '입력', name: 'TagInput', Component: TagInputSection },
+  { id: 'chat-input', group: '입력', name: 'ChatInput', Component: ChatInputSection },
   { id: 'status-chip', group: '표시', name: 'StatusChip', Component: StatusChipSection },
   { id: 'status-dot', group: '표시', name: 'StatusDot', Component: StatusDotSection },
   { id: 'tag', group: '표시', name: 'Tag', Component: TagSection },
@@ -120,6 +130,8 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'live-indicator', group: '표시', name: 'LiveIndicator', Component: LiveIndicatorSection },
   { id: 'step-indicator', group: '표시', name: 'StepIndicator', Component: StepIndicatorSection },
   { id: 'progress-list', group: '표시', name: 'ProgressList', Component: ProgressListSection },
+  { id: 'chat-bubble', group: '표시', name: 'ChatBubble', Component: ChatBubbleSection },
+  { id: 'chat-log', group: '표시', name: 'ChatLog', Component: ChatLogSection },
   { id: 'empty-state', group: '상태 표현', name: 'EmptyState', Component: EmptyStateSection },
   { id: 'failure-block', group: '상태 표현', name: 'FailureBlock', Component: FailureBlockSection },
   { id: 'error-block', group: '상태 표현', name: 'ErrorBlock', Component: ErrorBlockSection },
@@ -138,6 +150,7 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'detail-head', group: '레이아웃', name: 'DetailHead', Component: DetailHeadSection },
   { id: 'setting-row', group: '레이아웃', name: 'SettingRow', Component: SettingRowSection },
   { id: 'group-label', group: '레이아웃', name: 'GroupLabel', Component: GroupLabelSection },
+  { id: 'scroll-list', group: '레이아웃', name: 'ScrollList', Component: ScrollListSection },
   { id: 'section-title', group: '레이아웃', name: 'SectionTitle', Component: SectionTitleSection },
   { id: 'card-grid', group: '레이아웃', name: 'CardGrid', Component: CardGridSection },
   { id: 'shell', group: '레이아웃', name: '셸', Component: ShellSection },
@@ -146,6 +159,7 @@ export const SECTIONS: readonly GuideSection[] = [
   { id: 'table', group: '데이터', name: 'Table', Component: TableSection },
   { id: 'compact-table', group: '데이터', name: 'CompactTable', Component: CompactTableSection },
   { id: 'code-block', group: '데이터', name: 'CodeBlock', Component: CodeBlockSection },
+  { id: 'copy-field', group: '데이터', name: 'CopyField', Component: CopyFieldSection },
   { id: 'compare-grid', group: '데이터', name: 'CompareGrid', Component: CompareGridSection },
   { id: 'icons', group: '아이콘', name: 'Icon', Component: IconsSection },
   { id: 'logo', group: '아이콘', name: 'Logo', Component: LogoSection },

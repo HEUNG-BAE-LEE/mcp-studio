@@ -1,4 +1,4 @@
-// 카탈로그 DiscoveryZone 절 — 고정 묶음(칸 셋 + FieldPair half) · 켜고 끄는 묶음(켜짐 · 꺼짐) · 스위치 잠김(보이는 사유 글 · 숨김 사유) · 잠긴 켜짐(흐리지 않음).
+// 카탈로그 DiscoveryZone 절 — 고정 묶음(칸 셋 + FieldPair half) · 켜고 끄는 묶음(켜짐 · 꺼짐) · 스위치 잠김(보이는 사유 글 · 숨김 사유) · 잠긴 켜짐(흐리지 않음) · 설명 없음 · 꺼진 채 잠김 + 숨김 사유.
 // 스위치를 누르면 바뀐다 — 꺼졌을 때 칸을 남길지는 쓰는 곳 몫이라 이 절은 칸을 빼고 안내만 남기는 옛 모양을 따른다. 칸 묶음 아래 안내는 FieldNote,
 // 잠긴 사유 안내는 HelpText note(위 0 · 아래 8 — 옛 인라인 js/menu/discovery.js:60)다. 760 이하는 폭 전환으로 본다
 import { useId, useState } from 'react';
@@ -140,6 +140,21 @@ function LockedOn() {
   );
 }
 
+/** 설명 없는 묶음 — 고정 묶음 · 꺼진 채 잠긴 묶음(숨김 사유). 꺼진 바탕 그대로이고 흐리지 않는다 */
+function NoDescription() {
+  return (
+    <div className={catalog.stack}>
+      <DiscoveryZone title="운영 접속 정보">
+        <TextField label="운영 주소" placeholder="http://10.20.4.30:8080/po" mono />
+      </DiscoveryZone>
+      <DiscoveryZone
+        title="운영 화면 탐색"
+        toggle={{ checked: false, onCheckedChange: NOOP, disabled: true, disabledReason: '이 서버에서 쓸 수 있는 브라우저가 없습니다' }}
+      />
+    </div>
+  );
+}
+
 export function DiscoveryZoneSection() {
   return (
     <div className={catalog.section}>
@@ -163,6 +178,9 @@ export function DiscoveryZoneSection() {
 
       <h3 className={catalog.heading}>스위치 잠김 — 켜진 채 · 숨김 사유(disabledReason). 흐리지 않는다</h3>
       <LockedOn />
+
+      <h3 className={catalog.heading}>설명 없음 — 고정 묶음 · 꺼진 채 잠김 + 숨김 사유(disabledReason)</h3>
+      <NoDescription />
     </div>
   );
 }

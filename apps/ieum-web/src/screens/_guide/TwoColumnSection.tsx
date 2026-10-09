@@ -1,8 +1,7 @@
 // 카탈로그 TwoColumn 절 — layout 다섯(main-side · main-aside · half · summary · live) 한 줄씩. 비율 · 간격 · 정렬(위 / 늘임) · 접힘은
 // 폭 전환으로 본다(1360 이하 live 외 한 열, 1100 이하 live 한 열). 칸은 높이가 달라 정렬 차이가 보인다
 import type { ReactNode } from 'react';
-import { Box } from '../../ui/Box';
-import { TwoColumn, type TwoColumnLayout } from '../../ui/TwoColumn';
+import { Box, TwoColumn, type TwoColumnLayout } from '../../ui';
 import catalog from './catalog.module.css';
 import styles from './TwoColumnSection.module.css';
 

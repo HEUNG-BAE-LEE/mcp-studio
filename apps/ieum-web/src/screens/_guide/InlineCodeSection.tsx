@@ -1,6 +1,5 @@
 // 카탈로그 InlineCode 절 — 문장 안(본문 · 안내 한 줄) · 긴 값(줄바꿈)
-import { HelpText } from '../../ui/HelpText';
-import { InlineCode } from '../../ui/InlineCode';
+import { HelpText, InlineCode } from '../../ui';
 import catalog from './catalog.module.css';
 
 export function InlineCodeSection() {

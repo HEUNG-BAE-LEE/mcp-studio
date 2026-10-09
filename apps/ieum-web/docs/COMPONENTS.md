@@ -35,14 +35,14 @@
 
 ### Button
 - **쓰는 곳** 한 줄 액션 — 화면 머리 · 툴바 · 모달 발 · 드로어 발 · 알림 줄 · 대시보드 빈 상태 큰 상자의 주 버튼(이음 `.btn` `css/console.css:175-179,640-642`).
-- **쓰지 않는 곳** 글자 없는 도구 → `IconButton` · 문장 · 상자 머리 안 링크 모양 → `LinkButton` · 도크(어두운 바탕) 안 버튼 → `DockButton`.
+- **쓰지 않는 곳** 글자 없는 도구 → `IconButton` · 문장 · 상자 머리 안 링크 모양 → `LinkButton` · 도크(어두운 바탕) 안 버튼 → `DockButton` · 고른 상태 없이 누르면 동작하는 알약(대화 호출 칩) → `Chip`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
   | `variant` | `ButtonVariant` — `default` · `primary` | `default` | `default` = 테두리 버튼(1px `--line-control` · `--surface`), `primary` = 주 액션 필(`--primary` · `--on-fill`) — 한 자리에 하나 |
-  | `size` | `ButtonSize` — `sm` · `md` | `md` | 높이 단계(`--h-sm` · `--h-md`). `sm`은 표 행 · 알림 줄 · 작은 판(`css/console.css:179`) |
-  | `icon` | `IconName` | 없음 | 글자 앞 아이콘. 크기는 `size`를 따른다(`md` → Icon `md` · `sm` → Icon `sm`) |
+  | `size` | `ButtonSize` — `sm` · `md` · `xl` | `md` | 높이 단계(`--h-sm` · `--h-md` · `--h-xl`). `sm`은 표 행 · 알림 줄 · 작은 판(`css/console.css:179`), `xl`은 대화 입력 줄의 보내기(`ChatInput` 안 — 옛 `.ask .btn` `css/console.css:752`, 안쪽 · 글자는 `md`와 같다) |
+  | `icon` | `IconName` | 없음 | 글자 앞 아이콘. 크기는 `size`를 따른다(`md` · `xl` → Icon `md` · `sm` → Icon `sm`) |
   | `type` | `button` · `submit` · `reset` | `button` | HTML 속성 그대로. 기본이 `button`이라 폼 안에서 뜻밖에 제출하지 않는다 |
   | `pending` | boolean | false | 요청 중 잠금(쓰기 버튼 · 진행 중인 요청의 결과를 기다리는 버튼) — `aria-disabled="true"` · 누름 · Enter · Space를 무시(`onClick`을 부르지 않고 폼 제출도 막는다) · 비활성 모양. 포커스는 버튼에 남는다 |
   | 그 밖 | `<button>` 속성 · `ref` | 없음 | `disabled` · `onClick` · `aria-*` 등을 그대로 넘긴다 — `aria-disabled`는 받지 않는다(`pending`이 낸다) |
@@ -50,13 +50,13 @@
   - 이음 모달의 `.btn.danger`(`js/menu/deploy.js:207`)는 모양이 없어 `default`로 옮긴다. 도크 안 버튼(`css/console.css:231-236`)은 `DockButton`이 맡는다 — 쓰는 화면이 있는 주 버튼만 옮겼다
   - 모달 · 드로어 발 버튼의 최소 폭은 `Modal` · `Drawer`가 준다 — 버튼에 폭을 주지 않는다
   - 함께 내보내는 것(`@/ui`) — 타입 `ButtonProps` · `ButtonVariant` · `ButtonSize`
-- **상태** hover는 테두리 · 글자가 `--primary`이고 `primary`는 바탕이 `--primary-hover`다(`css/console.css:176-178`). disabled는 공통(`--opacity-disabled` · 커서 `not-allowed`)이고 hover 모양이 바뀌지 않는다(`css/console.css:640-642`). 요청 중에는 쓰는 곳이 `pending`을 켜고 글자를 진행형으로 바꾼다("배포하는 중…" — `js/menu/deploy.js:107`) — 부품은 스피너를 더하지 않는다. `pending`의 모양은 disabled와 같다(`aria-disabled="true"`로 고른다).
-- **접근성** 아이콘은 장식이라 이름은 글자가 가진다. 누름은 `<button>` 기본 동작(Enter · Space)이다. `pending`은 `aria-disabled="true"`라 Tab으로 닿고 잠긴 동안에도 포커스가 버튼에 남는다(스크린리더는 비활성으로 읽는다) — 풀리면 그 자리에서 Enter · Space가 다시 누른다.
+- **상태** hover는 테두리 · 글자가 `--primary`이고 `primary`는 바탕이 `--primary-hover`다(`css/console.css:176-178`). disabled는 공통(`--opacity-disabled` · 커서 `not-allowed`)이고 hover 모양이 바뀌지 않는다(`css/console.css:640-642`). 요청 중에는 쓰는 곳이 `pending`을 켜고 글자를 진행형으로 바꾼다("배포하는 중…" — `js/menu/deploy.js:107`). 아이콘만 있는 버튼(대화 보내기)은 글자가 없어 잠금 모양만이다 — 부품은 스피너를 더하지 않는다. `pending`의 모양은 disabled와 같다(`aria-disabled="true"`로 고른다).
+- **접근성** 아이콘은 장식이라 이름은 글자가 가진다. 누름은 `<button>` 기본 동작(Enter · Space)이다. `pending`은 `aria-disabled="true"`라 Tab으로 닿고 잠긴 동안에도 포커스가 버튼에 남는다(스크린리더는 비활성으로 읽는다) — 풀리면 그 자리에서 Enter · Space가 다시 누른다. 글자 없이 아이콘만 둘 때(대화 보내기)는 `aria-label`을 준다.
 - **카탈로그** `Button`
 
 ### IconButton
-- **쓰는 곳** 아이콘만 있는 도구 — 층 머리 닫기 ✕(`js/common/overlay.js:20` · `js/menu/logs.js:35`) · 주소 복사(`js/menu/deploy.js:73`).
-- **쓰지 않는 곳** 글자가 있는 액션 → `Button` · 레일 · GNB 아이콘 → `셸`.
+- **쓰는 곳** 아이콘만 있는 도구 — 층 머리 닫기 ✕(`js/common/overlay.js:20` · `js/menu/logs.js:35`) · 주소 복사(`CopyField` 안 — `js/menu/deploy.js:73`).
+- **쓰지 않는 곳** 글자가 있는 액션 → `Button` · 레일 · GNB 아이콘 → `셸` · 주색 필 아이콘 보내기(대화) → `ChatInput`(안에서 `Button` `xl`).
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -80,6 +80,7 @@
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
   | `to` | `To`(react-router) | 없음 | 있으면 이동 링크 — 라우터 `Link`(`<a href>`). 주소는 쓰는 곳이 앱 층 도우미로 만든다 |
+  | `state` | unknown | 없음 | `to`일 때만(버튼이면 타입이 막는다). 라우터 `Link`의 `state`로 그대로 넘긴다 — 도착 화면이 읽는 표지(배포 포함된 도구 id → 스튜디오 도착 표지). 앱 층 도우미가 `to`와 함께 만든다 |
   | `onClick` | 마우스 이벤트 처리기 | `to`가 없으면 필수 | `to`가 없으면 `<button type="button">`의 동작. `to`와 함께면 이동 전에 부른다(메뉴 다시 받기 등) |
   | `disabled` | boolean | false | 버튼일 때만(`to`와 함께 쓰지 않는다 — 타입이 막는다). 조건이 안 맞아 못 누르는 것 — native라 포커스를 받지 않는다 |
   | `pending` | boolean | false | 버튼일 때만. 요청 중 잠금 — `Button` `pending`과 같은 계약(`aria-disabled="true"` · 누름 · Enter · Space를 무시하고 포커스는 버튼에 남는다). 요청 중 잠금은 `disabled`가 아니라 이것으로 한다("AI로 다시 쓰기" 등 쓰기 동작 글자) |
@@ -91,10 +92,29 @@
 - **접근성** `to`면 링크(Enter로 이동), 아니면 버튼(Enter · Space)이다 — 옛은 모두 `<button>`이었고 이동하는 것만 링크가 된다(DESIGN 이식 기간 허용 차이 — LNB와 같은 갈래). `back` 아이콘은 장식이다.
 - **카탈로그** `LinkButton`
 
+### Chip
+- **쓰는 곳** 누르면 한 가지 동작을 하는 알약 버튼 — 테스트 실행 대화의 호출 칩("{도구} ✓ 변환 과정 보기" — 누르면 그 호출을 변환 과정 칸에 그린다, `js/menu/playground.js:65,110`)(이음 `.chip` `css/console.css:314-315`).
+- **쓰지 않는 곳** 고른 상태가 있는 목록 필터 → `FilterChips` · 테두리 · 필이 있는 액션 → `Button` · 상태 · 표지 → `StatusChip` · `Tag`.
+- **prop · 크기**
+
+  | prop | 타입 | 기본값 | 뜻 |
+  |---|---|---|---|
+  | `onClick` | 마우스 이벤트 처리기 | 필수 | 누름 |
+  | `children` | ReactNode | 필수 | 글자 — 글 사이에 아이콘(`Icon size="sm"`) · 시각 숨김 글자를 둘 수 있다 |
+  | `className` | string | 없음 | 배치만 |
+  - 알약 — 최소 높이 `--h-sm` · 위아래 `--s-0-5` · 좌우 `--s-3` · 1px `--line-control` · `--surface` · `--r-pill`, 글자 `--fs-ui-sm` · `--text-muted`. 한 줄이면 `--h-sm` 그대로이고, 긴 도구 이름이 줄을 접으면 알약이 함께 자란다(긴 낱말은 아무 곳에서나 접는다 — 옛은 높이 고정이라 글이 알약 밖으로 넘쳤다)
+  - 안은 글 흐름 그대로다(flex가 아니다) — 글과 아이콘 사이의 공백이 남는다. 옛 글리프 ✓ · ✕ 자리는 `check` · `close` 아이콘(장식)이고, 곁에 같은 글리프를 `VisuallyHidden`으로 두어 이름이 옛과 같게 읽힌다(쓰는 곳 — 새 문구 없음)
+  - 대화 말풍선 안에서는 칩마다 한 줄이다 — 쓰는 곳이 블록으로 감싼다(옛 그대로 칩 사이 간격 없음)
+  - 적힌 prop만 받는다
+  - 함께 내보내는 것(`@/ui`) — 타입 `ChipProps`
+- **상태** hover는 테두리 · 글자가 `--primary`다(`css/console.css:315`). 고른 상태 · 비활성 모양은 없다(옛에 없음).
+- **접근성** `<button type="button">`이고 이름은 글자 전체(시각 숨김 글리프 포함)다. 아이콘은 장식이다.
+- **카탈로그** `Chip`
+
 ## 입력
 
 ### Select
-- **쓰는 곳** 여러 값 중 하나 고르기 — 툴바 필터(호출 로그 AI 클라이언트 `js/menu/logs.js:21` · 원본 시스템 `js/menu/sources.js:26` · 스튜디오 원본 `js/menu/studio.js:128`), 폼 칸(테스트 실행 도구 · 탐색 마법사 — `js/menu/playground.js:47`), 표 안 칸(스튜디오 매핑 — `css/console.css:1074-1077`), 설정 줄 오른쪽(탐색 시작 시각 "지금 바로" · "시각 예약" — `js/menu/discovery.js:76`).
+- **쓰는 곳** 여러 값 중 하나 고르기 — 툴바 필터(호출 로그 AI 클라이언트 `js/menu/logs.js:21` · 원본 시스템 `js/menu/sources.js:26` · 스튜디오 원본 `js/menu/studio.js:128`), 폼 칸(테스트 실행 도구 · 인자 코드표 · 열거 · 참거짓 — `js/menu/playground.js:28-29,47`, 탐색 마법사), 표 안 칸(스튜디오 매핑 — `css/console.css:1074-1077`), 설정 줄 오른쪽(탐색 시작 시각 "지금 바로" · "시각 예약" — `js/menu/discovery.js:76`).
 - **쓰지 않는 곳** 두세 모드 고르기 → `SegmentedRadio` · 미리보기 탭 → `SegmentedTabs` · 설명이 붙은 선택지 → `RadioCard` · `RadioList` · 화면 안 상태 필터 → `FilterChips`.
 - **prop · 크기**
 
@@ -121,7 +141,7 @@
 
 ### SearchInput
 - **쓰는 곳** 목록 위 글자 검색 — 툴바형(호출 로그 `js/menu/logs.js:22` · 원본 시스템 `js/menu/sources.js:25`), 패널 전폭형(변환 스튜디오 도구 목록 `js/menu/studio.js:137`)(이음 `.search` `css/console.css:138-144`).
-- **쓰지 않는 곳** 금지어 → `TagInput` · 대화 → 대화 입력 줄(테스트 실행을 옮길 때 만든다 — 한글 조합 중 Enter 가드는 그쪽) · 폼 칸 → `Input` + `Field`.
+- **쓰지 않는 곳** 금지어 → `TagInput` · 대화 질문 → `ChatInput`(한글 조합 중 Enter 가드는 그쪽) · 폼 칸 → `Input` + `Field`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -142,7 +162,7 @@
 
 ### FilterChips
 - **쓰는 곳** 화면 안 목록 필터 알약 묶음(개수 붙음) — 툴바 안(호출 로그 상태 `js/menu/logs.js:19` · 탐색 결과 `js/menu/discovery.js:313`), 패널 머리 띠(변환 스튜디오 도구 목록 `js/menu/studio.js:136`)(이음 `.tl-f` `css/console.css:615-619`).
-- **쓰지 않는 곳** 서버에 보내는 선택 · 폼 값 → `Select` · 화면을 나누는 탭 → 탭(AI 연결 배포를 옮길 때 만든다).
+- **쓰지 않는 곳** 서버에 보내는 선택 · 폼 값 → `Select` · 화면을 나누는 탭 → `Tabs` · 고른 상태 없이 누르면 동작하는 알약 → `Chip`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -159,8 +179,8 @@
 - **카탈로그** `FilterChips`
 
 ### Input
-- **쓰는 곳** 한 줄 입력 — 폼 칸(연결 마법사 시스템 이름 · 명세 URL · 서버 주소 · 인증 칸 `js/menu/sources.js:57,66,69,88` · 재인증 모달의 인증 칸 `:136` · 탐색 마법사 칸 `js/menu/discovery.js:43-64`)(이음 `.inp` `css/console.css:307-309`, 고정폭 `.mono` `:488`), 표 안 칸(스튜디오 매핑 이름 · 설명 · 고정값 · 코드표 — `js/menu/studio.js:20-47`, `.map .mini` `:1074-1076`), 설정 줄 오른쪽 칸(정책 호출 한도 `js/menu/studio.js:109` · 탐색 예약 시각 `js/menu/discovery.js:76` · 스테이징 주소 `:72` — `.tg .inp` `:716`).
-- **쓰지 않는 곳** 여러 줄 → `Textarea` · 목록 검색 → `SearchInput` · 정해진 값 고르기 → `Select` · 금지어 → `TagInput` · 대화 → 대화 입력 줄(테스트 실행을 옮길 때 만든다).
+- **쓰는 곳** 한 줄 입력 — 폼 칸(연결 마법사 시스템 이름 · 명세 URL · 서버 주소 · 인증 칸 `js/menu/sources.js:57,66,69,88` · 재인증 모달의 인증 칸 `:136` · 탐색 마법사 칸 `js/menu/discovery.js:43-64` · 테스트 실행 인자 칸 `js/menu/playground.js:30`)(이음 `.inp` `css/console.css:307-309`, 고정폭 `.mono` `:488`), 표 안 칸(스튜디오 매핑 이름 · 설명 · 고정값 · 코드표 — `js/menu/studio.js:20-47`, `.map .mini` `:1074-1076`), 설정 줄 오른쪽 칸(정책 호출 한도 `js/menu/studio.js:109` · 탐색 예약 시각 `js/menu/discovery.js:76` · 스테이징 주소 `:72` — `.tg .inp` `:716`).
+- **쓰지 않는 곳** 여러 줄 → `Textarea` · 목록 검색 → `SearchInput` · 정해진 값 고르기 → `Select` · 금지어 → `TagInput` · 대화 질문 → `ChatInput`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -205,7 +225,7 @@
 - **카탈로그** `Textarea`
 
 ### Field
-- **쓰는 곳** 라벨 + 입력 한 줄 — 연결 마법사 · 재인증 모달의 칸(`js/menu/sources.js:57-69,88-95`) · 탐색 마법사 칸(`js/menu/discovery.js:43-64`)(이음 `.field` `css/console.css:305-306`, 760 `:472`). 칸 묶음 아래 안내(`FieldNote` — 탐색 마법사 Git · 화면 탐색 `js/menu/discovery.js:56,65`, 옛 `.pv-note` + 인라인 들여쓰기).
+- **쓰는 곳** 라벨 + 입력 한 줄 — 연결 마법사 · 재인증 모달의 칸(`js/menu/sources.js:57-69,88-95`) · 탐색 마법사 칸(`js/menu/discovery.js:43-64`) · 테스트 실행 도구 · 인자 칸(`js/menu/playground.js:31,47`)(이음 `.field` `css/console.css:305-306`, 760 `:472`). 칸 묶음 아래 안내(`FieldNote` — 탐색 마법사 Git · 화면 탐색 `js/menu/discovery.js:56,65`, 옛 `.pv-note` + 인라인 들여쓰기).
 - **쓰지 않는 곳** 보이는 라벨이 없는 칸 → 입력의 `aria-label` · 라벨 줄 + 라디오 목록 → `RadioList`(`label`) · 칸 안 두 입력(탐색 아이디 + 비밀번호 `.two`) → `FieldPair` · 목록 위 필터 · 검색 → `Toolbar` · 미리보기 · 근거 아래 메모 → `HelpText variant="note"`.
 - **prop · 크기**
 
@@ -213,14 +233,16 @@
   |---|---|---|---|
   | `label` | ReactNode | 필수 | 보이는 라벨 |
   | `align` | `FieldAlign` — `center` · `top` | `center` | 라벨 세로 위치 — `top`은 여러 줄 입력(호출 샘플 — 옛 인라인 `align-items:start` + 라벨 위 여백, `js/menu/sources.js:62-63`) |
-  | `children` | `(control: FieldControl) => ReactNode` | 필수 | 입력을 그린다 — `control.id`를 입력의 `id`로 준다(라벨 연결) |
+  | `requiredLabel` | string | 없음 | 있으면 필수 칸 — 라벨 뒤에 위험색 ` *`(장식)를 그리고, 이 글자(쓰는 곳 `copy/` — "필수")를 시각 숨김으로 두어 입력의 설명(`control.describedBy`)으로 잇는다(옛 빨간 ` *` — `js/menu/playground.js:31`) |
+  | `labelTitle` | string | 없음 | 라벨 마우스 툴팁(`<label title>` — 테스트 실행 인자 설명, `js/menu/playground.js:31`). 입력 이름 · 설명에 들어가지 않고 키보드로 닿지 않는 보조라 꼭 알아야 할 설명을 여기에만 두지 않는다(옛 그대로) |
+  | `children` | `(control: FieldControl) => ReactNode` | 필수 | 입력을 그린다 — `control.id`를 입력의 `id`로(라벨 연결), `control.describedBy`를 입력의 `aria-describedby`로 준다 |
   | `className` | string | 없음 | 배치(바깥 여백 — 옛 인라인 위 14 `js/menu/sources.js:69`)만 |
   - 줄 — 라벨 열 `--w-field-label` + 입력 열. 줄 아래 간격은 부품이 준다(옛 `.field` 아래 여백)
-  - `FieldControl` — `{ id: string }`. 필수 표시(`*` + 시각 숨김 — 테스트 실행 인자 폼) · 라벨 툴팁(테스트 실행)은 그 메뉴를 옮길 때 이 절에 prop과 `FieldControl.describedBy`를 더한다. 매핑 표의 필수 `*`는 칸 안 글이라 이 부품이 아니다(쓰는 곳이 `VisuallyHidden` + `aria-describedby`)
+  - `FieldControl` — `{ id: string; describedBy?: string }`. `describedBy`는 `requiredLabel`이 있을 때만 있고 시각 숨김 글의 id다 — 입력에 다른 설명이 있으면 공백으로 잇는다. 별표는 장식(`aria-hidden`)이고 시각 숨김 글은 라벨 밖(격자 칸을 차지하지 않는다)이라 입력 이름은 라벨 글자 그대로다(테스트 실행 인자 이름 = 옛 `aria-label` — `js/menu/playground.js:30`). 매핑 표의 필수 `*`는 칸 안 글이라 이 부품이 아니다(쓰는 곳이 `VisuallyHidden` + `aria-describedby`)
   - 조각 `FieldNote`(`children` · `className`) — 라벨 열만큼 들여 입력 열에 맞춘 흐린 작은 안내 `<p>`. 글자는 `HelpText variant="note"`와 같고(`<b>`는 색 그대로 굵게) 위 여백 없음 · 아래 `--s-1`(옛 인라인 `margin:0 0 4px 106px`). 어느 한 칸의 설명이 아니라 묶음 전체 안내라 입력에 잇지 않는다
   - 함께 내보내는 것(`@/ui`) — `FieldNote` · 타입 `FieldProps` · `FieldAlign` · `FieldControl` · `FieldNoteProps`
 - **상태** 없다(그릇). 안의 입력이 낸다.
-- **접근성** 라벨은 `<label for>`로 입력과 이어진다 — 옛 `<label>`은 입력과 이어지지 않았다(`js/menu/sources.js:57` — DESIGN 이식 기간 허용 차이, 라벨 연결). 라벨을 누르면 입력에 포커스가 간다.
+- **접근성** 라벨은 `<label for>`로 입력과 이어진다 — 옛 `<label>`은 입력과 이어지지 않았다(`js/menu/sources.js:57` — DESIGN 이식 기간 허용 차이, 라벨 연결). 라벨을 누르면 입력에 포커스가 간다. 필수 칸은 별표 대신 시각 숨김 글이 입력의 설명으로 읽힌다 — 옛은 별표뿐이었다(DESIGN 이식 기간 고침 — 보이는 차이 0).
 - **폭**
   - 760: 라벨 위 · 입력 아래 한 열(`css/console.css:472`) · `FieldNote` 들여쓰기 없음(`:1069`)
 - **카탈로그** `Field`
@@ -355,7 +377,7 @@
 
 ### SegmentedTabs · SegmentedRadio
 - **쓰는 곳** 두세 항목을 붙여 놓은 주조색 필 묶음 — 탭 역할 `SegmentedTabs`(미리보기 "MCP 도구 정의 · 원본 요청 · 응답 변환" — `js/menu/studio.js:113-115`), 라디오 역할 `SegmentedRadio`(테스트 실행 AI 모델 — `js/menu/playground.js:44`)(이음 `.seg` `css/console.css:719-723`). 모양이 같은 두 역할이라 한 절에 둔다.
-- **쓰지 않는 곳** 밑줄 탭(배포 AI 연결) → 탭(AI 연결 배포를 옮길 때 만든다) · 개수 붙은 목록 필터 → `FilterChips` · 설명이 붙은 선택지 → `RadioCard` · 선택지가 많으면 → `Select`.
+- **쓰지 않는 곳** 밑줄 탭 줄 + 패널(배포 AI 연결) → `Tabs` · 개수 붙은 목록 필터 → `FilterChips` · 설명이 붙은 선택지 → `RadioCard` · 선택지가 많으면 → `Select`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -373,6 +395,27 @@
 - **상태** 고른 항목은 `--primary` 필 · `--on-fill` 글자 · `--fw-medium`이다(`SegmentedTabs` `aria-selected="true"` · `SegmentedRadio` `aria-checked="true"`). hover는 글자 `--text` · 바탕 `--surface-hover`이고 고른 항목은 바뀌지 않는다(`css/console.css:722-723`).
 - **접근성** `SegmentedTabs`는 `role="tablist"` 안 `<button role="tab" aria-selected aria-controls>`이고 패널은 `SegmentedTabPanel`이다 — 옛은 `tabpanel` · `aria-controls`가 없었다(DESIGN 이식 기간 고침 — 보이는 차이 0). `SegmentedRadio`는 `role="radiogroup"` 안 `<button role="radio" aria-checked>`다(옛 그대로). 둘 다 항목마다 Tab으로 닿고 Enter · Space로 고른다 — 화살표 키 이동은 두지 않는다(옛 그대로). 포커스 링은 안쪽이다(묶음이 넘침을 자른다) — 고른 항목은 주조색 필 위라 흰 링(`--on-fill`)을 한 칸 더 안쪽에 그린다(DESIGN 접근성 세그먼트).
 - **카탈로그** `SegmentedTabs` · `SegmentedRadio`
+
+### Tabs
+- **쓰는 곳** 밑줄 탭 줄과 그 아래 패널 하나 — AI 연결 배포 "AI에 연결하기"의 클라이언트 탭(Claude · Gemini · GPT · 기타 에이전트 — `js/menu/deploy.js:3,79`)(이음 `.rtabs` · `.rtab` `css/console.css:317-319,321,323`).
+- **쓰지 않는 곳** 소절 제목 안에 붙여 놓은 탭(미리보기) → `SegmentedTabs` · 두세 모드 고르기 → `SegmentedRadio` · 개수 붙은 목록 필터 → `FilterChips`.
+- **prop · 크기**
+
+  | prop | 타입 | 기본값 | 뜻 |
+  |---|---|---|---|
+  | `items` | `readonly TabItem[]` — `{ value: string; label: ReactNode }` | 필수 | 탭 — 순서대로 |
+  | `value` | string | 필수 | 고른 탭(`items`의 값) |
+  | `onValueChange` | `(value: string) => void` | 필수 | 누른 탭 — 이미 고른 탭이어도 부른다(옛 `client` — `js/menu/deploy.js:140`) |
+  | `children` | ReactNode | 필수 | 고른 탭의 패널 내용(설명 줄 · 복사 버튼 · 코드 상자 — 쓰는 곳). 패널은 하나이고 내용만 바꿔 그린다 |
+  | `className` | string | 없음 | 배치(바깥 여백)만 — 옛 `.rtabs` 위 16은 이 자리에서 인라인 0이었다(`js/menu/deploy.js:79`) |
+  - 탭 줄 — 아래 1px `--line-control`, 탭은 줄 폭을 똑같이 나누고 줄바꿈하지 않는다. 고른 탭은 굵게 · `--text` · 아래 `--bw-tab` 밑줄 `--tool`(DESIGN Colors ④ — MCP 서버에 잇는 탭이라 도구 쪽 색). 옛 색조 `o` · `r`(`:322,324`)과 탭 안 개수 칩(`.rtab .c` `:320`)은 쓰는 곳이 없어 옮기지 않는다 — 다른 색 · 개수가 필요한 자리가 생기면 그때 더한다
+  - 패널 — 탭 줄 바로 아래 `role="tabpanel"` 하나. 탭 · 패널 id는 부품이 만들어 잇는다(`SegmentedTabs`는 탭이 소절 제목 안에 있어 패널을 따로 두지만, 여기는 탭 줄과 패널이 붙어 있어 부품이 둘 다 그린다). 패널 안 여백은 쓰는 곳(옛 `.snip-h` 위 14 — `css/console.css:796`)
+  - 탭을 바꿔도 패널 안 내용만 바뀐다 — 포커스는 누른 탭에 남는다(옛은 전체 다시 그리기로 포커스를 잃었다 — DESIGN 이식 기간 허용 차이 렌더)
+  - 적힌 prop만 받는다
+  - 함께 내보내는 것(`@/ui`) — 타입 `TabsProps` · `TabItem`
+- **상태** hover는 글자 `--text`(`css/console.css:319`)이고 고른 탭은 바뀌지 않는다. 고른 탭은 `aria-selected="true"`다.
+- **접근성** `role="tablist"` 안 `<button role="tab" aria-selected aria-controls>`이고 패널은 `aria-labelledby`가 고른 탭인 `role="tabpanel"`이다 — 옛은 `aria-selected`만 있고 `aria-controls` · `tabpanel`이 없었다(DESIGN 이식 기간 고침 — 보이는 차이 0). 탭마다 Tab으로 닿고 Enter · Space로 고른다 — 화살표 키 이동은 두지 않는다(옛 그대로 — `SegmentedTabs`와 같다). 탭 줄에는 이름을 두지 않는다(옛 그대로 — 곁의 소절 제목이 말한다). 패널은 `tabindex`를 두지 않는다 — 안의 복사 버튼 · 코드 상자가 포커스를 받는다. 포커스 링은 전역 링 그대로다.
+- **카탈로그** `Tabs`
 
 ### SelectableListItem
 - **쓰는 곳** 목록 + 상세 왼쪽 목록의 두 줄 항목 하나 — 도구(`id` — 고정폭 도구 id + 상태 칩 / 제목 + 쓰기 표지, `js/menu/studio.js:8-11`), 도구 묶음(`name` — 묶음 이름 + 배포 상태 칩 / 도구 수 · 사용 대상, `js/menu/deploy.js:62-64`)(이음 `.tool-item` `css/console.css:621-629` · `.ts-item` `:785-790`).
@@ -401,7 +444,7 @@
 - **카탈로그** `SelectableListItem`
 
 ### Checkbox
-- **쓰는 곳** 켜고 끄는 상자 하나 — 탐색 결과 표 선택 칸(`md` — `js/menu/discovery.js:280`, 이음 `.utbl input[type=checkbox]` `css/console.css:208`) · 탐색 마법사 담당자 승인 상자 안(`lg` — `js/menu/discovery.js:78`, 이음 `.own input` `css/console.css:933`) · AI 연결 배포 묶음 만들기 · 수정의 도구 목록 줄(`sm` + `label` — `js/menu/deploy.js:196`).
+- **쓰는 곳** 켜고 끄는 상자 하나 — 탐색 결과 표 선택 칸(`md` — `js/menu/discovery.js:280`, 이음 `.utbl input[type=checkbox]` `css/console.css:208`) · 탐색 마법사 담당자 승인 상자 안(`lg` — `js/menu/discovery.js:78`, 이음 `.own input` `css/console.css:933`) · AI 연결 배포 묶음 만들기 · 수정의 도구 목록 줄(`sm` + `label`, `ScrollList` 안 — `js/menu/deploy.js:196`).
 - **쓰지 않는 곳** 켜면 바로 적용되는 설정(마스킹 · 공개 · 탐색 영역 켜기) → `Switch` · 여럿 중 하나 고르기 → `RadioList` · `RadioCard` · 화면 안 목록 필터 → `FilterChips`.
 - **prop · 크기**
 
@@ -423,7 +466,7 @@
 
 ### TagInput
 - **쓰는 곳** 단어 목록을 칩으로 늘어놓고 끝 입력칸에서 Enter로 더하기 — 탐색 마법사 안전 설정 "누르지 않을 버튼"(`js/menu/discovery.js:69-70`, 더하기 `js/main.js:57`, 빼기 `js/menu/discovery.js:405`)(이음 `.bans` `css/console.css:924-928`).
-- **쓰지 않는 곳** 한 값 입력 → `Input` · 목록 위 검색 → `SearchInput` · 정해진 값 고르기 → `Select` · `FilterChips` · Enter로 보내는 대화 입력 → 대화 입력 줄(테스트 실행을 옮길 때 만든다).
+- **쓰지 않는 곳** 한 값 입력 → `Input` · 목록 위 검색 → `SearchInput` · 정해진 값 고르기 → `Select` · `FilterChips` · Enter로 보내는 대화 질문 → `ChatInput`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -446,11 +489,34 @@
 - **접근성** 빼기 버튼은 `<button type="button">`이고 이름은 `removeLabel(단어)`다 — 아이콘은 장식이다. 입력칸 이름은 `inputLabel`이다.
 - **카탈로그** `TagInput`
 
+### ChatInput
+- **쓰는 곳** 대화 질문 입력 줄 — 테스트 실행 자연어 질문(입력 + 보내기 아이콘 버튼 `js/menu/playground.js:53`, Enter `js/main.js:56`)(이음 `.ask` `css/console.css:750-752`). 서버에 대화 키가 없으면 쓰는 곳이 이 줄 대신 안내 글을 그린다(`js/menu/playground.js:54`).
+- **쓰지 않는 곳** 폼 칸 → `Input` + `Field` · 목록 검색 → `SearchInput` · 단어 목록 → `TagInput` · 여러 줄 → `Textarea`.
+- **prop · 크기**
+
+  | prop | 타입 | 기본값 | 뜻 |
+  |---|---|---|---|
+  | `onSend` | `(text: string) => void` | 필수 | 보낸 질문 — 앞뒤 공백을 지운 글. 빈 글이거나 `pending`이면 부르지 않고 입력칸 글도 그대로 둔다(옛 `js/menu/playground.js:93`) |
+  | `pending` | boolean | 필수 | 대화 요청 중 — 보내기를 요청 중 잠금(`Button` `pending`)으로 두고 Enter도 무시한다. 입력칸은 잠그지 않는다(옛 그대로 — 다음 질문을 쓸 수 있다) |
+  | `placeholder` | string | 필수 | 입력칸 자리표시(쓰는 곳 `copy/` — 옛 "자연어로 질문하면 Claude가 도구를 골라 실행합니다") |
+  | `inputLabel` | string | 필수 | 입력칸 이름(`aria-label` — 옛 "질문 입력") |
+  | `sendLabel` | string | 필수 | 보내기 버튼 이름(`aria-label` — 옛 "보내기") |
+  | `className` | string | 없음 | 배치만 |
+  - 줄 — 가로 · 사이 `--s-2` · 안쪽 위 `--s-2-5` · 좌우 · 아래 `--s-3-5`(옛 `.ask` — 대화 상자의 아래 줄)
+  - 입력칸 — 남은 폭 · `--h-xl` · `Input`(`form`)과 같은 면 · 테두리 · 글자. 보내기 — `Button variant="primary" size="xl"`에 아이콘(`send`)만
+  - 입력 글자는 부품이 쥔다(제어 값이 아니다) — 보낼 때 입력칸을 비우고 `onSend`를 부른다(옛 `js/menu/playground.js:93-94`). 화면을 떠나면 쓰다 만 글은 사라지고(옛 그대로), 모델 · 도구를 바꿔도 남는다(옛은 다시 그리기로 사라졌다 — DESIGN 이식 기간 허용 차이 렌더)
+  - Enter로 보낸다 — 한글 조합 중 Enter는 무시한다(`ui/lib/ime` — 조합 처리 키 229 포함, DESIGN 이식 기간 고침). 폼을 제출하지 않는다
+  - 적힌 prop만 받는다
+  - 함께 내보내는 것(`@/ui`) — 타입 `ChatInputProps`
+- **상태** 입력칸은 포커스에 테두리 `--primary` + 전역 링이다(`Input`과 같다 — 옛 `.inp:focus`는 링을 지웠다, DESIGN 이식 기간 고침). 보내기의 hover · 요청 중 잠금은 `Button`과 같다 — 옛 보내기는 잠기지 않았다(DESIGN 이식 기간 고침 — 요청 중 잠금).
+- **접근성** Enter로 보내면 포커스는 입력칸에, 보내기를 누르면 보내기에 남는다(잠금이 native 비활성이 아니다 — `Button` `pending`). 아이콘은 장식이고 보내기 이름은 `sendLabel`이다.
+- **카탈로그** `ChatInput`
+
 ## 표시
 
 ### StatusChip
-- **쓰는 곳** 자원 상태(점 + 글자) — 호출 로그 표 · 상세(`js/menu/logs.js:13,38`) · 원본 목록 · 도구 목록 · 배포 · 탐색 작업(이음 `.stt` `css/console.css:511-517`, `stt()` `js/common/state.js:35`).
-- **쓰지 않는 곳** 상태 값에서 라벨 · 색 고르기 → `copy/status` `statusOf`(자원 래퍼 — `SourceStatus` · `ToolStatusChip` · `JobStatusChip`) · 점만 → `StatusDot` · 상태가 아닌 표지 → `ProtocolBadge` · `ModeTag` · `RuleChip` · `Tag`.
+- **쓰는 곳** 자원 상태(점 + 글자) — 호출 로그 표 · 상세(`js/menu/logs.js:13,38`) · 원본 목록 · 도구 목록 · 배포 묶음 목록 · 상세 머리 · 액세스 키 표(`js/menu/deploy.js:10,48`) · 탐색 작업(이음 `.stt` `css/console.css:511-517`, `stt()` `js/common/state.js:35`).
+- **쓰지 않는 곳** 상태 값에서 라벨 · 색 고르기 → `copy/status` `statusOf`(자원 래퍼 — `SourceStatus` · `ToolStatusChip` · `JobStatusChip`. 래퍼가 없는 자원 — `log` · `recommend` · `toolset` · `key` — 은 쓰는 곳이 `statusOf` + `StatusChip`으로 잇는다) · 점만 → `StatusDot` · 상태가 아닌 표지 → `ProtocolBadge` · `ModeTag` · `RuleChip` · `Tag`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -459,7 +525,7 @@
   | `size` | `StatusChipSize` — `md` · `sm` | `md` | `sm` = 목록 항목 안 축소(점도 작게 — `css/console.css:628-629`) |
   | `children` | ReactNode | 필수 | 라벨 — `statusOf`의 `label` |
   - 점은 글자 앞 장식(`currentColor` — `css/console.css:512`). 알약 높이는 고유 치수(22 · `sm` 18)
-  - 상태 lookup — `statusOf(resource, value)` → `{ label, tone, known }`(`copy/status`, 계약은 DESIGN Copy `상태 값`). 모르는 값은 `label` = 값 그대로 · `tone` = `mute` · `known` = false이고 개발 콘솔에 값마다 한 번 경고한다
+  - 상태 lookup — `statusOf(resource, value)` → `{ label, tone, known }`(`copy/status`, 계약은 DESIGN Copy `상태 값`). 모르는 값은 `label` = 값 그대로 · `tone` = `mute` · `known` = false이고 개발 콘솔에 값마다 한 번 경고한다. 자원은 `log` · `source` · `tool` · `job` · `recommend` · `toolset` · `key`다. 배포 묶음(`toolset`)의 값은 초안이면 `draft`, 아니면 서버 상태(`running` · `starting` · `stopped` · `crashed`)이고 고르는 것은 쓰는 곳이다 — 서버가 초안에 주는 `none`은 목록에 없다. 액세스 키(`key`)는 서버의 켜짐 값을 `on` · `off`로 바꿔 찾는다
   - 함께 내보내는 것(`@/ui`) — 타입 `StatusChipProps` · `StatusChipSize` · `StatusTone`(원본은 `copy/status`)
 - **상태** 없다(표시).
 - **접근성** 뜻은 글자가 전한다 — 점은 장식이다(DESIGN 핵심 규칙 3).
@@ -482,7 +548,7 @@
 - **카탈로그** `StatusDot`
 
 ### VisuallyHidden
-- **쓰는 곳** 보이지 않고 읽히는 글자 · 표 — 상태 점 글자(`StatusDot`), 대시보드 시간대 차트 값 표, 필수 `*`의 대체 글 · 비활성 사유(`aria-describedby` 대상 — 변환 스튜디오), 칩 ✓ · ✕의 뜻(테스트 실행).
+- **쓰는 곳** 보이지 않고 읽히는 글자 · 표 — 상태 점 글자(`StatusDot`), 대시보드 시간대 차트 값 표, 필수 `*`의 대체 글 · 비활성 사유(`aria-describedby` 대상 — 변환 스튜디오 매핑 표 · 테스트 실행 인자 칸의 `Field` `requiredLabel`), 칩 ✓ · ✕의 뜻(테스트 실행 `Chip` 안).
 - **쓰지 않는 곳** 보이는 글자를 숨겼다 보이기 → `hidden` 속성 · 아이콘 버튼 이름 → `IconButton` `label`.
 - **prop · 크기**
 
@@ -505,7 +571,7 @@
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
   | `tone` | `TagTone` — `ok` · `warn` · `danger` · `info` · `mute` · `neutral` | 필수 | 색의 뜻 — 아래 표. `StatusTone`(상태 넷 + `mute`)에 무채색 `neutral`을 더한 것이다 |
-  | `variant` | `TagVariant` — `solid` · `dashed` · `off` · `value` · `value-empty` | `solid` | 테두리 · 바탕 모양 — 아래 표 |
+  | `variant` | `TagVariant` — `solid` · `dashed` · `off` · `value` · `value-empty` | `solid` | 테두리 · 바탕 모양 — 아래 표. `value` · `value-empty`는 `tone="mute"`일 때만 받는다(타입이 막는다) |
   | `shape` | `TagShape` — `square` · `round` | `square` | `square` = 각진 모서리 `--r-sm`, `round` = 알약(`.ntag`) |
   | `size` | `TagSize` — `sm` · `md` · `lg` | `sm` | 태그 고유 높이(18 · 20 · 22 — 컨트롤 높이 단계와 다른 축). `sm`은 `.gs-tag` · `.p2` · `.rec` · `.ntag`, `md`는 `.md-tag` · `.evb`, `lg`는 `.pr` |
   | `title` | string | 없음 | 마우스 툴팁 — 있으면 `cursor: help` |
@@ -527,7 +593,7 @@
   | `value` | `mute`의 면 · 테두리 그대로, 글자는 고정폭 · `--text` · 보통 굵기 — 관찰 값 칩(`mute` · `md`). 값 문자열만 넘긴다(옛 칩 안 글은 고정폭 값 `<i>` 하나뿐이다 — 라벨이 없다) | `.codes span` · `.codes span i` `:694-695` |
   | `value-empty` | `value`와 같은 면 · 테두리, 글자는 본문 글꼴 · `--text-muted` · `--fs-caption` · 보통 굵기 — 관찰 값이 없을 때의 칩("관찰 없음", `mute` · `md`). 옛은 흐린 글 span이 칩 선택자에 함께 걸려 칩 모양이 됐다 | `.codes span` `:694` · `js/menu/discovery.js:351` |
   - 높이는 테두리를 넣어 크기마다 같다(border-box). 옛 `.p2` · `.ntag.mute`(18 + 테두리) · `.evb.off`(20 + 테두리) · `.codes span`(고정폭 값이 든 줄 22.25)은 2px 남짓 낮아진다 — `.pr.sample`은 옛도 테두리를 빼 22로 맞췄다(DESIGN 이식 기간 허용 차이 — 값 정규화)
-  - 이음에 없는 조합(상태 색 + `dashed` · `off` · `value` 등)은 쓰지 않는다 — 카탈로그는 위 표의 자리만 보인다. `value` · `value-empty`는 `mute`에만 닿는다
+  - 이음에 없는 조합(상태 색 + `dashed` · `off` · `value` 등)은 쓰지 않는다 — 카탈로그는 위 표의 자리만 보인다. `value` · `value-empty`는 `mute`에만 닿는다 — 다른 `tone`과 함께 주면 타입 오류다
   - 태그는 `inline-flex`라 글과 요소(고정폭 값 등)를 섞어 넘기면 flex 항목으로 갈라져 사이 공백이 사라진다 — 섞어야 하면 한 `<span>`으로 감싸 넘긴다
   - 함께 내보내는 것(`@/ui`) — 타입 `TagProps` · `TagTone` · `TagVariant` · `TagShape` · `TagSize`
 - **상태** 없다(표시).
@@ -582,7 +648,7 @@
 - **카탈로그** `ProgressBar`
 
 ### Spinner
-- **쓰는 곳** 진행 중 도는 원 — 연결 분석 진행 칸(`ProgressList` 안 — `css/console.css:842`), 배포 진행 안내(`js/menu/deploy.js:108`) · 탐색 현재 동작 줄(`js/menu/discovery.js:228`)(이음 `.spin` `:952` · `.an li.run .ic` `:842` · `@keyframes spin` `:846`).
+- **쓰는 곳** 진행 중 도는 원 — 연결 분석 진행 칸(`ProgressList` 안 — `css/console.css:842`), 배포 진행 안내(`Notice` `spinner` — `js/menu/deploy.js:108`) · 탐색 현재 동작 줄(`Notice` `variant="line"` `spinner` — `js/menu/discovery.js:228`)(이음 `.spin` `:952` · `.an li.run .ic` `:842` · `@keyframes spin` `:846`).
 - **쓰지 않는 곳** 진행 비율 → `ProgressBar` · 단계 진행 → `StepIndicator` · `ProgressList` · 첫 로딩 → `ScreenState`(스피너 없이 `aria-busy` — DESIGN 핵심 규칙 8) · 버튼 요청 중 → 버튼 `pending` + 진행형 글자(`Button` 상태).
 - **prop · 크기**
 
@@ -657,6 +723,53 @@
 - **상태** 없다(표시).
 - **접근성** 목록은 `<ol>`이고 `run` 줄은 `aria-current="step"`이다(옛 `<ul>` · 클래스뿐 — 보이지 않는 보강). 스피너 · 완료 아이콘은 장식이다.
 - **카탈로그** `ProgressList`
+
+### ChatBubble
+- **쓰는 곳** 대화 목록의 말풍선 하나 — 사용자 질문(`user`), 도우미 답 · 오류(`assistant` — 화자 줄 + 글 + 호출 칩 줄), 답을 기다리는 줄(`typing` — "도구를 호출하는 중" + 깜빡이는 점 셋)(`js/menu/playground.js:64-66`, 이음 `.msg` `css/console.css:740-747`).
+- **쓰지 않는 곳** 아이콘 · 테두리가 있는 안내 → `Notice` · 결과 알림 → `Toast` · 상자 머리의 진행 중 점 + 글자 → `LiveIndicator`.
+- **prop · 크기**
+
+  | prop | 타입 | 기본값 | 뜻 |
+  |---|---|---|---|
+  | `variant` | `ChatBubbleVariant` — `user` · `assistant` · `typing` | 필수 | 모양 — 아래 표 |
+  | `by` | ReactNode | 없음 | `assistant`만(다른 변형에 주면 타입 오류) — 위 작은 화자 줄(쓰는 곳 `copy/` — 답 "Claude" · 오류 "오류") |
+  | `children` | ReactNode | 필수 | 글. `assistant`의 호출 칩은 글 뒤에 칩마다 한 줄(`Chip`) — 쓰는 곳이 놓는다. `typing`의 점은 부품이 글 뒤에 그린다 |
+
+  | `variant` | 모양 | 이음 근거 |
+  |---|---|---|
+  | `user` | 오른쪽 · `--primary` 바탕 · `--on-fill` 글자 · 오른쪽 아래 모서리만 `--r-sm` | `.msg.u` `:741` |
+  | `assistant` | 왼쪽 · `--surface-sub` 바탕 · 1px `--line-divider` · 왼쪽 아래 모서리만 `--r-sm` | `.msg.a` `:742` |
+  | `typing` | `assistant` 모양 + 글자 `--text-muted` · `--fs-ui-sm` + 글 뒤 점 셋 | `.msg.typing` `:744-747` |
+  - 말풍선 — 최대 폭 88% · 안쪽 `--s-2-5` `--s-3-5` · `--r-bubble` · `--fs-body` · `--lh-prose`. 낱말 단위로 접고 긴 낱말은 아무 곳에서나 접는다. 글의 줄바꿈은 지키지 않는다(한 문단 — 옛 그대로)
+  - 오류 말풍선은 모양이 따로 없다 — `assistant` + 화자 "오류"다(옛 `.msg.a` 그대로)
+  - 화자 줄 — 블록 · `--fs-tag` · `--text-faint` · 아래 `--s-0-5`
+  - 점 — 고유 지름 5 · `--text-faint` · 앞 `--s-1` · `--m-blink`로 깜빡임 반복(옅은 끝 `--opacity-blink`), 둘째 · 셋째 점은 `--m-stagger` · 그 두 배만큼 늦게 시작한다(DESIGN 이식 기간 유지 — 반복 모션). 점 셋은 줄이 접혀도 갈라지지 않는다
+  - `ChatLog`의 세로 흐름 안에서 좌우로 붙는다(`align-self`) — 다른 그릇에 두지 않는다
+  - 적힌 prop만 받는다
+  - 함께 내보내는 것(`@/ui`) — 타입 `ChatBubbleProps` · `ChatBubbleVariant`
+- **상태** 없다(표시). `typing`의 점은 모션 줄이기면 멈춘 점이다(`base.css` — DESIGN Motion).
+- **접근성** 점은 장식(`aria-hidden`)이다 — 기다림은 글자가 전하고, 새 말풍선 · 기다림 줄은 `ChatLog`의 `aria-live`가 읽는다. 호출 칩은 버튼이라 Tab으로 닿는다.
+- **카탈로그** `ChatBubble`
+
+### ChatLog
+- **쓰는 곳** 대화 말풍선을 세로로 쌓는 스크롤 목록 — 테스트 실행 도구 호출 상자의 대화(`js/menu/playground.js:52,62-67`)(이음 `.msgs` `css/console.css:739`, 760 `:907`).
+- **쓰지 않는 곳** 탐색 네트워크 기록 → `NetLog` · 서버 로그 글 → `CodeBlock variant="log"` · 변환 과정 → `TraceView` · 체크 줄을 담는 테두리 스크롤 상자 → `ScrollList`.
+- **prop · 크기**
+
+  | prop | 타입 | 기본값 | 뜻 |
+  |---|---|---|---|
+  | `label` | string | 필수 | 목록 이름(`aria-label` — 쓰는 곳 `copy/`, 상자 제목과 다른 글자 "대화") |
+  | `followKey` | string · number | 필수 | 바뀔 때마다(처음 그림 포함) 목록을 맨 아래로 즉시 내린다 — 쓰는 곳은 말풍선 수 · 기다림 여부로 만든다(옛은 대화를 다시 그릴 때마다 맨 아래로 — `js/menu/playground.js:67`) |
+  | `children` | ReactNode | 필수 | `ChatBubble`들 — 위에서 아래로. 비어 있으면 빈 자리만 남는다(옛 그대로 — 빈 상태 글 없음) |
+  - 상자 — 세로 흐름 · 말풍선 사이 `--s-3` · 안쪽 `--s-4` · 높이는 고유 치수(최소 300 · 최대 540), 넘치면 상자 안 스크롤. `Box variant="chat"`의 직계 자식이면 상자의 남은 높이를 채운다 — 쓰는 곳이 다른 요소로 감싸지 않는다
+  - 맨 아래로는 즉시 내린다(모션 없음 — 옛 그대로). 화면이 다른 일로 다시 그려질 때(모델 · 도구 바꾸기)는 내리지 않는다 — 옛은 전체 다시 그리기마다 내렸다(DESIGN 이식 기간 허용 차이 — 렌더)
+  - 적힌 prop만 받는다
+  - 함께 내보내는 것(`@/ui`) — 타입 `ChatLogProps`
+- **상태** 없다(그릇).
+- **접근성** `aria-live="polite"`라 새 말풍선 · 기다림 줄이 읽힌다(옛 그대로). 스크롤 상자는 `role="region"` + `tabindex="0"` + `label` + 안쪽 링이다(옛은 `tabindex`가 없었다 — DESIGN 이식 기간 고침). Tab 순서는 목록 → 안의 호출 칩 → 입력 줄이다(옛 DOM 순서 — 목록이 입력 줄 앞).
+- **폭**
+  - 760: 최대 높이 420(`css/console.css:907`)
+- **카탈로그** `ChatLog`
 
 ## 상태 표현
 
@@ -734,17 +847,22 @@
 - **카탈로그** `ScreenState`
 
 ### Notice
-- **쓰는 곳** 아이콘이 붙은 안내 · 경고 상자 — 결과의 일부인 실패(로그 상세 위 서버 문장 `danger` `js/menu/logs.js:45`, 변환 과정 실패 단계 `warn` `js/common/convert.js:183` — 같은 `note`를 두 자리에 그리는 것은 옛 그대로), 원본 연결 안내(`js/menu/sources.js:71,79`), 스튜디오 알림 띠(`js/menu/studio.js:59-66` — 상태별 알림 띠는 따로 부품을 두지 않고 이 부품 조합이다: 굵은 첫 문장 `<b>` · `InlineCode` · `LinkButton` · `action` 작은 버튼), 배포 · 탐색 안내(`js/menu/deploy.js:25,150-153` · `js/menu/discovery.js:42,268,304,339-348`)(이음 `.notice` `css/console.css:270-272,643-650`).
-- **쓰지 않는 곳** 요청 실패를 그 자리에 → `FailureBlock` · `ErrorBlock` · 버튼 한 번의 결과 → `Toast` · 표 · 상자 아래 한 줄 안내 → `HelpText` · 대시보드 확인 항목 줄 → 그 화면 조각(대시보드).
+- **쓰는 곳** 아이콘이 붙은 안내 · 경고 상자 — 결과의 일부인 실패(로그 상세 위 서버 문장 `danger` `js/menu/logs.js:45`, 변환 과정 실패 단계 `warn` `js/common/convert.js:183` — 같은 `note`를 두 자리에 그리는 것은 옛 그대로), 원본 연결 안내(`js/menu/sources.js:71,79`), 스튜디오 알림 띠(`js/menu/studio.js:59-66` — 상태별 알림 띠는 따로 부품을 두지 않고 이 부품 조합이다: 굵은 첫 문장 `<b>` · `InlineCode` · `LinkButton` · `action` 작은 버튼), 배포 서버 상태 알림(`danger` · `mute` · `info` — `js/menu/deploy.js:22-28`) · 배포 확인 안내 · 진행(`js/menu/deploy.js:108,150-153`), 탐색 안내(`js/menu/discovery.js:42,268,304,339-348`) · 탐색 실시간 "지금 하는 일" 줄(`js/menu/discovery.js:227-229` — `variant="line"`)(이음 `.notice` `css/console.css:270-272,643-650`, `.dact` `:948-951`).
+- **쓰지 않는 곳** 요청 실패를 그 자리에 → `FailureBlock` · `ErrorBlock` · 버튼 한 번의 결과 → `Toast` · 표 · 상자 아래 한 줄 안내(배포 서버가 이 컴퓨터에서만 열려 있다는 안내 포함 — `js/menu/deploy.js:29`) → `HelpText` · 대시보드 확인 항목 줄 → 그 화면 조각(대시보드).
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
+  | `variant` | `NoticeVariant` — `default` · `line` | `default` | `default` = 안내 · 경고 상자, `line` = 한 줄 상태 줄(아래 bullet). 모양은 이 값으로만 바뀐다 — 오른쪽 자리(`action` · `trailing`)가 있다고 모양이 바뀌지 않는다 |
   | `tone` | `NoticeTone` — `info` · `warn` · `danger` · `mute` | `info` | 바탕 · 아이콘 색 — 아래 표 |
-  | `icon` | `IconName` | tone별 | 아이콘(`lg`) — 생략하면 `info` · `mute` → `info`, `warn` · `danger` → `alert`. 자리마다 옛 아이콘을 준다(`lock` · `search` · `shield` 등) |
-  | `action` | ReactNode | 없음 | 오른쪽 버튼(`Button size="sm"` — `css/console.css:650`) |
+  | `icon` | `IconName` | tone별 | 아이콘(`lg`, `line`이면 15) — 생략하면 `info` · `mute` → `info`, `warn` · `danger` → `alert`. 자리마다 옛 아이콘을 준다(`lock` · `search` · `shield` · `refresh` · `history` · `check` 등). `spinner`와 함께 쓰지 않는다(타입이 막는다) |
+  | `iconStroke` | `IconStroke` — `light` · `bold` · `heavy` | Icon 기본 | `icon`을 줄 때만(없으면 타입 오류) — 아이콘 선 굵기 단계(DESIGN Iconography). 한 줄 상태 줄의 완료 체크만 `bold`(옛 `svg('check', 15, 2.6)` — `js/menu/discovery.js:228`) |
+  | `spinner` | boolean | false | 아이콘 자리에 도는 원(`Spinner` `md`)을 그린다 — 진행 안내(배포하는 중 — 옛 `.spin` `js/menu/deploy.js:108`) · 한 줄 상태 줄(탐색 중). 위 보정 없이 첫 줄 위에 놓인다(옛 `.spin`에 여백이 없다) |
+  | `preserveLines` | boolean | false | 문장의 줄바꿈 · 이어진 공백을 지킨다(`white-space: pre-wrap`) — 서버가 준 여러 줄 문장(배포 서버 상태 알림 — 옛 인라인 `.nt` `white-space:pre-wrap` `js/menu/deploy.js:25`) |
+  | `action` | ReactNode | 없음 | `default`만 — 오른쪽 버튼(`Button size="sm"` — `css/console.css:650`) |
+  | `trailing` | ReactNode | 없음 | `line`만(`default`에 주면 타입 오류) — 오른쪽 끝 글(경과 시간 — 옛 `.dact .muted`) |
   | `children` | ReactNode | 필수 | 문장 — 굵은 글(`<b>`)은 `--text` |
-  | `className` | string | 없음 | 배치(바깥 여백)만 — 옛 인라인 `margin`(`js/common/convert.js:183` `margin:0` · `js/menu/logs.js:45` 아래 8)은 쓰는 곳 |
+  | `className` | string | 없음 | 배치(바깥 여백)만 — 옛 인라인 `margin`(`js/common/convert.js:183` `margin:0` · `js/menu/logs.js:45` 아래 8 · `js/menu/deploy.js:25` 위 14)은 쓰는 곳 |
 
   | `tone` | 바탕 · 테두리 | 아이콘 |
   |---|---|---|
@@ -752,10 +870,11 @@
   | `warn` | `--warn-bg` · 테두리 투명 | `--warn` |
   | `danger` | `--danger-bg` · 테두리 투명 | `--danger` |
   | `mute` | `--surface-sub` · 1px `--line-divider` | `--text-faint` |
-  - 글자는 `--text-muted`. 줄바꿈은 지금 자리 그대로 접는다(여러 줄 원문을 지켜야 하는 배포 자리는 AI 연결 배포를 옮길 때 정한다). 진행 중 도는 원(`js/menu/deploy.js:108`)도 그때 더한다
-  - 함께 내보내는 것(`@/ui`) — 타입 `NoticeProps` · `NoticeTone`
+  - 글자는 `--text-muted`. 긴 낱말(주소 · 서버 원문)은 상자 안에서 접는다. 줄바꿈은 자리 그대로 접고, 서버 문장의 줄을 지켜야 하는 자리(배포 서버 상태)만 `preserveLines`를 켠다 — `FailureBlock`의 원문(`message`)은 늘 줄을 지킨다
+  - **한 줄 상태 줄(`variant="line"`)** — 지금 하는 일 한 줄(탐색 실시간 — 도는 원 · `history` · `check` + 문장 + 오른쪽 끝 경과 시간)이다. 일반 상자와 달리 앞자리 · 문장 · 끝 글을 가운데 맞춤으로 한 줄에 놓고, 문장은 본문 글자(14 · `--text`)이며, 아이콘은 15이고 위 보정 여백이 없다. 선 굵기는 아이콘마다 옛 그대로 쓰는 곳이 고른다 — 완료 `check`만 `iconStroke="bold"`, 예약 `history`는 기본이다. 끝 글은 13 · `--text-faint` · 고른 숫자이고 줄어들지 않으며 문장과 최소 20 떨어진다. 좁아 문장이 접히면 끝 글은 오른쪽에 그대로 남는다(옛은 끝 글도 "경과" / "02:14" 두 줄로 쪼개졌다 — DESIGN 이식 기간 고침)
+  - 함께 내보내는 것(`@/ui`) — 타입 `NoticeProps` · `NoticeTone` · `NoticeVariant`
 - **상태** 없다(그릇). `action` 버튼이 상태를 낸다.
-- **접근성** `role`을 두지 않는다(이음 그대로 — 알림이 아니라 그 자리의 글). 아이콘은 장식이고 뜻은 문장이 전한다.
+- **접근성** `role`을 두지 않는다(이음 그대로 — 알림이 아니라 그 자리의 글). 아이콘 · 도는 원은 장식이고 뜻 · 진행은 문장이 전한다.
 - **카탈로그** `Notice`
 
 ## 층
@@ -765,9 +884,9 @@
 - **가림막 · z** — 층마다 `Overlay`를 함께 그리고 z는 DESIGN 쌓임 짝(`--z-modal-scrim` · `--z-modal`, 드로어는 `--z-drawer-scrim` · `--z-drawer`)이다. 층과 가림막은 `document.body`로 포털한다(셸의 쌓임 맥락 밖)
 - **Esc** — 문서의 keydown 하나가 열린 층 중 맨 위 층만 닫는다. 맨 위는 연 순서가 아니라 z 순서다 — 모달 종류가 드로어 위(DESIGN 쌓임)이고, 같은 종류면 나중에 연 것이다(이음 `js/main.js:55` — 모달이 보이면 모달만). 모달이 열린 채(가두지 않으므로) Tab으로 닿은 버튼이 드로어를 열어도 드로어는 모달 아래에 깔리고 Esc는 모달을 먼저, 한 번 더 누르면 드로어를 닫는다. 한글 조합 중 Esc는 무시한다. 맨 위 층이 `dismissible=false`면 아무것도 하지 않는다
 - **포커스 복귀** — 열 때 포커스가 있던 요소를 기억했다가 닫을 때 돌려준다. 그 요소가 사라졌으면(알림이 사라짐 · 행 삭제 · 마법사 완료 뒤 이동) 대체 자리로 — ① 쓰는 곳의 `returnFocusFallback()`(없거나 null이면 다음) ② 지금 화면의 `PageHead` 제목(h2 `tabIndex=-1` — PageHead 절) ③ 셸 본문 `<main>`(`tabIndex=-1` — 셸 절). 이 대체 순서는 두 경우에 모두 탄다 — (a) 연 컨트롤이 사라졌을 때, (b) 열 때 층 밖에 포커스된 요소가 없었을 때(포커스가 `body`에 있었음 — 닫은 뒤에도 `body`에 남지 않게 한다). 셋 다 없으면 옮기지 않는다(하나라도 있으면 그곳으로 옮긴다 — 카탈로그의 `<main>`은 `tabIndex`가 없어 `focus()`가 아무것도 하지 않으므로 포커스가 그대로다). 닫는 순간 포커스가 층 안에 있거나 사라졌을 때만 옮긴다 — 층 밖으로 Tab해 간 포커스는 빼앗지 않는다. 열린 채 다른 대상을 열면(`contentKey` — Modal · Drawer) 기억할 요소를 다시 잡는다
-- **닫힌 층의 내용** — `Modal` · `Drawer`는 `open=false`여도 `children`을 그린다(닫힌 `<dialog>`라 보이지 않고 포커스를 받지 않는다). 닫힘 전환 동안 보이는 내용은 쓰는 곳이 남겨 둔다 — 닫으며 `children`을 비우면 빈 층이 사라지는 모습이 보인다. 다시 열 때 새 상태(마법사 입력)는 쓰는 곳이 새 `key`로 만든다(옛 `closeDrawer`가 마법사 상태를 버렸다 — `js/common/overlay.js:12`)
+- **닫힌 층의 내용** — `Modal` · `Drawer`는 `open=false`여도 `children`을 그린다(닫힌 `<dialog>`라 보이지 않고 포커스를 받지 않는다). 닫힘 전환 동안 보이는 내용은 쓰는 곳이 남겨 둔다 — 닫으며 `children`을 비우면 빈 층이 사라지는 모습이 보인다. 다시 열 때 새 상태(마법사 입력)는 쓰는 곳이 새 `key`로 만든다(옛 `closeDrawer`가 마법사 상태를 버렸다 — `js/common/overlay.js:12`). 한 번만 보이는 값은 예외다 — 닫을 때 쓰는 곳이 비운다(`Modal` 한 번만 보이는 값)
 - **요청 중 닫기** — `dismissible` 기본 true라 요청 중에도 ✕ · 취소 · Esc · 가림막으로 닫힌다(옛 그대로). 요청은 이어지고 결과 안내는 요청 쪽(훅)이 토스트로 한다(DESIGN 이식 기간 고침). 요청 중 잠그는 것은 확인 버튼(`Modal` `confirmDisabled`) · 발 버튼(`Button` `pending`)뿐이다 — 잠긴 동안 포커스는 그 버튼에 남는다
-- **층 호스트** — 여러 화면이 여는 층(연결 마법사 · 재인증 · 원본 삭제 확인 · 탐색 기록 삭제 확인 · 키 결과 · 탐색 근거)은 앱 층의 층 호스트(`app/LayerHost`)가 드로어 한 칸 · 모달 한 칸으로 그린다(이음 `#drawer` · `#modal` 한 칸씩 — `index.html:43,45`). 이 부품들의 계약 — 칸마다 `Drawer` · `Modal` 하나를 늘 그려 두고 내용 · prop만 바꾼다 · 같은 칸에 다른 대상을 열면 `contentKey`를 바꾼다(재인증 A → 재인증 B, 재인증 → 원본 삭제 확인) · `onOpenChange(false)`에서 칸의 `open`만 끄고 내용은 다음 열기까지 남긴다 · 드로어 칸과 모달 칸은 함께 열릴 수 있고 모달이 위다(z · Esc 맨 위 층) · `closeAllLayers()`는 층마다 `onOpenChange(false)`를 부르므로 호스트 저장소가 닫힘을 받는다. 한 화면만 여는 층(호출 로그 상세)은 그 화면이 직접 그린다
+- **층 호스트** — 여러 화면이 여는 층(연결 마법사 · 재인증 · 원본 삭제 확인 · 탐색 기록 삭제 확인 · 키 결과 · 탐색 근거)은 앱 층의 층 호스트(`app/LayerHost`)가 드로어 한 칸 · 모달 한 칸으로 그린다(이음 `#drawer` · `#modal` 한 칸씩 — `index.html:43,45`). 이 부품들의 계약 — 칸마다 `Drawer` · `Modal` 하나를 늘 그려 두고 내용 · prop만 바꾼다 · 같은 칸에 다른 대상을 열면 `contentKey`를 바꾼다(재인증 A → 재인증 B, 재인증 → 원본 삭제 확인) · `onOpenChange(false)`에서 칸의 `open`만 끄고 내용은 다음 열기까지 남긴다(키 결과는 비운다) · 드로어 칸과 모달 칸은 함께 열릴 수 있고 모달이 위다(z · Esc 맨 위 층) · `closeAllLayers()`는 층마다 `onOpenChange(false)`를 부르므로 호스트 저장소가 닫힘을 받는다. 한 화면만 여는 층(호출 로그 상세)은 그 화면이 직접 그린다
 - **메뉴 이동** — `closeAllLayers()`가 열린 층을 모두 닫는다(나중에 연 것부터, `dismissible`과 상관없이). 셸이 메뉴(`menuOf`)가 바뀔 때 부른다. 화면이 쥔 층은 화면이 사라지며 함께 닫힌다
 - **열린 층** — `useOpenLayers()`가 `{ modal: boolean; drawer: boolean }`을 돌려준다 — 지금 열린 층 중 모달 · 드로어가 있는지(층이 열리고 닫힐 때 다시 그려지고, 요약이 그대로면 그리지 않는다). 화면이 층 때문에 멈추거나 숨길 때 읽는다 — 모달이 열린 동안 폴링을 멈추고(이음 `js/menu/deploy.js:133`), 드로어가 열리면 도크를 숨긴다(`Dock`이 직접 읽는다 — `css/console.css:225`). 층을 열고 닫는 값이 아니라 읽기 전용이다. 카탈로그 Modal 절의 "useOpenLayers" 줄이 이 값을 보인다
 - **공통 prop** — `open` · `onOpenChange`(✕ · 취소 · Esc · 가림막 모두 `onOpenChange(false)`) · `dismissible`(기본 true) · `returnFocusFallback` · `contentKey`
@@ -808,9 +927,12 @@
   | `contentKey` | string · number | 없음 | 보이는 대상 — 열린 채 바뀌면 다시 연 것으로 친다: 그 순간 층 밖에 있던 포커스를 복귀 대상으로 다시 잡고 · 첫 포커스 규칙(아래 상태)으로 옮기고 · 본문을 맨 위로(옛 `openModal`은 열려 있어도 부를 때마다 내용을 바꾸고 첫 포커스를 다시 잡았다 — `js/common/overlay.js:20-23`). 같은 Modal로 다른 대상을 여는 곳(층 호스트 — 재인증 A → 재인증 B, 재인증 → 원본 삭제 확인)이 준다. 없으면 `open`이 바뀔 때만 |
   - 머리 — 파란 띠(`--h-modal-head` · `--brand-band`) + 제목 + 닫기 ✕(`IconButton variant="on-band" iconSize="xl"` — `css/console.css:405-407`). 본문 — 안쪽 `--modal-pad`, 넘치면 본문만 스크롤. 발 — 가운데 정렬, 버튼 최소 폭 96(`css/console.css:408-411`)
   - 상자 — `--shadow-float` · 최대 높이는 화면 높이에서 위아래 여백을 뺀 값. 나타남 · 사라짐은 `--m-modal` 페이드 + 조금 아래에서 올라옴(`css/console.css:402-404`)
-  - 열린 모달에 다른 내용을 보이기(이음 "내용 교체" — `js/menu/deploy.js:120,176`)는 같은 Modal의 `title` · `children`을 바꾼다. 다른 대상을 열면 `contentKey`도 바꾼다 — 같은 일 안의 내용 교체가 첫 포커스를 다시 잡는지는 그 메뉴를 옮길 때 이음 동작으로 정한다
-  - **확인 모달**(되돌릴 수 없는 동작 — 원본 시스템 삭제 · 키 폐기 · 서버 중지 · 탐색 기록 삭제, 이음 `js/menu/sources.js:144` · `js/menu/deploy.js:162,181` · `js/menu/discovery.js:391`)은 따로 부품을 두지 않고 이 부품으로 그린다 — `title` 동작 이름 · 본문 한 문단(대상 이름 `<b>`, 문단 바깥 여백 없음) · `confirmLabel` 동작 낱말("삭제" · "폐기" · "중지"). 확인 버튼은 `primary`다 — 위험색이 아니다(이음 그대로). 본문에 입력이 없어 첫 포커스는 확인 버튼이다(DESIGN 이식 기간 — 검토하고 옛 그대로 둔 것). 요청 중 `confirmDisabled`, 닫기는 성공 뒤 쓰는 곳이 한다(`js/main.js:42`). `window.confirm`을 쓰지 않는다
+  - 열린 모달에 다른 내용을 보이기(이음 "내용 교체" — `js/common/overlay.js:16-24`)는 같은 Modal의 `title` · `children`을 바꾼다. 다른 일로 넘어가면 `contentKey`도 바꾼다 — 키 발급 결과가 발급 모달 자리에 열리면(`js/menu/deploy.js:176`) 첫 포커스가 확인 버튼으로 간다(옛과 같음). 같은 일의 내용을 새로 받는 것(서버 로그 "새로 읽기" — `js/menu/deploy.js:168`)은 `contentKey`를 바꾸지 않는다 — 포커스는 누른 버튼에 남는다(옛은 모달을 다시 그려 포커스를 잃었다 — DESIGN 이식 기간 허용 차이 렌더)
+  - **확인 모달**(되돌릴 수 없는 동작 — 원본 시스템 삭제 · 키 폐기 · 서버 중지 · 탐색 기록 삭제 · 도구 묶음 삭제, 이음 `js/menu/sources.js:144` · `js/menu/deploy.js:162,181` · `js/menu/discovery.js:391`)은 따로 부품을 두지 않고 이 부품으로 그린다 — `title` 동작 이름 · 본문 한 문단(대상 이름 `<b>`, 문단 바깥 여백 없음) · `confirmLabel` 동작 낱말("삭제" · "폐기" · "중지"). 확인 버튼은 `primary`다 — 위험색이 아니다(이음 그대로). 본문에 입력이 없어 첫 포커스는 확인 버튼이다(DESIGN 이식 기간 — 검토하고 옛 그대로 둔 것). 요청 중 `confirmDisabled`, 닫기는 성공 뒤 쓰는 곳이 한다(`js/main.js:42`). `window.confirm`을 쓰지 않는다. 도구 묶음 삭제는 이음에 없던 확인이고 수정 모달 자리에 연다(같은 Modal의 내용 교체 — `contentKey`를 바꾼다, 취소하면 닫힌다 — DESIGN 이식 기간 고침)
   - 진행을 품은 모달(재인증 — 본문 문단 + 인증 칸)도 같은 부품이다 — 첫 포커스는 본문의 첫 `input`(인증 방식 `select`는 건너뛴다), 실패는 경고 토스트이고 모달은 열린 채 남는다(`js/menu/sources.js:136-139`)
+  - **진행을 품은 모달 — 배포 확인**(`js/menu/deploy.js:104-117,141-154`)도 같은 부품이다 — 본문은 문단(굵은 개수 `<b>`) · 미리 알림(`Notice tone="warn"` — 도구 id는 `InlineCode`) · 결과 자리다. 확인을 누르면 `confirmDisabled` + 확인 글자 진행형("배포하는 중…") + 결과 자리에 `Notice spinner`, 실패면 결과 자리에 `FailureBlock`(`danger` · 머리 없음)이고 확인 글자는 "다시 시도"다(같은 버튼으로 다시 보낸다). 보낼 것이 없으면 확인 버튼 없이 `Notice tone="danger"` 한 줄이다(첫 포커스는 머리 ✕). 모달을 닫아도 요청은 이어지고 끝나면 토스트다(DESIGN Copy 실패)
+  - **오류 모달 — 서버 시작 실패**(`js/menu/deploy.js:119-121`)는 `size="wide"` · 본문 `FailureBlock tone="danger"`(머리 없음 — 모달 제목이 머리) · 취소 "닫기"만(`cancelLabel`, 확인 없음 — 첫 포커스는 머리 ✕)이다. 배포 화면을 떠난 뒤의 실패는 이 모달이 아니라 경고 토스트다
+  - **한 번만 보이는 값 — 키 발급 결과**(`js/menu/deploy.js:176-177`)는 `dismissible=false` · `hideCancel` · 확인 "확인"이다 — ✕ · 확인으로만 닫힌다(가림막 · Esc는 닫지 않는다). 값은 `CopyField variant="block"`. 닫을 때 쓰는 곳이 값을 비운다 — 층 공통 "닫힌 층의 내용"의 예외로, 닫힌 `<dialog>`가 값을 품고 남지 않게 한다(닫힘 전환 동안 값 줄이 먼저 사라진다). 값을 저장소 · 주소 · 요청 캐시 · 개발 콘솔에 남기지 않는다. 키 목록 갱신은 발급 성공 때(요청 쪽)라 닫는 방법과 상관없다
   - 함께 내보내는 것(`@/ui`) — `closeAllLayers` · `useOpenLayers` · 타입 `ModalProps` · `ModalSize` · `OpenLayers`
 - **상태** `data-size` · `data-dismissible`. 첫 포커스는 열릴 때(그리고 열린 채 `contentKey`가 바뀔 때) 다음 순서의 첫 대상이다. ① 본문의 첫 `input`(숨김 · 잠긴 것은 건너뛴다 — `select` · `textarea`는 앞에 있어도 입력으로 치지 않는다) ② 없으면 확인 버튼(주색, 잠겨 있으면 건너뛴다) ③ 둘 다 없으면 머리 ✕. 이음 `js/common/overlay.js:23`(`.m-body input` → 확인 버튼)과 같고, 확인 버튼이 없는 안내 모달만 옛은 포커스를 옮기지 않았는데 ✕로 옮긴다(DESIGN `## 이식 기간` 허용 차이 — 사용자가 확인한 결정이다). 닫혀 있어도 `children`을 그린다(층 공통 — 닫힌 층의 내용).
 - **접근성** `<dialog aria-modal="true" aria-labelledby>`다(이음 `index.html:45`). 포커스를 가두지 않고, 닫으면 연 컨트롤로 돌아간다(층 공통 — 이음은 돌아가지 않았다). 머리 ✕의 링은 흰색이다.
@@ -942,24 +1064,28 @@
 - **카탈로그** `SectionTitle`
 
 ### Box
-- **쓰는 곳** 제목 줄이 있는 상자 — 대시보드 구조도 · 시간대 차트 · 확인 항목 · 많이 쓰인 도구(`js/menu/dashboard.js:20,42,47,57`), 스튜디오 · 배포 정책(`variant="policy"` — `js/menu/studio.js:102` · `js/menu/deploy.js:90`), 테스트 실행 · 탐색 화면 상자(이음 `.box` · `.box-h` · `.box-b` `css/console.css:502-506`, `.box.pol` `:702`).
+- **쓰는 곳** 제목 줄이 있는 상자 — 대시보드 구조도 · 시간대 차트 · 확인 항목 · 많이 쓰인 도구(`js/menu/dashboard.js:20,42,47,57`), 스튜디오 · 배포 정책(`variant="policy"` — `js/menu/studio.js:102` · `js/menu/deploy.js:90`), 테스트 실행 도구 호출(`variant="chat"` — `js/menu/playground.js:41-55`) · 변환 과정(`js/menu/playground.js:56-59`), 탐색 화면 상자(이음 `.box` · `.box-h` · `.box-b` `css/console.css:502-506`, `.box.pol` `:702`, `.chat` `:734-736`).
 - **쓰지 않는 곳** 화면 제목 → `PageHead` · 상자 없는 절 제목 → `SectionTitle` · 수치 띠 → `StatStrip` · 목록 표(자기 윗선 · 테두리) → `Table` · 점선 빈 상자 · 대시보드 큰 빈 상자 → `EmptyState` · 목록 + 상세의 왼쪽 목록 상자 → `Panel`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
-  | `variant` | `BoxVariant` — `default` · `policy` | `default` | `policy` = 정책 상자(실행 정책 · 배포 보안 정책 요약 — 옛 `.box.pol` `css/console.css:702`) — 본문을 늘 감싸고 안쪽이 `padded`보다 작다 |
-  | `title` | ReactNode | 없음 | 머리 제목(h3). 없으면 머리 줄을 그리지 않는다(배포 정책 요약 — `js/menu/deploy.js:90`) |
-  | `description` | ReactNode | 없음 | 제목 곁 작은 보조 글("최근 24시간" · "2건" — `css/console.css:505`) |
-  | `actions` | ReactNode | 없음 | 머리 오른쪽(`LinkButton` · 작은 버튼) |
-  | `padded` | boolean | false | 본문 안쪽 여백(`.box-b`). 구조도 · 차트처럼 내용이 자기 여백을 가지면 끈다. `variant="policy"`와 함께 쓰지 않는다(타입이 막는다 — 정책 상자는 늘 감싼다) |
+  | `variant` | `BoxVariant` — `default` · `policy` · `chat` | `default` | `policy` = 정책 상자(실행 정책 · 배포 보안 정책 요약 — 옛 `.box.pol` `css/console.css:702`) — 본문을 늘 감싸고 안쪽이 `padded`보다 작다. `chat` = 테스트 실행 도구 호출 상자 — 아래 bullet |
+  | `title` | ReactNode | 없음 | 머리 제목(h3). 없으면 머리 줄을 그리지 않는다(배포 정책 요약 — `js/menu/deploy.js:90`). `chat`에서는 필수(머리 둘째 줄이 제목 줄에 딸린다) |
+  | `description` | ReactNode | 없음 | 제목 곁 작은 보조 글("최근 24시간" · "2건" · 변환 과정 "{도구}, {원본}" — `css/console.css:505`) |
+  | `actions` | ReactNode | 없음 | 머리 오른쪽(`LinkButton` · 작은 버튼 · 테스트 실행 "호출 사용자" 안내) |
+  | `headBelow` | ReactNode | `chat`에서 필수 | `chat`만 — 머리 둘째 줄(AI 모델 `SegmentedRadio`) |
+  | `label` | string | 없음 | 상자 이름(`<section aria-label>` — 테스트 실행 "도구 호출" · "변환 과정", 옛 그대로 `js/menu/playground.js:41,56`). 보이지 않는 이름이라 옛에 있던 자리만 준다 |
+  | `padded` | boolean | false | 본문 안쪽 여백(`.box-b`). 구조도 · 차트처럼 내용이 자기 여백을 가지면 끈다. `variant="policy"` · `chat`과 함께 쓰지 않는다(타입이 막는다 — 정책 상자는 늘 감싸고, 대화 상자는 감싸지 않는다) |
   | `children` | ReactNode | 필수 | 본문 |
   | `className` | string | 없음 | 배치(바깥 여백 · 격자 칸)만 |
   - 상자 — 1px `--line-control` · `--surface`, 그림자 없음(DESIGN 핵심 규칙 4). 머리 — `--surface-sub` 줄 · 아래 1px `--line-divider` · 제목과 동작을 양끝에 두고 좁으면 접는다
-  - 머리 두 줄(테스트 실행 대화 상자 — `css/console.css:735-738`) · `section` 이름(`js/menu/playground.js:41,56`)은 테스트 실행을 옮길 때 더한다
+  - `chat` — 세로 흐름 · 최소 높이 660(고유 치수). 머리는 두 줄이다: 첫 줄은 제목 + `actions`(양끝 · 접지 않음 — 옛 `.r1`), 둘째 줄은 `headBelow`이고 머리 폭으로 늘어난다(옛 `.chat .box-h` — AI 모델 묶음의 테두리가 머리 폭을 채우고 항목은 왼쪽에 붙는다). 본문은 감싸지 않는다 — 폼 칸 · 대화 목록(`ChatLog` — 남은 높이를 채운다) · 입력 줄(`ChatInput`) · 키 없음 안내를 쓰는 곳이 차례로 넣는다. 옛 폼 칸의 윗선(`.pg-direct` `css/console.css:1079`)은 머리 아랫선과 겹쳐 2px로 보였다 — 머리 아랫선은 이 부품이 그대로 그리고, 폼 칸의 윗선은 쓰는 곳이 그린다
   - 함께 내보내는 것(`@/ui`) — 타입 `BoxProps` · `BoxVariant`
 - **상태** 없다(그릇).
-- **접근성** 제목은 h3다(화면 h2 아래).
+- **접근성** 제목은 h3다(화면 h2 아래). `label`이 있으면 이름 붙은 영역이다(옛 `<section aria-label>` 그대로).
+- **폭**
+  - 1100: `chat` 최소 높이 없음(`css/console.css:878`)
 - **카탈로그** `Box`
 
 ### Toolbar
@@ -1023,7 +1149,7 @@
   | `playground` | 320 ~ 430(고유 치수) | `--s-6` | 위 | 1100 | 테스트 실행 — `:733,877` |
   - 칸은 최소 폭 0으로 줄어든다(넘치는 내용은 칸 안에서 처리)
   - **목록 + 상세** — `list`의 왼쪽은 `Panel` 안 `SelectableListItem`들(+ `FilterChips variant="band"` · `PanelBand` 안 `SearchInput variant="full"`), 오른쪽은 `<section aria-label>` 안 `DetailHead`로 시작한다. 선택이 없거나 없는 id면 첫 항목을 고르고 주소를 바꾼다(DESIGN 이식 기간 허용 차이 — 없는 id 보정). 필터 · 검색은 목록만 바꾸고 상세는 그대로 둔다 — 고른 항목이 필터 밖이어도 상세를 보인다(`js/menu/studio.js:148,181`). 고른 항목이 목록의 보이는 자리 밖에 있어도 목록을 스크롤하지 않는다. 1100 이하에서 항목을 고르면 상세로 스크롤하는 것은 스튜디오만이다(쓰는 곳 — `useMediaQuery`, 모션 줄이기면 즉시 — `js/menu/studio.js:149`). 저장하지 않은 변경은 상세 머리 동작 줄의 저장 버튼이 켜지는 것으로만 알린다 — 목록 항목 · 머리에 따로 표시를 두지 않는다(옛 그대로 — `js/menu/studio.js:81`)
-  - 테스트 실행 열이 접힌 뒤 대화 상자의 최소 높이를 푸는 것은 그 상자 몫이다(`css/console.css:878`)
+  - 테스트 실행은 왼쪽 `Box variant="chat"`(도구 호출) · 오른쪽 `Box`(변환 과정)다. 열이 접힌 뒤 대화 상자의 최소 높이를 푸는 것은 그 상자 몫이다(`css/console.css:878`)
   - 함께 내보내는 것(`@/ui`) — 타입 `SplitLayoutProps` · `SplitLayoutVariant`
 - **상태** 없다(그릇).
 - **폭**
@@ -1115,6 +1241,24 @@
 - **상태** 없다.
 - **접근성** 묶음에 이름이 필요한 자리는 쓰는 곳이 묶음(`role="group"`)의 `aria-labelledby`를 이 `id`에 잇는다 — 옛 묶음에는 이름이 없었다(DESIGN 이식 기간 허용 차이 — 보이지 않는 ARIA 보강).
 - **카탈로그** `GroupLabel`
+
+### ScrollList
+- **쓰는 곳** 테두리 상자 안 스크롤 목록 — 도구 묶음 만들기 · 수정의 "포함할 도구"(원본별 소제목 + 도구 체크 줄 — `js/menu/deploy.js:196`, 옛 인라인 `max-height:240px;overflow:auto;border:1px solid 옛 선 색;padding:6px 10px`).
+- **쓰지 않는 곳** 목록 + 상세의 왼쪽 목록 상자 → `Panel`(`scroll`) · 표 → `CompactTable` · 하나 고르는 목록 → `RadioList` · 키보드로 스크롤하는 기록 상자 → `CodeBlock`(`log`) · `NetLog`.
+- **prop · 크기**
+
+  | prop | 타입 | 기본값 | 뜻 |
+  |---|---|---|---|
+  | `labelledBy` | string | 필수 | 묶음 이름 — 위 `GroupLabel`의 `id`(옛 "포함할 도구") |
+  | `children` | ReactNode | 필수 | `ScrollListHeading`과 줄(`Checkbox size="sm" label`)을 순서대로 |
+  | `className` | string | 없음 | 배치만 |
+  - `ScrollListHeading` — `children`. 원본 이름 소제목(흐린 작은 글 — 옛 인라인 `margin:6px 0 2px;font-size:12.5px;옛 보조 글 색`). 제목 요소가 아니다(옛 `div`). 줄이 없는 소제목도 그대로 그린다(옛 그대로 — 무엇을 그릴지는 쓰는 곳)
+  - 상자 — 1px `--line-divider` · 최대 높이 240(고유 치수) · 넘치면 상자 안 세로 스크롤 · 반지름 없음(옛 그대로)
+  - 적힌 prop만 받는다
+  - 함께 내보내는 것(`@/ui`) — `ScrollListHeading` · 타입 `ScrollListProps` · `ScrollListHeadingProps`
+- **상태** 없다(그릇). 줄의 체크 상자가 낸다.
+- **접근성** `role="group"` + `aria-labelledby`다 — 옛 상자에는 묶음 이름이 없었다(DESIGN 이식 기간 허용 차이 — 보이지 않는 ARIA 보강). 안의 체크 상자가 포커스를 받으므로 상자에 `tabindex`를 두지 않는다 — 포커스가 옮겨 가면 브라우저가 상자를 스크롤한다.
+- **카탈로그** `ScrollList`
 
 ### CardGrid
 - **쓰는 곳** 같은 꼴의 카드 · 칸을 고른 열 수로 늘어놓고 좁으면 한 열로 접는 격자 — 정해 둔 세 조합만(이음 `.wz-cards` · `.res-grid` · `.later`).
@@ -1269,7 +1413,7 @@
 
 ### CodeBlock
 - **쓰는 곳** 여러 줄 코드 · 요청 · 응답 · 로그 — 변환 과정 단계(`js/common/convert.js:159`) · 스튜디오 미리보기(`js/menu/studio.js:53-55`) · 배포 스니펫 · 서버 로그(`js/menu/deploy.js:81,167`) · 탐색 근거(`js/menu/discovery.js:321-346`)(이음 `pre.code` `css/console.css:724-726`).
-- **쓰지 않는 곳** 문장 안 짧은 코드 → `InlineCode` · 코드 입력(편집) → 입력 부품(테스트 실행을 옮길 때 만든다).
+- **쓰지 않는 곳** 문장 안 짧은 코드 → `InlineCode` · 코드 입력(편집) → `Textarea`(`variant="code"`) · 한 줄 JSON 인자(테스트 실행 객체 · 배열 — `js/menu/playground.js:30`) → `Input`(`mono`).
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -1277,6 +1421,7 @@
   | `code` | `TraceCode`(`app/trace/types`) — `{ text; lang; bodyLang? }` | 필수 | 원문과 언어. `lang`은 `json` · `xml` · `http` · `java` · `plain`. `http`는 첫 빈 줄에서 머리와 본문을 나누고 본문을 `bodyLang`(`json` · `xml`)으로 강조한다. 객체는 쓰는 곳이 JSON 글(2칸 들여쓰기)로 바꿔 넘긴다 |
   | `labelledBy` · `label` | string | 둘 중 하나 필수 | 스크롤 상자의 이름 — 다른 요소의 id(변환 과정은 그 단계 제목 — 새 문구 없음) 또는 글자 |
   | `variant` | `CodeBlockVariant` — `code` · `log` | `code` | `log` = 서버 로그(강조 없음 · 긴 줄을 접음 · 최대 높이 화면 56% — 옛 인라인 `js/menu/deploy.js:167`) |
+  | `followKey` | string · number | 없음 | `log`만(`code`에 주면 타입 오류) — 처음 값과 값이 바뀔 때마다 상자를 맨 아래로 내린다(서버 로그를 열 때 · "새로 읽기" — 옛 `js/menu/deploy.js:169`). 쓰는 곳은 열 때마다 · 새로 읽을 때마다 다른 값(읽은 시각 등)을 준다. 없으면 내리지 않는다 |
   | `className` | string | 없음 | 배치만 |
 
   | 언어 | 나누는 것 → 토큰 | 이음 근거 |
@@ -1288,10 +1433,39 @@
   | `plain` | 나누지 않는다 | — |
   - **토큰 분할 계약** — 같은 입력이면 옛 하이라이터와 같은 자리에서 나눈다(옛은 이스케이프한 글 위에서 정규식을 돌렸다 — 원문 위에서 같은 경계가 되게 옮긴다. 예: JSON 문자열은 첫 `"`에서 끝난다). 결과는 React 노드(`<span>`)이고 `dangerouslySetInnerHTML`을 쓰지 않는다
   - 상자 — `--surface-sub` · 1px `--line-divider` · `--font-mono` · 줄바꿈 없음(`log`는 접음) · 최대 높이 420 · 넘치면 상자 안 스크롤
+  - **맨 아래로 내리기** — `followKey`는 값이 바뀔 때마다 늘 맨 아래로 내린다(`ChatLog`의 `followKey`와 같은 뜻 — 바닥일 때만 따라가는 `NetLog`의 `follow`와 다르다). 닫힌 층(`Modal`) 안의 상자는 보이지 않아 높이가 없으므로, 층이 열려 상자가 보이는 순간에 내린다 — 서버 로그를 열 때 곧바로 맨 아래다(옛은 80ms 뒤 내렸다)
   - 함께 내보내는 것(`@/ui`) — 타입 `CodeBlockProps` · `CodeBlockVariant`(언어 타입 `CodeLang` · `TraceCode`는 `app/trace/types`)
 - **상태** 없다(표시).
-- **접근성** 스크롤 상자는 `tabindex="0"` + 이름 + 안쪽 링이다(옛 `pre.code tabindex="0"` — `js/common/convert.js:159`, 이름은 보이지 않는 보강). 서버 로그 상자도 같다(옛은 `tabindex`가 없었다 — DESIGN 이식 기간 고침).
+- **접근성** 스크롤 상자는 `tabindex="0"` + 이름 + 안쪽 링이다(옛 `pre.code tabindex="0"` — `js/common/convert.js:159`, 이름은 보이지 않는 보강). 서버 로그 상자도 같다(옛은 `tabindex`가 없었다 — DESIGN 이식 기간 고침). `followKey`로 내려도 포커스는 옮기지 않고 읽어 주지도 않는다.
 - **카탈로그** `CodeBlock`
+
+### CopyField
+- **쓰는 곳** 값 하나를 보이고 복사하는 칸 — 묶음 상세 MCP 서버 주소(`inline` — 한 줄 말줄임 + 아이콘 버튼, 값이 없으면 안내 문장 — `js/menu/deploy.js:73`), 키 발급 결과의 전체 키(`block` — 줄바꿈해 전부 보임 + 작은 "복사" 버튼 — `js/menu/deploy.js:177`)(이음 `.ep` `css/console.css:791-793` · `.newkey` `:800-801`). 두 옛 칸은 같은 일(값 + 복사)이라 한 부품 두 변형이다.
+- **쓰지 않는 곳** 연결 스니펫(설명 줄의 작은 "복사" 버튼 + 코드 상자) → `Button size="sm"` + `CodeBlock`(쓰는 곳 조합) · 문장 안 짧은 코드 → `InlineCode` · 고칠 수 있는 값 → `Input`(`readOnly`).
+- **prop · 크기**
+
+  | prop | 타입 | 기본값 | 뜻 |
+  |---|---|---|---|
+  | `variant` | `CopyFieldVariant` — `inline` · `block` | 필수 | 모양 — 아래 표 |
+  | `value` | `inline`: string · null / `block`: string | 필수 | 보일 값. `inline`은 null이면 `emptyText`를 그리고 복사 버튼을 두지 않는다(옛 `.ep .muted`) |
+  | `emptyText` | ReactNode | `inline`에서 `value`가 null일 수 있으면 필수 | 값이 없을 때 흐린 안내(옛 "처음 배포하면 주소가 발급됩니다." — 쓰는 곳 `copy/`). `value`가 늘 문자열이면 생략할 수 있다(타입 — `string \| null`인 값에 빼면 오류). `block`은 받지 않는다 |
+  | `copyLabel` | string | 필수 | 복사 버튼 글자 — `inline`은 아이콘 버튼 이름(`aria-label` — 옛 "주소 복사"), `block`은 보이는 글자(옛 "복사") |
+  | `onCopy` | `(value: string) => void` | 필수 | 복사 버튼을 누르면 값으로 부른다 — 클립보드 쓰기 · 토스트는 쓰는 곳 |
+  | `className` | string | 없음 | 배치(바깥 여백)만 — `block`의 위 12 · 아래 4(옛 `.newkey` margin `:800`)는 쓰는 곳 |
+
+  | `variant` | 모양 | 이음 근거 |
+  |---|---|---|
+  | `inline` | 칸 하나(1px `--line-control` · `--surface-sub` · 최소 높이 42) 안에 고정폭 값 한 줄 말줄임 + 오른쪽 `IconButton`(`copy`). 값이 없으면 흐린 안내만 | `.ep` `:791-793` |
+  | `block` | 고정폭 값 상자(1px `--line-control` · `--surface-sub` — 아무 곳에서나 접어 전부 보인다) + 오른쪽 `Button size="sm" icon="copy"` | `.newkey` `:800-801` |
+  - 최소 높이 42는 아이콘 버튼(`--h-sm-plus`) + 위아래 `--s-1`이다
+  - `inline`의 긴 값은 한 줄 말줄임이고 전체 값 툴팁(`title`)을 두지 않는다(옛 그대로 — 화면 읽기 프로그램은 전체 값을 읽는다)
+  - **복사는 쓰는 곳이 한다** — `onCopy`에서 `app/clipboard`의 `copyText`를 부르고 성공이면 토스트 "복사했습니다.", 실패면 경고 토스트 "이 브라우저에서는 자동 복사가 막혀 있습니다. 직접 선택해 복사하세요."(문구는 그 메뉴의 `copy/` — `js/common/overlay.js:34-37`). 보안 컨텍스트가 아니어서 클립보드가 없을 때도 실패 토스트다. 대체 복사(선택 영역을 만드는 등)는 두지 않는다(옛 그대로) — 실패하면 사용자가 값을 직접 골라 복사한다. 누른 뒤 포커스는 복사 버튼에 남는다
+  - **비밀 값**(액세스 키) — 부품은 값을 그리기만 한다. 값을 `title` · `data-*` 속성 · 개발 콘솔 · 저장소 · 주소에 남기지 않는다(옛은 `data-text` 속성에 키를 실었다 — `js/menu/deploy.js:177`). 값을 언제 비우는지는 그 값을 쥔 층이 정한다(`Modal` 한 번만 보이는 값)
+  - 적힌 prop만 받는다
+  - 함께 내보내는 것(`@/ui`) — 타입 `CopyFieldProps` · `CopyFieldVariant`
+- **상태** 없다(표시). 복사 버튼이 상태를 낸다(`IconButton` · `Button`).
+- **접근성** 값은 보이는 글자(`<code>`)라 그대로 읽히고, 말줄임된 `inline` 값도 전체가 읽힌다. `inline` 복사 버튼의 이름은 `copyLabel`이다. 복사 결과는 토스트(`role="status"`)가 읽는다.
+- **카탈로그** `CopyField`
 
 ### CompareGrid
 - **쓰는 곳** 같은 일의 두 쪽을 나란히 — 미리보기 "응답 변환"(원본 응답 · AI에게 전달하는 결과 — `js/menu/studio.js:54`)(이음 `.cmp` `css/console.css:727,897`). 칸 머리의 색 네모 캡션 `CompareCaption`은 단독으로도 쓴다 — 탐색 근거 "캡처한 요청 · 응답"(`js/menu/discovery.js:345-346`)(이음 `.cap` `:728-729`).
@@ -1359,7 +1533,7 @@
 
 ## 이음 전용
 
-연결 흐름 · 변환 과정처럼 이음에만 있는 모양 중 두 화면 이상(여러 화면이 여는 공용 층 포함)이 쓰거나 `@media` · 고유 치수(끄는 주석 px — DESIGN 핵심 규칙 1은 부품 CSS에만 허용)가 필요한 것, 그리고 이음 도메인 색 표지(읽기/쓰기 · 탐색 근거 · 메서드 — 도메인 색은 래퍼에서만)다 — 한 화면만 쓰고 둘 다 없는 조각(대시보드 시간대 차트 · 많이 쓰인 도구 · 확인 항목, 로그 상태 칩)은 그 화면 폴더에 둔다. 값 → 글자 · 색 찾기(상태 · 규칙 · 프로토콜)는 `copy/`와 앱 층이 하고, 이 부품들은 받은 글자와 색의 뜻만 그린다(원본 · 도구 · 작업 상태만 `copy/status`를 직접 읽는다). 앱 층이 `ui`를 조립한 층 내용(연결 마법사 · 인증 폼 · 재인증 · 원본 삭제 확인 — `app/sources/`)은 이 문서에 절을 두지 않는다 — 카탈로그가 앱 층을 가져오지 않게, 계약은 그 파일 머리 메모에 둔다.
+연결 흐름 · 변환 과정처럼 이음에만 있는 모양 중 두 화면 이상(여러 화면이 여는 공용 층 포함)이 쓰거나 `@media` · 고유 치수(끄는 주석 px — DESIGN 핵심 규칙 1은 부품 CSS에만 허용)가 필요한 것, 그리고 이음 도메인 색 표지(읽기/쓰기 · 탐색 근거 · 메서드 — 도메인 색은 래퍼에서만)다 — 한 화면만 쓰고 둘 다 없는 조각(대시보드 시간대 차트 · 많이 쓰인 도구 · 확인 항목, 로그 상태 칩, 배포 상태 칩 · 연결 스니펫 · 서버 상태 알림)은 그 화면 폴더에 둔다. 값 → 글자 · 색 찾기(상태 · 규칙 · 프로토콜)는 `copy/`와 앱 층이 하고, 이 부품들은 받은 글자와 색의 뜻만 그린다(원본 · 도구 · 작업 상태만 `copy/status`를 직접 읽는다). 앱 층이 `ui`를 조립한 층 내용(연결 마법사 · 인증 폼 · 재인증 · 원본 삭제 확인 — `app/sources/`, 키 발급 결과 — 그 메뉴 앱 층)은 이 문서에 절을 두지 않는다 — 카탈로그가 앱 층을 가져오지 않게, 계약은 그 파일 머리 메모에 둔다.
 
 ### SourceStatus
 - **쓰는 곳** 원본 시스템 상태 — 대시보드 구조도 원본 노드의 점(`js/menu/dashboard.js:19`) · 원본 목록의 칩(`js/menu/sources.js:32` 행)(이음 `SST` `js/common/state.js:26`).
@@ -1565,6 +1739,7 @@
   - 연결선 — 단계 사이 세로 2px `--line-divider`(마지막 단계 뒤는 없음). 위치는 고유 오프셋(`css/console.css:755`)
   - 코드 상자의 이름은 그 단계 제목이다(`CodeBlock labelledBy` — 새 문구 없음)
   - 입장 모션은 없다(옛 두 곳 모두 끈 채로 불렀다 — `js/menu/logs.js:46` · `js/menu/playground.js:79`)
+  - **사람 확인 게이트** — 쓰기 도구의 확인 대기는 이 부품 안 `hold` 단계로 보인다. 1단계 다음 번호 없는 `hold` 하나로 끝나고(그 뒤 단계는 데이터에 없다 — `js/common/convert.js:176`), 본문 `holdSlot`은 테스트 실행 화면의 확인 상자다(경고색 테두리 `--warn` · `--r-lg` — 굵은 질문 · 인자 목록(이름 · 고정폭 값) · 작은 버튼 실행 · 그만두기 · 흐린 안내, `js/common/convert.js:171-175` · `css/console.css:771-776`). 상자를 그리고 실행 · 그만두기를 처리하는 것은 그 화면이다 — 확인을 마친 모양(옛 `.apv.done`)은 닿지 않는 코드라 없다
   - 적힌 prop만 받는다
   - 함께 내보내는 것(`@/ui`) — 타입 `TraceViewProps` · `TraceContainer`(단계 타입 `TraceStep` · `TraceChip` · `TraceCode`는 `app/trace/types`)
 - **상태** 없다(그릇). `holdSlot` 안 버튼이 상태를 낸다.
@@ -1712,7 +1887,7 @@
   |---|---|---|---|
   | `title` | string | 필수 | 굵은 제목(옛 14.5px는 `--fs-subhead` — 값 정규화). 스위치가 있으면 스위치 이름(`aria-label`)도 이 글자다 |
   | `description` | ReactNode | 없음 | 제목 아래 흐린 설명 |
-  | `toggle` | `DiscoveryZoneToggle` | 없음 | 있으면 머리 줄 전체가 `<label>`이고 제목 앞에 스위치(`Switch variant="heading"`)가 놓인다. 필드 — `checked` · `onCheckedChange` · `disabled`(못 바꿈) · 사유 하나: `disabledReason`(시각 숨김 글자 + 마우스 툴팁) 또는 `describedBy`(화면에 보이는 안내의 id — 옛 "브라우저 없음" 안내 `js/menu/discovery.js:60`). 사유 둘을 함께 쓰지 않는다. `disabledReason`은 `disabled`일 때만 내고, `describedBy`는 받은 대로 늘 잇는다(`Switch`의 `aria-describedby`와 같다) — 안내를 그릴 때만 넘긴다 |
+  | `toggle` | `DiscoveryZoneToggle` | 없음 | 있으면 머리 줄 전체가 `<label>`이고 제목 앞에 스위치(`Switch variant="heading"`)가 놓인다. 필드 — `checked` · `onCheckedChange` · `disabled`(못 바꿈) · 사유 하나: `disabledReason`(시각 숨김 글자 + 마우스 툴팁) 또는 `describedBy`(화면에 보이는 안내의 id — 옛 "브라우저 없음" 안내 `js/menu/discovery.js:60`). 사유 둘을 함께 쓰지 않는다. `disabledReason`은 `disabled`일 때만 내고, `describedBy`는 받은 대로 늘 잇는다 — 안내를 그릴 때만 넘긴다. `describedBy`는 `Switch`의 `aria-describedby`와 같은 뜻의 다른 이름이다(쓰는 곳이 이미 있어 이름을 맞추지 않는다) |
   | `children` | ReactNode | 없음 | 묶음 칸(`Field` · `FieldNote` · `FieldPair`) · 안내(`HelpText variant="note"`). 꺼졌을 때 무엇을 남길지는 쓰는 곳이 고른다(옛은 칸을 빼고 브라우저 없음 안내만 남겼다 `js/menu/discovery.js:60`) |
   | `className` | string | 없음 | 배치(바깥 여백)만 |
   - 상자 — 1px `--line-control` · `--r-md` · `--surface` · 위 `--s-3`(묶음 사이). 머리 아래 `--s-3`. 꺼지면(`toggle.checked`가 false) `--surface-sub` 바탕이고 머리 아래 여백이 없어지며 아래 안쪽이 커진다(`css/console.css:916,918`)

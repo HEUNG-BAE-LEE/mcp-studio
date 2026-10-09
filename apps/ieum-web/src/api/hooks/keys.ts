@@ -25,4 +25,8 @@ export const keys = {
   discoveryApis: (id: string) => ['discovery', 'jobs', id, 'apis', { region: true }] as const,
   /** GET /deploy/toolsets/ — 도구 묶음 · 배포 상태. 서버 로그는 이 키 아래 따로 둔다 */
   toolsets: () => ['deploy', 'toolsets'] as const,
+  /** GET /deploy/toolsets/{id}/logs/?lines=300 — 서버 로그(영역 조회). 버튼을 누를 때마다 fetchQuery로 받는다 — 관찰하는 화면이 없다 */
+  toolsetLogs: (id: string) => ['deploy', 'toolsets', id, 'logs'] as const,
+  /** GET /deploy/keys/ — 액세스 키 목록(영역 조회) */
+  accessKeys: () => ['deploy', 'keys'] as const,
 };

@@ -1,7 +1,6 @@
 // 카탈로그 Toolbar 절 — 왼쪽 무리 + ToolbarSpacer + 오른쪽 무리 · 검색 포함 · 맨 앞 라벨 · 빈칸 없음. 좁게 접히는 모양과 760 이하 빈칸 숨김 · 검색이 남은 폭을 채우는 것은 폭 전환으로 본다
 import { useState } from 'react';
-import { Button, SearchInput, Select } from '../../ui';
-import { Toolbar, ToolbarSpacer } from '../../ui/Toolbar';
+import { Button, SearchInput, Select, Toolbar, ToolbarSpacer } from '../../ui';
 import catalog from './catalog.module.css';
 
 const SOURCES = ['주문 시스템', '재고 시스템', '공공데이터 포털'] as const;

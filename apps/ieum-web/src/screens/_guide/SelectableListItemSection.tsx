@@ -1,8 +1,7 @@
 // 카탈로그 SelectableListItem 절 — id(기본 · 고름 · dimmed · 둘째 줄에 쓰기 표지 · 긴 id 말줄임) · name(기본 · 고름 · 긴 이름 줄바꿈) 세로로 쌓아 아래 선이 이어지게.
 // 호버 · 포커스(안쪽 링)는 직접 눌러 본다. 마지막 목록은 눌러서 고르기(이미 고른 항목을 눌러도 부른다)
 import { useState } from 'react';
-import { ModeTag, StatusChip } from '../../ui';
-import { SelectableListItem } from '../../ui/SelectableListItem';
+import { ModeTag, SelectableListItem, StatusChip } from '../../ui';
 import catalog from './catalog.module.css';
 import styles from './SelectableListItemSection.module.css';
 

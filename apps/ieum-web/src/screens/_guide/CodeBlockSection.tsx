@@ -1,7 +1,7 @@
-// 카탈로그 CodeBlock 절 — 언어 다섯(json · xml · http · java · plain) × http 본문(json · xml · 없음), java 경계, 변형 log, 빈 글 · 긴 줄 · 최대 높이.
-// 상자는 Tab으로 닿고(안쪽 링) 이름은 labelledBy(보이는 소제목) 또는 label이다
-import { useId } from 'react';
-import { CodeBlock } from '../../ui';
+// 카탈로그 CodeBlock 절 — 언어 다섯(json · xml · http · java · plain) × http 본문(json · xml · 없음), java 경계, 변형 log(followKey — 새로 읽기 ·
+// 닫힌 Modal 안), 빈 글 · 긴 줄 · 최대 높이. 상자는 Tab으로 닿고(안쪽 링) 이름은 labelledBy(보이는 소제목) 또는 label이다
+import { useId, useState } from 'react';
+import { Button, CodeBlock, Modal } from '../../ui';
 import { httpCode } from '../../app/trace/httpText';
 import catalog from './catalog.module.css';
 import styles from './CodeBlockSection.module.css';
@@ -60,15 +60,23 @@ private static final List<? extends PoVO> ROWS = new ArrayList<>();
 if (newValue != null) { return className; } else { return ""; }
 char quote = '"'; String next = "다음 따옴표까지";`;
 
-const LOG_TEXT = Array.from(
-  { length: 40 },
-  (_, i) =>
-    `2026-10-08 09:${String(i).padStart(2, '0')}:00 INFO  uvicorn.access 127.0.0.1 "POST /mcp/ HTTP/1.1" 200 — 아주 긴 줄은 log 변형에서 접힌다 ${'x'.repeat(i * 3)}`,
-).join('\n');
+const logText = (lineCount: number) =>
+  Array.from(
+    { length: lineCount },
+    (_, i) =>
+      `2026-10-08 09:${String(i % 60).padStart(2, '0')}:00 INFO  uvicorn.access 127.0.0.1 "POST /mcp/ HTTP/1.1" 200 — 아주 긴 줄은 log 변형에서 접힌다 ${'x'.repeat((i % 40) * 3)}`,
+  ).join('\n');
+
+const LOG_TEXT = logText(40);
+const LOG_LINES_PER_READ = 5;
 
 const LONG_LINE = JSON.stringify({ description: '줄바꿈 없음 — 긴 줄은 상자 안에서 가로 스크롤한다. '.repeat(6) });
 
 export function CodeBlockSection() {
+  // 새로 읽을 때마다 줄이 늘고 followKey가 바뀐다(서버 로그 "새로 읽기") · 모달을 열 때마다 followKey가 바뀐다
+  const [readCount, setReadCount] = useState(0);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [openCount, setOpenCount] = useState(0);
   const ids = {
     json: useId(),
     xml: useId(),
@@ -150,6 +158,43 @@ export function CodeBlockSection() {
       <div className={styles.cell}>
         <p className={catalog.frameLabel}>log — 강조 없음 · 긴 줄 접음 · 최대 높이 56vh</p>
         <CodeBlock code={{ text: LOG_TEXT, lang: 'plain' }} variant="log" label="인사 도구 서버 로그" />
+      </div>
+
+      <h3 className={catalog.heading}>log followKey — 값이 바뀌면 맨 아래로(처음 값 포함)</h3>
+      <div className={styles.cell}>
+        <p className={catalog.frameLabel}>새로 읽기 — 줄이 늘고 키가 바뀌어 맨 아래로 내려간다(키가 같으면 그대로)</p>
+        <CodeBlock
+          code={{ text: logText(LOG_TEXT.split('\n').length + readCount * LOG_LINES_PER_READ), lang: 'plain' }}
+          variant="log"
+          followKey={readCount}
+          label="인사 도구 서버 로그 — 새로 읽기"
+        />
+        <div className={styles.actions}>
+          <Button size="sm" icon="refresh" onClick={() => setReadCount((count) => count + 1)}>
+            새로 읽기
+          </Button>
+        </div>
+      </div>
+      <div className={styles.cell}>
+        <p className={catalog.frameLabel}>닫힌 모달 안 — 열 때 키가 바뀌어 보이는 순간 맨 아래다</p>
+        <Button
+          size="sm"
+          onClick={() => {
+            setOpenCount((count) => count + 1);
+            setIsModalOpen(true);
+          }}
+        >
+          서버 로그 열기
+        </Button>
+        <Modal
+          open={isModalOpen}
+          onOpenChange={setIsModalOpen}
+          title="인사 도구 서버 로그"
+          size="wide"
+          cancelLabel="닫기"
+        >
+          <CodeBlock code={{ text: LOG_TEXT, lang: 'plain' }} variant="log" followKey={openCount} label="인사 도구 서버 로그" />
+        </Modal>
       </div>
     </div>
   );

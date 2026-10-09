@@ -1,4 +1,4 @@
-// 카탈로그 Input 절 — form(종류 text · password · number × 고정폭 × 폭 full · narrow × 기본 · 비활성) · cell(본문 · 고정폭 · 비활성) · setting(number 78 · time auto · 비활성)
+// 카탈로그 Input 절 — form(종류 text · password · number × 고정폭 × 폭 full · narrow × 기본 · 비활성) · cell(본문 · 고정폭 · 비활성) · setting(number 78 · time auto · 고정폭 · 읽기 전용 · 비활성)
 // 포커스에 form · setting은 테두리가 --primary가 되고, cell은 전역 링만이다
 import { useState, type ReactNode } from 'react';
 import { Field, Input } from '../../ui';
@@ -88,12 +88,19 @@ function SettingExamples() {
         <Demo initial="02:00">
           {(value, setValue) => <Input variant="setting" type="time" width="auto" value={value} onValueChange={setValue} aria-label="예약 시각" />}
         </Demo>
+        <Demo initial="http://10.20.9.30:8080/po">
+          {(value, setValue) => <Input variant="setting" mono value={value} onValueChange={setValue} aria-label="스테이징 주소" />}
+        </Demo>
+        <Demo initial="60">
+          {(value, setValue) => <Input variant="setting" type="number" readOnly value={value} onValueChange={setValue} aria-label="읽기 전용 예시" />}
+        </Demo>
         <Demo initial="60">
           {(value, setValue) => <Input variant="setting" type="number" disabled value={value} onValueChange={setValue} aria-label="비활성 예시" />}
         </Demo>
       </div>
       <p className={catalog.note}>
-        기본 폭 78(정책 숫자 칸), width=&quot;auto&quot;는 내용 폭(탐색 예약 시각). number · time의 조절 단추 · 펼침은 브라우저 기본이다.
+        기본 폭 78(정책 숫자 칸), width=&quot;auto&quot;는 내용 폭(탐색 예약 시각). number · time의 조절 단추 · 펼침은 브라우저 기본이다. mono는
+        스테이징 주소(옛 칸 그대로 78 · 오른쪽 정렬 — 긴 주소는 칸 안에서 밀린다), readOnly는 모양이 바뀌지 않는다.
       </p>
     </>
   );

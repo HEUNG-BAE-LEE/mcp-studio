@@ -1,4 +1,4 @@
-// 카탈로그 GitFileList 절 — 단계 셋 + 파일 넷(메서드 없음 "*" · @Deprecated · 메모 · 긴 파일 이름) · 단계 없음(pending) · 파일 없음 · enterLast.
+// 카탈로그 GitFileList 절 — 단계 셋 + 파일 넷(메서드 없음 "*" · @Deprecated · 메모 · 긴 파일 이름) · 단계 없음(pending) · 파일 없음 · detail 없는 단계 · enterLast.
 // 마지막 줄 등장 모션은 "파일 더하기"로 재현한다(새 줄만 한 번 떠오른다). 1100 한 열 접힘은 폭 전환으로 본다
 import { useState } from 'react';
 import { Box, Button, GitFileList, type GitFileItem, type GitStageItem } from '../../ui';
@@ -12,6 +12,12 @@ const STAGES: readonly GitStageItem[] = [
   { key: 'clone', title: '저장소 복제', detail: 'purchase-app, main 브랜치, 파일 412개' },
   { key: 'framework', title: '프레임워크 감지', detail: 'Spring MVC' },
   { key: 'mapper', title: '매퍼로 읽기, 쓰기 분류', detail: 'INSERT 6개, SELECT 24개, UPDATE 4개' },
+];
+
+// 보조 글(detail)이 없는 단계 — 서버 문장만 굵게 보인다
+const STAGES_NO_DETAIL: readonly GitStageItem[] = [
+  { key: 'clone', title: '저장소 복제', detail: 'purchase-app, main 브랜치, 파일 412개' },
+  { key: 'framework', title: '프레임워크 감지' },
 ];
 
 const FILES: readonly GitFileItem[] = [
@@ -104,6 +110,10 @@ export function GitFileListSection() {
       <h3 className={catalog.heading}>파일 없음(단계만)</h3>
       <Box title={TITLE} description={DESCRIPTION} padded>
         <GitFileList stages={STAGES} pending={PENDING} files={[]} />
+      </Box>
+      <h3 className={catalog.heading}>detail 없는 단계(둘째 단계)</h3>
+      <Box title={TITLE} description={DESCRIPTION} padded>
+        <GitFileList stages={STAGES_NO_DETAIL} pending={PENDING} files={[]} />
       </Box>
       <h3 className={catalog.heading}>enterLast — 마지막 줄 등장 모션</h3>
       <EnterDemo />
