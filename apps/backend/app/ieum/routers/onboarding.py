@@ -188,7 +188,10 @@ def rag_execution(pid: str, payload: Optional[dict] = Body(None)):
 
 def _doc_roots():
     """문서 채널(preview) 의 '서버 공유 폴더'. 저장소에 실제로 있는 파일만 내준다 — 목록에 없는 문서를 지어내지 않는다."""
-    repo = Path(os.environ.get("IEUM_REPO_ROOT") or Path(__file__).resolve().parents[5])
+    # 로컬은 저장소 루트(apps/backend/app/ieum/routers 의 5단계 위). 컨테이너(/app/app/ieum/...)는 그만큼 깊지 않다 —
+    # 그때는 파일이 없으니 404 로 끝난다
+    here = Path(__file__).resolve().parents
+    repo = Path(os.environ.get("IEUM_REPO_ROOT") or (here[5] if len(here) > 5 else here[-1]))
     return {"활용가이드": repo / "examples" / "documents", "정의서": repo / "apps" / "legacy-pps" / "assets"}
 
 
