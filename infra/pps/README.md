@@ -60,6 +60,9 @@ infra/pps/
 # 0. 상태 저장소 (최초 1회) — 이전 mcp-studio 저장소는 2026-09-21 삭제됐다
 az storage account create -n sttfstateieumpps -g $RG -l koreacentral \
   --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false
+# 상태 저장소 데이터 평면 권한(반영에 몇 분 걸린다 — 그동안 init 이 403 을 낸다)
+az role assignment create --assignee-object-id $(az ad signed-in-user show --query id -o tsv) --assignee-principal-type User \
+  --role "Storage Blob Data Contributor" --scope $(az storage account show -n sttfstateieumpps -g $RG --query id -o tsv)
 az storage container create -n tfstate --account-name sttfstateieumpps --auth-mode login
 cp backend.hcl.example backend.hcl && cp terraform.tfvars.example terraform.tfvars   # 공개키·허용 IP 채우기
 
@@ -75,17 +78,22 @@ az containerapp update -n $(terraform output -raw container_app_name) -g $RG \
   --image $ACR.azurecr.io/ieum-pps:$SHA
 
 # 3. 레거시 반입 (관리 채널)
-./deploy_legacy.sh --rg $RG --vm $(terraform output -raw legacy_vm_name) \
-  --kv $(terraform output -raw key_vault_name) --pg $(terraform output -raw pg_fqdn)
+#    비밀번호는 terraform 민감 출력에서 읽는다(Key Vault 는 공개 접근 금지 정책으로 이 PC 에서 닿지 않는다)
+./deploy_legacy.sh --rg $RG --vm $(terraform output -raw legacy_vm_name) --pg $(terraform output -raw pg_fqdn)
 
-# 4. 밀봉 — 레거시 인터넷 아웃바운드 차단, Key Vault 공개 접근 닫기
-terraform apply -var internet_lockdown=true -var kv_public_during_apply=false
+# 4. 밀봉 — 레거시 인터넷 아웃바운드 차단. 다시 apply 해도 풀리지 않게 terraform.tfvars 에 internet_lockdown = true 를 남긴다
+terraform apply -var internet_lockdown=true
 az vm run-command invoke -g $RG -n $(terraform output -raw legacy_vm_name) \
   --command-id RunShellScript --scripts "curl -s -m 5 https://www.google.com >/dev/null && echo OPEN || echo BLOCKED"   # 기대: BLOCKED
 ```
 
-이음 콘솔 → **한 번에 연결** → **시연용 값 채우기** 를 누르면 레거시 주소가 `10.70.1.10`, DB 가 사설 FQDN·읽기 전용 계정(`pps_reader`)으로 채워진다
-(`IEUM_DEMO_*` 환경변수).
+이음 콘솔 → 원본 시스템 → **한 번에 연결** 을 열면 위자드의 시연 값이 이 환경을 가리킨다(`IEUM_DEMO_*`, `PPS_LEGACY_DSN` 환경변수).
+클라우드 채널의 가상 VM 4대는 모두 레거시 VM(`10.70.1.10`)의 포트로 이어지고, DB 는 사설 FQDN · 읽기 전용 계정(`pps_reader`)이다.
+
+### 구독 정책과 맞춘 것 (2026-10-10 실제 apply 에서 확인)
+- **Key Vault 공개 접근 금지**(`RequestDisallowedByPolicy`) — 사설 엔드포인트 전용으로 만들고, 비밀값은 terraform 민감 출력으로만 넘긴다.
+- **VM 시스템 관리 ID 자동 부여**(Azure Policy · Defender 확장) — `ignore_changes = [identity]` 로 정책과 싸우지 않는다.
+- 배포된 묶음의 MCP 서버는 컨테이너 안 프로세스(`127.0.0.1:81xx`)라 Azure 밖에서 직접 부를 수 없다(이음 런타임의 현재 설계).
 
 ## 비용과 정리
 
