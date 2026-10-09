@@ -26,7 +26,7 @@ description: 이음 웹 콘솔(apps/ieum-web)의 토큰 · 린트 값 · 부품 
 ## 2. 문서 먼저
 - 문장은 지금 규칙만 쓴다 — 경위 · 날짜를 쓰지 않는다. 이음 원본과 다르게 정한 자리는 그 이유를 문장으로 적는다
 - 이름은 쓰는 곳의 뜻(색) · 단계(간격 · 높이 · 아이콘 · 반지름) · 그 부품(셸 · 층 이름 토큰)으로 짓는다. 값이 같아도 뜻이 다르면 별칭으로 합치지 않는다(핵심 규칙 2). 크기는 DESIGN의 단계 이름
-- 부품 명세는 COMPONENTS `공통 계약`의 절 형식(쓰는 곳 → 쓰지 않는 곳 → prop · 크기 → 상태 → 접근성 → 폭 → 카탈로그)과 prop 표(prop · 타입 · 기본값 · 뜻)를 따른다. 안쪽 여백 · 반지름 · 글자는 명세에 쓰지 않는다 — 부품 CSS에만 둔다
+- 부품 명세는 COMPONENTS `공통 계약`의 절 형식(쓰는 곳 → 쓰지 않는 곳 → prop · 크기 → 상태 → 접근성 → 폭 → 카탈로그)과 prop 표(prop · 타입 · 기본값 · 뜻)를 따른다. 안쪽 여백 · 반지름 · 글자는 명세에 새로 쓰지 않는다 — 부품 CSS에만 둔다. 기존 절에 이미 적힌 값(`Chip` · `Modal` · `Drawer` · `Dock` 등)은 옛 근거와 대조한 기록이라 지우지 않는다
 - 핵심 규칙 행을 더하거나 바꾸면 "막는 수단" 열을 실제 검사 이름(oxlint 규칙 · `check-*` 규칙)과 맞춘다. 검사가 아직 없으면 그 칸에 "(F/E 요청 중)"을 달고 화면 쪽에 요청한다
 - 규칙(색 다섯 뜻 · 웨이트 넷 · 높이 단계 · 빈 상태 넷)을 벗어나는 변형은 만들지 않는다. 필요하면 규칙을 바꾸는 제안으로 사용자에게 묻는다
 
@@ -46,6 +46,7 @@ src/ui/<Name>/
 - 모달 · 드로어는 `ui/layers` 위에 만든다 — `<dialog>.show()`로 열고 포커스를 가두지 않으며, 닫으면 연 컨트롤로 포커스를 돌린다(DESIGN `## 접근성` 층). 같은 `## 층` 묶음이라도 토스트는 Popover, 도크는 `<dialog>`가 아닌 고정 영역(`role="region"`)이고 열린 층을 `useOpenLayers`로 읽어 숨는다(COMPONENTS 각 절)
 - 리터럴 px는 바로 윗줄에 `/* check-css-disable-next-line literal-px -- <사유> */`(범위는 DESIGN Layout `리터럴 px 예외 주석`). `@media`는 `ALLOWED_MEDIA` 다섯 값만 쓰고, 폭 동작은 COMPONENTS 그 절의 `폭` 줄에 적는다
 - 아이콘은 DESIGN Iconography, 애니메이션은 DESIGN Motion(시간 토큰 — 모션 줄이기를 따른다), `aria-*` · 키보드는 DESIGN `## 접근성`
+- oxlint(`jsx-a11y` 등)를 꺼야 하는 자리는 `// oxlint-disable-next-line <규칙> -- <사유>` — 규칙 이름과 사유가 없으면 `lint:source`가 막는다(README `## 명령` `lint:oxlint` 행, 예 `ui/CodeBlock/CodeBlock.tsx`)
 - 이름이 바뀌면 타입이 옛 이름을 받지 않게 한다
 
 ## 5. 카탈로그
@@ -60,9 +61,11 @@ src/ui/<Name>/
 | 주인 | 파일 |
 |---|---|
 | 가이드(디자인) | `docs/DESIGN.md` · `docs/COMPONENTS.md` · `src/styles/tokens.css` · `src/styles/base.css` · `src/ui/**`(아이콘 포함) · `src/screens/_guide/**` · `src/app/shell/**` · `src/copy/status.ts` · `src/copy/shell.ts` · `lint/values.js` 값 표 · `CLAUDE.md` · `.claude/skills/**` · `README.md`의 명령 · 구조 · 시나리오 절 |
-| 화면(F/E) | 설정(`package.json` · `package-lock.json` · `vite.config.ts` · `tsconfig.json` · `.oxlintrc.json` · `.nvmrc` · `.npmrc` · `.gitignore` · `index.html`) · `lint/check-*.js` · `src/main.tsx` · `src/app/**`(`shell/` 제외) · `src/api/**` · `src/copy/errors.ts` · `src/copy/<menu>.ts` · `src/screens/<menu>/**`(`_guide` 제외) |
+| 화면(F/E) | 설정(`package.json` · `package-lock.json` · `vite.config.ts` · `tsconfig.json` · `.oxlintrc.json` · `.nvmrc` · `.npmrc` · `.gitignore` · `index.html`) · `lint/check-*.js` · `src/main.tsx` · `src/app/**`(`shell/` 제외) · `src/api/**` · `src/copy/**`(`status.ts` · `shell.ts` 제외 — 메뉴 파일 · `errors.ts` · `format.ts`와 메뉴에 속하지 않는 파일 포함) · `src/screens/<menu>/**`(`_guide` 제외) |
 
-여러 작업이 함께 쓰는 파일(`docs/*` · `tokens.css` · `base.css` · `src/ui/index.ts` · `_guide/sections*.tsx` · `copy/status.ts` · `api/types.ts` · `api/hooks/keys.ts` · `app/routes.tsx` · `app/nav.ts` · `app/store.ts` · `CLAUDE.md` · `.claude/skills/**` · `README.md` · `lint/**` · 설정)은 한 번에 한 작업자만 고친다. 병렬 작업자는 더할 줄을 결과에 적어 돌려주고 한 명이 한꺼번에 넣는다.
+여러 작업이 함께 쓰는 파일(`docs/*` · `tokens.css` · `base.css` · `src/ui/index.ts` · `_guide/sections*.tsx` · `copy/status.ts` · `api/types.ts` · `api/hooks/keys.ts` · `app/routes.tsx` · `app/nav.ts` · `app/store.ts` · `CLAUDE.md` · `.claude/skills/**` · `README.md` · `lint/**` · 설정)은 한 번에 한 작업자만 고친다. 병렬 작업자는 더할 줄을 결과에 적어 돌려주고 한 명이 한꺼번에 넣는다. 혼자 일하더라도 그 파일에 다른 작업의 커밋 안 된 변경이 보이면 다른 작업자가 고치는 중이다 — 내 줄만이라도 손대지 않고, 더할 줄을 보고에 적거나 사용자에게 묻는다.
+
+`app/nav.ts` `ScreenId`와 `copy/shell.ts`(`SCREEN_LABEL` · `PAGE_DESCRIPTION` · `MenuScreenId`)는 한 변경으로 들어가야 typecheck가 선다. 새 화면 id는 화면 쪽 한 작업자가 둘을 함께 넣고, `copy/shell.ts` 문장은 가이드 쪽이 정해 준 그대로 쓴다.
 
 ## 8. 확인 · 보고
 ui-review `## 완료 확인`을 따른다 — 추가로 `/ieum/_guide`의 바뀐 절을 다섯 폭 · 라이트 · 다크로 보고, 쓰는 화면을 본다. 보고: 종류 · 바꾼 규칙 한 줄 · 옮긴 쓰임 수.

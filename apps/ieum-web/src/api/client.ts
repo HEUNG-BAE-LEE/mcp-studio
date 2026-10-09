@@ -67,7 +67,8 @@ export async function request<T>(method: Method, path: string, body?: unknown, o
   }
   const text = await readText(res, label);
   const json = parseJson(text);
-  // 성공은 HTTP 2xx이면서 봉투 resultCode가 400 미만일 때만. 그 밖은 모두 실패(옛 api.js:14와 같은 조건)
+  // 성공은 HTTP 2xx이면서 봉투(resultCode · resultMsg)이고 resultCode가 400 미만일 때만. 옛 api.js:14보다 엄하다 — 옛은 JSON이 아니거나
+  // resultCode ≥ 400일 때만 실패로 봐 봉투가 아닌 200 JSON을 성공(데이터 없음)으로 넘겼다. /api/ieum은 모두 봉투라(responses.py) 지금은 닿지 않는다
   if (!res.ok || !isEnvelope(json) || json.resultCode >= HTTP_ERROR_FROM) throw failureOf(res.status, text, json);
   const data = json.resultData as T;
   return import.meta.env.DEV ? (scenarioData(method, path, data) as T) : data;

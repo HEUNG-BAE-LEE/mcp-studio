@@ -43,7 +43,7 @@ export const PLAYGROUND = Object.freeze({
   reset: '초기화',
   // js/menu/playground.js:52-54,65-66,98,100,110 — 대화
   chat: {
-    /** 대화 목록 이름 — 상자 제목("도구 호출")과 겹치지 않게 새로 둔 이름(옛 목록에는 이름이 없었다) */
+    /** 새 문구: 대화 목록 이름 — 옛 목록에는 이름이 없었다. 상자 제목("도구 호출")과 겹치지 않게 둔다 */
     logLabel: '대화',
     placeholder: '자연어로 질문하면 Claude가 도구를 골라 실행합니다',
     inputAria: '질문 입력',

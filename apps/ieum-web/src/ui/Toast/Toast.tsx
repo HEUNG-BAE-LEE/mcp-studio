@@ -1,4 +1,4 @@
-// Toast — 이음 toast()(js/common/overlay.js:26-33) · #toast(index.html:46) · .toast(css/console.css:421-425). 앱에 하나 — 앱 층이 셸 옆에 붙인다.
+// Toast — 이음 toast()(js/common/overlay.js:26-33) · #toast(index.html:46) · .toast(css/console.css:421-426). 앱에 하나 — 앱 층이 셸 옆에 붙인다.
 // 한 칸 덮어쓰기: 새 id가 오면 내용을 바로 바꾸고 표시 시간(--toast-duration)을 처음부터 다시 센다(옛 clearTimeout 뒤 다시).
 // 끝나면 onDone(id) — 저장소가 open만 끄고 글자는 남겨 사라지는 전환 동안 비지 않는다. 닫기는 타이머다(애니메이션 끝 이벤트가 아니다 —
 // 모션 줄이기의 animation: none에서도 닫힌다). 마운트할 때 Popover(manual)로 한 번 최상층에 올리고 내리지 않는다 — 보임은 data-open

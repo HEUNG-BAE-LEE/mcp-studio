@@ -61,8 +61,9 @@
   text-align: center;
 }
 
+/* 아이콘 아래 한 줄 띄움 — 옛은 아이콘 뒤 <br>이 세로 flex 칸에서 빈 한 줄 항목이 되어(js/menu/discovery.js:213) 글이 한 줄 더 내려왔다 */
 .blank-icon {
-  margin-bottom: var(--s-1-5);
+  margin-bottom: calc(var(--s-1-5) + 1lh);
   color: var(--capture-icon);
 }
 

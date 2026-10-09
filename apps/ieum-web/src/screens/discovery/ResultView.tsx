@@ -89,7 +89,7 @@ export function ResultView({ job }: Readonly<{ job: JobData }>) {
           onValueChange={pickFilter}
         />
         <ToolbarSpacer />
-        <HelpText>{K.rowHint}</HelpText>
+        <HelpText variant="inline">{K.rowHint}</HelpText>
       </Toolbar>
       <ResultTable rows={resultRowsOf(apis, filter)} status={job.status} selection={selection} onOpen={openApi} />
       {isRegistered ? null : <SelectionDock jobId={job.id} selection={selection} />}

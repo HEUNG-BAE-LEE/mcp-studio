@@ -53,7 +53,8 @@ export function StepIndicatorSection() {
     <div className={catalog.section}>
       <p className={catalog.note}>
         가로 번호 원 단계. 단계는 &lt;ol&gt;이고 current · run 단계에 aria-current=&quot;step&quot;. 완료 ✓는 check 아이콘(장식)이다. 단계 사이 선은
-        남은 폭을 나누고, 좁으면 줄을 바꾼다. 760 이하에서 job은 선을 숨기고 줄 간격을 넓힌다.
+        단계와 나란한 항목으로 남은 폭을 나눈다 — 좁으면 단계만 다음 줄로 내려가고 선은 앞 줄 끝에 남는다. 760 이하에서 job은 선을
+        숨기고 줄 간격을 넓힌다.
       </p>
       <h3 className={catalog.heading}>variant=wizard — 원 22 · todo · current · done</h3>
       {WIZARD_CASES.map((current) => (

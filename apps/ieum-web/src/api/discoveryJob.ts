@@ -93,6 +93,11 @@ const durationToMs = (sec: number): number => Math.round(sec * MS_PER_SEC);
 
 const withMsTime = (event: JobEvent): JobEvent => ({ ...event, t: durationToMs(event.t) });
 
+// 응답에 빠져 온 칸의 빈 값(mergeJob) — 옛 `|| {}` · `|| []`
+const NO_EVENTS: readonly JobEvent[] = Object.freeze([]);
+const NO_STATS: JobStats = Object.freeze({});
+const NO_NOTES: JobView['notes'] = Object.freeze([]);
+
 type Marks = Pick<JobTrail, 'pageUrl' | 'hl' | 'hlKind' | 'shot'>;
 
 /** 화면 위치 · 강조 상자(옛 discApply :124-126,129) — 화면 탐색 이벤트만 바꾼다 */
@@ -154,22 +159,24 @@ function applyEvents(trail: JobTrail, events: readonly JobEvent[]): JobTrail {
 
 /**
  * 응답 하나를 이전 값에 더한다(옛 discSync). 처음이면 prev 없이 부른다.
- * 필드는 응답 값으로 덮고, 새 이벤트(seq > after)만 쌓고, seq를 응답 값으로 둔다. 시각은 여기서 ms로 바꾼다
+ * 필드는 응답 값으로 덮고, 새 이벤트(seq > after)만 쌓고, seq를 응답 값으로 둔다. 시각은 여기서 ms로 바꾼다.
+ * 이름 · 이벤트 · 통계 · 메모가 비어 오면 옛처럼 빈 값으로 둔다(옛 :134,136 `r.stats || {}` · `r.events || []` · `r.notes || []`, 이름은 esc(null) = '' :257).
+ * 서버(jobs.py view)는 늘 채워 보내지만, 옛이 견디던 응답에서 화면이 멈추거나 "null"을 그리지 않게 받는 자리에서 맞춘다
  */
 export function mergeJob(prev: JobData | undefined, view: JobView): JobData {
-  const trail = applyEvents(prev ?? EMPTY_TRAIL, view.events.map(withMsTime));
+  const trail = applyEvents(prev ?? EMPTY_TRAIL, (view.events ?? NO_EVENTS).map(withMsTime));
   return {
     ...trail,
     id: view.id,
-    name: view.name,
+    name: view.name ?? '',
     status: view.status,
     stage: view.stage,
     act: view.act ?? '',
     opts: view.opts,
-    stats: view.stats,
+    stats: view.stats ?? NO_STATS,
     elapsed: durationToMs(view.elapsed),
     error: view.error,
-    notes: view.notes,
+    notes: view.notes ?? NO_NOTES,
     registered: view.registered,
     sourceId: view.sourceId,
     browser: view.browser,

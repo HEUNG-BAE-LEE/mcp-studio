@@ -97,7 +97,8 @@ export function coerceArgs(tool: ParamsOf, values: ArgValues): CoerceResult {
 
 /**
  * 칸 모양(옛 pgArgsHTML). 코드표가 있으면 AI 값, 없으면 enum(빈 배열이어도 고르기 — 빈 옵션 하나뿐), 그 밖은 타입으로.
- * 옵션 글은 옛 esc(o)와 같이 String(o ?? '')다. 저장된 값이 옵션에 없으면 화면은 빈 옵션을 보이고 호출에는 그 값이 실린다(옛 그대로)
+ * 옵션 글은 옛 esc(o)와 같이 String(o ?? '')다. 저장된 값이 옵션에 없으면 화면은 빈 옵션을 보이고 호출에는 그 값이 실린다(옛 그대로).
+ * 옵션 값은 그 글 원문이다 — 옛 <option>은 value 속성이 없어 HTML이 앞뒤 · 겹친 공백을 다듬은 값을 보냈다(js/menu/playground.js:28,118)
  */
 export function inputKind(p: ToolParam): ArgInput {
   const options = p.codes && p.codes.length > 0 ? p.codes.map((c) => c[1]) : p.enum;

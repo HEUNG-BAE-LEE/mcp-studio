@@ -1,4 +1,4 @@
-/* EmptyState — 그릇마다 이음 모양 그대로. 문장 안 굵은 글은 --text-muted · 500(css/console.css:368) */
+/* EmptyState — 그릇마다 이음 모양 그대로. 문장 안 굵은 글은 --text-muted · 500(css/console.css:368) — 표 안 한 행만 옛 표 규칙대로 색을 물려받고 브라우저 기본 굵기다(td.empty b 규칙 없음 — css/console.css:212) */
 
 /* table — 표 안 한 행(css/console.css:201,212). 옛 td.empty는 .utbl td의 아래 선을 그대로 물려받는다 — 이 칸은 표 부품의 칸 클래스가 없으니 여기서 긋는다 */
 .cell {
@@ -74,7 +74,11 @@
   color: var(--line-control);
 }
 
-.cell b,
+/* 표 안 한 행 — 색은 칸(--text-faint)을 물려받고 굵기는 옛 브라우저 기본 bold(css/console.css:212 — td.empty b 규칙 없음) */
+.cell b {
+  font-weight: var(--fw-bold);
+}
+
 .panel b,
 .hero-text b,
 .inline b,

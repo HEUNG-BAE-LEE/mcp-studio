@@ -370,7 +370,10 @@ export type LogDetail = LogRow & Readonly<{ trace: CallTrace | null }>;
 
 /** 화면이 읽는 KPI만. 서버의 sources · sourcesOk · publishedTools · pendingTools는 화면이 원본 · 도구 조회로 직접 센다 */
 export type DashboardKpi = Readonly<{
-  /** 최근 24시간 호출 수 */
+  /**
+   * 최근 24시간 호출 수(확인 대기 제외). 서버가 보관 로그(최근 300건 — apps/backend/app/ieum/repositories/logs.py
+   * MAX_ROWS)에서 센다 — 24시간 안에 300건이 넘으면 적게 센다. 아래 증감 · 성공률 · 평균 시간도 같은 보관 로그에서 낸다
+   */
   calls24h: number;
   /** 전일 대비 증감 %(소수 첫째 자리, 음수 가능). 전일 기록이 없으면 null */
   callsDeltaPct: number | null;

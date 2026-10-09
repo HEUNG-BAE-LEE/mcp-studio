@@ -1,7 +1,9 @@
 // StepIndicator — 가로로 늘어선 번호 원 단계. 연결 마법사(wizard — 이음 .wz-steps · .ws css/console.css:813-819)와
 // 탐색 작업 단계(job — .dstep · .ds :938-947,981-982)는 같은 가로 단계라 한 부품 두 변형이다.
-// 단계는 <ol>이고 current · run 단계는 aria-current="step"(옛은 클래스뿐 — 보이지 않는 ARIA 보강). 완료 아이콘은 장식이다
-import type { ReactNode } from 'react';
+// 단계는 <ol>이고 current · run 단계는 aria-current="step"(옛은 클래스뿐 — 보이지 않는 ARIA 보강). 완료 아이콘은 장식이다.
+// 단계 사이 선은 단계와 나란한 <li>다(옛 .ws-line · .ds-line이 단계 옆 형제 항목 — js/menu/sources.js:103 · discovery.js:179).
+// 그래야 좁은 폭에서 단계만 다음 줄로 내려가고 선은 앞 줄 끝에 남는다. 선 <li>는 목록 항목으로 세지 않게 숨긴다
+import { Fragment, type ReactNode } from 'react';
 import { Icon } from '../icons/Icon';
 import { cx } from '../lib/cx';
 import styles from './StepIndicator.module.css';
@@ -58,14 +60,13 @@ export function StepIndicator({ variant, steps, className }: StepIndicatorProps)
     <ol className={cx(styles.root, className)} data-variant={variant}>
       {views.map((step, index) => (
         // 단계는 순서 · 개수가 고정된 목록이라 순번을 키로 쓴다
-        <li
-          key={index}
-          className={styles.step}
-          data-state={step.state}
-          aria-current={isCurrent(step.state) ? 'step' : undefined}
-        >
-          {index > 0 && <span className={styles.line} aria-hidden="true" />}
-          <span className={styles.body}>
+        <Fragment key={index}>
+          {index > 0 && <li className={styles.line} role="presentation" aria-hidden="true" />}
+          <li
+            className={styles.step}
+            data-state={step.state}
+            aria-current={isCurrent(step.state) ? 'step' : undefined}
+          >
             <span className={styles.mark}>{markOf(step.state, index)}</span>
             {step.label}
             {step.note !== undefined && (
@@ -74,8 +75,8 @@ export function StepIndicator({ variant, steps, className }: StepIndicatorProps)
                 <small className={styles.note}>{step.note}</small>
               </>
             )}
-          </span>
-        </li>
+          </li>
+        </Fragment>
       ))}
     </ol>
   );

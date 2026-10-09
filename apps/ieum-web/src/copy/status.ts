@@ -1,5 +1,7 @@
 // 상태 값 → 라벨 · 색의 뜻 lookup. 화면은 상태 맵을 따로 두지 않고 여기서만 찾는다(docs/DESIGN.md Copy `상태 값`)
-// 모르는 값은 값 그대로 + mute로 그리고 개발 콘솔에 값마다 한 번만 경고한다 — 렌더를 멈추지 않는다
+// 모르는 값은 값 그대로 + mute로 그리고 개발 콘솔에 값마다 한 번만 경고한다 — 렌더를 멈추지 않는다.
+// 값이 비어 오면(null · undefined — 서버 응답이 어긋날 때) 글자 "null" 대신 값 없음 표기(DESIGN 핵심 규칙 6)
+import { NONE } from './format';
 
 /** 상태 색의 뜻 — StatusChip · StatusDot · Tag가 같이 쓴다(DESIGN Colors) */
 export type StatusTone = 'ok' | 'warn' | 'danger' | 'info' | 'mute';
@@ -141,24 +143,28 @@ export function warnOnce(message: string): void {
 
 const hasOwn = (record: object, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);
 
-/** 표에서 값을 찾는다. 모르는 값은 값 그대로 + mute + known false + 개발 콘솔 경고 한 번 — statusOf · netTagOf가 같은 폴백을 쓴다 */
+/** 표에서 값을 찾는다. 모르는 값은 값 그대로(비어 오면 값 없음 표기) + mute + known false + 개발 콘솔 경고 한 번 — statusOf · netTagOf가 같은 폴백을 쓴다 */
 function lookup<Tone extends NetTagTone>(
   table: Readonly<Record<string, Entry<Tone>>>,
   kind: string,
-  value: string,
+  value: string | null | undefined,
 ): Readonly<{ label: string; tone: Tone | 'mute'; known: boolean }> {
+  if (value === null || value === undefined) {
+    warnOnce(`비어 있는 ${kind} 상태 값: ${String(value)}`);
+    return { label: NONE, tone: 'mute', known: false };
+  }
   const entry = hasOwn(table, value) ? table[value] : undefined;
   if (entry) return { label: entry.label, tone: entry.tone, known: true };
   warnOnce(`알 수 없는 ${kind} 상태 값: ${value}`);
   return { label: value, tone: 'mute', known: false };
 }
 
-/** 자원 · 값으로 라벨 · tone을 찾는다. 모르는 값은 값 그대로 + mute + known false */
-export function statusOf(resource: StatusResource, value: string): StatusInfo {
+/** 자원 · 값으로 라벨 · tone을 찾는다. 모르는 값은 값 그대로(비어 오면 값 없음 표기) + mute + known false */
+export function statusOf(resource: StatusResource, value: string | null | undefined): StatusInfo {
   return lookup<StatusTone>(TABLE[resource], resource, value);
 }
 
 /** 네트워크 기록 태그 값으로 라벨 · tone을 찾는다. 폴백은 statusOf와 같다 — 모르는 값은 값 그대로 + mute + known false */
-export function netTagOf(value: string): NetTagInfo {
+export function netTagOf(value: string | null | undefined): NetTagInfo {
   return lookup<NetTagTone>(NET_TAG_TABLE, 'netTag', value);
 }

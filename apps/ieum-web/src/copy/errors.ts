@@ -1,5 +1,5 @@
 // 데이터 층(api/client.ts)이 만드는 실패 문구. 봉투 실패에 서버 resultMsg가 있으면 그것을 그대로 쓰고, 그 밖은 아래 문구다
-/** fetch 예외(status 0) — 옛 콘솔에 없던 새 문구다. 옛 콘솔은 브라우저 영문 원문(Failed to fetch)을 그대로 보였다 */
+/** 새 문구: fetch 예외(status 0) — 옛 콘솔은 브라우저 영문 원문(Failed to fetch)을 그대로 보였다 */
 export const NETWORK_FAILED = '서버에 연결하지 못했습니다.';
 /** 봉투가 아닌 응답({detail} · 422 detail 배열 · 빈 본문 · text/plain) · resultMsg가 빈 봉투 실패 — 옛 js/common/api.js:14 문구 그대로 */
 export const statusFailed = (status: number) => `요청에 실패했습니다 (${status})`;

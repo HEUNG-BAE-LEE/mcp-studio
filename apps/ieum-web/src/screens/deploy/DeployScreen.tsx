@@ -7,7 +7,7 @@
 //       CodeBlock) · TwoColumn(IncludedTools = CompactTable / PolicySummary = Box policy · SettingRow) · AccessKeys = CompactTable). 1100 이하는 목록이 위이고
 //       묶음을 골라도 상세로 스크롤하지 않는다(옛 그대로). 층(모달)은 앱 층의 층 호스트가 그린다(app/layers · app/deploy/useDeployModalContent)
 // 조회: 화면 useDeployScreenToolsets(4초 폴링 — 모달이 열린 동안 · 숨은 탭에서 멈춤, 들어올 때마다 받기) · useTools(저장본) · useSources ·
-//       영역 useAccessKeys(키 상자 — 들어올 때마다 받기). 쓰기: 배포(useDeployToolset) · 서버 시작(useStartToolset)은 이 화면에 하나씩 둔다 —
+//       영역 useAccessKeysOnEntry(이 화면이 들어올 때 받기 — 키 상자는 useAccessKeys로 그 값만 그려 빈 상태 ↔ 상세로 다시 붙어도 다시 받지 않는다). 쓰기: 배포(useDeployToolset) · 서버 시작(useStartToolset)은 이 화면에 하나씩 둔다 —
 //       요청 상태를 묶음 id로 읽어 창을 다시 열거나 묶음 · 메뉴를 오가도 진행이 이어진다. 그 밖의 쓰기는 층 호스트가 쥔다
 // 상태: 첫 로딩 = 본문 비움 + aria-busy · 화면 실패 = 본문 자리 실패 상자 · 폴링 실패 = 표시 없이 이전 값 · 묶음 0개 = 빈 상태(키 상자는 그대로) ·
 //       키 상자 첫 로딩 · 실패는 그 상자 안
@@ -27,6 +27,7 @@ import { screenGate } from '../../app/screenGate';
 import { DEPLOY } from '../../copy/deploy';
 import { PAGE_DESCRIPTION, SCREEN_LABEL } from '../../copy/shell';
 import { Button, EmptyState, PageHead, ScreenState, SplitLayout } from '@/ui';
+import { useAccessKeysOnEntry } from '../../api/hooks/useAccessKeys';
 import { AccessKeys } from './AccessKeys';
 import { ToolsetDetail } from './ToolsetDetail';
 import { ToolsetList } from './ToolsetList';
@@ -104,6 +105,7 @@ function DeployBody({ toolsets, tools, sources }: DeployBodyProps) {
 }
 
 export function DeployScreen() {
+  useAccessKeysOnEntry();
   const toolsets = useDeployScreenToolsets();
   const tools = useTools();
   const sources = useSources();

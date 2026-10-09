@@ -11,10 +11,17 @@ import { keys } from './keys';
 /** 발급 · 폐기 쓰기도 이 경로 아래다(app/deploy/useKeyMutations) */
 export const KEYS_PATH = '/deploy/keys/';
 
+const accessKeysQuery = {
+  queryKey: keys.accessKeys(),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.get<readonly AccessKey[]>(KEYS_PATH, { region: true, signal }),
+};
+
+/** 배포 화면이 들어올 때 한 번 받는 관찰자 — 화면 최상위에서 부른다(키 상자가 빈 상태 ↔ 상세로 다시 붙어도 다시 받지 않게) */
+export function useAccessKeysOnEntry(): void {
+  useQuery({ ...accessKeysQuery, refetchOnMount: 'always' });
+}
+
+/** 키 상자가 그리는 값 — 붙을 때 다시 받지 않는다(받는 때는 useAccessKeysOnEntry · 쓰기 뒤 무효화) */
 export function useAccessKeys() {
-  return useQuery({
-    queryKey: keys.accessKeys(),
-    queryFn: ({ signal }) => api.get<readonly AccessKey[]>(KEYS_PATH, { region: true, signal }),
-    refetchOnMount: 'always',
-  });
+  return useQuery({ ...accessKeysQuery, refetchOnMount: false });
 }

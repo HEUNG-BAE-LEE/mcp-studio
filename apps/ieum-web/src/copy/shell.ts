@@ -12,7 +12,7 @@ export const SCREEN_LABEL: Readonly<Record<ScreenId, string>> = {
 };
 export const PENDING_NOTE = '이 화면은 옮기는 중입니다. 옛 콘솔에서 확인해 주세요.';
 
-// 라우트 오류 화면(app/RouteError) — 화면을 그리다 예외가 났을 때
+// 새 문구: 라우트 오류 화면(app/RouteError) — 화면을 그리다 예외가 났을 때. 옛 콘솔은 렌더 예외면 화면이 멈춘 채 남았다
 export const ROUTE_ERROR = Object.freeze({
   title: '화면을 표시하지 못했습니다.',
   body: '잠시 뒤 다시 시도하거나 대시보드로 돌아가 주세요.',

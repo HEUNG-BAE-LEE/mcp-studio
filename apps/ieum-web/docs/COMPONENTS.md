@@ -9,6 +9,7 @@
   - `쓰는 곳` → `쓰지 않는 곳` → `prop · 크기` → `상태` → `접근성` → `폭` → `카탈로그`
   - 쓰는 곳 · 쓰지 않는 곳 · 상태 · 접근성은 문장이라 마침표로 끝내고, prop 줄 · 하위 bullet · 폭 · 카탈로그는 마침표 없이 끝낸다
   - 쓰지 않는 곳은 "자리 → 대신 쓸 부품" 꼴로 적는다
+  - 쓰는 곳은 이음 근거 목록이고 닫힌 목록이 아니다 — 같은 성격의 자리면 쓴다(쓰지 않는 곳에 걸리지 않을 때). 같은 성격은 담는 내용의 종류(요약 칸 · 수치 띠 · 목록 등)와 그릇의 종류(드로어 · 화면 머리 아래 · 상세 열 · 상자 등)가 둘 다 쓰는 곳의 한 자리와 같다는 뜻이다. 하나라도 다른 새 자리(예: 화면 머리 아래 수치 띠를 상세 열 안에)는 `design-change`로 쓰는 곳을 먼저 더한다(요청이 서기 전 그 자리는 `new-screen` `## 2`)
 - **prop 표** — `prop · 크기` 아래에 표 하나를 둔다. 열은 `prop` · `타입` · `기본값` · `뜻`. 타입이 유니온이면 값을 ` · `로 늘어놓는다. 기본값 `필수`는 반드시 주는 prop, `없음`은 생략 가능 · 기본값 없음이다. 표 아래 하위 bullet에 함께 내보내는 상수 · 함수와 CSS 이음새를 적는다
 - **이름** — prop 이름은 이 문서와 같다. 같은 생각은 같은 이름이다 — `variant` = 모양 · `tone` = 색의 뜻(DESIGN Colors 다섯 뜻의 하나, 또는 무채색 `mute` — `Tag`만 무채색 `neutral`을 더 받는다) · `size` = 단계 이름 · `kind` = 종류 · `container` = 그릇 · `description` = 제목 곁 보조 글 · `label` = 보이지 않는 이름(`aria-label`)이거나 칸 · 칩의 글자. 이벤트는 `on<동작>`(`onSelect` · `onClose`), 제어 값은 `value` + `onValueChange`, 층은 `open` + `onOpenChange`
 - **크기** — 단계 이름으로만 받는다(숫자를 받지 않는다 — typecheck가 막는다). 컨트롤 높이는 DESIGN Layout `컨트롤 높이 단계`(`xs` · `sm` · `sm-plus` · `md` · `lg` · `xl`, 토큰 `--h-*`), 아이콘은 DESIGN Iconography. 부품 고유 치수(원 · 점 · 로고 · 태그 높이 등)는 단계가 아니라 그 절에 적는다(예외 — `Logo` `size` · `Table` · `CompactTable` `minWidth`는 고유 치수 숫자)
@@ -73,13 +74,13 @@
 - **카탈로그** `IconButton`
 
 ### LinkButton
-- **쓰는 곳** 링크 모양 글자 — 다른 메뉴로 가기(상자 머리 "호출 로그 보기" `js/menu/dashboard.js:47`, 빈 상태 문장 안 "원본 시스템" `js/menu/studio.js:120` · `js/menu/playground.js:36`), 화면 안 동작 글자(변환 스튜디오 "AI로 다시 쓰기" `js/menu/studio.js:96` · "탐색 근거 보기" `:63`, 탐색 마법사 "시연용 값 채우기" `js/menu/discovery.js:42`), 표 안 도구 id(`js/menu/deploy.js:87`), 탐색 작업 머리 뒤로(`js/menu/discovery.js:256`)(이음 `.link` `css/console.css:184`).
+- **쓰는 곳** 링크 모양 글자 — 다른 메뉴로 가기(상자 머리 "호출 로그 보기" `js/menu/dashboard.js:47`, 빈 상태 문장 안 "원본 시스템" `js/menu/studio.js:120` · `js/menu/playground.js:36`), 화면 안 동작 글자(변환 스튜디오 "AI로 다시 쓰기" `js/menu/studio.js:96` · "탐색 근거 보기" `:63`, 탐색 마법사 "시연용 값 채우기" `js/menu/discovery.js:42`), 표 안 도구 id(`js/menu/deploy.js:87`), 탐색 작업 머리 뒤로(`js/menu/discovery.js:256`)(이음 `.link` `css/console.css:184`). 옛에 없는 하위 화면으로 가는 링크 — 부모 상자 머리, 상자가 없으면 화면 머리 `PageHead` `actions`(DESIGN 이식 기간 추가).
 - **쓰지 않는 곳** 테두리 · 필이 있는 액션 · 알림 줄 작은 버튼 → `Button`(`size="sm"`) · 도크 "추천만 선택"(어두운 바탕 `.dock .clr` — `js/menu/discovery.js:316`) → `DockLinkButton` · LNB 메뉴 → `셸`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
-  | `to` | `To`(react-router) | 없음 | 있으면 이동 링크 — 라우터 `Link`(`<a href>`). 주소는 쓰는 곳이 앱 층 도우미로 만든다 |
+  | `to` | `To`(react-router) | 없음 | 있으면 이동 링크 — 라우터 `Link`(`<a href>`). 주소는 쓰는 곳이 앱 층 도우미로 만들고 화면에 경로 글을 쓰지 않는다 — 메뉴는 `useMenuHref(menu)`(`app/lastPath.ts`)에 `onClick={() => refreshMenu(menu)}`를 함께 단다(DESIGN 이식 기간 허용 차이 렌더 — `screens/dashboard/RankBox.tsx`), 그 밖은 `app/<도메인>/links.ts`(`jobPath` · `toolLink` · `toolsetPath`) |
   | `state` | unknown | 없음 | `to`일 때만(버튼이면 타입이 막는다). 라우터 `Link`의 `state`로 그대로 넘긴다 — 도착 화면이 읽는 표지(배포 포함된 도구 id → 스튜디오 도착 표지). 앱 층 도우미가 `to`와 함께 만든다 |
   | `onClick` | 마우스 이벤트 처리기 | `to`가 없으면 필수 | `to`가 없으면 `<button type="button">`의 동작. `to`와 함께면 이동 전에 부른다(메뉴 다시 받기 등) |
   | `disabled` | boolean | false | 버튼일 때만(`to`와 함께 쓰지 않는다 — 타입이 막는다). 조건이 안 맞아 못 누르는 것 — native라 포커스를 받지 않는다 |
@@ -426,7 +427,7 @@
   |---|---|---|---|
   | `variant` | `SelectableListItemVariant` — `id` · `name` | 필수 | 첫 줄 글자 · 항목 간격 — 아래 표 |
   | `title` | ReactNode | 필수 | 첫 줄 왼쪽 |
-  | `status` | ReactNode | 없음 | 첫 줄 오른쪽 칩(`ToolStatusChip size="sm"` · 배포 상태 칩) |
+  | `status` | ReactNode | 없음 | 첫 줄 오른쪽 칩 — `id`는 축소 칩(`ToolStatusChip size="sm"` — 옛 `.tool-item .stt` `:628-629`), `name`은 기본 크기(배포 상태 칩 — 옛 `.ts-item`에 축소 규칙이 없다) |
   | `description` | ReactNode | 필수 | 둘째 줄(`--text-muted` 작은 글) — 쓰기 표지(`ModeTag size="sm"`)는 이 안에 글 뒤 공백(`{' '}`)으로 띄워 둔다(옛 `.tt` 줄 흐름 그대로) |
   | `selected` | boolean | 필수 | 고른 항목 |
   | `onSelect` | `() => void` | 필수 | 누름 — 이미 고른 항목이어도 부른다 |
@@ -522,7 +523,7 @@
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
   | `tone` | `StatusTone` — `ok` · `warn` · `danger` · `info` · `mute` | 필수 | 색의 뜻(DESIGN Colors ③). `info` = `--primary-bg` + `--primary-ink`, `mute` = 모르는 값 · 제외(`--surface-sub` + `--text-faint` + 1px `--line-divider`) |
-  | `size` | `StatusChipSize` — `md` · `sm` | `md` | `sm` = 목록 항목 안 축소(점도 작게 — `css/console.css:628-629`) |
+  | `size` | `StatusChipSize` — `md` · `sm` | `md` | `sm` = `SelectableListItem` `id` 목록 항목 안 축소(점도 작게 — `css/console.css:628-629`). 표 칸에는 쓰지 않는다 |
   | `children` | ReactNode | 필수 | 라벨 — `statusOf`의 `label` |
   - 점은 글자 앞 장식(`currentColor` — `css/console.css:512`). 알약 높이는 고유 치수(22 · `sm` 18)
   - 상태 lookup — `statusOf(resource, value)` → `{ label, tone, known }`(`copy/status`, 계약은 DESIGN Copy `상태 값`). 모르는 값은 `label` = 값 그대로 · `tone` = `mute` · `known` = false이고 개발 콘솔에 값마다 한 번 경고한다. 자원은 `log` · `source` · `tool` · `job` · `recommend` · `toolset` · `key`다. 배포 묶음(`toolset`)의 값은 초안이면 `draft`, 아니면 서버 상태(`running` · `starting` · `stopped` · `crashed`)이고 고르는 것은 쓰는 곳이다 — 서버가 초안에 주는 `none`은 목록에 없다. 액세스 키(`key`)는 서버의 켜짐 값을 `on` · `off`로 바꿔 찾는다
@@ -616,15 +617,15 @@
 - **카탈로그** `InlineCode`
 
 ### HelpText
-- **쓰는 곳** 표 · 상자 · 칸 아래 흐린 안내 한두 줄 — 호출 로그 표 아래(`js/menu/logs.js:27`) · 원본 연결 · 테스트 실행 · 배포 안내(`hint` — 이음 `.tab-hint` `css/console.css:289-290`), 미리보기 · 근거 아래 메모(`note` — 스튜디오 미리보기 `js/menu/studio.js:53,55` · 탐색 근거 코드 상자 · 마스킹 메모 `js/menu/discovery.js:342,346` · 브라우저 없음 안내 `:60`, 이음 `.pv-note` `css/console.css:730`).
+- **쓰는 곳** 표 · 상자 · 칸 아래 흐린 안내 한두 줄 — 호출 로그 표 아래(`js/menu/logs.js:27`) · 원본 연결 · 테스트 실행 · 배포 안내(`hint` — 이음 `.tab-hint` `css/console.css:289-290`), 미리보기 · 근거 아래 메모(`note` — 스튜디오 미리보기 `js/menu/studio.js:53,55` · 탐색 근거 코드 상자 · 마스킹 메모 `js/menu/discovery.js:342,346` · 브라우저 없음 안내 `:60`, 이음 `.pv-note` `css/console.css:730`), 툴바 줄 안 안내(`inline` — 탐색 결과 표 위 `js/menu/discovery.js:314`, 이음 `.muted` 인라인 12.5px `css/console.css:507`).
 - **쓰지 않는 곳** 아이콘 · 테두리가 있는 안내 → `Notice` · 빈 자리 → `EmptyState` · 대시보드 빈 상태 큰 상자의 보조 문장 → `EmptyState size="hero"` · 칸 묶음 아래 들여쓴 안내 → `FieldNote`.
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
-  | `variant` | `HelpTextVariant` — `hint` · `note` | `hint` | `hint` = 표 · 상자 · 칸 아래 안내(설명 글 행간), `note` = 미리보기 · 근거 아래 메모(옛 `.pv-note` — 행간은 둘레를 물려받고 위 `--s-2`를 부품이 가진다) |
+  | `variant` | `HelpTextVariant` — `hint` · `note` · `inline` | `hint` | `hint` = 표 · 상자 · 칸 아래 안내(설명 글 행간), `note` = 미리보기 · 근거 아래 메모(옛 `.pv-note` — 행간은 둘레를 물려받고 위 `--s-2`를 부품이 가진다), `inline` = 툴바 줄 안 안내(옛 `.muted` — 행간은 둘레를 물려받고 여백 없음) |
   | `size` | `HelpTextSize` — `sm` · `md` | `sm` | `hint`만 — 글자 단계. `md`는 변환 스튜디오 원본 선택 줄(옛 인라인 13px — `js/menu/studio.js:129`) |
-  | `children` | ReactNode | 필수 | 문장 — 강조 `<b>`는 `hint`에서 한 단계 진한 `--text-muted`, `note`에서 색 그대로 굵게(옛 `.pv-note`에 `<b>` 규칙이 없다) |
+  | `children` | ReactNode | 필수 | 문장 — 강조 `<b>`는 `hint`에서 한 단계 진한 `--text-muted`, `note` · `inline`에서 색 그대로 굵게(옛 `.pv-note` · `.muted`에 `<b>` 규칙이 없다) |
   | `className` | string | 없음 | 배치(바깥 여백)만 — 옛 `.tab-hint`의 위아래 여백은 쓰는 곳이 주고, `note`의 위 여백(브라우저 없음 안내는 위 0 · 아래 8 — 옛 인라인 `js/menu/discovery.js:60`)도 덮을 수 있다 |
   - `<p>` · `--text-faint` · 작은 글자. 앞 아이콘(브라우저 없음 안내의 `alert` `sm`) · `InlineCode`는 쓰는 곳이 문장 안에 둔다
   - 함께 내보내는 것(`@/ui`) — 타입 `HelpTextProps` · `HelpTextSize` · `HelpTextVariant`
@@ -696,12 +697,12 @@
   | `done` | `--primary-bg` · 1px `--primary-line`(`check` 아이콘 `xs` · `heavy` `--primary`) | `wizard` `--text-faint`(그대로) · `job` `--text-muted` | `.ws.done em` `:818` · `.ds.done` `:944-945` |
   | `job` `skip` | `wait`과 같은 원(글자 "–") · 단계 전체 `--opacity-skipped` | `note` | `.ds.skip` `:946` |
   | `job` `fail` | `--danger-bg` · 1px `--danger`(글자 "!" `--danger`) | `--danger` | `.ds.fail` `:981-982` |
-  - 원 지름은 고유 치수(`wizard` 22 · `job` 24). 단계 사이는 남은 폭을 나누는 1px `--line-control` 선이고, 좁으면 줄을 바꾼다
+  - 원 지름은 고유 치수(`wizard` 22 · `job` 24). 단계 사이는 남은 폭을 나누는 1px `--line-control` 선이다. 선은 단계와 나란한 항목이라(옛 `.ws-line` · `.ds-line`) 좁으면 단계만 다음 줄로 내려가고 선은 앞 줄 끝에 남는다
   - 지난 단계 ✓ 글리프는 `check` 아이콘이다(DESIGN 이식 기간 허용 차이 — 글리프 대신 아이콘)
   - 적힌 prop만 받는다
   - 함께 내보내는 것(`@/ui`) — 타입 `StepIndicatorProps` · `StepIndicatorVariant` · `WizardStep` · `JobStep`
 - **상태** 없다(표시) — 단계 상태는 데이터다.
-- **접근성** 단계는 `<ol>`이고 번호 원은 보이는 글자다. `current` · `run` 단계는 `aria-current="step"`이다(옛은 클래스뿐 — 보이지 않는 ARIA 보강). 완료 아이콘은 장식이다 — 완료는 현재 단계 앞이라는 순서로 읽힌다(새 낱말 없음).
+- **접근성** 단계는 `<ol>`이고 번호 원은 보이는 글자다. 사이 선 `<li>`는 목록 항목으로 세지 않는다(`role="presentation"` · `aria-hidden`). `current` · `run` 단계는 `aria-current="step"`이다(옛은 클래스뿐 — 보이지 않는 ARIA 보강). 완료 아이콘은 장식이다 — 완료는 현재 단계 앞이라는 순서로 읽힌다(새 낱말 없음).
 - **폭**
   - 760: `job` 사이 선을 숨기고 줄 간격을 넓힌다(`css/console.css:1062-1063`)
 - **카탈로그** `StepIndicator`
@@ -782,7 +783,7 @@
   |---|---|---|---|
   | `kind` | `EmptyKind` — `first` · `filtered` · `section` · `idle` | 필수 | 종류(`data-kind`). 모양은 그릇이 정하고 종류는 문구 · 행동을 정한다 |
   | `container` | `EmptyContainer` — `table` · `panel` · `inline` · `area` | 필수 | 그릇(`data-container`) — 아래 표 |
-  | `children` | ReactNode | 필수 | 안내 문장(`copy/`). 다른 메뉴로 가는 링크는 문장 안 `LinkButton`이다(`js/menu/studio.js:120`) |
+  | `children` | ReactNode | 필수 | 안내 문장(`copy/`). 다른 메뉴로 가는 링크는 문장 안 `LinkButton`이고 메뉴 링크 규칙(`LinkButton` `to` — `useMenuHref` + `refreshMenu`)을 따른다(`js/menu/studio.js:120` · `screens/studio/StudioScreen.tsx`) |
   | `colSpan` | number | `table`에서 필수 | 표 열 수 — `<tr><td colSpan>`를 그린다 |
   | `size` | `EmptyPanelSize` — `md` · `sm` · `hero` | `md` | `panel`만. `hero`는 대시보드 큰 상자 — `kind="first"`에서만 |
   | `title` · `action` | ReactNode | `hero`에서 필수 | 큰 상자 제목(h3 — 크기는 적지 않고 h3 기본 1.17em을 물려받는다, 옛 `js/menu/dashboard.js:61` 인라인 h3와 같음) · 주 버튼(`Button variant="primary"`) |
@@ -848,7 +849,7 @@
 
 ### Notice
 - **쓰는 곳** 아이콘이 붙은 안내 · 경고 상자 — 결과의 일부인 실패(로그 상세 위 서버 문장 `danger` `js/menu/logs.js:45`, 변환 과정 실패 단계 `warn` `js/common/convert.js:183` — 같은 `note`를 두 자리에 그리는 것은 옛 그대로), 원본 연결 안내(`js/menu/sources.js:71,79`), 스튜디오 알림 띠(`js/menu/studio.js:59-66` — 상태별 알림 띠는 따로 부품을 두지 않고 이 부품 조합이다: 굵은 첫 문장 `<b>` · `InlineCode` · `LinkButton` · `action` 작은 버튼), 배포 서버 상태 알림(`danger` · `mute` · `info` — `js/menu/deploy.js:22-28`) · 배포 확인 안내 · 진행(`js/menu/deploy.js:108,150-153`), 탐색 안내(`js/menu/discovery.js:42,268,304,339-348`) · 탐색 실시간 "지금 하는 일" 줄(`js/menu/discovery.js:227-229` — `variant="line"`)(이음 `.notice` `css/console.css:270-272,643-650`, `.dact` `:948-951`).
-- **쓰지 않는 곳** 요청 실패를 그 자리에 → `FailureBlock` · `ErrorBlock` · 버튼 한 번의 결과 → `Toast` · 표 · 상자 아래 한 줄 안내(배포 서버가 이 컴퓨터에서만 열려 있다는 안내 포함 — `js/menu/deploy.js:29`) → `HelpText` · 대시보드 확인 항목 줄 → 그 화면 조각(대시보드).
+- **쓰지 않는 곳** 요청 실패를 그 자리에 → `FailureBlock` · `ErrorBlock` · 누를 것이 없는 버튼 한 번의 결과 → `Toast` · 표 · 상자 아래 한 줄 안내(배포 서버가 이 컴퓨터에서만 열려 있다는 안내 포함 — `js/menu/deploy.js:29`) → `HelpText` · 대시보드 확인 항목 줄 → 그 화면 조각(대시보드).
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -879,11 +880,11 @@
 
 ## 층
 
-층 공통 — `ui/layers`(안쪽 전용 — `@/ui`로 내보내는 것은 `closeAllLayers` · `useOpenLayers` 둘). 쓰는 곳은 DESIGN 쌓임 · 접근성 `층`. `Toast` · `Dock`은 층 목록 밖이다(Esc · `closeAllLayers` · 포커스 복귀와 상관없고 `useOpenLayers`에 잡히지 않는다 — `Dock`은 그 값을 읽기만 한다).
+층 공통 — `ui/layers`(안쪽 전용 — `@/ui`로 내보내는 것은 `closeAllLayers` · `useOpenLayers` 둘). 쓰는 곳은 DESIGN 쌓임 · 접근성 `층`. `Toast` · `Dock`은 층 목록 밖이다(Esc · `closeAllLayers` · 층 스택의 포커스 복귀와 상관없고 `useOpenLayers`에 잡히지 않는다 — `Dock`은 그 값을 읽기만 한다). `Dock` 안의 컨트롤이 사라질 때의 대체 자리는 쓰는 화면이 맡는다 — 아래 대체 순서 함수는 층 안쪽 전용이다(DESIGN `## 접근성` 사라지는 컨트롤). `Toast`에는 컨트롤이 없다.
 - **여는 법** — 기본 `<dialog>`를 `show()`로 연다(top layer를 쓰지 않는다). 포커스를 가두지 않는다 — Tab이 층 밖으로 나간다(이음 그대로 — 닫은 뒤 포커스 복귀만 더했다)
 - **가림막 · z** — 층마다 `Overlay`를 함께 그리고 z는 DESIGN 쌓임 짝(`--z-modal-scrim` · `--z-modal`, 드로어는 `--z-drawer-scrim` · `--z-drawer`)이다. 층과 가림막은 `document.body`로 포털한다(셸의 쌓임 맥락 밖)
 - **Esc** — 문서의 keydown 하나가 열린 층 중 맨 위 층만 닫는다. 맨 위는 연 순서가 아니라 z 순서다 — 모달 종류가 드로어 위(DESIGN 쌓임)이고, 같은 종류면 나중에 연 것이다(이음 `js/main.js:55` — 모달이 보이면 모달만). 모달이 열린 채(가두지 않으므로) Tab으로 닿은 버튼이 드로어를 열어도 드로어는 모달 아래에 깔리고 Esc는 모달을 먼저, 한 번 더 누르면 드로어를 닫는다. 한글 조합 중 Esc는 무시한다. 맨 위 층이 `dismissible=false`면 아무것도 하지 않는다
-- **포커스 복귀** — 열 때 포커스가 있던 요소를 기억했다가 닫을 때 돌려준다. 그 요소가 사라졌으면(알림이 사라짐 · 행 삭제 · 마법사 완료 뒤 이동) 대체 자리로 — ① 쓰는 곳의 `returnFocusFallback()`(없거나 null이면 다음) ② 지금 화면의 `PageHead` 제목(h2 `tabIndex=-1` — PageHead 절) ③ 셸 본문 `<main>`(`tabIndex=-1` — 셸 절). 이 대체 순서는 두 경우에 모두 탄다 — (a) 연 컨트롤이 사라졌을 때, (b) 열 때 층 밖에 포커스된 요소가 없었을 때(포커스가 `body`에 있었음 — 닫은 뒤에도 `body`에 남지 않게 한다). 셋 다 없으면 옮기지 않는다(하나라도 있으면 그곳으로 옮긴다 — 카탈로그의 `<main>`은 `tabIndex`가 없어 `focus()`가 아무것도 하지 않으므로 포커스가 그대로다). 닫는 순간 포커스가 층 안에 있거나 사라졌을 때만 옮긴다 — 층 밖으로 Tab해 간 포커스는 빼앗지 않는다. 열린 채 다른 대상을 열면(`contentKey` — Modal · Drawer) 기억할 요소를 다시 잡는다
+- **포커스 복귀** — 열 때 포커스가 있던 요소를 기억했다가 닫을 때 돌려준다. 그 요소가 사라졌으면(알림이 사라짐 · 행 삭제 · 마법사 완료 뒤 이동) 대체 자리로 — ① 쓰는 곳의 `returnFocusFallback()`(없거나 null이면 다음) ② 지금 화면의 `PageHead` 제목(h2 `tabIndex=-1` — PageHead 절) ③ 셸 본문 `<main>`(`tabIndex=-1` — 셸 절). 이 대체 순서는 두 경우에 모두 탄다 — (a) 연 컨트롤이 사라졌을 때, (b) 열 때 층 밖에 포커스된 요소가 없었을 때(포커스가 `body`에 있었음 — 닫은 뒤에도 `body`에 남지 않게 한다). 셋 다 없으면 옮기지 않는다. 카탈로그는 모든 절을 한 페이지에 그리므로 ②는 `PageHead` 절의 제목이 받는다 — 카탈로그에서 보이지 않는 것은 ③뿐이다(카탈로그 `<main>`은 `tabIndex`가 없다). 닫는 순간 포커스가 층 안에 있거나 사라졌을 때만 옮긴다 — 층 밖으로 Tab해 간 포커스는 빼앗지 않는다. 열린 채 다른 대상을 열면(`contentKey` — Modal · Drawer) 기억할 요소를 다시 잡는다
 - **닫힌 층의 내용** — `Modal` · `Drawer`는 `open=false`여도 `children`을 그린다(닫힌 `<dialog>`라 보이지 않고 포커스를 받지 않는다). 닫힘 전환 동안 보이는 내용은 쓰는 곳이 남겨 둔다 — 닫으며 `children`을 비우면 빈 층이 사라지는 모습이 보인다. 다시 열 때 새 상태(마법사 입력)는 쓰는 곳이 새 `key`로 만든다(옛 `closeDrawer`가 마법사 상태를 버렸다 — `js/common/overlay.js:12`). 한 번만 보이는 값은 예외다 — 닫을 때 쓰는 곳이 비운다(`Modal` 한 번만 보이는 값)
 - **요청 중 닫기** — `dismissible` 기본 true라 요청 중에도 ✕ · 취소 · Esc · 가림막으로 닫힌다(옛 그대로). 요청은 이어지고 결과 안내는 요청 쪽(훅)이 토스트로 한다(DESIGN 이식 기간 고침). 요청 중 잠그는 것은 확인 버튼(`Modal` `confirmDisabled`) · 발 버튼(`Button` `pending`)뿐이다 — 잠긴 동안 포커스는 그 버튼에 남는다
 - **층 호스트** — 여러 화면이 여는 층(연결 마법사 · 재인증 · 원본 삭제 확인 · 탐색 기록 삭제 확인 · 키 결과 · 탐색 근거)은 앱 층의 층 호스트(`app/LayerHost`)가 드로어 한 칸 · 모달 한 칸으로 그린다(이음 `#drawer` · `#modal` 한 칸씩 — `index.html:43,45`). 이 부품들의 계약 — 칸마다 `Drawer` · `Modal` 하나를 늘 그려 두고 내용 · prop만 바꾼다 · 같은 칸에 다른 대상을 열면 `contentKey`를 바꾼다(재인증 A → 재인증 B, 재인증 → 원본 삭제 확인) · `onOpenChange(false)`에서 칸의 `open`만 끄고 내용은 다음 열기까지 남긴다(키 결과는 비운다) · 드로어 칸과 모달 칸은 함께 열릴 수 있고 모달이 위다(z · Esc 맨 위 층) · `closeAllLayers()`는 층마다 `onOpenChange(false)`를 부르므로 호스트 저장소가 닫힘을 받는다. 한 화면만 여는 층(호출 로그 상세)은 그 화면이 직접 그린다
@@ -940,7 +941,7 @@
 
 ### Drawer
 - **쓰는 곳** 오른쪽에서 밀려오는 상세 · 여러 단계 — 호출 로그 상세(`js/menu/logs.js:35-48`) · 원본 연결 마법사(`js/menu/sources.js:101`) · 탐색 마법사 · 탐색 근거(`js/menu/discovery.js:83,329`)(이음 `openDrawer` `js/common/overlay.js:4-14`, `.drawer` · `.d-head` · `.d-body` · `.d-foot` `css/console.css:242-254`, `index.html:43`).
-- **쓰지 않는 곳** 짧은 확인 · 입력 → `Modal` · 결과 알림 → `Toast` · 본문 옆 상세(목록 + 상세) → `SplitLayout`.
+- **쓰지 않는 곳** 짧은 확인 · 입력 → `Modal` · 결과 알림 → `Toast` · 하나씩 골라 자세히 보거나 고치는 목록의 상세(목록 + 상세) → `SplitLayout` — 드로어 상세는 행끼리 숫자를 견주는 표의 한 행을 보는 자리다(DESIGN 이식 기간 추가 기본값).
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -970,8 +971,8 @@
 - **카탈로그** `Drawer`
 
 ### Toast
-- **쓰는 곳** 버튼 한 번 · 요청 하나의 결과 알림 — 완료(기본) · 경고(쓰기 실패 원문 · 입력 거절 — 호출 로그 상세 조회 실패 `js/menu/logs.js:31`) · 안내(info)(이음 `toast()` `js/common/overlay.js:26-33`, `#toast` `index.html:46`, `.toast` `css/console.css:421-425`). 앱에 하나다 — 앱 층 `RootLayout`이 셸 옆에 붙이고, 띄우기는 컴포넌트 밖 `toast()` · `toast.warn()` · `toast.info()`(`app/toast`)가 한다.
-- **쓰지 않는 곳** 그 자리에 남아야 하는 실패 → `FailureBlock` · `ErrorBlock` · 확인이 필요한 일 → `Modal` · 계속 보이는 안내 → `Notice` · 화면이 토스트를 직접 그리기 → `toast()`를 부른다(부품을 두 번 두지 않는다).
+- **쓰는 곳** 버튼 한 번 · 요청 하나의 결과 알림 — 완료(기본) · 경고(쓰기 실패 원문 · 입력 거절 — 호출 로그 상세 조회 실패 `js/menu/logs.js:31`) · 안내(info)(이음 `toast()` `js/common/overlay.js:26-33`, `#toast` `index.html:46`, `.toast` `css/console.css:421-426`). 앱에 하나다 — 앱 층 `RootLayout`이 셸 옆에 붙이고, 띄우기는 컴포넌트 밖 `toast()` · `toast.warn()` · `toast.info()`(`app/toast`)가 한다.
+- **쓰지 않는 곳** 그 자리에 남아야 하는 실패 → `FailureBlock` · `ErrorBlock` · 확인이 필요한 일 → `Modal` · 계속 보이는 안내 → `Notice` · 누를 것이 있는 결과 알림 → 화면 안 `Notice`(`action`) — 토스트는 동작을 갖지 않는다(옛에 쓰이는 동작 토스트가 없고, 표시 시간 `--toast-duration` 뒤 사라져 키보드로 닿기 어렵다 — DESIGN `## 미정`) · 화면이 토스트를 직접 그리기 → `toast()`를 부른다(부품을 두 번 두지 않는다).
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -982,6 +983,7 @@
   - 표시 시간 — `--toast-duration`을 `getComputedStyle`로 읽는다. 운영 빌드가 `2800ms`를 `2.8s`로 줄여 쓰므로 `ms` · `s`를 모두 해석한다. 모션 줄이기에서도 같은 시간이다(DESIGN Motion — 토큰을 0으로 다시 정의하지 않는다). 읽지 못하면 개발 콘솔에 한 번 경고하고 다음 토스트가 덮을 때까지 둔다(값을 코드에 따로 두지 않는다). 닫기는 타이머다 — 애니메이션 끝 이벤트로 닫지 않는다
   - 종류 → 아이콘(`lg` · 선 `bold`): `default` → `check`(`--inverse-ok`) · `warn` → `alert`(`--inverse-warn`) · `info` → `info`(`--inverse-primary`)(`js/common/overlay.js:30` · `css/console.css:423-425`). 바탕 `--toast-bg` · 글자 `--on-fill` · `--shadow-float`
   - 글자는 텍스트로만 그리고 줄바꿈을 지킨다(`white-space: pre-wrap` — 서버 원문 여러 줄). 옛은 HTML을 해석했다(DESIGN 이식 기간 허용 차이 — 렌더)
+  - 동작 버튼은 없다. 옛 `.t-undo`(`:426` — `--inverse-primary` 굵은 글자 버튼 · 밑줄 없음)는 쓰이지 않는 옛 모양이라 옮기지 않는다
   - 자리 — 화면 위 가운데(안전 영역 아래 `--s-4-5`), 최대 폭은 화면 폭 − 양옆 `--s-4`. 나타남 · 사라짐은 `--m-fade` 페이드 + 조금 위에서 내려옴(`css/console.css:421-422`)
   - 층 위 — Popover(`popover="manual"`)로 마운트할 때 한 번 최상층에 올리고 내리지 않는다(보임은 `data-open`). 모달 · 드로어(`show()` — 최상층이 아니다)보다 늘 위다(옛 z 모달 51 < 토스트 60). DESIGN 쌓임의 `--z-toast` 자리
   - 함께 내보내는 것(`@/ui`) — 타입 `ToastProps`. 저장소 · `toast()` · `dismissToast` · `useToastItem` · 타입 `ToastItem`은 `app/toast`(앱 층)
@@ -1009,7 +1011,7 @@
   | `DockSpacer` | 없음 | 도크가 마지막 행을 가리지 않게 표 아래 두는 빈 칸(고유 높이 70 — 옛 `js/menu/discovery.js:317`). 도크가 없는 등록 완료에도 두므로 도크와 따로 그린다 |
   - 줄 — `--inverse-surface` · `--on-fill` 글자 · `--r-xl` · `--shadow-float` · 가로로 놓고 좁으면 접는다(사이 `--s-2-5`). 화면 아래에서 `--s-5-5` + 안전 영역 위, 폭은 내용 폭이고 최대 폭은 화면 폭 − 양옆 `--s-3`. 가로 가운데는 좌우 0 + 자동 바깥 여백으로 잡는다 — 옛 왼쪽 50% + 옮기기는 폭이 화면 절반으로 줄어 761~840px에서 일찍 접혔다(DESIGN 이식 기간 고침)
   - 그 자리에 그린다(포털 없음 — 옛 `.dock`도 본문 안이라 Tab 순서가 표 뒤다). 위치는 화면 고정 · 쌓임 `--z-dock`(드로어 가림막 아래)
-  - 층 목록 밖이다 — Esc · `closeAllLayers` · 포커스 복귀와 상관없고, 쓰는 화면이 그리고 그 화면과 함께 사라진다
+  - 층 목록 밖이다 — Esc · `closeAllLayers` · 층 스택의 포커스 복귀와 상관없고, 쓰는 화면이 그리고 그 화면과 함께 사라진다
   - 드로어가 열려 있는 동안(`useOpenLayers().drawer`)은 `open`과 상관없이 보이지 않는다 — 모션 없이 `visibility`만(옛 `body.d-open .dock` `css/console.css:225`). 부품이 직접 읽는다
   - 함께 내보내는 것(`@/ui`) — `DockButton` · `DockLinkButton` · `DockSeparator` · `DockSpacer` · 타입 `DockProps` · `DockButtonProps` · `DockLinkButtonProps`
 - **상태** `data-open`, 드로어가 열려 있으면 `data-covered`. `DockButton` hover는 `--inverse-fill-hover`다(`css/console.css:234`). disabled · `pending`은 공통(`--opacity-disabled` — 옛 .45, DESIGN 이식 기간 허용 차이 값 정규화)이고 hover 모양이 바뀌지 않는다. `DockLinkButton` hover는 글자 `--on-fill`이다(`css/console.css:229`).
@@ -1021,7 +1023,7 @@
 ## 레이아웃
 
 ### PageHead
-- **쓰는 곳** 화면 맨 위 제목 + 설명 — 메뉴 화면 여섯(이음 `pageHead(id)` `js/common/state.js:21`, `css/console.css:109-111`). 빈 상태 화면(스튜디오 · 테스트 실행 · 배포)도 같은 머리를 쓴다(`js/menu/studio.js:120`). 탐색 작업 화면 머리(뒤로 링크 + 상태 칩 + 설명 + 오른쪽 버튼 — `js/menu/discovery.js:251-258`, `.page-head .stt` `css/console.css:937`).
+- **쓰는 곳** 화면 맨 위 제목 + 설명 — LNB 메뉴 화면(`TOP_NAV`)(이음 `pageHead(id)` `js/common/state.js:21`, `css/console.css:109-111`). 빈 상태 화면(스튜디오 · 테스트 실행 · 배포)도 같은 머리를 쓴다(`js/menu/studio.js:120`). 탐색 작업 화면 머리(뒤로 링크 + 상태 칩 + 설명 + 오른쪽 버튼 — `js/menu/discovery.js:251-258`, `.page-head .stt` `css/console.css:937`).
 - **쓰지 않는 곳** 상자 제목 → `Box` · 상자 없는 절 제목 → `SectionTitle`.
 - **prop · 크기**
 
@@ -1031,7 +1033,7 @@
   | `description` | ReactNode | 없음 | 설명 한 줄 — 메뉴 화면은 `copy/shell` `PAGE_DESCRIPTION` |
   | `back` | ReactNode | 없음 | 머리 줄 위 뒤로 링크(`LinkButton variant="back"`) — 제목 줄과 사이 `--s-1-5`(옛 인라인 `margin-top: 6px` `js/menu/discovery.js:257`) |
   | `status` | ReactNode | 없음 | 제목 바로 뒤 상태 칩 — 줄이 글자 바닥선에 맞춰져도 칩은 세로 가운데(옛 `.page-head .stt` `css/console.css:937`) |
-  | `actions` | ReactNode | 없음 | 줄 오른쪽 끝 버튼 — 설명 뒤 남은 폭을 비운다(옛 인라인 `span.sp` `flex: 1` `js/menu/discovery.js:257`). 좁아 줄이 접히면 비운 칸(기준 폭 0)은 앞줄에 남고 버튼만 다음 줄 왼쪽으로 내려갈 수 있다(옛 그대로) |
+  | `actions` | ReactNode | 없음 | 줄 오른쪽 끝 버튼, 또는 하위 화면으로 가는 `LinkButton`(DESIGN 이식 기간 추가) — 설명 뒤 남은 폭을 비운다(옛 인라인 `span.sp` `flex: 1` `js/menu/discovery.js:257`). 좁아 줄이 접히면 비운 칸(기준 폭 0)은 앞줄에 남고 버튼만 다음 줄 왼쪽으로 내려갈 수 있다(옛 그대로) |
   | `className` | string | 없음 | 배치(바깥 여백)만. `back`이 있으면 뒤로 링크와 머리 줄을 함께 감싼 바깥에 붙는다 |
   - 제목과 설명은 글자 바닥선에 맞춰 한 줄에 놓이고 좁으면 설명이 아래로 접힌다. 아래에 1px `--line-divider`. 줄 차림은 제목 · 상태 · 설명 · (남은 폭) · 동작이다
   - 제목 h2는 `tabIndex=-1`과 표지 `data-page-title`을 가진다 — 층 포커스 복귀의 기본 대체 자리다(층 공통). Tab 순서에는 들지 않는다
@@ -1134,7 +1136,7 @@
 
 ### SplitLayout
 - **쓰는 곳** 왼쪽 고정 열 + 오른쪽 상세 — 변환 스튜디오(도구 목록 + 도구 상세 — `js/menu/studio.js:133`) · AI 연결 배포(묶음 목록 + 묶음 상세 — `js/menu/deploy.js:59`) · 테스트 실행(도구 호출 + 결과 — `js/menu/playground.js:40`)(이음 `.studio` · `.dp` · `.pg` `css/console.css:614,733,784,875,877`).
-- **쓰지 않는 곳** 비율로 나누는 화면 두 열 → `TwoColumn` · 칸 안 두 칸 → `FieldPair` · 행을 누르면 여는 상세 → `Drawer`.
+- **쓰지 않는 곳** 비율로 나누는 화면 두 열 → `TwoColumn` · 칸 안 두 칸 → `FieldPair` · 행끼리 숫자를 견주는 목록의 상세 → `Table` 행을 누르면 여는 `Drawer`(표 + 드로어 — 호출 로그, DESIGN 이식 기간 추가 기본값).
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -1297,12 +1299,12 @@
   | `ScopeModal` `open` · `onOpenChange` | 층 공통 | 필수 | 1차 개발 범위 모달 |
   - 레일 — 어두운 세로 줄(`--w-rail` · `--rail-bg`), 버튼 `--h-rail-btn` 정사각 · 아이콘 `shell`. 현재(게이트웨이 관리)는 `--rail-active-bg` + 왼쪽 `--primary` 막대. 화면 높이로 문서에 붙어 있다(`position: sticky`)
   - GNB — 흰 줄(`--h-gnb` · 좌우 `--gnb-pad-x`). 로고 `Logo` 26 + "이음" + 표지(`--primary` 바탕), 회사 버튼(`--h-sm-plus` 알약 · `--primary` 점), "1차 개발 범위"(`--h-sm` 알약 · `--primary-bg` · `--primary-line` · `--primary-ink`), 장식 아이콘 doc · bell · help(`shell`, 포커스 없음), 아바타(32 원 · `--avatar-from` → `--avatar-to` · `--avatar-ink`) + 사용자명
-  - LNB — 파란 띠(`--brand-band` · 높이 `--h-lnb` · 좌우 `--lnb-pad-x`). 제목 h1 + 메뉴 링크 여섯(`--on-fill-muted`, 현재는 `--on-fill` 굵게 + 아래 흰 막대). 자간은 `--tracking-control` — 옛 메뉴는 `<button>`이라 `body` 자간을 물려받지 않았다(폭을 옛과 같게). 링크 주소는 `useMenuHref(id)`(메뉴별 마지막 주소). 누르면 `refreshMenu(id)`(`app/menuRefresh.ts`)로 그 메뉴의 자료를 다시 받는다 — 같은 메뉴를 다시 눌러도 갱신된다(옛 nav `js/main.js:29`)
+  - LNB — 파란 띠(`--brand-band` · 높이 `--h-lnb` · 좌우 `--lnb-pad-x`). 제목 h1 + 메뉴 링크(`TOP_NAV` 순서 · `--on-fill-muted`, 현재는 `--on-fill` 굵게 + 아래 흰 막대). 자간은 `--tracking-control` — 옛 메뉴는 `<button>`이라 `body` 자간을 물려받지 않았다(폭을 옛과 같게). 링크 주소는 `useMenuHref(id)`(메뉴별 마지막 주소). 누르면 `refreshMenu(id)`(`app/menuRefresh.ts`)로 그 메뉴의 자료를 다시 받는다 — 같은 메뉴를 다시 눌러도 갱신된다(옛 nav `js/main.js:29`)
   - 본문 `<main>` — 안쪽 `--content-pad-top` · `--content-pad-x` · `--content-pad-bottom`. 스크롤은 문서가 한다. `tabIndex=-1`이다 — 층 포커스 복귀의 마지막 대체 자리(화면 제목이 없을 때 — 층 공통)이고 Tab 순서에는 들지 않는다
   - 셸 조회 — `useSources` 하나(GNB의 workspace)를 `ScreenState`로 감싼다: 첫 로딩은 본문을 비우고 `aria-busy`, 실패는 본문 자리 실패 상자(레일 · GNB · LNB는 남는다)
   - 1차 개발 범위 모달 — `Modal size="wide"` · 확인 없음 · 취소 자리 "닫기". 본문 두 열 — 머리(아이콘 `check` `md` `bold` · `layers` `md`) + 목록. 문구는 `copy/shell` `SCOPE`(서버 사실과 다른 옛 문구 그대로 — DESIGN `## 이식 기간` 보존)
 - **상태** 현재 메뉴 링크 · 현재 레일 버튼은 `aria-current="page"`다. hover — 레일 버튼 `--on-fill-hover` 바탕 · `--on-fill` 아이콘, "1차 개발 범위" 테두리 `--primary`, 메뉴 글자 `--on-fill`.
-- **접근성** 랜드마크는 `aside`(서비스 메뉴) · `header` · `nav`(이음 관리 메뉴) · `main`이다(`index.html:14,24,37,39`). 동작 없는 레일 버튼 · 회사 버튼도 버튼 그대로다. LNB 링크의 포커스 링은 흰색 · 안쪽이다. 메뉴를 옮기면 열린 층을 닫는다(`closeAllLayers`). 좁은 폭에서 메뉴 줄은 가로 스크롤하고, 메뉴가 바뀌면 현재 메뉴가 보이게 줄만 옮긴다(`js/main.js:15` — 문서는 세로로 움직이지 않는다).
+- **접근성** 랜드마크는 `aside`(서비스 메뉴) · `header` · `nav`(이음 관리 메뉴) · `main`이다(`index.html:14,24,37,39`). 동작 없는 레일 버튼 · 회사 버튼도 버튼 그대로다. LNB 링크의 포커스 링은 흰색 · 안쪽이다. 메뉴를 옮기면 열린 층을 닫는다(`closeAllLayers`). 메뉴 줄은 모든 폭에서 가로 스크롤이고 스크롤바가 없다 — 넘치면 760 위에서도 보이지 않게 잘린다(옛 `css/console.css:100-101` 그대로). 메뉴가 바뀌면 현재 메뉴가 보이게 줄만 옮긴다(`js/main.js:15` — 문서는 세로로 움직이지 않는다). 메뉴를 더할 때는 1024 · 1280에서 메뉴 줄에 남는 폭을 본다.
 - **폭**
   - 1680: 본문 위 · 좌우 `--content-pad-x-1680`
   - 1500: 메뉴 글자 한 단계 작게 · 좌우 좁게(`css/console.css:861-862`)
@@ -1314,7 +1316,7 @@
 
 ### KeyValueGrid
 - **쓰는 곳** 드로어 안 요약 칸(작은 키 + 값) — 호출 로그 상세 6칸(`js/menu/logs.js:37-44`) · 탐색 근거(`js/menu/discovery.js:331-338`)(이음 `.lsum` `css/console.css:804-809`).
-- **쓰지 않는 곳** 화면 수치 띠 → `StatStrip` · 목록 → `Table` · 입력 폼 → `Field`.
+- **쓰지 않는 곳** 화면 수치 띠 → `StatStrip` · 목록 → `Table` · 입력 폼 → `Field` · 목록 + 상세의 상세 열 안 요약 → `design-change`로 쓰는 곳을 먼저 더한다(지금은 드로어 안뿐이고, 760에서 2열로 접는 폭은 창 폭이라 상세 열 폭과 맞춰 보지 않았다).
 - **prop · 크기**
 
   | prop | 타입 | 기본값 | 뜻 |
@@ -1352,6 +1354,7 @@
   | `trend` | `{ direction: 'up' · 'down'; text: ReactNode }` | 보조 줄 앞 증감 — `arrow-up` · `arrow-down` 아이콘(`sm`) + 시각 숨김 ▲ · ▼ + 글자. `up`만 `--ok` 굵게(`.up` `css/console.css:537`), `down`은 색 없음 |
   | `description` | ReactNode | 보조 줄(`--text-muted`) — `trend` 뒤에 이어진다 |
   - 띠 — 1px `--line-control` · `--surface`, 칸 사이 1px `--line-divider`(줄이 바뀐 칸은 위 선 — 폭마다 열 수에 맞춘다). 그림자 없음
+  - 열 수는 `columns`이고 1100 · 760 이하에서 화면 폭(`@media`)으로 3 · 2열이 된다 — 띠가 놓인 칸의 폭은 보지 않으므로, 좁은 칸(상세 열) 안에 두면 넓은 화면에서 5 · 6칸이 그 폭에 눌린다
   - 함께 내보내는 것(`@/ui`) — 타입 `StatStripProps` · `StatItem`
 - **상태** 없다(표시).
 - **접근성** 증감 아이콘은 장식(`aria-hidden`)이고, 방향은 아이콘 곁의 시각 숨김 글자(`VisuallyHidden` — `up` "▲" · `down` "▼")가 읽힌다. 옛 `js/menu/dashboard.js:9-15`가 그린 글자와 같고 새 낱말은 없다. 보이는 모습은 아이콘 + `text` 그대로다(DESIGN Iconography 글리프 대신 아이콘).
@@ -1368,7 +1371,7 @@
 
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
-  | `minWidth` | `TableMinWidth` — `820` · `960` · `980` · `1040` | 필수 | 표 최소 폭(px, 고유 치수) — 좁으면 표 상자 안에서 가로 스크롤(옛 인라인 `min-width` — 탐색 작업 820 · 호출 로그 960 · 원본 980 · 탐색 결과 1040) |
+  | `minWidth` | `TableMinWidth` — `820` · `960` · `980` · `1040` | 필수 | 표 최소 폭(px, 고유 치수) — 좁으면 표 상자 안에서 가로 스크롤(옛 인라인 `min-width`). 모두 화면 본문 · 누르는 행이다 — 820 탐색 작업 6칸(동작 칸) · 960 호출 로그 8칸 · 980 원본 8칸(동작 칸) · 1040 탐색 결과 7칸(선택 칸 · `density="auto"`). 옛에 없는 표는 DESIGN 이식 기간 추가 기본값 |
   | `density` | `TableDensity` — `fixed` · `auto` | `fixed` | `fixed` = 행 `--h-row`, `auto` = 내용 높이 + 위아래 여백(탐색 결과 `.dtbl` `css/console.css:1037`) |
   | `head` | ReactNode | 필수 | 머리 칸(`TableHeadCell`들) |
   | `children` | ReactNode | 필수 | 본문 행(`TableRow`들) 또는 빈 행 하나(`EmptyState container="table"`) |
@@ -1380,7 +1383,7 @@
   | `TableRow` | `onActivate`(`() => void`, 없음) · `selected`(boolean, false) · `children` | 행. `onActivate`가 있으면 누를 수 있는 행 — 포인터 · 포커스(`tabindex="0"`) · Enter · Space(`js/main.js:58`). `selected`는 `--surface-selected` 바탕 |
   | `TableCell` | `align`(`center` · `start`, 기본 `center`) · `kind`(`check`, 없음) · `children` | 칸 `<td>` — 기본 가운데 정렬 · 한 줄(옛 `td.l`이 `start`). `kind="check"` = 선택 상자 칸 — 폭 48 · 가운데. 칸 안(여백 포함)을 눌러도 행 `onActivate`로 가지 않는다(옛 `data-act="noop"` `js/menu/discovery.js:280`, `js/main.js:49` — 칸 여백을 눌러도 근거가 열리지 않는다). 칸 안 상자의 모양은 쓰는 곳(`Checkbox`)이 준다 |
   - 상자 — 위 `--bw-strong` `--line-strong` · 아래 1px `--line-divider` · `--surface`, 가로 넘침은 상자 안 스크롤. 칸 사이 · 행 사이 1px `--line-divider`, 머리 아래 1px `--line-control`
-  - 칸 글자(고정폭 도구 id · 흐린 시각 · 굵은 수치 등 — 옛 `.tn` · `.date` · `.num`)는 쓰는 곳이 토큰으로 준다
+  - 칸 글자(고정폭 도구 id · 흐린 시각 · 굵은 수치 등 — 옛 `.tn` · `.date` · `.num`)는 쓰는 곳이 토큰으로 준다. 수치 칸의 색은 DESIGN Colors ① 표 수치
   - 함께 내보내는 것(`@/ui`) — `TableHeadCell` · `TableRow` · `TableCell` · 타입 `TableProps` · `TableMinWidth` · `TableDensity` · `TableRowProps` · `TableCellKind`
 - **상태** 행 hover는 칸 바탕 `--surface-hover`(`css/console.css:205`), `selected`는 `aria-selected`가 아니라 `data-state="selected"`다(행은 목록 선택 위젯이 아니다). 빈 행은 누름 · hover 모양이 없다(`css/console.css:212`).
 - **접근성** 누를 수 있는 행에 포커스가 오면 칸 바탕이 hover와 같고 안쪽 링을 더한다(옛은 링을 지웠다 — `css/console.css:605-606`, DESIGN 이식 기간 고침). Enter · Space는 행 자신에서 눌렀을 때만 `onActivate`를 부르고 기본 동작(스크롤)을 막는다 — 칸 안 버튼 · 링크에서 올라온 키는 그 요소 몫이다.
@@ -1393,7 +1396,7 @@
 
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
-  | `minWidth` | `CompactTableMinWidth` — `420` · `560` · `640` | 필수 | 표 최소 폭(px, 고유 치수) — 좁으면 상자 안 가로 스크롤(배포 도구 420 · 키 · 탐색 파라미터 560 · 매핑 640) |
+  | `minWidth` | `CompactTableMinWidth` — `420` · `560` · `640` | 필수 | 표 최소 폭(px, 고유 치수) — 좁으면 상자 안 가로 스크롤. 420 배포 포함된 도구(상세 열 · 4칸 읽기 전용) · 560 액세스 키(상세 열 · 6칸 — 읽기 전용 + 동작 칸) · 탐색 근거 파라미터(드로어 · 4칸 읽기 전용) · 640 입력 · 응답 매핑(상세 열 · 5칸 — 화살표 칸 포함 · 칸 안 입력 · 선택). 옛에 없는 표는 DESIGN 이식 기간 추가 기본값 |
   | `head` | ReactNode | 필수 | 머리 칸(`CompactTableHeadCell`들) |
   | `children` | ReactNode | 필수 | 행(`CompactTableRow`들) |
   | `className` | string | 없음 | 배치만 |
@@ -1402,9 +1405,9 @@
   |---|---|---|
   | `CompactTableHeadCell` | `children`(없으면 빈 머리 — 매핑 화살표 열) · `className` | 머리 칸 `<th>` — `--surface-sub` · 왼쪽 정렬 · 한 줄 · 작은 `--text-muted` · 아래 1px `--line-control` |
   | `CompactTableRow` | `tone`(`warn`, 없음) · `children` | 행. `warn`은 칸 바탕 `--warn-bg`(명세 변경 행 — DESIGN Colors ③) |
-  | `CompactTableCell` | `colSpan` · `className` · `children` | 칸 `<td>` — 왼쪽 · 위 정렬. 칸 폭 · 좌우 여백 0(화살표 칸 28 · 설명 최소 130)은 `className` |
+  | `CompactTableCell` | `colSpan` · `className` · `children` | 칸 `<td>` — 왼쪽 · 위 정렬. 칸 폭 · 좌우 여백 0(화살표 칸 28 · 설명 최소 130)은 `className` — 칸에만 걸리는 값이다 |
   - 상자 — 1px `--line-divider` · `--r-md` · `--surface`, 넘치면 상자 안 가로 스크롤. 행 사이 1px `--line-divider`(마지막 행 아래는 없음)
-  - 칸 글자(고정폭 필드 · 타입 줄 · 흐린 설명 · 예시 값 · 키 — 옛 `.f` · `.ty` · `.dsc` · `.exv` · `.key`)는 쓰는 곳이 토큰으로 준다(`Table`과 같다). 칸 안 입력은 `Input variant="cell"` · `Select variant="cell"`, 칸 안 규칙은 `RuleChip`, 관찰 값 칩은 `Tag variant="value"`
+  - 칸 글자(고정폭 필드 · 타입 줄 · 흐린 설명 · 예시 값 · 키 — 옛 `.f` · `.ty` · `.dsc` · `.exv` · `.key`)는 쓰는 곳이 토큰으로 준다(`Table`과 같다). 글자만 바꾸는 값은 칸 `className` · 안쪽 요소 어느 쪽도 되고(지금 설명 칸은 칸 `className`, 키는 안쪽 `span`), 칸 안 글의 일부만 바꿀 때(필드 · 타입 줄 · 예시 값)는 안쪽 요소다. 칸 안 입력은 `Input variant="cell"` · `Select variant="cell"`, 칸 안 규칙은 `RuleChip`, 관찰 값 칩은 `Tag variant="value"`
   - 빈 표(키 0개 — `js/menu/deploy.js:48`)는 `CompactTableCell colSpan` 한 칸에 문장 그대로다 — 옛 `.map`에는 빈 행 모양이 없어 보통 칸으로 그렸다(`EmptyState container="table"`을 쓰지 않는다)
   - 함께 내보내는 것(`@/ui`) — `CompactTableHeadCell` · `CompactTableRow` · `CompactTableCell` · 타입 `CompactTableProps` · `CompactTableMinWidth` · `CompactTableHeadCellProps` · `CompactTableRowProps` · `CompactTableCellProps`
 - **상태** 없다 — 행은 누르지 않고 hover 모양도 없다(옛 그대로).
@@ -1436,7 +1439,7 @@
   - **맨 아래로 내리기** — `followKey`는 값이 바뀔 때마다 늘 맨 아래로 내린다(`ChatLog`의 `followKey`와 같은 뜻 — 바닥일 때만 따라가는 `NetLog`의 `follow`와 다르다). 닫힌 층(`Modal`) 안의 상자는 보이지 않아 높이가 없으므로, 층이 열려 상자가 보이는 순간에 내린다 — 서버 로그를 열 때 곧바로 맨 아래다(옛은 80ms 뒤 내렸다)
   - 함께 내보내는 것(`@/ui`) — 타입 `CodeBlockProps` · `CodeBlockVariant`(언어 타입 `CodeLang` · `TraceCode`는 `app/trace/types`)
 - **상태** 없다(표시).
-- **접근성** 스크롤 상자는 `tabindex="0"` + 이름 + 안쪽 링이다(옛 `pre.code tabindex="0"` — `js/common/convert.js:159`, 이름은 보이지 않는 보강). 서버 로그 상자도 같다(옛은 `tabindex`가 없었다 — DESIGN 이식 기간 고침). `followKey`로 내려도 포커스는 옮기지 않고 읽어 주지도 않는다.
+- **접근성** 스크롤 상자는 `tabindex="0"` + 이름(`role="region"`) + 안쪽 링이다(옛 `pre.code tabindex="0"` — `js/common/convert.js:159`. 이름 · 역할은 보이지 않는 보강이고, 링은 옛 바깥 2px에서 안쪽으로 — DESIGN 이식 기간 고침). 서버 로그 상자도 같다(옛은 `tabindex`가 없었다 — DESIGN 이식 기간 고침). `followKey`로 내려도 포커스는 옮기지 않고 읽어 주지도 않는다.
 - **카탈로그** `CodeBlock`
 
 ### CopyField
@@ -1559,7 +1562,7 @@
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
   | `status` | `ToolStatusValue` — `done` · `review` · `drift` · `off` + 모르는 값 | 필수 | 도구 상태 값 — 라벨 · tone은 `statusOf('tool', status)`(DESIGN Copy `상태 값`) |
-  | `size` | `StatusChipSize` — `md` · `sm` | `md` | `sm` = 목록 항목 안 축소 |
+  | `size` | `StatusChipSize` — `md` · `sm` | `md` | `sm` = `SelectableListItem` `id` 목록 항목 안 축소(`StatusChip`). 표 칸에는 쓰지 않는다 |
   - 모르는 값은 값 그대로 · `mute`다 — 옛은 렌더가 멈췄다(DESIGN 이식 기간 고침)
   - 이름 끝의 `Chip`은 같은 이름의 상태 값 타입(`api/types`의 `ToolStatus`)과 갈라 두려는 것이다
   - 적힌 prop만 받는다
@@ -1576,7 +1579,7 @@
   | prop | 타입 | 기본값 | 뜻 |
   |---|---|---|---|
   | `status` | `JobStatusValue` — `scheduled` · `running` · `review` · `done` · `failed` · `cancelled` · `interrupted` + 모르는 값 | 필수 | 작업 상태 값 — 라벨 · tone은 `statusOf('job', status)`(DESIGN Copy `상태 값`) |
-  | `size` | `StatusChipSize` — `md` · `sm` | `md` | `sm` = 목록 항목 안 축소 |
+  | `size` | `StatusChipSize` — `md` · `sm` | `md` | `sm` = `SelectableListItem` `id` 목록 항목 안 축소(`StatusChip`). 표 칸에는 쓰지 않는다 |
   - 서버가 내지 않는 `queued`는 목록에 없다 — 오면 모르는 값 폴백(값 그대로 · `mute`)이다
   - 이름 끝의 `Chip`은 같은 이름의 상태 값 타입(`api/types`의 `JobStatus`)과 갈라 두려는 것이다
   - 적힌 prop만 받는다

@@ -30,9 +30,19 @@ export const toolsetsQuery = queryOptions({
   queryFn: ({ signal }) => api.get<readonly ToolsetWire[]>(TOOLSETS_PATH, { signal }),
 });
 
-/** 시작 시각만 epoch 초 → ms. 시작 시각이 없으면 받은 객체 그대로 */
-const withMsRuntime = (ts: ToolsetWire): Toolset =>
-  ts.runtime.startedAt === undefined ? ts : { ...ts, runtime: { ...ts.runtime, startedAt: secToMs(ts.runtime.startedAt) } };
+/** 런타임이 비어 오면 초안처럼 — 옛 rtOf `ts.runtime || {state:'none'}`(js/menu/deploy.js:6). 서버(runtime/deployer.py view)는 늘 채운다 */
+const NO_RUNTIME: ToolsetWire['runtime'] = Object.freeze({ state: 'none' });
+
+/**
+ * 시작 시각만 epoch 초 → ms. 시작 시각이 없으면 받은 객체 그대로.
+ * 런타임 · 사용 대상이 비어 오면 옛처럼 초안 런타임 · 빈 글자로 둔다(옛 rtOf · esc(undefined) = '' — :64,70) — 서버는 늘 채워 보내지만
+ * 옛이 견디던 응답에서 화면 전체가 실패 상자로 바뀌거나 "undefined"를 그리지 않게
+ */
+function withMsRuntime(wire: ToolsetWire): Toolset {
+  const runtime = wire.runtime ?? NO_RUNTIME;
+  const ts = wire.runtime === runtime && wire.audience !== undefined ? wire : { ...wire, runtime, audience: wire.audience ?? '' };
+  return runtime.startedAt === undefined ? ts : { ...ts, runtime: { ...runtime, startedAt: secToMs(runtime.startedAt) } };
+}
 
 const toToolsets = (list: readonly ToolsetWire[]): readonly Toolset[] => list.map(withMsRuntime);
 
