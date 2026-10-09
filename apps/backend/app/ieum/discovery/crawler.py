@@ -21,8 +21,7 @@ from urllib.parse import parse_qsl, urljoin, urlsplit
 
 from app.ieum.discovery import browser as browser_mod
 from app.ieum.discovery.masking import is_secret_key
-from app.ieum.discovery.policy import Policy, risky_call
-from app.services.crawl_policy import SESSION_KILL, is_asset
+from app.ieum.discovery.policy import SESSION_KILL, Policy, is_asset, risky_call
 
 VIEWPORT = {"width": 1100, "height": 680}
 # 화면을 그리는 자원이라 API 후보가 아니다.

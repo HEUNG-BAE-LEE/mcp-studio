@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useExtension } from "../hooks/useExtension";
-import AutoCrawlPanel from "./AutoCrawlPanel";
 
 /**
  * 트래픽 기반 수집 — 확장으로 관측하는 방식.
@@ -11,13 +10,11 @@ import AutoCrawlPanel from "./AutoCrawlPanel";
  * 기록 중인지도 몰랐고, 누를 것도 없었다. 사용자가 여기서 시작하는 줄 알고
  * 들어왔다가 빈손으로 나가는 자리였다.
  *
- * 이제 두 갈래를 준다.
- *   자동 — 로그인만 사람이 하고, 화면 탐색은 기계가 한다
- *   확장 — 사람이 직접 돌아다니며 관측한다 (문서도 자동도 안 되는 곳)
+ * 이제 확장이 깔렸는지, 지금 기록 중인지를 이 탭이 직접 보여준다.
  *
- * 자동이 기본값이다. 고객이 화면을 하나씩 눌러 줄 이유가 없기 때문이다.
- * 다만 자동이 막히는 곳(SPA 동적 렌더, 다단계 폼)이 실제로 있어서
- * 확장을 탈출구로 항상 남긴다 — 자동이 실패해도 제품이 실패하지 않는다.
+ * 한때 "자동 탐색"(로그인만 사람이, 탐색은 기계가) 탭이 함께 있었다. 같은 일을
+ * 이음의 API 자동 탐색(app/ieum/discovery)이 쓰기 차단·소스 분석·재호출 검증까지
+ * 갖춰 하고 있어, 본체 쪽 구현은 지우고 이음으로 합쳤다.
  */
 
 type Active = {
@@ -42,7 +39,6 @@ export default function TrafficPanel({
   projectName: string;
 }) {
   const { state, live, openPanel, panelHint } = useExtension();
-  const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [active, setActive] = useState<Active[]>([]);
   const [copied, setCopied] = useState(false);
 
@@ -67,24 +63,6 @@ export default function TrafficPanel({
 
   return (
     <div className="tf">
-      <div className="tf-modes" role="tablist" aria-label="트래픽 수집 방식">
-        <button type="button" role="tab" aria-selected={mode === "auto"}
-                className={mode === "auto" ? "on" : ""} onClick={() => setMode("auto")}>
-          <b>자동 탐색</b>
-          <span>로그인만 하면 기계가 돌아다닙니다</span>
-        </button>
-        <button type="button" role="tab" aria-selected={mode === "manual"}
-                className={mode === "manual" ? "on" : ""} onClick={() => setMode("manual")}>
-          <b>직접 관측</b>
-          <span>확장을 켜고 사람이 화면을 조작합니다</span>
-        </button>
-      </div>
-
-      {mode === "auto" && (
-        <AutoCrawlPanel projectId={projectId} projectName={projectName} />
-      )}
-
-      {mode === "manual" && (<>
       {/* ── 확장 상태 ── */}
       {state.status === "checking" && (
         <div className="tf-bar is-checking">
@@ -233,7 +211,6 @@ export default function TrafficPanel({
           화면에는 오류 없이 “0 클릭”만 보여 알아채기 어렵습니다.
         </p>
       </div>
-      </>)}
     </div>
   );
 }

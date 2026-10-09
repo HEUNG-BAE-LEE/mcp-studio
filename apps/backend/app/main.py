@@ -11,7 +11,7 @@ from app.routers import sessions, analysis, actions, llm, spec
 from app.ieum.console import mount_console
 from app.ieum.routers import router as ieum_router
 from app.ieum.runtime import deployer as ieum_deployer
-from app.routers import sessions, analysis, actions, llm, spec, market, skills, autocrawl
+from app.routers import sessions, analysis, actions, llm, spec, market, skills
 
 app = FastAPI(title="MCP Studio")
 app.add_middleware(
@@ -32,7 +32,6 @@ app.include_router(ieum_router)
 mount_console(app)
 app.include_router(market.router)
 app.include_router(skills.router)
-app.include_router(autocrawl.router)
 
 @app.on_event("startup")
 def _startup() -> None:

@@ -1,7 +1,7 @@
 """탐색 정책: 어디까지 가고, 무엇을 누르지 않는지.
 
-머지된 `services/crawl_policy.py` 의 판정 상수(로그아웃, 정적 파일)를 재사용한다. 다만 거기는
-"사람이 로그인한 세션으로 읽기 전용 탐색"을 전제로 파괴적 단어를 고정해 두었고, 이음은
+로그아웃·정적 파일 판정은 본체의 옛 자동 탐색(`services/crawl_policy.py`)에서 가져왔다. 그 기능을 이음으로
+합치면서 본체 쪽을 지웠으므로 이제 이 파일이 원본이다. 옛 기능은 파괴적 단어를 고정해 두었지만, 이음은
 사용자가 누르지 않을 단어를 직접 고르므로 그 부분은 설정에서 받는다.
 
 판정마다 이유를 함께 돌려준다. 화면이 "왜 안 갔는지"를 보여줘야 사용자가 자동 판단을 믿거나 고친다.
@@ -12,7 +12,15 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 from urllib.parse import urlsplit, urlunsplit
 
-from app.services.crawl_policy import SESSION_KILL, is_asset
+# 누르면 세션이 끊겨 탐색이 통째로 끝난다.
+SESSION_KILL = re.compile(r"(로그아웃|logout|signout|sign-out|로그\s*아웃|세션\s*종료)", re.I)
+# 화면을 그리는 정적 파일. API 후보가 아니다.
+_ASSET = re.compile(r"\.(js|mjs|css|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot|map)(\?|$)", re.I)
+
+
+def is_asset(url: str) -> bool:
+    return bool(_ASSET.search(url))
+
 
 # GET 이라도 이름에 이 단어가 있으면 열지도, 검증하려고 부르지도 않는다. 사용자 설정과 무관한 바닥선이다.
 # 레거시 시스템은 삭제를 `delete.do?id=1` 같은 GET 링크로 구현하기도 한다.
