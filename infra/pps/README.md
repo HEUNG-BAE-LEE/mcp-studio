@@ -32,6 +32,28 @@ C 등급(망분리 구역)은 이음 온보딩에서도 "설치형 게이트웨�
 Key Vault + 사설 엔드포인트 · Log Analytics · Container Apps 환경(VNet 연동) + 이음 앱 1 · 관리 ID(AcrPull).
 리소스 그룹과 ACR(**공유 자원 — 만들거나 지우지 않는다**)은 기존 것을 참조만 한다.
 
+## 모듈 구조 — 재사용
+
+```
+infra/pps/
+├── main.tf            모듈 조합(이 시연 환경)
+├── variables.tf       바꿔 쓸 값: 대역 · 서브넷 · 포트 · VM/DB 크기 · 허용 IP · 밀봉 여부
+├── modules/
+│   ├── network/       VNet · 서브넷 4(app · legacy · db · pe) · NSG 2(외부연동 F/W · Private F/W)
+│   ├── legacy-vm/     공인 IP 없는 레거시 서버 1대(cloud-init 은 배포판 패키지만, 자동 종료)
+│   ├── legacy-db/     PostgreSQL Flexible(위임 서브넷 + Private DNS, 공개 접근 차단)
+│   ├── vault/         Key Vault(RBAC · 사설 엔드포인트) + 비밀값 맵
+│   └── ieum-app/      Container Apps 환경 + 앱 1(공유 ACR 을 관리 ID 로 pull, 허용 대역만 노출)
+└── deploy_legacy.sh   레거시 소프트웨어 반입(관리 채널 run-command)
+```
+
+모듈은 서로를 모른다. 루트 `main.tf` 가 출력(서브넷 ID · FQDN · 비밀값)을 이어 붙인다. 그래서
+
+- **같은 구성을 다른 기관 · 다른 구독에 올릴 때**: `terraform.tfvars` 의 `name_prefix` · `address_space` · `subnets` · `legacy_ports` 만 바꾸고
+  상태 파일 키(`backend.hcl` 의 `key`)를 다르게 둔다. 같은 RG 에 두 벌이 공존해도 이름 · 대역이 겹치지 않는다.
+- **레거시만 필요할 때**: 루트에서 `module "ieum"` 을 빼면 network · legacy-vm · legacy-db · vault 만 올라간다.
+- **레거시 서버를 여러 대로 나눌 때**: `module "legacy_vm"` 을 `for_each` 로 감싸 시스템별로 한 대씩 둔다(`private_ip` 만 다르게).
+
 ## 순서
 
 ```bash

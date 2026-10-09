@@ -28,21 +28,37 @@ variable "address_space" {
   type        = string
   default     = "10.70.0.0/16"
 }
-variable "subnet_legacy" {
-  type    = string
-  default = "10.70.1.0/24"
+variable "subnets" {
+  description = "address_space 안의 서브넷. app 은 Container Apps 위임이라 /23 이상"
+  type = object({
+    app    = string
+    legacy = string
+    db     = string
+    pe     = string
+  })
+  default = {
+    app    = "10.70.2.0/23"
+    legacy = "10.70.1.0/24"
+    db     = "10.70.4.0/24"
+    pe     = "10.70.5.0/26"
+  }
 }
-variable "subnet_aca" {
-  type    = string
-  default = "10.70.2.0/23"
+
+variable "legacy_ports" {
+  description = "이음이 레거시에 열 수 있는 포트(외부연동 F/W 허용 목록)"
+  type        = list(string)
+  default     = ["18001-18004"]
 }
-variable "subnet_pg" {
-  type    = string
-  default = "10.70.4.0/24"
+
+variable "vm_auto_shutdown_time" {
+  description = "레거시 VM 을 매일 끄는 시각(HHMM, 한국 시간). null 이면 끄지 않는다"
+  type        = string
+  default     = "2200"
 }
-variable "subnet_pe" {
-  type    = string
-  default = "10.70.5.0/26"
+
+variable "extra_tags" {
+  type    = map(string)
+  default = {}
 }
 
 variable "internet_lockdown" {
@@ -61,11 +77,6 @@ variable "vm_size" {
   default = "Standard_B2s"
 }
 
-variable "admin_username" {
-  type    = string
-  default = "ppsadm"
-}
-
 variable "admin_ssh_public_key" {
   description = "VM 관리자 공개키. 접속 경로는 없다(공인 IP 없음) — 형식상 필요"
   type        = string
@@ -77,9 +88,9 @@ variable "pg_sku" {
 }
 
 variable "kv_public_during_apply" {
-  description = "Key Vault 공개 접근. apply 하는 PC 에서 비밀값을 넣을 때만 true, 끝나면 false 로 다시 apply"
+  description = "Key Vault 공개 접근. 이 구독은 정책으로 금지돼 있어 false 가 기본이다(그때 비밀값은 terraform 출력으로만 전달)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "container_image" {

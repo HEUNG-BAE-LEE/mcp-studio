@@ -34,6 +34,10 @@ COPY apps/backend/app ./app
 COPY apps/web/ieum ./web/ieum
 COPY --from=onboarding /src/apps/web/ieum/onboarding ./web/ieum/onboarding
 ENV IEUM_WEB_ROOT=/app/web/ieum
+# 한 번에 연결 — 문서 채널 시연 파일(활용가이드 PDF · FINL 인터페이스정의서). 저장소와 같은 상대 경로로 둔다
+COPY examples/documents ./examples/documents
+COPY apps/legacy-pps/assets ./apps/legacy-pps/assets
+ENV IEUM_REPO_ROOT=/app
 # app/main.py 가 /app/static 을 찾는다
 COPY --from=admin /src/apps/admin/dist ./static
 EXPOSE 8000

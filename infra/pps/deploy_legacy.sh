@@ -8,32 +8,34 @@
 # 순서: terraform apply(internet_lockdown=false) → 이 스크립트 → terraform apply(internet_lockdown=true)
 # 기본값을 두지 않는다. 다른 서비스의 스크립트를 그대로 쓰다 엉뚱한 리소스 그룹으로 들어가는 사고를 막기 위해서다.
 #
-#   ./deploy_legacy.sh --rg <리소스그룹> --vm <VM 이름> --kv <Key Vault 이름> --pg <PG FQDN>
+#   ./deploy_legacy.sh --rg <리소스그룹> --vm <VM 이름> --pg <PG FQDN>
+#   비밀번호는 terraform 출력(pg_admin_password · pg_reader_password)에서 읽는다 — Key Vault 는 공개 접근이 막혀 있다
 # =============================================================================
 set -euo pipefail
 
-RG= VM= KV= PG=
+RG= VM= PG=
 while [ $# -gt 0 ]; do
   case "$1" in
     --rg) RG="$2"; shift 2 ;;
     --vm) VM="$2"; shift 2 ;;
-    --kv) KV="$2"; shift 2 ;;
     --pg) PG="$2"; shift 2 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$RG" ] && [ -n "$VM" ] && [ -n "$KV" ] && [ -n "$PG" ] || { echo "--rg --vm --kv --pg 를 모두 지정할 것" >&2; exit 2; }
+[ -n "$RG" ] && [ -n "$VM" ] && [ -n "$PG" ] || { echo "--rg --vm --pg 를 모두 지정할 것" >&2; exit 2; }
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$HERE/../../apps/legacy-pps"
 
-echo "[1/3] 비밀값 읽기 (Key Vault: $KV)"
-ADMIN_PW="$(az keyvault secret show --vault-name "$KV" -n pps-legacy-pg-password --query value -o tsv)"
-READER_PW="$(az keyvault secret show --vault-name "$KV" -n pps-legacy-pg-reader-password --query value -o tsv)"
+echo "[1/3] 비밀값 읽기 (terraform 출력)"
+ADMIN_PW="$(cd "$HERE" && terraform output -raw pg_admin_password)"
+READER_PW="$(cd "$HERE" && terraform output -raw pg_reader_password)"
 
 echo "[2/3] apps/legacy-pps 묶기"
 TARBALL="$(mktemp -t legacy-pps-XXXXXX).tar.gz"
-tar czf "$TARBALL" -C "$SRC/.." --exclude='.pids' --exclude='__pycache__' legacy-pps
+# macOS tar 가 붙이는 확장 속성(xattr)은 리눅스 tar 가 경고만 낸다 — 빼고 묶는다
+COPYFILE_DISABLE=1 tar czf "$TARBALL" --no-mac-metadata -C "$SRC/.." --exclude='.pids' --exclude='__pycache__' legacy-pps 2>/dev/null \
+  || COPYFILE_DISABLE=1 tar czf "$TARBALL" -C "$SRC/.." --exclude='.pids' --exclude='__pycache__' legacy-pps
 B64="$(base64 -i "$TARBALL" | tr -d '\n')"; rm -f "$TARBALL"
 KB=$(( ${#B64} / 1024 )); echo "      묶음 크기(base64) ${KB}KB"
 [ "$KB" -lt 240 ] || { echo "run-command 한도(약 256KB)에 가깝다. Storage 반입으로 바꿀 것" >&2; exit 1; }
