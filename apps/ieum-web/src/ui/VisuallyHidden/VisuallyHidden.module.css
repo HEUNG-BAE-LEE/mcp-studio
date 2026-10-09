@@ -1,0 +1,13 @@
+/* VisuallyHidden — 시각 숨김 관용구(1px 상자 · 잘라냄). 화면 CSS는 이 px를 만들 수 없어 이 부품을 쓴다 */
+.root {
+  position: absolute;
+  width: 1px;
+  /* check-css-disable-next-line literal-px -- 시각 숨김 관용구(1px 상자) */
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

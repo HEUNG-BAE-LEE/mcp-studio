@@ -1,0 +1,7 @@
+/* CopyField 절 — onCopy가 받은 값을 보이는 자리. 긴 값이 페이지를 밀지 않게 접는다 */
+.received {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-sm);
+  overflow-wrap: anywhere;
+}

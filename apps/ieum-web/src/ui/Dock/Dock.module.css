@@ -1,0 +1,141 @@
+/* Dock — 이음 .dock · .cnt · .clr · .sep · .btn.primary(css/console.css:222-234) · 760 이하(css/console.css:482-483) · 도크 아래 빈 칸(js/menu/discovery.js:317).
+   위치는 화면 고정이고 가로 가운데는 좌우 inset 0 + 자동 바깥 여백으로 잡는다(옛 left 50% + translateX는 폭이 화면 절반으로 줄어 일찍 접혔다).
+   그래서 transform은 올라오고 내려가는 움직임 하나만 쓴다. 닫힘(기본)은 아래로 내려가 숨고, data-open='true'가 올라온다 */
+.root {
+  position: fixed;
+  inset: auto 0 calc(var(--s-5-5) + env(safe-area-inset-bottom, 0px));
+  z-index: var(--z-dock);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2-5);
+  width: max-content;
+  max-width: calc(100% - 2 * var(--s-3));
+  margin-inline: auto;
+  padding: var(--s-2-5) var(--s-2-5) var(--s-2-5) var(--s-5);
+  border-radius: var(--r-xl);
+  background: var(--inverse-surface);
+  box-shadow: var(--shadow-float);
+  color: var(--on-fill);
+  visibility: hidden;
+  /* 아래로 내려가는 거리 — 도크 높이의 170%(옛 그대로)면 아래 여백까지 화면 밖이다 */
+  transform: translateY(170%);
+  /* 내려갈 때는 움직임이 끝난 뒤에 숨긴다(포커스 · 읽기에서 빠지는 것은 그때) */
+  transition:
+    transform var(--m-dock) var(--ease-out),
+    visibility 0s var(--m-dock);
+}
+
+/* 올라올 때는 바로 보인다. 처음부터 열려 있으면 전환이 돌지 않는다(전환은 값이 바뀔 때만 돈다) */
+.root[data-open='true'] {
+  visibility: visible;
+  transform: none;
+  transition: transform var(--m-dock) var(--ease-out);
+}
+
+/* 드로어가 열려 있는 동안은 열림과 상관없이 모션 없이 가린다(옛 body.d-open .dock) — 위 규칙 뒤에 둬야 이긴다 */
+.root[data-covered='true'] {
+  visibility: hidden;
+  transition: none;
+}
+
+/* 왼쪽 요약 — 굵은 글(선택 수)은 어두운 면 위 파랑 + 한 단계 큰 글자 */
+.summary {
+  white-space: nowrap;
+}
+
+.summary b {
+  color: var(--inverse-primary);
+  font-size: var(--fs-section);
+}
+
+/* 밑줄 글자 버튼(옛 .clr) — 어두운 면 위 흐린 글자, hover에서 밝아진다. <button> 기본 자간 */
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--on-fill-quiet);
+  font-size: var(--fs-ui-sm);
+  text-decoration: underline;
+  text-underline-offset: var(--s-0-5);
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--on-fill);
+}
+
+.link:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.link:disabled:hover {
+  color: var(--on-fill-quiet);
+}
+
+/* 세로 구분선(옛 .sep) */
+.separator {
+  width: 1px;
+  /* check-css-disable-next-line literal-px -- 구분선 고유 높이 22(옛 .dock .sep) — 버튼 높이 단계(--h-md)보다 낮은 장식 선 */
+  height: 22px;
+  margin: 0 var(--s-1);
+  background: var(--on-fill-subtle);
+}
+
+/* 주 버튼(옛 .dock .btn.primary) — 어두운 면은 두 테마가 같아서 파란 면도 --inverse-fill 고정이다(--primary는 테마를 따른다). 모양은 Button과 같다 */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1-5);
+  height: var(--h-md);
+  padding: 0 var(--s-3-5);
+  border: 1px solid var(--inverse-fill);
+  border-radius: var(--r-sm);
+  background: var(--inverse-fill);
+  color: var(--on-fill);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--m-fast),
+    border-color var(--m-fast),
+    color var(--m-fast);
+}
+
+.button:hover {
+  border-color: var(--inverse-fill-hover);
+  background: var(--inverse-fill-hover);
+}
+
+/* 비활성 — 투명도 하나, hover 모양이 바뀌지 않는다. 요청 중 잠금(pending — aria-disabled)도 같은 모양 */
+.button:disabled,
+.button[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.button:disabled:hover,
+.button[aria-disabled='true']:hover {
+  border-color: var(--inverse-fill);
+  background: var(--inverse-fill);
+}
+
+/* 도크가 마지막 행을 가리지 않게 표 아래 두는 빈 칸(옛 인라인 height:70px) */
+.spacer {
+  /* check-css-disable-next-line literal-px -- 도크 높이 + 아래 여백이 덮는 만큼 비우는 고유 치수 70(옛 js/menu/discovery.js:317) */
+  height: 70px;
+}
+
+/* 760 이하 — 화면 좌우 --s-3까지 꽉 차고 안쪽 여백이 줄어든다(옛 left 12 · right 12 · max-width none · padding 10 12) */
+@media (max-width: 760px) {
+  .root {
+    left: var(--s-3);
+    right: var(--s-3);
+    width: auto;
+    max-width: none;
+    margin-inline: 0;
+    padding: var(--s-2-5) var(--s-3);
+  }
+}

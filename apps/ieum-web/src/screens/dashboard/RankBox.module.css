@@ -1,0 +1,49 @@
+/* RankBox — 이음 .rank · .rn · .rc2(css/console.css:576-584). 한 화면만 쓰는 조각이라 화면 폴더에 둔다.
+   막대(.meter)는 ProgressBar가 그린다 — 여기서는 격자 칸만 준다 */
+.list {
+  margin: 0;
+  padding: var(--s-1-5) var(--s-4-5) var(--s-3-5);
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+  padding: var(--s-2-5) 0;
+  border-bottom: 1px solid var(--line-divider);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-sm);
+  font-weight: var(--fw-medium);
+}
+
+.source {
+  margin-left: var(--s-2);
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+.count {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  grid-column: 1 / -1;
+}

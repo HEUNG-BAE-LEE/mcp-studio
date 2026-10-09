@@ -1,0 +1,57 @@
+/* 원본 시스템 — 옛 .toolbar 위 22 · .twrap 위 14 · .tab-hint 위 14 아래 12(css/console.css:289,596,599)
+   표 칸 글자(옛 css/console.css:201,220,507-508,601-602 · js/menu/sources.js:12-14,16):
+   이름 굵기 500 + 설명 12px 옅은 글(.sname) · 명세 13px 보조색 · 인증 13px · AI 도구 칸 공개 수 굵은 주색 고른 숫자(.num) + "/ 전체" 옅은 글(.muted) ·
+   검토 줄 12px 경고색 · 마지막 동기화 13px 고른 숫자(.date — 색은 .utbl td가 이겨 본문색) */
+.toolbar {
+  margin-top: var(--s-5-5);
+}
+
+.table {
+  margin-top: var(--s-3-5);
+}
+
+.hint {
+  margin: var(--s-3-5) 0 var(--s-3);
+}
+
+.name {
+  display: block;
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+}
+
+.desc {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+}
+
+.spec {
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+}
+
+.auth {
+  font-size: var(--fs-ui-sm);
+}
+
+.published {
+  color: var(--primary);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.total {
+  color: var(--text-faint);
+}
+
+.pending {
+  color: var(--warn);
+  font-size: var(--fs-caption);
+}
+
+.sync {
+  font-size: var(--fs-ui-sm);
+  font-variant-numeric: tabular-nums;
+}

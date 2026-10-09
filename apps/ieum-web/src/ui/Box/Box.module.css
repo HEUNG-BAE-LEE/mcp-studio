@@ -1,0 +1,75 @@
+/* Box — 이음 .box · .box-h · .box-b(css/console.css:502-506) · .box.pol(:702) · .chat(:734-736, 1100 :878). 그림자 없음(DESIGN 핵심 규칙 4).
+   머리 위아래 13 → --s-3(이웃 단계로 묶음) */
+.root {
+  min-width: 0;
+  border: 1px solid var(--line-control);
+  background: var(--surface);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2-5);
+  padding: var(--s-3) var(--s-4-5);
+  border-bottom: 1px solid var(--line-divider);
+  background: var(--surface-sub);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+}
+
+.description {
+  margin-left: var(--s-2);
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.body {
+  padding: var(--s-4-5);
+}
+
+/* 정책 상자 — 안쪽 14/16/16(.pol .box-b) */
+.root[data-variant='policy'] .body {
+  padding: var(--s-3-5) var(--s-4) var(--s-4);
+}
+
+/* 대화 상자 — 세로 흐름. 본문(대화 목록)이 남은 높이를 채운다(.chat) */
+.root[data-variant='chat'] {
+  display: flex;
+  flex-direction: column;
+  /* check-css-disable-next-line literal-px -- 대화 상자 고유 최소 높이(이음 .chat min-height 660) */
+  min-height: 660px;
+}
+
+/* 머리 두 줄 — 세로로 쌓고 둘째 줄(모델 묶음)을 머리 폭으로 늘인다. 줄 사이 10(.chat .box-h) */
+.root[data-variant='chat'] .head {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* 첫 줄 — 제목 + 동작 양끝, 접지 않는다(.chat .box-h .r1) */
+.head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+@media (max-width: 1100px) {
+  .root[data-variant='chat'] {
+    min-height: 0;
+  }
+}

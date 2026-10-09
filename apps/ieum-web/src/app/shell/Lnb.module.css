@@ -1,0 +1,112 @@
+/* LNB — 이음 .lnb(css/console.css:98-101) · 메뉴(css/console.css:494-498, 옛 button 규칙을 링크에) ·
+   1500(css/console.css:861-862) · 760(css/console.css:456-460,887-888). 760 이하 제목 18 → --fs-drawer(19 — 이웃 단계로 묶음) */
+.lnb {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  min-height: var(--h-lnb);
+  padding: 0 var(--lnb-pad-x);
+  background: var(--brand-band);
+}
+
+.title {
+  margin: 0;
+  color: var(--on-fill);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* position: relative — 메뉴의 offsetLeft 기준(현재 메뉴 보이게 옮기기, Lnb.tsx) */
+.nav {
+  position: relative;
+  display: flex;
+  margin-left: auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav::-webkit-scrollbar {
+  display: none;
+}
+
+.item {
+  position: relative;
+  padding: 0 var(--s-6);
+  color: var(--on-fill-muted);
+  font-size: var(--fs-section);
+  line-height: var(--h-lnb);
+  /* 옛 메뉴는 <button>이라 body 자간(-.01em)을 물려받지 않았다 — 링크도 같은 폭이 되게 */
+  letter-spacing: var(--tracking-control);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.item:hover {
+  color: var(--on-fill);
+}
+
+.item[aria-current='page'] {
+  color: var(--on-fill);
+  font-weight: var(--fw-bold);
+}
+
+/* 현재 메뉴 밑줄 — 좌우는 메뉴 좌우 여백과 같다 */
+.item[aria-current='page']::after {
+  position: absolute;
+  right: var(--s-6);
+  bottom: 0;
+  left: var(--s-6);
+  height: var(--bw-tab);
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  background: var(--on-fill);
+  content: '';
+}
+
+/* 파란 띠 위 링은 흰색 · 안쪽(이음 그대로) — 색 · 자리만 바꾸고 지우지 않는다 */
+.item:focus-visible {
+  outline-color: var(--on-fill);
+  outline-offset: -4px;
+}
+
+@media (max-width: 1500px) {
+  .item {
+    padding: 0 var(--s-4);
+    font-size: var(--fs-subhead);
+  }
+
+  .item[aria-current='page']::after {
+    right: var(--s-4);
+    left: var(--s-4);
+  }
+}
+
+@media (max-width: 760px) {
+  .lnb {
+    flex-wrap: wrap;
+    gap: 0;
+    padding: var(--s-3) var(--s-4) 0;
+  }
+
+  .title {
+    width: 100%;
+    font-size: var(--fs-drawer);
+  }
+
+  /* 메뉴 줄은 화면 가장자리까지 — LNB 좌우 여백만큼 밖으로 */
+  .nav {
+    width: calc(100% + 2 * var(--s-4));
+    margin: 0 calc(-1 * var(--s-4));
+    padding: 0 var(--s-1);
+  }
+
+  .item {
+    padding: 0 var(--s-3);
+    line-height: var(--h-lnb-narrow);
+  }
+
+  .item[aria-current='page']::after {
+    right: var(--s-3);
+    left: var(--s-3);
+  }
+}

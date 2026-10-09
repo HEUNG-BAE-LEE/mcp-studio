@@ -1,0 +1,89 @@
+/* VennSummary — 옛 .dsum-b · .venn · .vleg(css/console.css:1020-1031)
+   본문: 벤 그림 + 범례 가로(좁으면 접음) · 안쪽 16 18 · 사이 18. 벤 폭 300(최대 칸 폭)
+   원: Git 소스 = 근거 소스 색, 운영 트래픽 = 근거 트래픽 색 — 면은 옅게(옛 fill-opacity .16) · 선 1.5 */
+.body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4-5);
+  padding: var(--s-4) var(--s-4-5);
+}
+
+.venn {
+  flex: none;
+  width: 300px;
+  max-width: 100%;
+}
+
+.source {
+  fill: var(--evidence-code);
+  fill-opacity: 0.16;
+  stroke: var(--evidence-code);
+  stroke-width: 1.5;
+}
+
+.traffic {
+  fill: var(--evidence-traffic);
+  fill-opacity: 0.16;
+  stroke: var(--evidence-traffic);
+  stroke-width: 1.5;
+}
+
+.zone {
+  cursor: pointer;
+}
+
+.count {
+  fill: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-figure);
+  font-weight: var(--fw-bold);
+  text-anchor: middle;
+}
+
+.label {
+  fill: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-tag);
+  text-anchor: middle;
+}
+
+.head {
+  fill: var(--text-faint);
+  font-family: var(--font-sans);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  text-anchor: middle;
+}
+
+/* 올림 · 고른 영역은 수가 주조색, 고른 영역은 이름도 주조색 굵게(옛 .vz:hover .vn · .vz.on) */
+.zone:hover .count,
+.zone[data-state='on'] .count {
+  fill: var(--primary);
+}
+
+.zone[data-state='on'] .label {
+  fill: var(--primary);
+  font-weight: var(--fw-bold);
+}
+
+/* 범례 — 남은 폭(최소 220) · 줄 사이 10 · 12.5px 보조색 · 굵은 첫 줄은 13.5px 본문색 한 줄 */
+.legend {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-2-5);
+  min-width: 220px;
+  margin: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-note);
+  list-style: none;
+}
+
+.legend b {
+  display: block;
+  color: var(--text);
+  font-size: var(--fs-label);
+}

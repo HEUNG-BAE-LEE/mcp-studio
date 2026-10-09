@@ -1,0 +1,39 @@
+/* FieldPair — 이음 .two(css/console.css:923) · .ep-row(:794-795). 칸은 최소 폭 0으로 줄어든다.
+   760 이하: half는 한 열(칸 사이 그대로 :1064), label은 라벨 위 · 값 아래(사이 --s-1 :905) */
+.root {
+  display: grid;
+}
+
+.root > * {
+  min-width: 0;
+}
+
+.root[data-variant='half'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+/* 라벨 열 120은 고유 치수(옛 .ep-row) */
+.root[data-variant='label'] {
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-2-5);
+  margin-top: var(--s-2-5);
+}
+
+.label {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+}
+
+@media (max-width: 760px) {
+  .root[data-variant='half'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .root[data-variant='label'] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-1);
+  }
+}

@@ -1,0 +1,17 @@
+/* LiveRun — 실시간 화면 배치(옛 .dact · .dk · .dgrid2 css/console.css:948-958 · js/menu/discovery.js:238)
+   지금 하는 일 줄의 모양은 Notice line이 그린다 — 여기는 위 간격만 */
+.act {
+  margin-top: var(--s-3-5);
+}
+
+.counters {
+  margin-top: var(--s-3-5);
+}
+
+.grid {
+  margin-top: var(--s-5);
+}
+
+.git {
+  margin-top: var(--s-5);
+}

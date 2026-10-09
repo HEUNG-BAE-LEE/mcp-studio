@@ -1,0 +1,42 @@
+/* Checkbox — 이음 .utbl input[type=checkbox](css/console.css:208) · .own input(:933) · 도구 목록 줄 인라인(js/menu/deploy.js:196).
+   상자는 브라우저 체크 상자 그대로 — md · lg는 accent-color --primary, md는 바깥 여백 없음(옛 margin:0) · lg는 위 2(옛 .own input margin:2px 0 0 — 첫 줄 글자에 맞춤),
+   sm은 크기 · 색을 적지 않는다(옛 그대로).
+   disabled는 투명도를 더하지 않고 브라우저 기본 비활성 모양 + 커서 not-allowed(옛 :365 — 공통 disabled 투명도의 예외) */
+.root {
+  flex: none;
+}
+
+.root[data-size='md'] {
+  width: 17px;
+  /* check-css-disable-next-line literal-px -- 상자 한 변 17(고유 치수, 이음 .utbl input[type=checkbox]) */
+  height: 17px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.root[data-size='lg'] {
+  width: 18px;
+  /* check-css-disable-next-line literal-px -- 상자 한 변 18(고유 치수, 이음 .own input) */
+  height: 18px;
+  margin: var(--s-0-5) 0 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.root:disabled {
+  cursor: not-allowed;
+}
+
+/* <label> 줄 — 상자 + 글자(옛 인라인 display:flex · gap:8 · align-items:center · padding:3px 0). 줄 어디를 눌러도 바뀐다 */
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) 0;
+}
+
+.label[data-disabled='true'] {
+  cursor: not-allowed;
+}

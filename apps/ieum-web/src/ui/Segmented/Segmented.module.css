@@ -1,0 +1,53 @@
+/* Segmented — 이음 .seg(css/console.css:719-723). 탭 · 라디오 두 역할이 같은 모양이다 — 고름은 aria-selected · aria-checked.
+   반지름 4 → --r-sm(3 — 이식 기간 허용 차이 값 정규화). 좁으면 묶음 안에서 가로 스크롤한다 */
+.root {
+  display: inline-flex;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-x: auto;
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.item {
+  /* check-css-disable-next-line literal-px -- 안쪽 높이 = 바깥 --h-sm-plus − 위아래 테두리 1px 둘 */
+  height: calc(var(--h-sm-plus) - 2px);
+  padding: 0 var(--s-3-5);
+  border: 0;
+  border-left: 1px solid var(--line-control);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.item:first-child {
+  border-left: 0;
+}
+
+.item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* 고른 항목은 hover에도 바뀌지 않는다(옛 .on이 :hover 뒤 — :723) */
+.item[aria-selected='true'],
+.item[aria-checked='true'] {
+  background: var(--primary);
+  color: var(--on-fill);
+  font-weight: var(--fw-medium);
+}
+
+/* 포커스 링은 안쪽 — 묶음이 넘침을 잘라 바깥 링이 보이지 않는다(DESIGN 접근성 세그먼트) */
+.item:focus-visible {
+  outline-offset: -2px;
+}
+
+/* 고른 항목은 주조색 필이라 주조색 링이 보이지 않는다 — 흰 링을 한 칸 더 안쪽에(파란 띠 위 흰 링과 같은 까닭 · LNB 메뉴 -4 — css/console.css:498) */
+.item[aria-selected='true']:focus-visible,
+.item[aria-checked='true']:focus-visible {
+  outline-color: var(--on-fill);
+  outline-offset: -4px;
+}

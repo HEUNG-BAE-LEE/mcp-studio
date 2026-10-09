@@ -1,0 +1,87 @@
+/* 전역 기반 규칙 — 이음 원본(apps/web/ieum/css/console.css)의 전역 규칙을 옮겼다. 값은 tokens.css 토큰을 쓴다.
+   스크롤은 문서(window)가 한다 — html · body에 높이 · overflow를 걸지 않는다(RootLayout이 window.scrollTo를 쓴다).
+   부품 · 유틸 성격의 규칙(고정폭 글자 · 체크박스 모양 · 스크롤바 숨김 등)은 여기 두지 않고 그 부품 CSS에 둔다 */
+
+/* 뿌리: 박스 모델 기준 · 브라우저 기본 컨트롤 색 · 안전 영역(viewport-fit=cover 전제, index.html) */
+:root {
+  box-sizing: border-box;
+  color-scheme: light;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+html {
+  scroll-padding-top: env(safe-area-inset-top, 0px);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-page);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  letter-spacing: var(--tracking-body);
+}
+
+/* 컨트롤은 본문 글자를 물려받는다(textarea는 부품 CSS가 글꼴을 따로 정한다 — 원본 그대로) */
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* flex 줄 안에서 아이콘이 줄어들지 않게 */
+svg {
+  flex: none;
+}
+
+/* display를 지정한 요소에서도 hidden 속성이 먹게 한다 */
+[hidden] {
+  display: none !important;
+}
+
+/* 전역 포커스 링 하나 — 지우지 않는다(DESIGN 핵심 규칙 12). 파란 띠 위 흰 링은 그 부품 CSS가 색만 바꾼다(이음 그대로 — DESIGN ## 이식 기간 유지) */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* 모션 줄이기 — 전환 · 애니메이션을 끄고 시간 토큰을 0ms로. --toast-duration은 표시 시간이라 그대로 둔다(반복 모션 유지 — DESIGN Motion) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  :root {
+    --m-fast: 0ms;
+    --m-modal: 0ms;
+    --m-fade: 0ms;
+    --m-dock: 0ms;
+    --m-drawer: 0ms;
+    --m-enter: 0ms;
+    --m-progress: 0ms;
+    --m-spin: 0ms;
+    --m-blink: 0ms;
+    --m-flow: 0ms;
+    --m-pulse: 0ms;
+    --m-stagger: 0ms;
+  }
+}

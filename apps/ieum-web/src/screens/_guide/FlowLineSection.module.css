@@ -1,0 +1,18 @@
+/* 카탈로그 FlowLine 절 — 칸 · 연결 · 칸 늘어놓기. 연결 칸이 위치 기준이고, 좁은 폭에서는 카탈로그가 칸을 세로로 쌓지 않으므로 선만 세로로 바뀐 모습을 본다 */
+.pipe {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(62px, 0.42fr) minmax(0, 1fr);
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  height: var(--h-xl);
+  border: 1px dashed var(--line-control);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+
+.link {
+  position: relative;
+}

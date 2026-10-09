@@ -1,0 +1,10 @@
+/* InlineCode — 이음 .inline-code(css/console.css:593) */
+.root {
+  padding: 0 var(--s-1);
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-sm);
+  background: var(--surface-sub);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  /* 자간은 적지 않고 물려받는다 — 옛 .inline-code · .alert code도 적지 않아 부모(body -.01em)가 계산한 값을 그대로 썼다(css/console.css:66,593). 여기서 다시 적으면 작은 글자 기준으로 다시 계산되어 옛과 어긋난다 */
+}

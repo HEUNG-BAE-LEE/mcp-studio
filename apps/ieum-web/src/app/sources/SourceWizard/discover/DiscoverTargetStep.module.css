@@ -1,0 +1,9 @@
+/* DiscoverTargetStep — 탐색 대상 단계 배치(옛 js/menu/discovery.js:42,60)
+   시연 안내 아래 12(옛 인라인 margin-bottom:12px) · 브라우저 없음 안내는 위 0 · 아래 8(옛 인라인 margin:0 0 8px) */
+.demo {
+  margin-bottom: var(--s-3);
+}
+
+.no-browser {
+  margin: 0 0 var(--s-2);
+}

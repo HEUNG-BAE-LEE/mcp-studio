@@ -1,0 +1,65 @@
+/* DetailHead — 이음 .td-head(css/console.css:631-637) · 760 이하 동작 줄(906).
+   제목 웨이트: 고정폭은 --fw-mono-strong, 본문 글꼴은 --fw-bold — 옛 묶음 이름은 600을 썼지만 Noto Sans KR 600을 불러오지 않아 브라우저가 700으로 그렸다(모습이 같다 — DESIGN 핵심 규칙 5) */
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-3-5) var(--s-5);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-divider);
+}
+
+.text {
+  flex: 1;
+  min-width: 260px;
+}
+
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-body);
+  word-break: break-all;
+}
+
+.title[data-mono] {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-mono-strong);
+}
+
+.subline {
+  margin: var(--s-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+}
+
+.code {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+}
+
+/* 설명 뒤에 붙는 코드만 왼쪽을 띄운다 */
+.subline > span + .code {
+  margin-left: var(--s-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+@media (max-width: 760px) {
+  .actions {
+    width: 100%;
+  }
+}

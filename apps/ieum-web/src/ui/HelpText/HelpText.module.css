@@ -1,0 +1,32 @@
+/* HelpText — 이음 .tab-hint(hint — css/console.css:289-290) · .pv-note(note — :730) · .muted 인라인 12.5px(inline — :507).
+   hint 행간 1.65 = --lh-prose, md는 옛 인라인 13px = --fs-ui-sm */
+.root {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  line-height: var(--lh-prose);
+}
+
+.root[data-size='md'] {
+  font-size: var(--fs-ui-sm);
+}
+
+.root[data-variant='hint'] b {
+  color: var(--text-muted);
+  font-weight: var(--fw-medium);
+}
+
+/* note · inline — 행간은 둘레를 물려받고 <b>는 색 그대로 굵게(옛 .pv-note · .muted에 규칙 없음). note의 위 8은 :where로 낮춰 쓰는 곳 className이 덮을 수 있게 */
+.root[data-variant='note'],
+.root[data-variant='inline'] {
+  line-height: inherit;
+}
+
+.root:where([data-variant='note']) {
+  margin-top: var(--s-2);
+}
+
+.root[data-variant='note'] b,
+.root[data-variant='inline'] b {
+  font-weight: var(--fw-bold);
+}

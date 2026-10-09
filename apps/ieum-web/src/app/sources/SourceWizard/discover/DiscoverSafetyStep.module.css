@@ -1,0 +1,4 @@
+/* DiscoverSafetyStep — 담당자 칸 위 14(옛 인라인 margin-top:14px — js/menu/discovery.js:77) */
+.owner {
+  margin-top: var(--s-3-5);
+}

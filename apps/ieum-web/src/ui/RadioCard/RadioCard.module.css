@@ -1,0 +1,168 @@
+/* RadioCard — 이음 .mode-card(card — css/console.css:260-268,821-822) · .opt(option — :704-711) · .radio(:263-265).
+   card 제목 14.5 → --fs-subhead(15), 설명 행간 1.55 → --lh-note(1.6)로 이웃 단계에 묶음. 옛 .55 투명도는 --opacity-disabled(이식 기간 허용 차이).
+   상태는 루트의 data-state(on · off) · data-disabled로 고른다 — slot이 있으면 루트가 버튼이 아니라 겉 칸이다 */
+.root {
+  display: flex;
+  gap: var(--s-2-5);
+  align-items: flex-start;
+  width: 100%;
+  padding: var(--s-3-5);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--m-fast),
+    background var(--m-fast);
+}
+
+.root:hover:not([data-disabled]):not([data-state='on']) {
+  border-color: var(--primary-line);
+}
+
+.root[data-state='on'] {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+  box-shadow: var(--ring-selected);
+}
+
+.root[data-disabled] {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+/* option — 작은 카드(옛 .opt). 고름은 테두리 · 바탕만(안쪽 테 없음)이고 옛에 전환이 없다 */
+.root[data-variant='option'] {
+  padding: var(--s-2-5) var(--s-3);
+  transition: none;
+}
+
+.root[data-variant='option'][data-state='on'] {
+  box-shadow: none;
+}
+
+/* 카드 아래 6은 부품이 가진다(옛 .opt margin — 마지막 카드도). :where로 낮춰 쓰는 곳 className이 덮을 수 있다 */
+.root:where([data-variant='option']) {
+  margin-bottom: var(--s-1-5);
+}
+
+/* slot — 겉 칸은 테두리 · 바탕 · hover · 고름만, 안쪽 여백은 버튼(누르는 자리가 옛 카드 전체와 같게)과 slot이 나눠 가진다 */
+.root[data-slot] {
+  display: block;
+  padding: 0;
+  cursor: default;
+}
+
+.root[data-slot][data-disabled] {
+  cursor: not-allowed;
+}
+
+.button {
+  display: flex;
+  gap: var(--s-2-5);
+  align-items: flex-start;
+  width: 100%;
+  padding: var(--s-2-5) var(--s-3);
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+}
+
+/* 링은 버튼 안쪽에 — 바깥 링은 겉 칸 윗부분을 둘러 아래 입력 위를 가로지른다(DESIGN 핵심 규칙 12 — 자리만 옮김) */
+.button:focus-visible {
+  outline-offset: -2px;
+}
+
+/* 고르면 설명 자리를 slot이 대신한다 — 아래 여백은 slot이 가진다 */
+.root[data-state='on'] .button {
+  padding-bottom: 0;
+}
+
+.slot {
+  display: flex;
+  align-items: flex-start;
+  /* check-css-disable-next-line literal-px -- 옛 설명 칸 위 1 + 입력 위 4(js/menu/discovery.js:72) */
+  padding-top: 5px;
+  padding-right: var(--s-3);
+  padding-bottom: var(--s-2-5);
+  /* check-css-disable-next-line literal-px -- 글 열에 맞춤: 카드 안쪽 + 라디오 점 18 + 간격 */
+  padding-left: calc(var(--s-3) + 18px + var(--s-2-5));
+}
+
+/* 라디오 점 — 고유 치수 18 · 안 점 8 */
+.radio {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  /* check-css-disable-next-line literal-px -- 라디오 점 한 변 18(고유 치수, 이음 .radio) */
+  height: 18px;
+  margin-top: var(--s-0-5);
+  border: var(--bw-strong) solid var(--line-control);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.root[data-variant='option'] .radio {
+  /* check-css-disable-next-line literal-px -- 1px 광학 보정(옛 .opt>.radio) */
+  margin-top: 1px;
+}
+
+.root[data-state='on'] .radio {
+  border-color: var(--primary);
+}
+
+.root[data-state='on'] .radio::after {
+  content: '';
+  width: 8px;
+  /* check-css-disable-next-line literal-px -- 라디오 안 점 한 변 8(고유 치수, 이음 .on>.radio::after) */
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+/* 긴 제목 · 긴 낱말은 카드 안에서 접는다 — anywhere는 최소 폭 계산에도 들어가 flex 자식(제목 줄)이 카드보다 넓어지지 않는다 */
+.body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  gap: var(--s-1-5);
+  font-size: var(--fs-subhead);
+  font-weight: var(--fw-bold);
+}
+
+.root[data-variant='option'] .head {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+}
+
+.icon {
+  color: var(--primary);
+}
+
+.description {
+  display: block;
+  margin-top: var(--s-1);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-note);
+}
+
+.root[data-variant='option'] .description {
+  /* check-css-disable-next-line literal-px -- 1px 광학 보정(옛 .opt small) */
+  margin-top: 1px;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-body);
+}

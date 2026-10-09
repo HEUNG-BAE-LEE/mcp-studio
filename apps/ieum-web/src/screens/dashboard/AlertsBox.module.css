@@ -1,0 +1,50 @@
+/* AlertsBox — 이음 .alert(css/console.css:586-593). 한 화면(대시보드)만 쓰고 @media가 없는 조각이라 화면 폴더에 둔다.
+   줄은 상자의 직계 자식이라 마지막 줄의 아래 선을 :last-child로 뺀다. 아이콘 아래 광학 보정 2는 --s-0-5 */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3-5) var(--s-4-5);
+  border-bottom: 1px solid var(--line-divider);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.icon {
+  display: flex;
+  flex: none;
+  margin-top: var(--s-0-5);
+}
+
+.icon[data-tone='danger'] {
+  color: var(--danger);
+}
+
+.icon[data-tone='warn'] {
+  color: var(--warn);
+}
+
+.icon[data-tone='info'] {
+  color: var(--primary);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.body {
+  display: block;
+  margin-top: var(--s-0-5);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-note);
+}

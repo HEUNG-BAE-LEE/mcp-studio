@@ -1,0 +1,51 @@
+/* Panel — 이음 .panel · .p-head · .p-search(css/console.css:115-118) · .tool-list(620 · 1100 이하 876). 그림자 없음(DESIGN 핵심 규칙 4).
+   머리 안쪽 14/18 → --s-3-5 --s-4-5, 띠 안쪽 10/12 → --s-2-5 --s-3, 발 안쪽 12/14 → --s-3 --s-3-5 */
+.root {
+  min-width: 0;
+  border: 1px solid var(--line-control);
+  background: var(--surface);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-3-5) var(--s-4-5);
+  border-bottom: 1px solid var(--line-control);
+  background: var(--surface-sub);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+}
+
+/* 수 — 강조 수치는 주조색(DESIGN Colors ①) */
+.count {
+  color: var(--primary);
+  font-size: var(--fs-ui-sm);
+  font-weight: var(--fw-medium);
+}
+
+.band {
+  padding: var(--s-2-5) var(--s-3);
+  border-bottom: 1px solid var(--line-divider);
+}
+
+/* 스크롤 목록 — 최대 높이는 고유 치수(760, 1100 이하 280). 안의 항목이 포커스를 받으므로 tabindex를 두지 않는다 */
+.body[data-scroll] {
+  /* check-css-disable-next-line literal-px -- 목록 최대 높이는 고유 치수(760) */
+  max-height: 760px;
+  overflow: auto;
+}
+
+/* 아래 동작 칸 — 안 버튼이 칸 폭을 채운다(옛 인라인 width:100%) */
+.footer {
+  display: grid;
+  padding: var(--s-3) var(--s-3-5);
+}
+
+@media (max-width: 1100px) {
+  .body[data-scroll] {
+    /* check-css-disable-next-line literal-px -- 한 열로 접힌 목록 최대 높이는 고유 치수(280) */
+    max-height: 280px;
+  }
+}

@@ -1,0 +1,37 @@
+/* Tabs — 이음 .rtabs · .rtab(css/console.css:317-319,321,323). 탭은 줄 폭을 똑같이 나누고 줄바꿈하지 않는다.
+   고름은 aria-selected — 굵게 · --text · 아래 --bw-tab 밑줄 --tool(MCP 서버에 잇는 탭). 색조 · 탭 안 개수 칩은 옮기지 않았다 */
+/* 칸(격자 · flex)에 들어가도 패널 안 긴 줄(코드 상자)이 칸을 밀지 않는다 */
+.root {
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  border-bottom: 1px solid var(--line-control);
+}
+
+.tab {
+  flex: 1;
+  padding: var(--s-3) var(--s-1-5);
+  border: 0;
+  /* check-css-disable-next-line literal-px -- 밑줄을 탭 줄 아래 선(1px) 위에 겹친다(이음 .rtab margin-bottom -1px) */
+  margin-bottom: -1px;
+  border-bottom: var(--bw-tab) solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--fs-subhead);
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+/* 고른 탭은 hover에도 바뀌지 않는다(옛 .on이 :hover 뒤 — :319) */
+.tab[aria-selected='true'] {
+  border-bottom-color: var(--tool);
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}

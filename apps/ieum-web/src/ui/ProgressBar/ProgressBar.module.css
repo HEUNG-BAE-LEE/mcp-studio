@@ -1,0 +1,22 @@
+/* ProgressBar — 이음 .meter(css/console.css:583-584) · .bar-p(css/console.css:847-848). 비율은 --progress(0 ~ 1)로 받는다 */
+.root {
+  /* check-css-disable-next-line literal-px -- 막대 고유 치수 6(이음 .meter · .bar-p 높이). 간격 단계가 아니라 토큰이 없다 */
+  height: 6px;
+  border-radius: var(--r-sm);
+  background: var(--surface-sub);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  --progress: 0; /* 기본값 — TSX style이 비율을 넘긴다 */
+  width: calc(var(--progress) * 100%);
+  height: 100%;
+  border-radius: var(--r-sm);
+  background: var(--tool);
+}
+
+.root[data-variant='progress'] .fill {
+  background: var(--primary);
+  transition: width var(--m-progress);
+}

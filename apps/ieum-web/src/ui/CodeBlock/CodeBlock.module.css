@@ -1,0 +1,61 @@
+/* CodeBlock — 이음 pre.code(css/console.css:724-726). 줄바꿈 없음 · 넘치면 상자 안 스크롤 · 탭 2칸.
+   자간은 옛처럼 본문 자간을 물려받는다(.code는 letter-spacing을 따로 두지 않았다) */
+.root {
+  margin: 0;
+  /* check-css-disable-next-line literal-px -- 코드 상자 고유 최대 높이(이음 .code max-height 420px) */
+  max-height: 420px;
+  overflow: auto;
+  padding: var(--s-3) var(--s-3-5);
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-md);
+  background: var(--surface-sub);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  line-height: var(--lh-prose);
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* 스크롤 상자는 안쪽 링(DESIGN 접근성) — 지우지 않고 자리만 옮긴다 */
+.root:focus-visible {
+  outline-offset: -2px;
+}
+
+/* 서버 로그 — 긴 줄을 접고 화면 높이의 56%까지(js/menu/deploy.js:167 인라인) */
+.root[data-variant='log'] {
+  max-height: 56vh;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 강조 — 옛 k · s · n · b · t · a · c · m. 속성 이름(a)은 키와 같은 색이다 */
+.key {
+  color: var(--code-key);
+}
+
+.string {
+  color: var(--code-string);
+}
+
+.number {
+  color: var(--code-number);
+}
+
+.literal {
+  color: var(--code-literal);
+}
+
+.tag {
+  color: var(--code-tag);
+}
+
+.comment {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.method {
+  color: var(--code-literal);
+  font-weight: var(--fw-mono-strong);
+}

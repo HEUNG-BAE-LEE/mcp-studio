@@ -1,0 +1,155 @@
+/* StatStrip — 이음 .kpi(css/console.css:530-537) · .dk(css/console.css:953-958) · .num(css/console.css:508). 칸 사이 선은 칸의 왼쪽 · 위쪽 선으로 긋고, 폭마다 열 수에 맞춰 다시 긋는다 */
+.root {
+  display: grid;
+  grid-template-columns: repeat(var(--stat-columns, 5), minmax(0, 1fr));
+  border: 1px solid var(--line-control);
+  background: var(--surface);
+}
+
+.root[data-columns='6'] {
+  --stat-columns: 6;
+}
+
+.cell,
+.failure {
+  min-width: 0;
+  padding: var(--s-4) var(--s-5);
+  border-left: 1px solid var(--line-divider);
+}
+
+.cell:first-child,
+.failure:first-child {
+  border-left: 0;
+}
+
+/* 영역 실패 — 가려진 칸들의 열을 합쳐 쓴다 */
+.failure {
+  --failure-span: 1; /* 기본값 — TSX style이 가려진 칸 수를 넘긴다 */
+  grid-column: span var(--failure-span);
+}
+
+.label {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-ui-sm);
+}
+
+.value {
+  display: block;
+  margin-top: var(--s-1);
+  color: var(--text);
+  font-size: var(--fs-figure);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-tight);
+}
+
+.value[data-tone='danger'] {
+  color: var(--danger);
+}
+
+.value[data-tone='primary'] {
+  color: var(--primary);
+}
+
+.unit {
+  margin-left: var(--s-1);
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.note {
+  display: block;
+  margin-top: var(--s-0-5);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-0-5);
+}
+
+.trend[data-direction='up'] {
+  color: var(--ok);
+  font-weight: var(--fw-medium);
+}
+
+.trend + .description {
+  margin-left: var(--s-1);
+}
+
+/* 6칸 — 탐색 실시간 띠: 칸 여백 · 글자가 한 단계 작다 */
+.root[data-columns='6'] .cell,
+.root[data-columns='6'] .failure {
+  padding: var(--s-3) var(--s-4);
+}
+
+.root[data-columns='6'] .label {
+  font-size: var(--fs-small);
+}
+
+.root[data-columns='6'] .value {
+  margin-top: 0;
+  font-size: var(--fs-title);
+}
+
+.root[data-columns='6'] .unit {
+  color: var(--text-faint);
+  font-size: var(--fs-ui-sm);
+}
+
+@media (max-width: 1500px) {
+  .root[data-columns='5'] .cell,
+  .root[data-columns='5'] .failure {
+    padding: var(--s-3-5) var(--s-4);
+  }
+
+  .root[data-columns='5'] .value {
+    font-size: var(--fs-figure-narrow);
+  }
+}
+
+@media (max-width: 1100px) {
+  .root {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .cell:nth-child(3n + 1) {
+    border-left: 0;
+  }
+
+  .cell:nth-child(n + 4) {
+    border-top: 1px solid var(--line-divider);
+  }
+
+  /* 영역 실패 — 한 줄을 다 쓴다 */
+  .failure {
+    grid-column: 1 / -1;
+    border-left: 0;
+  }
+
+  .failure:not(:first-child) {
+    border-top: 1px solid var(--line-divider);
+  }
+}
+
+@media (max-width: 760px) {
+  .root {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cell:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .cell:nth-child(even) {
+    border-left: 1px solid var(--line-divider);
+  }
+
+  .cell:nth-child(n + 3) {
+    border-top: 1px solid var(--line-divider);
+  }
+}

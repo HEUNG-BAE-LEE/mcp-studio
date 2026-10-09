@@ -1,0 +1,29 @@
+/* Tabs 절 — 쓰는 곳의 조합 예(AI 연결 배포 "AI에 연결하기"의 설명 줄 · 옛 .snip-h css/console.css:796-797)와 좁은 폭 예 */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2-5);
+  margin: var(--s-3-5) 0 var(--s-2);
+}
+
+.head-note {
+  flex: 1;
+  min-width: 220px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+  line-height: var(--lh-note);
+}
+
+.pinned-note {
+  margin: var(--s-2) 0 0;
+  color: var(--text-faint);
+  font-size: var(--fs-ui-sm);
+}
+
+/* 390 폭 화면의 본문 폭 가까이 — 뷰어 폭을 줄이지 않아도 넷이 한 줄에 드는지 본다 */
+.narrow {
+  max-width: 340px;
+}

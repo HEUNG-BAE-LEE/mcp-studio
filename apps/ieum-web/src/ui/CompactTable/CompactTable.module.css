@@ -1,0 +1,55 @@
+/* CompactTable — 이음 .mapw · .map(css/console.css:676-692). 넘치면 상자 안 가로 스크롤.
+   최소 폭 420 · 560 · 640은 min-width라 폭 계열 속성의 리터럴 예외다(간격 단계 밖의 고유 치수).
+   칸 선택자는 한 클래스(.head-cell · .cell)뿐이다 — 쓰는 곳 className이 폭 · 좌우 여백 0(화살표 칸 28 · 설명 최소 130)을 덮을 수 있게 */
+.box {
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-label);
+}
+
+.table[data-min-width='420'] {
+  min-width: 420px;
+}
+
+.table[data-min-width='560'] {
+  min-width: 560px;
+}
+
+.table[data-min-width='640'] {
+  min-width: 640px;
+}
+
+.head-cell {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--line-control);
+  background: var(--surface-sub);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cell {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--line-divider);
+  text-align: left;
+  vertical-align: top;
+}
+
+.row:last-child .cell {
+  border-bottom: 0;
+}
+
+/* 명세 변경 행 — 칸 바탕만(옛 .map tr.dr td) */
+.row[data-tone='warn'] .cell {
+  background: var(--warn-bg);
+}

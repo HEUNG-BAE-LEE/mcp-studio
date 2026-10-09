@@ -1,0 +1,38 @@
+/* IconButton — 이음 .icon-btn(css/console.css:182-183) · .m-head .icon-btn(css/console.css:406-407). 크기는 --h-sm-plus 정사각 하나 */
+.root {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--h-sm-plus);
+  height: var(--h-sm-plus);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.root:hover {
+  background: var(--surface-sub);
+  color: var(--text);
+}
+
+.root[data-variant='on-band'] {
+  color: var(--on-fill);
+}
+
+.root[data-variant='on-band']:hover {
+  background: var(--on-band-hover);
+  color: var(--on-fill);
+}
+
+/* 파란 띠 위 링은 흰색 — 전역 링(--primary)은 띠 위에서 보이지 않는다. 색만 바꾸고 지우지 않는다 */
+.root[data-variant='on-band']:focus-visible {
+  outline-color: var(--on-fill);
+}
+
+.root:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}

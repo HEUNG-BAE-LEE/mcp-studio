@@ -1,0 +1,44 @@
+/* SafetyList — 옛 .safe · .vleg(css/console.css:1026-1036, 메모 목록 인라인 margin:12px 0 0 · min-width:0 — js/menu/discovery.js:302)
+   줄: 아이콘 + 문장 · 사이 10 · 위아래 7 · 13.5px 보조색 · 아래 선(마지막 줄 없음) · 굵은 숫자는 본문색 */
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--s-2-5) var(--s-4-5) var(--s-3-5);
+  list-style: none;
+}
+
+.line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2-5);
+  padding: var(--s-1-75) 0;
+  border-bottom: 1px solid var(--line-divider);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+}
+
+.line:last-child {
+  border-bottom: 0;
+}
+
+.line b {
+  color: var(--text);
+}
+
+.icon {
+  margin-top: var(--s-0-5);
+  color: var(--ok);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2-5);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-note);
+  list-style: none;
+}

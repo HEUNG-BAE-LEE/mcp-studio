@@ -1,0 +1,30 @@
+/* StatusDot — 이음 .dot(css/console.css:554-555). 지름 8은 고유 치수 */
+.root {
+  display: inline-flex;
+  flex: none;
+  position: relative;
+}
+
+.dot {
+  width: 8px;
+  /* check-css-disable-next-line literal-px -- 점 지름은 고유 치수(8) */
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.dot[data-tone='warn'] {
+  background: var(--warn);
+}
+
+.dot[data-tone='danger'] {
+  background: var(--danger);
+}
+
+.dot[data-tone='info'] {
+  background: var(--primary);
+}
+
+.dot[data-tone='mute'] {
+  background: var(--text-faint);
+}

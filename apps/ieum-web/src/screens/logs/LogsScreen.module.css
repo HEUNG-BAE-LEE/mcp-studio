@@ -1,0 +1,33 @@
+/* 호출 로그 — 옛 .toolbar 위 22 · .twrap 위 14 · .tab-hint 위 14 아래 12(css/console.css:289,596,599)
+   표 칸 글자: 시각 13px 고른 숫자(.date — 색은 .utbl td가 이겨 본문색, css/console.css:201,220) · 도구 id 고정폭 13px(.utbl .tn — :603) ·
+   원본 이름 13px(옛 인라인 — js/menu/logs.js:13) · 소요 시간 굵게 고른 숫자(.num — 색은 .utbl td가 이겨 본문색, :508) */
+.toolbar {
+  margin-top: var(--s-5-5);
+}
+
+.table {
+  margin-top: var(--s-3-5);
+}
+
+.hint {
+  margin: var(--s-3-5) 0 var(--s-3);
+}
+
+.time {
+  font-size: var(--fs-ui-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-sm);
+}
+
+.source {
+  font-size: var(--fs-ui-sm);
+}
+
+.figure {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}

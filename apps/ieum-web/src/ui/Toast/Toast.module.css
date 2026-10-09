@@ -1,0 +1,50 @@
+/* Toast — 이음 .toast(css/console.css:421-426). Popover(manual)라 브라우저 기본 [popover] 모양(가운데 · 테두리 · 바탕)을 덮는다.
+   최상층이라 z-index가 쌓임에 쓰이지 않지만 DESIGN 쌓임의 --z-toast 자리를 적어 둔다.
+   닫혀 있으면 투명 · 누름 통과, 열리면 보인다. 나타남 · 사라짐은 --m-fade 페이드 + 조금 위에서 내려옴 */
+.root {
+  position: fixed;
+  inset: calc(var(--s-4-5) + env(safe-area-inset-top, 0)) auto auto 50%;
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  max-width: calc(100vw - 2 * var(--s-4));
+  margin: 0;
+  padding: var(--s-3) var(--s-4-5);
+  overflow: visible;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--toast-bg);
+  box-shadow: var(--shadow-float);
+  color: var(--on-fill);
+  font-size: var(--fs-body);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, calc(-1 * var(--s-4)));
+  transition:
+    opacity var(--m-fade),
+    transform var(--m-fade);
+}
+
+.root[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.icon {
+  color: var(--inverse-ok);
+}
+
+.root[data-kind='warn'] .icon {
+  color: var(--inverse-warn);
+}
+
+.root[data-kind='info'] .icon {
+  color: var(--inverse-primary);
+}
+
+/* 텍스트로만 그리고 줄바꿈을 지킨다(서버 원문 여러 줄) */
+.message {
+  white-space: pre-wrap;
+}

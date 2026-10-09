@@ -1,0 +1,15 @@
+/* ScrollList — 이음 "포함할 도구" 상자(js/menu/deploy.js:196 인라인). 1px --line-divider · 반지름 없음(옛 그대로) · 넘치면 상자 안 세로 스크롤 */
+.root {
+  /* check-css-disable-next-line literal-px -- 상자 고유 최대 높이(이음 도구 목록 max-height 240px) */
+  max-height: 240px;
+  overflow: auto;
+  padding: var(--s-1-5) var(--s-2-5);
+  border: 1px solid var(--line-divider);
+}
+
+/* 소제목 — 옛 인라인 margin 6px 0 2px · 12.5px · --text-2 */
+.heading {
+  margin: var(--s-1-5) 0 var(--s-0-5);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
