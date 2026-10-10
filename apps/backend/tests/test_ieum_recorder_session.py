@@ -27,13 +27,19 @@ def live(ieum_state):
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning"))
     t = threading.Thread(target=server.run, daemon=True)
     t.start()
+    deadline = time.time() + 15
     while not server.started:
+        if time.time() > deadline:
+            server.should_exit = True
+            raise RuntimeError("테스트 서버가 15초 안에 뜨지 않았습니다.")
         time.sleep(0.02)
     yield f"http://127.0.0.1:{server.servers[0].sockets[0].getsockname()[1]}"
-    from app.ieum.recorder.manager import MANAGER    # 작업 7 동안만: 작업 8 에서 라우터 shutdown 훅이 생기면 지운다
-    call(MANAGER.shutdown())
-    server.should_exit = True                 # 라우터 shutdown 훅이 MANAGER.shutdown() 으로 브라우저를 닫는다
-    t.join(timeout=30)
+    from app.ieum.recorder.manager import MANAGER    # 라우터 shutdown 훅이 아직 없어 여기서 브라우저를 닫는다(작업 8 에서 훅이 생기면 지운다)
+    try:
+        call(MANAGER.shutdown(), timeout=30)
+    finally:
+        server.should_exit = True
+        t.join(timeout=30)
 
 
 def call(coro, timeout=60):
@@ -128,20 +134,32 @@ async def _offer(s, data):
     s._frame(data)
 
 
+async def _sender_offer(sender, data):
+    sender.offer(data)
+
+
 def test_끊긴_구독자는_목록에서_빠진다(live):
     from app.ieum.recorder.manager import MANAGER
     s = MANAGER.get(start(live)["id"])
 
     class Dead:
+        calls = 0
+
         async def send_json(self, msg):
+            Dead.calls += 1
             raise RuntimeError("끊김")
     dead, ok = Dead(), WS()
     s.subscribe(dead)
     s.subscribe(ok)
-    call(_offer(s, "x"))                      # 프레임 보내기가 실패하면 sender.failed 가 선다
+    sender = s.subs[dead]
+    call(_sender_offer(sender, "x"))          # 보내기가 실패하면 sender.failed 가 선다(구독자는 아직 목록에 있을 수 있다)
     time.sleep(0.5)
-    call(s.send_tabs())                       # 다음 전송 때 빠진다
-    assert dead not in s.subs and ok in s.subs
+    assert sender.failed
+    calls = Dead.calls
+    call(_offer(s, "y"))                      # broadcast 없이 프레임만: _prune 이 빼고 다시 보내지 않는다
+    call(_offer(s, "z"))
+    time.sleep(0.3)
+    assert dead not in s.subs and ok in s.subs and Dead.calls == calls
 
 
 def test_로그인_통과_결정이_승인_기록에_그대로_남는다(live):
@@ -151,3 +169,76 @@ def test_로그인_통과_결정이_승인_기록에_그대로_남는다(live):
     s = MANAGER.get(out["id"])
     call(s.stop())
     assert any(a["decision"] == "login" for a in store.get_recording(out["id"])["approvals"])
+
+
+def test_동시_시작은_상한을_넘지_않는다(live, monkeypatch):
+    from app.ieum.recorder import manager
+    monkeypatch.setenv("IEUM_RECORDER_MAX_PER_OWNER", "1")
+    monkeypatch.setenv("IEUM_RECORDER_MAX_SESSIONS", "2")
+
+    async def both():
+        mk = lambda: manager.MANAGER.start(dict(name="n", owner="홍길동", base=live + "/demo-legacy/po", start="/login.do", env="op",
+                                                account=DEMO_USER_ID, password=DEMO_PASSWORD))
+        return await asyncio.gather(mk(), mk(), return_exceptions=True)
+    res = call(both())
+    assert sum(isinstance(r, dict) for r in res) == 1
+    assert sum(isinstance(r, manager.RecorderError) and r.code == 409 for r in res) == 1
+    assert manager.MANAGER.usage()["total"] == 1
+
+
+def test_리퍼는_한_번_실패해도_계속_돈다(live, monkeypatch):
+    from app.ieum.recorder import manager, retention, store
+    monkeypatch.setenv("IEUM_RECORDER_IDLE_SEC", "0")
+    out = start(live)
+    s = manager.MANAGER.get(out["id"])
+    s.last_input -= 5
+    calls = {"n": 0}
+
+    def boom(now):
+        calls["n"] += 1
+        raise RuntimeError("정리 실패")
+    monkeypatch.setattr(retention, "sweep", boom)
+    manager.MANAGER._swept_at = 0.0
+    call(manager.MANAGER._reap_once())        # 정리가 터져도 같은 주기의 세션 회수는 돈다
+    assert calls["n"] == 1
+    assert store.get_recording(out["id"])["status"] == "interrupted" and manager.MANAGER.get(out["id"]) is None
+
+
+def test_중복_멈춤은_409이고_on_stopped는_한_번(live):
+    from app.ieum.recorder import manager
+    seen = []
+
+    async def done(rid, s):
+        seen.append(rid)
+    manager.MANAGER.on_stopped = done
+    try:
+        out = start(live)
+        call(manager.MANAGER.stop(out["id"]))
+        with pytest.raises(manager.RecorderError) as e:
+            call(manager.MANAGER.stop(out["id"]))
+        assert e.value.code == 409
+        time.sleep(0.3)
+        assert seen == [out["id"]]
+    finally:
+        manager.MANAGER.on_stopped = None
+
+
+def test_멈추면_대기_중인_승인은_거부로_닫힌다(live):
+    from app.ieum.recorder import manager, store
+    out = start(live)
+    s = manager.MANAGER.get(out["id"])
+    call(s.page.goto(s.policy.base + "/poListView.do"))
+
+    async def fire():
+        # 승인 대기를 만든다: 쓰기 요청을 페이지에서 보낸다(승인되지 않으면 원본에 닿지 않는다)
+        asyncio.ensure_future(s.page.evaluate("fetch('/demo-legacy/po/poSave.do',{method:'POST',body:'a=1'}).catch(()=>0)"))
+        for _ in range(100):
+            if s.guard.holding:
+                return True
+            await asyncio.sleep(0.05)
+        return False
+    assert call(fire())
+    call(manager.MANAGER.stop(out["id"]))
+    decisions = [a["decision"] for a in store.get_recording(out["id"])["approvals"]]
+    assert "deny" in decisions and "approve" not in decisions
+    assert not s.guard.holding

@@ -5,12 +5,18 @@ Playwright 비동기 객체는 만든 이벤트 루프에 묶인다. 시험처�
 사람당 상한은 기록하는 사람 이름으로 센다(콘솔 로그인이 생기면 계정으로 바꾼다).
 """
 import asyncio
+import logging
 import time
 from typing import Awaitable, Callable, Dict, Optional
 
 from app.ieum.gateway import credentials
 from app.ieum.recorder import config, retention, store
 from app.ieum.recorder.session import RecorderSession
+
+
+log = logging.getLogger(__name__)
+
+_REAP_SEC = 15
 
 
 class RecorderError(Exception):
@@ -34,7 +40,16 @@ class Manager:
         self._pw = None
         self._reaper: Optional[asyncio.Task] = None
         self._swept_at = 0.0
+        self._lock: Optional[asyncio.Lock] = None
+        self._lock_loop = None
         self.on_stopped: Optional[Callable[[str, RecorderSession], Awaitable[None]]] = None
+
+    def _guard(self) -> asyncio.Lock:
+        """상한 확인부터 등록까지, 그리고 Playwright 기동을 한 번에 한 요청만 지나가게 하는 잠금(루프마다 새로 만든다)."""
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._lock_loop is not loop:
+            self._lock, self._lock_loop = asyncio.Lock(), loop
+        return self._lock
 
     async def _ensure(self):
         loop = asyncio.get_running_loop()
@@ -68,28 +83,36 @@ class Manager:
             raise RecorderError("대상 시스템 주소는 http:// 또는 https:// 로 시작해야 합니다.")
         if env not in ("op", "stg"):
             raise RecorderError("환경은 운영(op) 또는 스테이징(stg) 이어야 합니다.")
-        pw = await self._ensure()
-        u = self.usage()
-        if u["byOwner"].get(owner, 0) >= u["perOwner"]:
-            raise RecorderError(f"{owner} 님이 이미 {u['byOwner'][owner]}개를 기록 중입니다(사람당 {u['perOwner']}개). 진행 중인 기록을 끝내고 다시 시작해 주세요.", 409)
-        if u["total"] >= u["max"]:
-            who = ", ".join(f"{k} {v}개" for k, v in u["byOwner"].items())
-            raise RecorderError(f"동시 기록이 가득 찼습니다(서버 전체 {u['max']}개: {who}). 진행 중인 기록이 끝나면 다시 시작해 주세요.", 409)
         account, password = payload.get("account") or "", payload.get("password") or ""
         creds = {"username": account, "password": password} if account and password else None
         rec = store.new_recording(name, owner, base, payload.get("start") or "", env, "auto" if creds else "manual", payload.get("readPost") or "")
-        await asyncio.to_thread(store.save_recording, rec)
-        if creds:
-            await asyncio.to_thread(credentials.put, vault_key(rec["id"]), {"type": "session", "username": account, "password": password})
-        session = RecorderSession(rec, creds, on_dead=lambda rid: self.sessions.pop(rid, None))
-        self.sessions[rec["id"]] = session
+        async with self._guard():                     # 상한 확인과 자리 예약 사이에 await 가 끼지 않게 한 잠금으로 묶는다
+            pw = await self._ensure()
+            u = self.usage()
+            if u["byOwner"].get(owner, 0) >= u["perOwner"]:
+                raise RecorderError(f"{owner} 님이 이미 {u['byOwner'][owner]}개를 기록 중입니다(사람당 {u['perOwner']}개). 진행 중인 기록을 끝내고 다시 시작해 주세요.", 409)
+            if u["total"] >= u["max"]:
+                who = ", ".join(f"{k} {v}개" for k, v in u["byOwner"].items())
+                raise RecorderError(f"동시 기록이 가득 찼습니다(서버 전체 {u['max']}개: {who}). 진행 중인 기록이 끝나면 다시 시작해 주세요.", 409)
+            session = RecorderSession(rec, creds, on_dead=lambda rid: self.sessions.pop(rid, None))
+            self.sessions[rec["id"]] = session        # 자리를 먼저 잡는다. 실패하면 아래에서 뺀다
         try:
+            await asyncio.to_thread(store.save_recording, rec)
+            if creds:
+                await asyncio.to_thread(credentials.put, vault_key(rec["id"]), {"type": "session", "username": account, "password": password})
             await session.start(pw)
         except Exception as exc:
             self.sessions.pop(rec["id"], None)
             await session.close()
             msg = str(exc).splitlines()[0][:300] if str(exc) else type(exc).__name__
-            await asyncio.to_thread(store.update_recording, rec["id"], lambda r: r.update(status="failed", error=msg, endedAt=time.time()))
+            try:
+                await asyncio.to_thread(credentials.delete, vault_key(rec["id"]))
+            except Exception:
+                log.exception("실패한 기록의 인증 정보를 지우지 못했습니다")
+            try:
+                await asyncio.to_thread(store.update_recording, rec["id"], lambda r: r.update(status="failed", error=msg, endedAt=time.time()))
+            except KeyError:
+                pass                                  # 저장 자체가 실패한 경우
             raise RecorderError(msg, 500)
         return {"id": rec["id"], "token": session.token}
 
@@ -101,6 +124,8 @@ class Manager:
         s = self.get(rid)
         if s is None:
             raise RecorderError("진행 중인 기록이 아닙니다.", 404)
+        if s.stopping:                                # 멈춤은 한 번만. on_stopped 가 두 번 돌면 분석이 겹친다
+            raise RecorderError("이미 멈추는 중인 기록입니다.", 409)
         await s.stop()
         await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="analyzing"))
         if self.on_stopped is not None:
@@ -127,18 +152,26 @@ class Manager:
 
     async def _reap(self) -> None:
         while True:
-            await asyncio.sleep(15)
-            now = time.time()
-            if now - self._swept_at > 86400:
-                self._swept_at = now
+            await asyncio.sleep(_REAP_SEC)
+            await self._reap_once()
+
+    async def _reap_once(self) -> None:
+        """한 번의 회수. 한 단계가 실패해도 다음 단계·다음 주기는 계속 돈다(리퍼가 죽으면 유휴·최대 시간·보관 정리가 영영 멈춘다)."""
+        now = time.time()
+        if now - self._swept_at > 86400:
+            self._swept_at = now
+            try:
                 await asyncio.to_thread(retention.sweep, now)
-            for rid, s in list(self.sessions.items()):
+            except Exception:
+                log.exception("보관 정리에 실패했습니다")
+        for rid, s in list(self.sessions.items()):
+            try:
                 try:
                     status = (await asyncio.to_thread(store.get_recording, rid))["status"]
                 except KeyError:
                     await self.close(rid)
                     continue
-                if status != "recording":
+                if status != "recording" or s.stopping:
                     continue                     # 분석·검증 중인 세션은 service.finish 가 닫는다
                 if now - s.last_input > config.idle_sec():
                     await s.trace.finish(s.page)
@@ -147,6 +180,8 @@ class Manager:
                     await self.close(rid)
                 elif now - s.started > config.max_sec():
                     await self.stop(rid)
+            except Exception:
+                log.exception("기록 %s 회수 단계에 실패했습니다", rid)
 
 
 MANAGER = Manager()

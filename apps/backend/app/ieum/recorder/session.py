@@ -49,13 +49,18 @@ class RecorderSession:
         self.subs.pop(ws, None)
 
     def _offer_threadsafe(self, sender, data: str) -> None:
-        """subscribe 는 이벤트 루프 밖(시험, 다른 스레드)에서 불릴 수 있다. 펌프는 세션의 루프에서 돌려야 한다."""
+        """펌프는 세션의 루프에서 돌려야 한다. 루프 밖에서 부르는 경로는 시험용이다(운영에서는 라우터가 루프 안에서 부른다)."""
         try:
-            asyncio.get_running_loop()
-            sender.offer(data)
+            running = asyncio.get_running_loop()
         except RuntimeError:
-            if self._loop is not None:
+            running = None
+        if running is not None and running is self._loop:
+            sender.offer(data)
+        elif self._loop is not None and not self._loop.is_closed():
+            try:
                 self._loop.call_soon_threadsafe(sender.offer, data)
+            except RuntimeError:
+                pass                                      # 루프가 막 닫혔다. 보낼 곳이 없다
 
     def _prune(self) -> None:
         """보내기가 실패한 구독자(끊긴 WebSocket)는 다시 시도하지 않고 뺀다."""
@@ -170,6 +175,8 @@ class RecorderSession:
         t = msg.get("t")
         self.last_input = time.time()
         if t == "approve":
+            if self.stopping:
+                return                                  # 멈추는 중에는 승인·거부를 받지 않는다(멈출 때 모두 거부로 닫는다)
             self.guard.decide(str(msg.get("id")), bool(msg.get("ok")))
             return
         if t == "dialog" and self._dialog is not None:
@@ -204,9 +211,19 @@ class RecorderSession:
             await relay.key(self.cdp, msg["key"])
 
     # ── 끝 ─────────────────────────────────────────────────────────────────
+    async def _deny_pending(self) -> None:
+        """대기 중인 쓰기 승인을 거부로 닫고, 각 _hold 가 decisions 에 deny 를 남길 때까지 잠깐 기다린다."""
+        self.guard.deny_all()
+        for _ in range(100):
+            if not self.guard.holding:
+                return
+            await asyncio.sleep(0.02)
+
     async def stop(self) -> None:
         self.stopping = True
+        await self._deny_pending()
         await self.trace.finish(self.page)
+        await self._deny_pending()
         recipe = await login.recipe_for(self.guard.login_req, self.policy, self.creds)
         login_path = urlsplit(self.guard.login_req["url"]).path if self.guard.login_req else ""
 

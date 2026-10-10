@@ -213,6 +213,14 @@ class Guard:
         fut.set_result(bool(ok))
         return True
 
+    def deny_all(self) -> int:
+        """대기 중인 승인을 모두 거부로 닫는다(기록을 멈출 때). 결정은 각 _hold 가 decisions 에 deny 로 남긴다."""
+        n = 0
+        for hid in list(self._holds):
+            if self.decide(hid, False):
+                n += 1
+        return n
+
     def _log(self, method: str, url: str, decision: str, hid: str = "", label: str = "") -> None:
         self.decisions.append({"id": hid, "method": method, "url": self.policy.display(url), "path": urlsplit(url).path,
                                "label": label or self.label, "decision": decision, "at": time.time()})
