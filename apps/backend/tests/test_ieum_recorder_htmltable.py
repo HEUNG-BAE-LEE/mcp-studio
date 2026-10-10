@@ -54,3 +54,17 @@ def test_닫는_태그를_생략한_표():
 def test_닫는_태그를_생략한_상세_화면():
     d = htmltable.to_data("<table><tr><th>거래처명<td>한빛상사<th>대표자<td>홍길동</table>")
     assert d["fields"] == {"거래처명": "한빛상사", "대표자": "홍길동"}
+
+
+def test_onclick_빈_문자열_인자가_있어도_값을_잃지_않는다():
+    d = htmltable.to_data("<table><tr><th>A</th><th>B</th></tr><tr onclick=\"f('', 'PO-1')\"><td>1</td><td>2</td></tr></table>")
+    links = d["tables"][0]["rows"][0]["_links"]
+    assert "PO-1" in links
+    assert not any(", " in x for x in links)
+
+
+def test_onclick_큰따옴표_인자와_빈_인자를_함께_읽는다():
+    # &quot; 는 HTML 속성 안의 큰따옴표다. html.parser 가 풀어서 onclick 값에 " 가 들어간다.
+    html = '<table><tr><th>A</th><th>B</th></tr><tr onclick="go(&quot;X-9&quot;, \'\')"><td>1</td><td>2</td></tr></table>'
+    d = htmltable.to_data(html)
+    assert "X-9" in d["tables"][0]["rows"][0]["_links"]

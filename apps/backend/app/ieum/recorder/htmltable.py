@@ -13,7 +13,18 @@ import re
 from html.parser import HTMLParser
 from typing import Dict, List, Optional
 
-_JS_STR = re.compile(r"""['"]([^'"\s][^'"]{0,99})['"]""")
+# onclick 안의 문자열 인자. 작은따옴표와 큰따옴표를 각자 짝지어 읽는다 (인자 사이 빈 문자열 '' 가 짝을 흩트리지 않게).
+_JS_STR = re.compile(r"'([^'\\]{0,99})'|\"([^\"\\]{0,99})\"")
+
+
+def _literals(s: str) -> List[str]:
+    """문자열 인자를 꺼낸다. 앞뒤 공백을 떼고 빈 값은 버린다."""
+    out = []
+    for m in _JS_STR.finditer(s):
+        v = (m.group(1) if m.group(1) is not None else m.group(2)).strip()
+        if v:
+            out.append(v)
+    return out
 
 
 def looks_html(ctype: str, body: str) -> bool:
@@ -38,9 +49,9 @@ class _Parser(HTMLParser):
         if tag == "table":
             self.stack.append({"rows": [], "row": None, "cell": None})
         elif tag == "tr" and t is not None:
-            t["row"] = {"cells": [], "links": _JS_STR.findall(a.get("onclick", ""))}
+            t["row"] = {"cells": [], "links": _literals(a.get("onclick", ""))}
         elif tag in ("td", "th") and t is not None and t["row"] is not None:
-            t["cell"] = {"th": tag == "th", "text": [], "links": _JS_STR.findall(a.get("onclick", "")),
+            t["cell"] = {"th": tag == "th", "text": [], "links": _literals(a.get("onclick", "")),
                          "colspan": _int(a.get("colspan")), "rowspan": _int(a.get("rowspan"))}
         elif tag == "input" and a.get("type", "").lower() == "hidden" and a.get("name"):
             self.hidden[a["name"]] = a.get("value", "")
@@ -48,7 +59,7 @@ class _Parser(HTMLParser):
             href = a.get("href", "")
             if href and not href.startswith(("#", "javascript:void")):
                 t["cell"]["links"].append(href)
-            t["cell"]["links"] += _JS_STR.findall(a.get("onclick", "") + " " + (href if href.startswith("javascript:") else ""))
+            t["cell"]["links"] += _literals(a.get("onclick", "") + " " + (href if href.startswith("javascript:") else ""))
 
     def handle_endtag(self, tag):
         t = self.stack[-1] if self.stack else None
