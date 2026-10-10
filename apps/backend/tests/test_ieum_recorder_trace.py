@@ -180,3 +180,54 @@ def test_쿼리를_다시_부호화해도_뜻이_같다():
     tr = _bare_trace()
     out = tr._url("http://h/po/x.do?q=a%26b+c")
     assert parse_qsl(urlsplit(out).query) == [("q", "a&b c")]
+
+
+def test_평문_본문의_쌍도_가린다():
+    tr = _bare_trace()
+    for ct in ("text/plain;charset=UTF-8", ""):
+        out = tr._post("userId=kim&userPw=s3cret", ct)
+        assert "s3cret" not in out and "kim" in out
+
+
+def test_soap_본문의_비밀_태그를_가린다():
+    tr = _bare_trace()
+    out = tr._post("<soap:Body><login><userId>kim</userId><password>s3cret</password></login></soap:Body>", "text/xml")
+    assert "s3cret" not in out and "kim" in out
+
+
+def test_같은_묶음을_두_번_닫지_않는다(ieum_state):
+    async def steps(page, cdp, tr):
+        await tr.begin(page, "click")
+        await asyncio.gather(tr.finish(page), tr.finish(page))
+    rec, sent, tr = _record(ieum_state, steps)
+    assert len(store.read_spans(rec["id"])) == 1
+    assert len([m for m in sent if m["t"] == "span"]) == 1
+
+
+def test_잘린_표_본문은_조각난_값을_남기지_않는다():
+    import re
+
+    from app.ieum.discovery import capture
+    row = "<tr><td>PO-0001</td><td>010-4821-5678</td></tr>"
+    head = "<html><body><table><tr><th>번호</th><th>TEL</th></tr>"
+    off = len("<tr><td>PO-0001</td><td>010-48")
+    filler = (capture.MAX_BODY - off - len(head)) % len(row)
+    c = filler if filler >= 7 else filler + len(row)
+    body = head + "<!--" + "x" * (c - 7) + "-->" + row * 2000
+    assert body[:capture.MAX_BODY].endswith("010-48")         # 경계가 전화번호 한가운데에 떨어진다
+
+    class Req:
+        resource_type, method, headers, post_data = "document", "GET", {}, None
+
+    class Resp:
+        url, status, headers, request = "http://rec.test/po/big.do", 200, {"content-type": "text/html; charset=utf-8"}, Req()
+
+        async def text(self):
+            return body
+
+    tr = _bare_trace()
+    tr.current = {"network": []}
+    asyncio.new_event_loop().run_until_complete(tr.on_response(Resp()))
+    data = tr.current["network"][0]["data"]
+    tels = [r.get("TEL") for t in data["tables"] for r in t["rows"]]
+    assert tels and all(re.match(r"^\*\*\*-\*\*\*\*-5678$", v) for v in tels), tels[-3:]

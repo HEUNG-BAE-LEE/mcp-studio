@@ -30,6 +30,8 @@ ARIA_MAX = 20_000
 RES_MAX = 4_000
 SETTLE_MAX_MS = 3000
 SETTLE_QUIET_MS = 400
+_PAIRS_BODY = re.compile(r"^[^=&\s]+=[^&]*(?:&[^=&\s]+=[^&]*)*$")
+_XML_ELEM = re.compile(r"<((?:[\w.-]+:)?([\w.-]+))((?:\s[^>]*)?)>([^<]*)</\1>")
 _CHARSET = re.compile(r"charset=([\w-]+)", re.I)
 
 INIT_JS = """
@@ -62,6 +64,7 @@ class Trace:
         self.current: Optional[dict] = None
         self._inflight = 0
         self._limit_sent = False
+        self._close_lock = asyncio.Lock()
 
     # ── 마스킹 (원값은 입력칸 값만 지도에 남긴다) ───────────────────────────
     def _m(self, v: str) -> str:
@@ -98,7 +101,18 @@ class Trace:
                 return self._m(post)[:RES_MAX]
         if "x-www-form-urlencoded" in low:
             return self._pairs_text(parse_qsl(post, keep_blank_values=True))[:RES_MAX]
-        return self._m(post)[:RES_MAX]
+        if _PAIRS_BODY.match(post) and not post.lstrip().startswith("<"):
+            return self._pairs_text(parse_qsl(post, keep_blank_values=True))[:RES_MAX]
+        return self._hide_xml_secrets(post, self._m)[:RES_MAX]
+
+    @staticmethod
+    def _hide_xml_secrets(text: str, mask) -> str:
+        """XML·SOAP 본문에서 비밀 이름의 태그 내용을 숨긴 뒤 나머지를 가린다."""
+        def repl(m):
+            if m.group(4) and is_secret_key(m.group(2)):
+                return f"<{m.group(1)}{m.group(3)}>{HIDDEN}</{m.group(1)}>"
+            return m.group(0)
+        return mask(_XML_ELEM.sub(repl, text))
 
     # ── 진행 중 요청 ───────────────────────────────────────────────────────
     def on_request(self, request) -> None:
@@ -181,6 +195,10 @@ class Trace:
         await self._close(page)
 
     async def _close(self, page) -> None:
+        async with self._close_lock:                     # 같은 묶음을 두 번 닫지 않는다
+            await self._close_locked(page)
+
+    async def _close_locked(self, page) -> None:
         span = self.current
         if span is None:
             return
@@ -231,7 +249,11 @@ class Trace:
                     body = ""
             data = None
             if body and htmltable.looks_html(ctype, body):
-                data = await asyncio.to_thread(htmltable.to_data, body)
+                src = body
+                if len(body) >= capture.MAX_BODY:          # 잘린 본문: 마지막 <tr 앞에서 잘라 조각난 값을 버린다
+                    cut = body.lower().rfind("<tr")
+                    src = body[:cut] if cut > 0 else ""
+                data = await asyncio.to_thread(htmltable.to_data, src) if src else None
                 data = self.masker.value(data) if data else None
             masked = self._mask_body(body)
             if masked is None:
