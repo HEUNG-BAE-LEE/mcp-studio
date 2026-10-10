@@ -10,6 +10,7 @@
 csrfToken 이 든 저장 요청을 로그인으로 오인해 승인 없이 보낸다.
 """
 import asyncio
+import itertools
 import re
 import time
 import uuid
@@ -49,13 +50,17 @@ def hide_token_pairs(pairs):
     return [(k, HIDDEN if v and _TOKEN_NAME.search(str(k)) else v) for k, v in pairs]
 
 
-def hide_token_values(v):
-    """JSON 값에서 토큰 이름 키의 글자 값을 숨긴다(재귀)."""
-    if isinstance(v, dict):
-        return {k: (HIDDEN if isinstance(x, (str, int, float)) and x != "" and _TOKEN_NAME.search(str(k)) else hide_token_values(x)) for k, x in v.items()}
-    if isinstance(v, list):
-        return [hide_token_values(x) for x in v]
-    return v
+def _norm_url(url: str) -> str:
+    """정확히 맞출 때 쓰는 주소: 스킴·호스트를 소문자로 하고 기본 포트(:80, :443)를 뗀다. 경로·쿼리는 그대로 비교한다."""
+    p = urlsplit(url)
+    scheme, host = p.scheme.lower(), (p.hostname or "").lower()
+    if ":" in host:
+        host = f"[{host}]"
+    port = p.port
+    netloc = host if port is None or (scheme, port) in (("http", 80), ("https", 443)) else f"{host}:{port}"
+    if p.username or p.password:
+        netloc = p.netloc.rsplit("@", 1)[0] + "@" + netloc
+    return p._replace(scheme=scheme, netloc=netloc).geturl()
 
 
 def mask_url(masker: Masker, url: str, hide_tokens: bool = False) -> str:
@@ -110,6 +115,7 @@ class Guard:
         self._holds: Dict[str, asyncio.Future] = {}
         self.pending: Dict[str, dict] = {}            # 화면에 띄운 승인 창 내용. 늦게 붙은 구독자에게 다시 보낸다
         self._replay_holds: set = set()               # Replay 가 ask 로 띄운 승인 창. 기록을 멈춘 뒤에도 이것만 승인받는다
+        self._tokens = itertools.count(1)
         self._exact: Dict[int, tuple] = {}            # Replay 가 승인받아 지금 보내는 요청 (메서드, 주소, 본문). 보내는 동안만 있다
         self._masker = Masker(pii=True)
 
@@ -236,15 +242,15 @@ class Guard:
     def allow_exact(self, method: str, url: str, body: Optional[str]) -> int:
         """승인받은 Replay 요청을 브라우저로 보내는 동안만 그 요청 하나를 통과시킨다. 보낸 뒤 revoke 로 지운다.
         메서드·주소(쿼리 포함)·본문이 모두 같아야 하므로 멈춘 화면이 같은 경로로 보내는 다른 쓰기는 여전히 붙잡힌다."""
-        token = id(object()) ^ int(time.time() * 1e6)
-        self._exact[token] = (method.upper(), url, body or "")
+        token = next(self._tokens)
+        self._exact[token] = (method.upper(), _norm_url(url), body or "")
         return token
 
     def revoke(self, token: int) -> None:
         self._exact.pop(token, None)
 
     def _consume_exact(self, method: str, url: str, body: Optional[str]) -> bool:
-        key = (method.upper(), url, body or "")
+        key = (method.upper(), _norm_url(url), body or "")
         for token, v in list(self._exact.items()):
             if v == key:
                 del self._exact[token]

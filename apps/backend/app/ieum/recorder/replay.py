@@ -245,7 +245,7 @@ def _value(p: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str]], outs:
 
 
 async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str]], http, browser,
-                   ask_write: Callable[[dict], Awaitable[bool]], gap: float, kind: str = "same-values",
+                   ask_write: Callable[[dict], Awaitable[Any]], gap: float, kind: str = "same-values",
                    relogin: Optional[Callable[[], Awaitable[Optional[Any]]]] = None, pace: Optional[list] = None) -> dict:
     """pace: [마지막 전송 시각] — 실행 사이에도 요청 간격을 지키려고 호출자가 같은 리스트를 넘긴다.
     relogin: 세션 만료 시 금고 계정으로 다시 로그인해 새 쿠키를 돌려준다(실행당 한 번)."""
@@ -312,10 +312,12 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
             return fail(st, "needs_value", note="쿼리·본문에 가린 값이 남음")
         if _PLACEHOLDER.search(url):
             return fail(st, "unresolved_path", note="경로의 {자리}를 채우지 못함")
-        if st.get("write") and not await ask_write(st):      # 보내지 않을 요청에는 승인을 묻지 않도록 점검 뒤에 묻는다
+        said = await ask_write(st) if st.get("write") else None     # 보내지 않을 요청에는 승인을 묻지 않도록 점검 뒤에 묻는다
+        if st.get("write") and not said:
             return fail(st, "write_denied")
         url_noq = url.split("?")[0]
-        approved = "승인했지만 보내지 않음: " if st.get("write") else ""   # 승인 뒤 전송 전에 멈추면 결과에 남겨 보이게 한다
+        # 쓰기를 보내기 전에 멈추면 결과에 남긴다. 사람이 승인한 것("approve")만 "승인했지만" 이라 적는다(스테이징·세션 밖은 승인이 없었다)
+        approved = ("승인했지만 보내지 않음: " if said == "approve" else "보내지 않음: ") if st.get("write") else ""
         note = None
         while True:
             await pause()
@@ -451,7 +453,8 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
             http, browser, raw = HttpTransport(cookies, host=host), BrowserTransport(session.page, session.guard), dict(session.trace.raw)
 
             async def ask(st):
-                return await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}")
+                ok = await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}")
+                return ("approve" if session.guard.env == "op" else "staging") if ok else False     # 사람 승인인지 결과 문구가 가린다
         else:
             if not auto:
                 return result("needs-login", [])
@@ -459,7 +462,7 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
             http = HttpTransport(await do_login(), host=host)
 
             async def ask(st):
-                return config.is_staging(bf["source"].get("env"))    # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다
+                return "staging" if config.is_staging(bf["source"].get("env")) else False    # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다
     except LoginError:
         return result("needs-login", [])
     except Exception as exc:

@@ -106,8 +106,8 @@ def test_승인받았지만_보내지_못하면_허용이_남지_않아_뒤따�
     bf = _one()
     bf["steps"][0].update(exec="browser", method="POST", write=True, formPage="http://h:8080/po/form.do",
                           params=[{"a": "_csrf", "loc": "form", "from": "session.hidden._csrf", "ex": "ab****cd"}])
-    out = run(replay.run_once(bf, {}, {}, None, replay.BrowserTransport(page, g), lambda st: _true(), 0))
-    assert out["reason"] == "needs_value" and "승인했지만 보내지 않음" in out["steps"][0]["note"]
+    out = run(replay.run_once(bf, {}, {}, None, replay.BrowserTransport(page, g), lambda st: _say("approve"), 0))
+    assert out["reason"] == "needs_value" and out["steps"][0]["note"].startswith("승인했지만 보내지 않음: ")
     assert not g._exact and page.routes == []
     r = Route()
     run(g.route(r, Req("http://h:8080/po/poList.do", "POST", post="a=1")))
@@ -366,12 +366,71 @@ def test_토큰_이름이거나_가린_숨은_값만_세션_숨은_값이_된다
     assert froms["mode"] == "const:A" and froms["vendCd"] == "const:V001"
 
 
-def test_묶음에_저장한_주소와_본문은_토큰_값을_숨기고_분석_결과는_같다():
+async def _say(v):
+    return v
+
+
+def test_사람이_승인하지_않은_쓰기_실패는_승인했다고_적지_않는다():
+    bf = _one()
+    bf["steps"][0].update(exec="browser", method="POST", write=True, formPage="http://h:8080/po/form.do",
+                          params=[{"a": "_csrf", "loc": "form", "from": "session.hidden._csrf", "ex": "ab****cd"}])
+    for said in ("staging", True):                                    # 스테이징·세션 밖 재검증은 사람 승인이 없다
+        out = run(replay.run_once(bf, {}, {}, None, replay.BrowserTransport(_Page()), lambda st, v=said: _say(v), 0))
+        note = out["steps"][0]["note"]
+        assert out["reason"] == "needs_value" and note.startswith("보내지 않음: ") and "승인" not in note
+
+
+def test_세션_안_검증의_ask_는_운영이면_approve_스테이징이면_staging_을_돌려준다():
+    import types
+    for env, want in (("op", "approve"), ("stg", "staging")):
+        g, _ = make(env=env)
+
+        async def go(g=g):
+            sess = types.SimpleNamespace(closed=False, guard=g, page=_Page(), trace=types.SimpleNamespace(raw={}),
+                                         ctx=types.SimpleNamespace(cookies=lambda: _say([])))
+            seen = []
+
+            async def fake(bf, inputs, raw, http, browser, ask, gap, kind="same-values", **kw):
+                t = asyncio.ensure_future(ask(bf["steps"][0]))
+                await asyncio.sleep(0.05)
+                for hid in list(g.pending):
+                    g.decide(hid, True)
+                seen.append(await t)
+                return {"kind": kind, "ok": True, "steps": [], "reason": ""}
+            orig, replay.run_once = replay.run_once, fake
+            try:
+                await replay.verify(_one(write=True, method="POST"), {"id": "rec_x", "login": {}}, [], sess)
+            finally:
+                replay.run_once = orig
+            return seen[0]
+        assert run(go()) == want
+
+
+def test_앞_응답에서_받은_토큰은_앞_단계_출력으로_이어지고_HTTP_로_실행한다():
     tr = _bare()
-    assert "tok-1" not in tr._url("http://rec.test/po/poList.do?_csrf=tok-1&q=1") and "q=1" in tr._url("http://rec.test/po/poList.do?_csrf=tok-1&q=1")
-    assert "tok-1" not in tr._post("_csrf=tok-1&q=1", "application/x-www-form-urlencoded")
-    assert "tok-1" not in tr._post('{"csrfToken":"tok-1","q":"1"}', "application/json")
-    raw = analyze.analyze(REC, _hidden_span("POST", "/poSave.do", post="_csrf=tok-1&vendCd=V001", hidden={"_csrf": "tok-1"}))["steps"][0]
-    hid = analyze.analyze(REC, _hidden_span("POST", "/poSave.do", post=f"_csrf={HIDDEN}&vendCd=V001", hidden={"_csrf": "tok-1"}))["steps"][0]
-    keep = lambda st: (st["exec"], st["formPage"], [(p["a"], p["from"], p["source"], p["confidence"]) for p in st["params"]])
-    assert keep(raw) == keep(hid)
+    post = tr._post("_csrf=N7f3a9c21q&vendCd=V001", "application/x-www-form-urlencoded")
+    spans = [span(1, {"tag": "BUTTON", "text": "열기"}, [net("GET", "/token.do", "", {"val": "N7f3a9c21q"})], post_aria="- text: N7f3a9c21q"),
+             span(2, {"tag": "BUTTON", "text": "저장"}, [net("POST", "/poSave.do", "", {"RSLT": "0000"}, post=post)])]
+    bf = analyze.analyze(REC, spans)
+    st = [s for s in bf["steps"] if s["path"] == "/poSave.do"][0]
+    p = [p for p in st["params"] if p["a"] == "_csrf"][0]
+    assert (p["a"], p["from"], p["source"]) == ("_csrf", "s1.val", "PREVIOUS_STEP_OUTPUT") and st["exec"] == "http"
+
+
+def test_묶음에는_토큰_값이_남고_승인_기록에서만_숨긴다():
+    tr = _bare()
+    assert "tok-1" in tr._url("http://rec.test/po/poList.do?_csrf=tok-1&q=1")
+    assert "tok-1" in tr._post("_csrf=tok-1&q=1", "application/x-www-form-urlencoded")
+    assert "tok-1" not in tr.guard.safe_url("http://rec.test/po/poList.do?_csrf=tok-1&q=1")
+
+
+def test_한_번_허용의_주소는_스킴_호스트_대소문자와_기본_포트를_맞춘다():
+    g, _ = make()
+    t = g.allow_exact("POST", "http://H.TEST:80/x?a=1", "b=2")
+    assert g._consume_exact("POST", "http://h.test/x?a=1", "b=2")
+    t2 = g.allow_exact("POST", "HTTPS://h.test:443/x", None)
+    assert g._consume_exact("POST", "https://h.test/x", "")
+    assert t != t2
+    t3 = g.allow_exact("POST", "http://h.test:8080/x", None)
+    assert not g._consume_exact("POST", "http://h.test/x", None)
+    g.revoke(t3)
