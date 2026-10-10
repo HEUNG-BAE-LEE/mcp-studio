@@ -33,12 +33,10 @@ def live(ieum_state):
             server.should_exit = True
             raise RuntimeError("테스트 서버가 15초 안에 뜨지 않았습니다.")
         time.sleep(0.02)
-    yield f"http://127.0.0.1:{server.servers[0].sockets[0].getsockname()[1]}"
-    from app.ieum.recorder.manager import MANAGER    # 라우터 shutdown 훅이 아직 없어 여기서 브라우저를 닫는다(작업 8 에서 훅이 생기면 지운다)
     try:
-        call(MANAGER.shutdown(), timeout=30)
+        yield f"http://127.0.0.1:{server.servers[0].sockets[0].getsockname()[1]}"
     finally:
-        server.should_exit = True
+        server.should_exit = True          # 라우터의 shutdown 훅이 서버 루프에서 MANAGER.shutdown() 으로 브라우저를 닫는다
         t.join(timeout=30)
 
 

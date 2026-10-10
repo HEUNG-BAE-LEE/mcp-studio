@@ -1,0 +1,126 @@
+"""업무 기록 메뉴: 기록 시작·화면 중계(WebSocket)·종료, 업무 기능 검토·확정·등록.
+
+WebSocket 은 기록 세션마다 시작 응답으로 받은 토큰이 있어야 열린다. 콘솔에 사용자 로그인이 아직 없어서, 남의 기록
+화면을 열 수 없게 하는 장치가 이 토큰뿐이다. 스토어·파일을 다루는 동기 함수는 이벤트 루프를 막지 않게 스레드로 넘긴다.
+"""
+import asyncio
+import re
+import secrets
+from typing import Optional
+
+from fastapi import APIRouter, Body, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
+
+from app.ieum.gateway import credentials
+from app.ieum.recorder import retention, store
+from app.ieum.recorder.manager import MANAGER, RecorderError, vault_key
+from app.ieum.responses import fail, ok
+
+SHOT_NAME = re.compile(r"^\d+-(pre|post)\.jpg$")
+REC_ID = re.compile(r"^rec_[0-9a-f]{8}$")
+
+
+def _startup() -> None:
+    store.mark_interrupted()
+    retention.sweep()
+
+
+async def _shutdown() -> None:
+    await MANAGER.shutdown()
+
+
+router = APIRouter(prefix="/api/ieum/recorder", tags=["ieum-recorder"], on_startup=[_startup], on_shutdown=[_shutdown])
+
+
+def _demo(origin: str) -> Optional[dict]:
+    try:
+        from app.ieum.demo_legacy.site import DEMO_PASSWORD, DEMO_USER_ID
+    except ImportError:
+        return None
+    return {"name": "9월 발주 상세 조회", "base": origin + "/demo-legacy/po", "start": "/login.do", "account": DEMO_USER_ID,
+            "password": DEMO_PASSWORD, "owner": "시연 담당자", "ssrStart": "/vendSearchView.do"}
+
+
+@router.get("/")
+async def overview(request: Request):
+    recs, fns = await asyncio.gather(asyncio.to_thread(store.list_recordings), asyncio.to_thread(store.list_functions))
+    return ok({"recordings": recs, "functions": fns, "usage": MANAGER.usage(), "demo": _demo(str(request.base_url).rstrip("/"))})
+
+
+@router.post("/recordings/")
+async def recording_start(payload: Optional[dict] = Body(None)):
+    try:
+        return ok(await MANAGER.start(payload or {}), 201)
+    except RecorderError as exc:
+        return fail(exc.code, str(exc))
+
+
+@router.get("/recordings/{rid}/")
+async def recording_get(rid: str):
+    try:
+        return ok(await asyncio.to_thread(store.get_recording, rid))
+    except KeyError:
+        return fail(404, "기록을 찾을 수 없습니다.")
+
+
+@router.get("/recordings/{rid}/spans/{seq}/")
+async def recording_span(rid: str, seq: int):
+    spans = await asyncio.to_thread(store.read_spans, rid)
+    sp = next((s for s in spans if s["seq"] == seq), None)
+    if sp is None:
+        return fail(404, "행동 묶음을 찾을 수 없습니다.")
+    pick = lambda x: {k: (x or {}).get(k) for k in ("url", "title", "aria")}
+    return ok({"seq": seq, "action": sp["action"], "pre": pick(sp["pre"]), "post": pick(sp["post"])})
+
+
+@router.post("/recordings/{rid}/stop/")
+async def recording_stop(rid: str):
+    try:
+        await MANAGER.stop(rid)
+    except RecorderError as exc:
+        return fail(exc.code, str(exc))
+    try:
+        return ok({"status": (await asyncio.to_thread(store.get_recording, rid))["status"]})
+    except KeyError:
+        return fail(404, "기록을 찾을 수 없습니다.")
+
+
+@router.delete("/recordings/{rid}/")
+async def recording_delete(rid: str):
+    await MANAGER.close(rid)
+    try:
+        await asyncio.to_thread(store.delete_recording, rid)
+    except KeyError:
+        return fail(404, "기록을 찾을 수 없습니다.")
+    await asyncio.to_thread(credentials.delete, vault_key(rid))
+    return ok({"deleted": rid})
+
+
+@router.get("/recordings/{rid}/shots/{name}")
+def recording_shot(rid: str, name: str):
+    if not SHOT_NAME.match(name) or not REC_ID.match(rid):
+        return fail(400, "잘못된 화면 캡처 이름입니다.")
+    path = store.rec_dir(rid) / name
+    if not path.exists():
+        return fail(404, "화면 캡처가 없습니다. 업무 기능을 확정했거나 보관 기간이 지나 지웠을 수 있습니다.")
+    return Response(content=path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@router.websocket("/ws/{rid}")
+async def recording_ws(websocket: WebSocket, rid: str, token: str = ""):
+    s = MANAGER.get(rid)
+    if s is None or not secrets.compare_digest(token, s.token):
+        await websocket.close(code=4403)
+        return
+    await websocket.accept()
+    s.subscribe(websocket)
+    await s.send_tabs()
+    try:
+        while True:
+            await s.handle(await websocket.receive_json())
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        s.unsubscribe(websocket)
