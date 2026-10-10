@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qsl, urlsplit
 
 from app.ieum.discovery import infer
-from app.ieum.discovery.masking import HIDDEN
+from app.ieum.discovery.masking import HIDDEN, MASKED_RE
 from app.ieum.discovery.policy import Policy
 
 USER_INPUT, PREVIOUS_STEP_OUTPUT, SESSION_CONTEXT = "USER_INPUT", "PREVIOUS_STEP_OUTPUT", "SESSION_CONTEXT"
@@ -25,7 +25,7 @@ SYSTEM_CONFIG, DERIVED, CONSTANT = "SYSTEM_CONFIG", "DERIVED", "CONSTANT"
 DISCRIMINATORS = ("cmd", "action", "method", "mode", "op", "service", "operationName", "actionType", "flag")
 _DATE = re.compile(r"^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$")
 _TOKEN_NAME = re.compile(r"csrf|xsrf|token|viewstate|eventvalidation|nonce", re.I)
-_MASKED = re.compile(r"\*{2,}|•{2,}")
+_MASKED = MASKED_RE
 _OPS = (("APPROVE", re.compile(r"approv|confirm|결재|승인|결제|이체|pay|transfer", re.I)),
         ("DELETE", re.compile(r"delet|remove|del\b|삭제|제거", re.I)),
         ("UPDATE", re.compile(r"upd|modify|edit|change|수정|변경", re.I)))

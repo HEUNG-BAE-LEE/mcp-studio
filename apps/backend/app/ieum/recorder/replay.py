@@ -14,18 +14,20 @@
 """
 import asyncio
 import datetime as dt
+import json
 import re
 import time
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 
 from app.ieum.discovery import infer
 from app.ieum.gateway import credentials, session_auth
+from app.ieum.gateway.session_auth import LoginError
 from app.ieum.recorder import config, htmltable, scope
-from app.ieum.discovery.masking import HIDDEN
-from app.ieum.recorder.analyze import _MASKED, get_path, leaves
+from app.ieum.discovery.masking import HIDDEN, is_masked
+from app.ieum.recorder.analyze import get_path, leaves
 
 TIMEOUT = 15
 UA = "Mozilla/5.0 (compatible; IeumRecorder/1.0)"
@@ -55,6 +57,8 @@ def _looks_error(data, text: str) -> bool:
 
 
 def judge(status: int, location: Optional[str], ctype: str, text: str, step: dict, headers_sent: dict) -> Tuple[bool, str, Any]:
+    if status == 0:                                   # fetch redirect:'manual' 의 opaqueredirect: 로그인으로 보낸 것으로 본다
+        return False, "auth_expired", None
     if session_auth.expired(status, location, ctype, text or ""):
         return False, "auth_expired", None
     if status >= 400:
@@ -81,48 +85,97 @@ def judge(status: int, location: Optional[str], ctype: str, text: str, step: dic
 class HttpTransport:
     mode = "session"
 
-    def __init__(self, cookies: Dict[str, str]):
-        self.cookies = cookies
+    def __init__(self, cookies, host: Optional[str] = None, transport=None):
+        """cookies: {이름: 값} 또는 [{name, value, domain, path}]. 도메인이 있는 쿠키는 그 주소로만 보낸다.
+        {이름: 값} 은 host 가 주어지면 그 host 에만 묶는다."""
+        items = []
+        if isinstance(cookies, dict):
+            items = [{"name": k, "value": v, "domain": host or "", "path": "/"} for k, v in cookies.items()]
+        else:
+            items = [dict(c) for c in (cookies or [])]
+        self.items = items
+        self.host = host
+        self._transport = transport
+
+    @property
+    def cookies(self):
+        return {c["name"]: c["value"] for c in self.items}
+
+    @cookies.setter
+    def cookies(self, value):
+        self.__init__(value, self.host, self._transport)
+
+    def _cookie_header(self, url: str) -> str:
+        parts = urlsplit(url)
+        host, path = (parts.hostname or "").lower(), parts.path or "/"
+        out = []
+        for c in self.items:
+            d = (c.get("domain") or "").lower().lstrip(".")
+            if d and host != d and not host.endswith("." + d):
+                continue
+            cp = c.get("path") or "/"
+            if not path.startswith(cp):
+                continue
+            out.append(f"{c['name']}={c['value']}")
+        return "; ".join(out)
 
     async def send(self, step, url, headers, params, form, json_body):
         if params:
             url = url + ("&" if "?" in url else "?") + encode(params, step.get("charset"))
         content = None
+        headers = dict(headers)
         if form:
             content = encode(form, step.get("charset"))
-            headers = dict(headers, **{"content-type": f"application/x-www-form-urlencoded; charset={step.get('charset') or 'UTF-8'}"})
-        async with httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT, cookies=self.cookies, verify=False) as c:
+            headers["content-type"] = f"application/x-www-form-urlencoded; charset={step.get('charset') or 'UTF-8'}"
+        ck = self._cookie_header(url)
+        if ck:
+            headers["Cookie"] = ck
+        async with httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT, verify=False, transport=self._transport) as c:
             r = await c.request(step["method"], url, headers=headers, content=content, json=json_body)
             return r.status_code, r.headers.get("location"), r.headers.get("content-type", ""), r.text[:200_000]
 
 
+_FETCH_HIDDEN = """async ([formPage, hidden]) => {
+    const html = await (await fetch(formPage, {credentials: 'include'})).text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const out = {};
+    for (const name of hidden) { const el = doc.querySelector('input[type=hidden][name="' + name + '"]'); if (el) out[name] = el.value; }
+    return out;
+}"""
+_FETCH_SEND = """async ([m, u, h, body]) => {
+    const r = await fetch(u, {method: m, headers: h, body, redirect: 'manual', credentials: 'include'});
+    return [r.type === 'opaqueredirect' ? 0 : r.status, r.headers.get('location'), r.headers.get('content-type') || '', await r.text()];
+}"""
+
+
 class BrowserTransport:
-    """기록 세션 페이지 안에서 보낸다. 숨은 토큰이 필요하면 직전 화면(formPage)을 다시 받아 새 값을 채운다."""
+    """기록 세션 페이지 안에서 보낸다. 숨은 토큰이 필요하면 직전 화면(formPage)을 다시 받아 새 값을 채운다.
+    본문은 파이썬에서 기록한 인코딩으로 미리 만들어 문자열로 넘긴다(URLSearchParams 는 항상 UTF-8)."""
     mode = "browser"
 
     def __init__(self, page):
         self.page = page
 
     async def send(self, step, url, headers, params, form, json_body):
-        r = await self.page.evaluate("""async ([m, u, h, q, f, j, formPage, hidden, cs]) => {
-            if (q && Object.keys(q).length) u += (u.includes('?') ? '&' : '?') + new URLSearchParams(q).toString();
-            if (formPage && hidden.length) {
-              const html = await (await fetch(formPage, {credentials: 'include'})).text();
-              const doc = new DOMParser().parseFromString(html, 'text/html');
-              for (const name of hidden) { const el = doc.querySelector('input[type=hidden][name="' + name + '"]'); if (el) f[name] = el.value; }
-            }
-            let body = null;
-            if (j) { body = JSON.stringify(j); h['content-type'] = 'application/json'; }
-            else if (f && Object.keys(f).length) { body = new URLSearchParams(f).toString(); h['content-type'] = 'application/x-www-form-urlencoded'; }
-            const r = await fetch(u, {method: m, headers: h, body, redirect: 'manual', credentials: 'include'});
-            return [r.status, r.headers.get('location'), r.headers.get('content-type') || '', await r.text()];
-        }""", [step["method"], url, headers, params or {}, dict(form or {}), json_body, step.get("formPage"),
-               [p["a"] for p in step["params"] if (p.get("from") or "").startswith("session.hidden.")], step.get("charset")])
+        form = dict(form or {})
+        hidden = [p["a"] for p in step["params"] if (p.get("from") or "").startswith("session.hidden.")]
+        if step.get("formPage") and hidden:
+            form.update(await self.page.evaluate(_FETCH_HIDDEN, [step["formPage"], hidden]) or {})
+        headers = dict(headers)
+        if params:
+            url = url + ("&" if "?" in url else "?") + encode(params, step.get("charset"))
+        body = None
+        if json_body is not None:
+            body, headers["content-type"] = json.dumps(json_body, ensure_ascii=False), "application/json"
+        elif form:
+            body = encode(form, step.get("charset"))
+            headers["content-type"] = f"application/x-www-form-urlencoded; charset={step.get('charset') or 'UTF-8'}"
+        r = await self.page.evaluate(_FETCH_SEND, [step["method"], url, headers, body])
         return r[0], r[1], r[2], (r[3] or "")[:200_000]
 
 
-def _is_masked(v: Optional[str]) -> bool:
-    return v is not None and (HIDDEN in v or bool(_MASKED.search(v)))
+_is_masked = is_masked
+_PLACEHOLDER = re.compile(r"\{[^{}/]+\}")
 
 
 def _recovered(v: str, p: dict, raw: Dict[str, Optional[str]]) -> Optional[str]:
@@ -163,22 +216,33 @@ def _value(p: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str]], outs:
 
 
 async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str]], http, browser,
-                   ask_write: Callable[[dict], Awaitable[bool]], gap: float, kind: str = "same-values") -> dict:
+                   ask_write: Callable[[dict], Awaitable[bool]], gap: float, kind: str = "same-values",
+                   relogin: Optional[Callable[[], Awaitable[Optional[Any]]]] = None, pace: Optional[list] = None) -> dict:
+    """pace: [마지막 전송 시각] — 실행 사이에도 요청 간격을 지키려고 호출자가 같은 리스트를 넘긴다.
+    relogin: 세션 만료 시 금고 계정으로 다시 로그인해 새 쿠키를 돌려준다(실행당 한 번)."""
     outs: Dict[str, Dict[str, Any]] = {}
-    results = []
+    results: list = []
+    pace = pace if pace is not None else [0.0]
     needs = {i["name"]: bool(i.get("needsValue")) for i in bf.get("inputs", [])}
+    state = {"wrote": False, "relogged": False}
+    origin = f"{urlsplit(bf['source']['base']).scheme}://{urlsplit(bf['source']['base']).netloc}"
 
-    def fail(st, reason, status=None):
-        results.append({"id": st["id"], "status": status, "ok": False, "reason": reason})
-        return {"kind": kind, "ok": False, "steps": results, "reason": reason}
+    def done(ok, reason):
+        return {"kind": kind, "ok": ok, "steps": results, "reason": reason, "wrote": state["wrote"]}
 
-    for i, st in enumerate(bf["steps"]):
-        if i and gap:
-            await asyncio.sleep(gap)
+    def fail(st, reason, status=None, note=None):
+        r = {"id": st["id"], "status": status, "ok": False, "reason": reason}
+        if note:
+            r["note"] = note
+        results.append(r)
+        return done(False, reason)
+
+    for st in bf["steps"]:
         base = (st.get("base") or bf["source"]["base"]).rstrip("/")
         url = base + st["path"]
-        if scope.blocked(url, f"{urlsplit(bf['source']['base']).scheme}://{urlsplit(bf['source']['base']).netloc}", config.deny_entries()):
-            return fail(st, "http_error")
+        why_blocked = scope.blocked(url, origin, config.deny_entries())
+        if why_blocked:
+            return fail(st, "http_error", note="차단: " + str(why_blocked))
         if st.get("write") and not await ask_write(st):
             return fail(st, "write_denied")
         transport = browser if st.get("exec") == "browser" else http
@@ -186,11 +250,15 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
             return fail(st, "browser_needed")
         headers = {"User-Agent": UA, "Referer": base + "/", **(st.get("headers") or {})}
         params, form, body = {}, {}, None
+        refreshed = transport.mode == "browser" and bool(st.get("formPage"))
         for p in st["params"]:
+            hidden = (p.get("from") or "").startswith("session.hidden.")
+            if hidden and not st.get("formPage"):
+                return fail(st, "needs_value", note="숨은 토큰을 새로 받을 화면 주소가 없음")
             v = _value(p, inputs, raw, outs, needs)
             if v is None:
                 return fail(st, "chain_broken")
-            if _is_masked(v):
+            if _is_masked(v) and not (hidden and refreshed):
                 return fail(st, "needs_value")
             if p["loc"] == "query":
                 params[p["a"]] = v
@@ -200,13 +268,31 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
                 body = dict(body or {}, **{p["a"]: v})
             elif p["loc"] == "header":
                 headers[p["a"]] = v
+        # 보내기 직전 마지막 점검: 경로·헤더·화면 주소에 가린 값이 남았는가, 채우지 못한 {자리}가 있는가
+        if any(_is_masked(unquote(x)) for x in [url, st.get("formPage") or ""] + [str(h) for h in headers.values()]):
+            return fail(st, "needs_value", note="경로·헤더에 가린 값이 남음")
+        if _PLACEHOLDER.search(url):
+            return fail(st, "unresolved_path", note="경로의 {자리}를 채우지 못함")
         url_noq = url.split("?")[0]
-        try:
-            status, loc, ctype, text = await transport.send(st, url_noq, headers, params, form, body)
-        except Exception as exc:
-            results.append({"id": st["id"], "status": None, "ok": False, "reason": "http_error", "note": type(exc).__name__})
-            return {"kind": kind, "ok": False, "steps": results, "reason": "http_error"}
-        ok, why, data = await asyncio.to_thread(judge, status, loc, ctype, text, st, headers)
+        while True:
+            wait = gap - (time.monotonic() - pace[0])
+            if gap and pace[0] and wait > 0:
+                await asyncio.sleep(wait)
+            if st.get("write"):
+                state["wrote"] = True
+            try:
+                pace[0] = time.monotonic()
+                status, loc, ctype, text = await transport.send(st, url_noq, headers, params, form, body)
+            except Exception as exc:
+                return fail(st, "http_error", note=type(exc).__name__)
+            ok, why, data = await asyncio.to_thread(judge, status, loc, ctype, text, st, headers)
+            if why == "auth_expired" and relogin and not state["relogged"] and transport is http and not st.get("write"):
+                state["relogged"] = True                      # 실행당 한 번만 다시 로그인하고 이 단계부터 이어 간다
+                cookies = await relogin()
+                if cookies:
+                    http.cookies = cookies
+                    continue
+            break
         if ok:
             outs[st["id"]] = {}
             for name, path in (st.get("outputs") or {}).items():
@@ -217,8 +303,8 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
                 outs[st["id"]][name] = v
         results.append({"id": st["id"], "status": status, "ok": ok, "reason": why, "via": transport.mode})
         if not ok:
-            return {"kind": kind, "ok": False, "steps": results, "reason": why}
-    return {"kind": kind, "ok": True, "steps": results, "reason": ""}
+            return done(False, why)
+    return done(True, "")
 
 
 def _shift_month(v: str) -> str:
@@ -263,36 +349,74 @@ def _alternative(name: str, value: str, spans: list) -> Optional[str]:
 async def verify(bf: dict, rec: dict, spans: list, session=None, values: Optional[Dict[str, str]] = None) -> dict:
     host = urlsplit(bf["source"]["base"]).hostname or ""
     gap = 0 if host in ("localhost", "127.0.0.1", "::1") else 0.6
-    raw: Dict[str, str] = {}
+    raw: Dict[str, Optional[str]] = {}
     browser = None
-    if session is not None and not session.closed:
-        cookies = {c["name"]: c["value"] for c in await session.ctx.cookies()}
-        http, browser, raw = HttpTransport(cookies), BrowserTransport(session.page), dict(session.trace.raw)
+    relogin = None
+    login = rec.get("login") or {}
+    auto = login.get("mode") == "auto" and bool(login.get("recipe"))
 
-        async def ask(st):
-            return await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}")
-    else:
-        if (rec.get("login") or {}).get("mode") != "auto" or not (rec.get("login") or {}).get("recipe"):
-            return {"verification": {"status": "needs-login", "at": time.time(), "runs": []}, "executionMode": None}
+    def result(status, runs, reason=""):
+        v = {"status": status, "at": time.time(), "runs": runs}
+        if reason:
+            v["reason"] = reason
+        return {"verification": v, "executionMode": None}
+
+    async def do_login():
         cred = await asyncio.to_thread(credentials.get, f"rec:{rec['id']}") or {}
-        cookies = await asyncio.to_thread(session_auth.login, bf["source"]["base"], dict(cred, recipe=rec["login"]["recipe"]))
-        http = HttpTransport(cookies)
+        return await asyncio.to_thread(session_auth.login, bf["source"]["base"], dict(cred, recipe=login["recipe"]))
 
-        async def ask(st):
-            return bf["source"].get("env") != "op"        # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다
+    async def relogin_cb():
+        try:
+            return await do_login()
+        except Exception:
+            return None
 
+    try:
+        if session is not None and not session.closed:
+            cookies = [{"name": c["name"], "value": c["value"], "domain": c.get("domain", ""), "path": c.get("path", "/")}
+                       for c in await session.ctx.cookies()]
+            http, browser, raw = HttpTransport(cookies), BrowserTransport(session.page), dict(session.trace.raw)
+
+            async def ask(st):
+                return await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}")
+        else:
+            if not auto:
+                return result("needs-login", [])
+
+            http = HttpTransport(await do_login(), host=host)
+
+            async def ask(st):
+                return bf["source"].get("env") == "staging"    # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다
+    except LoginError:
+        return result("needs-login", [])
+    except Exception as exc:
+        return result("failed", [{"kind": "same-values", "ok": False, "steps": [], "reason": "login_failed", "note": type(exc).__name__}], "login_failed")
+    if auto:
+        relogin = relogin_cb
+
+    pace = [0.0]
     same_inputs = {i["name"]: str((values or {}).get(i["name"], i.get("ex") or "")) for i in bf.get("inputs", [])}
-    same = await run_once(bf, same_inputs, raw, http, browser, ask, gap)
+    same = await run_once(bf, same_inputs, raw, http, browser, ask, gap, relogin=relogin, pace=pace)
     mode = "browser" if any(s.get("via") == "browser" for s in same["steps"]) else ("session" if bf.get("auth", {}).get("mode") == "session" else "direct")
     if not same["ok"] and browser is not None and same["reason"] in ("shape_mismatch", "http_error", "waf_blocked", "error_response"):
-        forced = dict(bf, steps=[dict(s, exec="browser") for s in bf["steps"]])
-        alt = await run_once(forced, same_inputs, raw, http, browser, ask, gap)
-        if alt["ok"]:
-            same, mode = dict(alt, note="browser_only"), "browser"
+        if same.get("wrote"):
+            same["note"] = "쓰기가 이미 나가 다시 실행하지 않음"       # 같은 쓰기를 한 번 더 보내지 않는다
+        else:
+            forced = dict(bf, steps=[dict(s, exec="browser") for s in bf["steps"]])
+            alt = await run_once(forced, same_inputs, raw, http, browser, ask, gap, pace=pace)
+            if alt["ok"]:
+                same, mode = dict(alt, note="browser_only"), "browser"
     runs = [same]
     varied = None if any(s.get("write") for s in bf["steps"]) else varied_inputs(bf, spans)
+    if varied and values:
+        for i in bf.get("inputs", []):
+            n = i["name"]
+            if n in values and n in varied and (i.get("needsValue") or _is_masked(i.get("ex"))):
+                varied[n] = str(values[n])
+    if varied and varied == same_inputs:
+        varied = None                                        # 같은 값이면 다른 값 검증이 아니다
     if same["ok"] and varied:
-        runs.append(await run_once(bf, dict(varied, **{k: str(v) for k, v in (values or {}).items() if k in varied}), raw, http, browser, ask, gap, kind="varied-values"))
+        runs.append(await run_once(bf, varied, raw, http, browser, ask, gap, kind="varied-values", relogin=relogin, pace=pace))
     elif same["ok"]:
         runs.append({"kind": "varied-values", "ok": None, "steps": [], "reason": "skipped"})
     if same["reason"] == "needs_value":

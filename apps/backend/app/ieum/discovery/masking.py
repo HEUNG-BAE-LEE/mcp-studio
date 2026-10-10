@@ -22,6 +22,12 @@ _SECRET_WORDS = frozenset("pw pwd pass passwd password secret token authorizatio
 _SECRET_PAIRS = ("apikey", "sessionid", "accesskey", "secretkey")
 _WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
 HIDDEN = "••••••••"
+MASKED_RE = re.compile(r"\*{2,}|•{2,}")          # 가린 흔적(연속 별표·점)
+
+
+def is_masked(v) -> bool:
+    """가린 값(숨김 표시 또는 부분 마스킹)이 섞여 있는가. 가린 값은 대상 시스템으로 보내지 않는다."""
+    return v is not None and (HIDDEN in str(v) or bool(MASKED_RE.search(str(v))))
 
 
 def is_secret_key(name: str) -> bool:

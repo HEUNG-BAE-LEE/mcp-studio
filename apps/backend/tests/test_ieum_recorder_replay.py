@@ -2,6 +2,9 @@
 """Replay: 판정·인코딩은 순수 시험, 실행은 시연용 레거시 사이트에 실제 HTTP 로 보낸다."""
 import asyncio
 import json
+import types
+
+import httpx
 
 from app.ieum.demo_legacy.site import DEMO_PASSWORD, DEMO_USER_ID
 from app.ieum.gateway import session_auth
@@ -171,7 +174,7 @@ def test_사람이_이름으로_넣은_값은_쓰고_보낸다():
 def test_verify_values_는_입력_이름으로_매핑한다(monkeypatch):
     seen = {}
 
-    async def fake(bf, inputs, raw, http, browser, ask, gap, kind="same-values"):
+    async def fake(bf, inputs, raw, http, browser, ask, gap, kind="same-values", **kw):
         seen[kind] = inputs
         return {"kind": kind, "ok": True, "steps": [], "reason": ""}
 
@@ -183,3 +186,176 @@ def test_verify_values_는_입력_이름으로_매핑한다(monkeypatch):
     rec = {"id": "rec_x", "login": {"mode": "auto", "recipe": {"userField": "u", "passField": "p"}}}
     out = asyncio.new_event_loop().run_until_complete(replay.verify(bf, rec, [], None, {"fromDt": "20260915"}))
     assert seen["same-values"]["fromDt"] == "20260915" and out["verification"]["status"] == "verified"
+
+
+# ── 수정 1차 ──────────────────────────────────────────────────────────────
+def _one(path="/poList.do", **kw):
+    bf = _bf("http://h")
+    bf["steps"] = [dict(bf["steps"][0], path=path, params=[], outputs={}, **kw)]
+    return bf
+
+
+def test_경로에_가린_값이_남으면_보내지_않는다():
+    run, t = _run(_one("/member/010****5678"), {}, {})
+    assert run["reason"] == "needs_value" and t.sent == 0
+
+
+def test_헤더에_가린_값이_남으면_보내지_않는다():
+    run, t = _run(_one(headers={"x-user": "ab****cd"}), {}, {})
+    assert run["reason"] == "needs_value" and t.sent == 0
+
+
+def test_채우지_못한_경로_자리는_unresolved_path():
+    run, t = _run(_one("/member/{id}"), {}, {})
+    assert run["reason"] == "unresolved_path" and t.sent == 0
+
+
+def test_숨은_토큰인데_화면_주소가_없으면_needs_value():
+    bf = _one()
+    bf["steps"][0]["params"] = [{"a": "tk", "loc": "form", "from": "session.hidden.tk", "ex": "abc"}]
+    run, t = _run(bf, {}, {})
+    assert run["reason"] == "needs_value" and t.sent == 0
+
+
+def test_쿠키는_자기_도메인으로만_간다():
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.host, request.headers.get("cookie")))
+        return httpx.Response(200, json={})
+
+    cookies = [{"name": "A", "value": "1", "domain": "a.example", "path": "/"},
+               {"name": "B", "value": "2", "domain": "b.example", "path": "/"}]
+    tr = replay.HttpTransport(cookies, transport=httpx.MockTransport(handler))
+    step = {"method": "GET", "charset": None}
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(tr.send(step, "http://a.example/x", {}, {}, {}, None))
+    loop.run_until_complete(tr.send(step, "http://b.example/x", {}, {}, {}, None))
+    assert seen == [("a.example", "A=1"), ("b.example", "B=2")]
+
+
+class _FakeSession:
+    closed = False
+
+    def __init__(self, cookies):
+        self.ctx = types.SimpleNamespace(cookies=self._c(cookies))
+        self.page = object()
+        self.trace = types.SimpleNamespace(raw={})
+        self.guard = types.SimpleNamespace(ask=self._ask)
+
+    @staticmethod
+    def _c(cookies):
+        async def f():
+            if isinstance(cookies, Exception):
+                raise cookies
+            return cookies
+        return f
+
+    async def _ask(self, *a):
+        return True
+
+
+def test_쓰기가_이미_나갔으면_브라우저로_다시_실행하지_않는다(monkeypatch):
+    calls = []
+
+    async def fake(bf, inputs, raw, http, browser, ask, gap, kind="same-values", **kw):
+        calls.append(kind)
+        return {"kind": kind, "ok": False, "steps": [], "reason": "http_error", "wrote": True}
+
+    monkeypatch.setattr(replay, "run_once", fake)
+    bf = _bf("http://h")
+    bf["steps"][0]["write"] = True
+    out = asyncio.new_event_loop().run_until_complete(replay.verify(bf, {"id": "r"}, [], _FakeSession([])))
+    assert len(calls) == 1 and out["verification"]["runs"][0]["note"] == "쓰기가 이미 나가 다시 실행하지 않음"
+
+
+def test_사람_값이_같은_값과_같아지면_다른_값_실행은_건너뛴다(monkeypatch):
+    calls = []
+
+    async def fake(bf, inputs, raw, http, browser, ask, gap, kind="same-values", **kw):
+        calls.append(kind)
+        return {"kind": kind, "ok": True, "steps": [], "reason": ""}
+
+    monkeypatch.setattr(replay, "run_once", fake)
+    bf = _bf("http://h")
+    bf["inputs"] = [{"name": "who", "type": "string", "source": "USER_INPUT", "ex": "", "needsValue": True}]
+    monkeypatch.setattr(replay, "varied_inputs", lambda b, s: {"who": ""})
+    out = asyncio.new_event_loop().run_until_complete(replay.verify(bf, {"id": "r"}, [], _FakeSession([]), {"who": "kim"}))
+    assert calls == ["same-values"]
+    assert out["verification"]["runs"][1]["reason"] == "skipped" and out["verification"]["status"] == "verified"
+
+
+def test_금고_계정이_없으면_needs_login_이고_예외가_없다(monkeypatch):
+    def boom(base, cred):
+        raise session_auth.LoginError("x")
+    monkeypatch.setattr(replay.session_auth, "login", boom)
+    monkeypatch.setattr(replay.credentials, "get", lambda k: None)
+    rec = {"id": "r", "login": {"mode": "auto", "recipe": {"userField": "u", "passField": "p"}}}
+    out = asyncio.new_event_loop().run_until_complete(replay.verify(_bf("http://h"), rec, [], None))
+    assert out["verification"]["status"] == "needs-login"
+
+
+def test_쿠키를_못_읽으면_failed_이고_예외가_없다():
+    out = asyncio.new_event_loop().run_until_complete(replay.verify(_bf("http://h"), {"id": "r"}, [], _FakeSession(RuntimeError("x"))))
+    assert out["verification"]["status"] == "failed"
+
+
+def test_브라우저_본문은_기록한_인코딩으로_미리_만든다():
+    class Page:
+        def __init__(self):
+            self.args = []
+
+        async def evaluate(self, script, arg):
+            self.args.append(arg)
+            return [200, None, "application/json", "{}"]
+
+    page = Page()
+    step = {"method": "POST", "charset": "EUC-KR", "params": []}
+    asyncio.new_event_loop().run_until_complete(replay.BrowserTransport(page).send(step, "http://h/x", {}, {}, {"vendNm": "한빛"}, None))
+    m, u, h, body = page.args[0]
+    assert body == "vendNm=%C7%D1%BA%FB" and "charset=EUC-KR" in h["content-type"]
+
+
+def test_status_0_은_세션_만료_후보():
+    assert replay.judge(0, None, "", "", JSTEP, {})[1] == "auth_expired"
+
+
+def test_세션_만료면_한_번_다시_로그인해_이어_간다():
+    class T:
+        mode = "session"
+        cookies = {}
+
+        def __init__(self, n=0):
+            self.n = n
+
+        async def send(self, step, url, headers, params, form, json_body):
+            self.n += 1
+            if self.n == 1:
+                return 302, "/po/login.do", "", ""
+            if self.n < 0:
+                return 302, "/po/login.do", "", ""
+            return 200, None, "application/json", json.dumps({"RSLT": "0000", "totalCnt": 1, "resultList": [{"PO_NO": "x"}]})
+
+    async def relogin():
+        return {"sid": "new"}
+
+    bf = _one()
+    t = T()
+    run = asyncio.new_event_loop().run_until_complete(replay.run_once(bf, {}, {}, t, None, _no, 0, relogin=relogin))
+    assert run["ok"] and t.n == 2
+
+    t2 = T(-10)                                             # 계속 만료: 두 번째 만료는 실패, 로그인은 한 번뿐
+    run = asyncio.new_event_loop().run_until_complete(replay.run_once(bf, {}, {}, t2, None, _no, 0, relogin=relogin))
+    assert not run["ok"] and run["reason"] == "auth_expired" and t2.n == -8
+
+
+def test_요청_간격은_실행_사이에도_지킨다():
+    import time
+    t = _CountTransport()
+    pace = [0.0]
+    bf = _one()
+    loop = asyncio.new_event_loop()
+    t0 = time.monotonic()
+    loop.run_until_complete(replay.run_once(bf, {}, {}, t, None, _no, 0.3, pace=pace))
+    loop.run_until_complete(replay.run_once(bf, {}, {}, t, None, _no, 0.3, pace=pace))
+    assert time.monotonic() - t0 >= 0.29
