@@ -302,6 +302,58 @@ def test_변경이_아닌_로그인_경로는_그대로_로그인이다():
         g, sent = make()
         r1, r2 = Route(), Route()
         await g.route(r1, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
-        await g.route(r2, Req("http://h:8080/po/j_security_check", "POST", post="j_username=a&j_password=b"))
-        return r1.done, r2.done, sent, g.login_req is not None
+        # 승인 없는 로그인은 기록당 한 번이므로 두 번째 경로는 새 기록(새 가드)으로 본다
+        g2, sent2 = make()
+        await g2.route(r2, Req("http://h:8080/po/j_security_check", "POST", post="j_username=a&j_password=b"))
+        return r1.done, r2.done, sent + sent2, g.login_req is not None and g2.login_req is not None
     assert run(go()) == ("continue", "continue", [], True)
+
+
+def test_승인_없는_로그인은_기록당_한_번이고_기록에_남는다():
+    async def go():
+        g, sent = make(timeout=0.05)
+        r1, r2 = Route(), Route()
+        await g.route(r1, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
+        first = (r1.done, g.decisions[-1]["decision"], g.login_req is not None)
+        await g.route(r2, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
+        return first, r2.done, g.decisions[-1]["decision"]
+    assert run(go()) == (("continue", "login", True), "abort", "timeout")
+
+
+def test_가입_결제_생성_경로는_첫_요청이어도_로그인이_아니다():
+    async def go():
+        out = []
+        for path, post in (("/member/joinProc.do", "userId=a&userPw=b"),
+                           ("/sys/user/insertUser.do", "userNm=a&userPw=b"),
+                           ("/order/pay.do", "orderId=1&payPw=2"),
+                           ("/member/signup.do", "userId=a&userPw=b"),
+                           ("/member/registerUser.do", "userId=a&userPw=b")):
+            g, sent = make(timeout=0.05)
+            r = Route()
+            await g.route(r, Req("http://h:8080" + path, "POST", post=post))
+            out.append((path, r.done, g.login_req))
+        return out
+    assert all(d == "abort" and lr is None for _, d, lr in run(go())), run(go())
+
+
+def test_POST_가_아닌_로그인_모양_요청은_승인을_받는다():
+    async def go():
+        g, sent = make(timeout=0.05)
+        r = Route()
+        await g.route(r, Req("http://h:8080/po/loginProc.do", "PUT", post="userId=a&userPw=b"))
+        return r.done, g.login_req, g.decisions[-1]["decision"]
+    assert run(go()) == ("abort", None, "timeout")
+
+
+def test_승인받은_재로그인도_login_req_에_남는다():
+    async def go():
+        g, sent = make()
+        r1, r2 = Route(), Route()
+        await g.route(r1, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
+        task = asyncio.ensure_future(g.route(r2, Req("http://h:8080/po/loginProc.do", "POST", post="userId=c&userPw=d")))
+        await asyncio.sleep(0.05)
+        hold = [m for m in sent if m["t"] == "hold"][-1]
+        assert g.decide(hold["id"], True)
+        await task
+        return r2.done, g.login_req["post"], g.decisions[-1]["decision"]
+    assert run(go()) == ("continue", "userId=c&userPw=d", "approve")

@@ -41,8 +41,10 @@ def _is_id_field(name: str) -> bool:
 
 
 _CHANGE_PREFIXES = ("new", "old", "cur", "confirm", "chg", "change", "reset")
-_CHANGE_PATH_WORDS = frozenset("change modify update reset chg edit save mod upd".split())
-_CHANGE_PATH_PARTS = ("change", "modify", "update", "reset")
+# 변경·수정에 더해 가입·생성·결제 동작의 경로 단어. 이 경로의 비밀번호 요청은 로그인이 아니다.
+_CHANGE_PATH_WORDS = frozenset("change modify update reset chg edit save mod upd "
+                               "join regist register insert create add signup pay order".split())
+_CHANGE_PATH_PARTS = ("change", "modify", "update", "reset", "signup", "register")
 _WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
 
 
@@ -53,7 +55,7 @@ def _is_change_field(name: str) -> bool:
 
 
 def _is_change_path(url: str) -> bool:
-    """경로가 변경·수정 동작을 가리키는가. 마지막 조각의 단어, 또는 경로 전체의 압축 표기로 본다."""
+    """경로가 변경·수정·가입·생성·결제 동작을 가리키는가. 마지막 조각의 단어, 또는 경로 전체의 압축 표기로 본다."""
     path = urlsplit(url).path
     last = path.rsplit("/", 1)[-1]
     words = {w.lower() for w in _WORD.findall(last)}
@@ -67,6 +69,7 @@ class Guard:
         self.target_origin = f"{parts.scheme}://{parts.netloc}"
         self.label = ""
         self.login_req: Optional[dict] = None
+        self.login_passed = False                    # 승인 없는 로그인 통과는 기록당 한 번뿐이다
         self.decisions: List[dict] = []
         self.decided_requests: Dict[int, str] = {}
         self._holds: Dict[str, asyncio.Future] = {}
@@ -126,7 +129,8 @@ class Guard:
             if not pw_names:
                 return False
             # 비밀번호 변경은 로그인이 아니다: 변경용 필드(newPw, confirmPw...)나 변경 동작의 경로(pwChange.do...)면 승인을 받는다.
-            # 잔여 위험: 경로와 필드 이름 어디에도 이 단어가 없는 비밀번호 변경은 여전히 승인 없이 나간다.
+            # 잔여 위험: 이름만으로는 로그인과 쓰기를 완전히 가를 수 없다. 그래서 로그인 모양의 쓰기는 POST 만,
+            # 기록당 최대 한 번만 승인 없이 나간다(login_passed). 두 번째부터는 일반 쓰기처럼 승인을 받는다.
             if any(_is_change_field(k) for k in pw_names) or _is_change_path(url):
                 return False
             return any(k != pk and _is_id_field(k) for pk in pw_names for k in names)
@@ -144,10 +148,11 @@ class Guard:
         if not self._is_write_req(url, method, rtype):
             await route.continue_()
             return
-        if self._is_login(request, url):
-            frame_url = getattr(getattr(request, "frame", None), "url", "") or ""
-            self.login_req = {"url": url, "method": method, "post": request.post_data,
-                              "ctype": (request.headers or {}).get("content-type", ""), "page": frame_url}
+        is_login = self._is_login(request, url)
+        if is_login and method == "POST" and not self.login_passed:
+            self.login_passed = True
+            self._log(method, url, "login")
+            self._remember_login(request, url, method)
             await route.continue_()
             return
         if self.policy.same_origin(url) and self.policy.is_read_post(url):
@@ -156,14 +161,23 @@ class Guard:
         if self.env != "op":
             self._log(method, url, "staging")
             self.decided_requests[id(request)] = "staging"
+            if is_login:
+                self._remember_login(request, url, method)
             await route.continue_()
             return
         decision = await self._hold(method, url, self.label)
         self.decided_requests[id(request)] = decision
         if decision == "approve":
+            if is_login:
+                self._remember_login(request, url, method)    # 승인받은 재로그인도 세션 레시피의 근거가 된다
             await route.continue_()
         else:
             await route.abort("blockedbyclient")
+
+    def _remember_login(self, request, url: str, method: str) -> None:
+        frame_url = getattr(getattr(request, "frame", None), "url", "") or ""
+        self.login_req = {"url": url, "method": method, "post": request.post_data,
+                          "ctype": (request.headers or {}).get("content-type", ""), "page": frame_url}
 
     async def ask(self, method: str, url: str, label: str) -> bool:
         if self.env != "op":
