@@ -23,7 +23,7 @@ from app.ieum.discovery import capture
 from app.ieum.discovery.masking import HIDDEN, Masker, is_secret_key
 from app.ieum.discovery.policy import Policy, is_asset
 from app.ieum.recorder import htmltable, store
-from app.ieum.recorder.guard import Guard
+from app.ieum.recorder.guard import Guard, mask_url
 
 MAX_SPANS = 300
 ARIA_MAX = 20_000
@@ -31,7 +31,8 @@ RES_MAX = 4_000
 SETTLE_MAX_MS = 3000
 SETTLE_QUIET_MS = 400
 _PAIRS_BODY = re.compile(r"^(?:[^=&\s]+=[^&]*)?(?:&(?:[^=&\s]+=[^&]*)?)*$")
-_XML_ELEM = re.compile(r"<((?:[\w.-]+:)?([\w.-]+))((?:\s[^>]*)?)>(<!\[CDATA\[.*?\]\]>|[^<]*)</\1>", re.S)
+# 내용은 CDATA 조각과 글자의 섞임이다. CDATA 는 처음 만나는 ]]> 에서 끝난다(.*? 로 두면 뒤 요소까지 삼켜 그 안의 비밀 태그를 놓친다).
+_XML_ELEM = re.compile(r"<((?:[\w.-]+:)?([\w.-]+))((?:\s[^>]*)?)>((?:<!\[CDATA\[(?:(?!\]\]>).)*\]\]>|[^<])*)</\1>", re.S)
 _XML_TAG = re.compile(r"<[\w.:-]+\s[^<>]*>")
 _XML_ATTR = re.compile(r"([\w.:-]+)(\s*=\s*)(\"[^\"]*\"|'[^']*')")
 _CHARSET = re.compile(r"charset=([\w-]+)", re.I)
@@ -39,10 +40,15 @@ _CHARSET = re.compile(r"charset=([\w-]+)", re.I)
 INIT_JS = """
 (() => {
   if (window.__ieumRecInstalled) return; window.__ieumRecInstalled = true;
-  const isForm = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName || '');   // 입력칸의 값(.value)은 대상 설명에 쓰지 않는다
-  const desc = (el) => el ? ({ tag: el.tagName || '', id: el.id || '', name: (el.getAttribute && (el.getAttribute('name') || '')) || '',
-      role: (el.getAttribute && el.getAttribute('role')) || '', text: (isForm(el) ? ((el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || '') + '')
-        : ((el.innerText || (el.getAttribute && el.getAttribute('aria-label')) || '') + '')).trim().slice(0, 60) }) : null;
+  // 입력칸의 값은 대상 설명에 쓰지 않는다. 편집 가능한 요소와 입력 역할(textbox 등)도 입력칸으로 본다(innerText 가 입력 값이다)
+  const isForm = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName || '') || !!el.isContentEditable
+      || /^(textbox|searchbox|combobox)$/i.test((el.getAttribute && el.getAttribute('role')) || '');
+  const attr = (el, n) => (el.getAttribute && el.getAttribute(n)) || '';
+  const textOf = (el) => isForm(el) ? (attr(el, 'aria-label') || attr(el, 'placeholder') || attr(el, 'name'))
+      : (el.tagName === 'TR' ? ((el.cells && el.cells[0] && el.cells[0].innerText) || attr(el, 'aria-label'))   // 행은 첫 칸만(행 전체는 개인정보가 섞인다)
+      : (el.innerText || attr(el, 'aria-label')));
+  const desc = (el) => el ? ({ tag: el.tagName || '', id: el.id || '', name: attr(el, 'name'),
+      role: attr(el, 'role'), text: ((textOf(el) || '') + '').trim().slice(0, 60) }) : null;
   const pick = (el) => (el && el.closest) ? (el.closest('button,a,input,select,textarea,tr,[onclick],[role]') || el) : el;
   const label = (el) => { try { if (el.labels && el.labels[0]) return el.labels[0].innerText.trim().slice(0, 40);
       const th = el.closest('td') && el.closest('td').previousElementSibling; if (th && th.tagName === 'TH') return th.innerText.trim().slice(0, 40); } catch (e) {}
@@ -92,8 +98,8 @@ class Trace:
         return urlencode(self.masker.pairs(list(pairs)), safe="*•")
 
     def _url(self, url: str) -> str:
-        parts = urlsplit(url)
-        return parts._replace(query=self._pairs_text(parse_qsl(parts.query, keep_blank_values=True))).geturl()
+        """쿼리와 경로 조각을 같은 마스킹기로 가린다(/member/01012345678 처럼 경로에 든 값도). 경로 모양은 그대로다."""
+        return mask_url(self.masker, url)
 
     def _post(self, post: Optional[str], ctype: str) -> Optional[str]:
         if not post:
@@ -199,6 +205,13 @@ class Trace:
                             "fills": [], "pre": pre, "network": [], "post": None}
             return self.seq
 
+    async def set_paused(self, on: bool, page) -> None:
+        """일시정지를 켜면 열린 묶음을 닫는다. 그대로 두면 일시정지 중의 입력·응답이 그 묶음에 쌓인다."""
+        async with self._close_lock:
+            if on and not self.paused:
+                await self._close_locked(page)             # 진정 대기 중에 도착하는 직전 행동의 응답은 그 묶음에 담는다
+            self.paused = bool(on)
+
     async def finish(self, page) -> None:
         async with self._close_lock:
             self.ended = True
@@ -226,8 +239,8 @@ class Trace:
     # ── 브라우저 안 이벤트 ─────────────────────────────────────────────────
     def on_dom_event(self, source, ev: dict) -> None:
         span = self.current
-        if span is None or not isinstance(ev, dict):
-            return
+        if span is None or self.paused or not isinstance(ev, dict):
+            return                                       # 일시정지 중의 입력은 어느 묶음에도 담지 않는다
         el = ev.get("el") or {}
         if ev.get("type") == "click" and span["action"]["target"] is None:
             if isinstance(el, dict) and isinstance(el.get("text"), str):
@@ -241,7 +254,7 @@ class Trace:
     # ── 응답 ───────────────────────────────────────────────────────────────
     async def on_response(self, response) -> None:
         span = self.current
-        if span is None:
+        if span is None or self.paused:
             return
         try:
             req = response.request
@@ -266,7 +279,7 @@ class Trace:
             masked = self._mask_body(body)
             if masked is None:
                 return                                   # 마스킹하지 못하면 저장하지 않는다
-            parts = urlsplit(url)
+            parts = urlsplit(self._url(url))              # 경로 조각의 개인정보도 가린 주소로 저장한다
             primary = self.policy.same_origin(url)
             req_ctype = (req.headers or {}).get("content-type", "")
             m = _CHARSET.search(req_ctype) or _CHARSET.search(ctype)

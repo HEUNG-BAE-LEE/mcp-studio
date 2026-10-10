@@ -14,9 +14,10 @@ import re
 import time
 import uuid
 from typing import Awaitable, Callable, Dict, List, Optional
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 
 from app.ieum.discovery import capture
+from app.ieum.discovery.masking import HIDDEN, Masker
 from app.ieum.discovery.policy import Policy
 from app.ieum.recorder import config, scope
 
@@ -38,6 +39,29 @@ def _is_password_field(name: str) -> bool:
 def _is_id_field(name: str) -> bool:
     c = _compact(name)
     return any(p in c for p in _ID_PARTS) or c.endswith("id")
+
+
+ALLOW_TTL = 30.0                                         # Replay 가 승인받은 요청을 브라우저가 보낼 때까지 기다리는 시간(초)
+
+
+_TOKEN_NAME = re.compile(r"csrf|xsrf|token|viewstate|eventvalidation|nonce", re.I)
+
+
+def mask_url(masker: Masker, url: str, hide_tokens: bool = False) -> str:
+    """주소의 쿼리와 경로 조각에 든 개인정보·비밀을 가린다. 경로 모양(조각 수)은 그대로 둔다.
+    hide_tokens 면 csrf 같은 토큰 이름의 값도 숨긴다(승인 기록용. 묶음은 분석이 토큰을 알아보도록 그대로 둔다)."""
+    parts = urlsplit(url)
+
+    def seg(s: str) -> str:
+        raw = unquote(s)
+        m = masker.text(raw)
+        return s if m == raw else quote(m, safe="*•")
+    path = "/".join(seg(x) for x in parts.path.split("/"))
+    pairs = masker.pairs(parse_qsl(parts.query, keep_blank_values=True))
+    if hide_tokens:
+        pairs = [(k, HIDDEN if v and _TOKEN_NAME.search(k) else v) for k, v in pairs]
+    query = urlencode(pairs, safe="*•")
+    return parts._replace(path=path, query=query).geturl()
 
 
 _CHANGE_PREFIXES = ("new", "old", "cur", "confirm", "chg", "change", "reset")
@@ -74,6 +98,9 @@ class Guard:
         self.decided_requests: Dict[int, str] = {}
         self._holds: Dict[str, asyncio.Future] = {}
         self.pending: Dict[str, dict] = {}            # 화면에 띄운 승인 창 내용. 늦게 붙은 구독자에게 다시 보낸다
+        self._replay_holds: set = set()               # Replay 가 ask 로 띄운 승인 창. 기록을 멈춘 뒤에도 이것만 승인받는다
+        self._allow: List[tuple] = []                 # Replay 가 승인받은 요청의 한 번 허용 (메서드, 출처+경로, 만료 시각)
+        self._masker = Masker(pii=True)
 
     @property
     def holding(self) -> bool:
@@ -143,10 +170,15 @@ class Guard:
         why = scope.blocked(url, self.target_origin, config.deny_entries())
         if why:
             self._log(method, url, "denied-host", label=why)
-            await self.notify({"t": "blocked", "url": url[:200], "why": why})
+            await self.notify({"t": "blocked", "url": self.safe_url(url)[:200], "why": why})
             await route.abort("blockedbyclient")
             return
         if not self._is_write_req(url, method, rtype):
+            await route.continue_()
+            return
+        if self._consume_allowance(method, url):
+            # Replay 가 방금 승인받은 그 요청이 브라우저를 거쳐 다시 들어왔다. 같은 요청을 두 번 묻지 않는다(결정은 ask 가 남겼다).
+            self.decided_requests[id(request)] = "approve"
             await route.continue_()
             return
         is_login = self._is_login(request, url)
@@ -180,17 +212,45 @@ class Guard:
         self.login_req = {"url": url, "method": method, "post": request.post_data,
                           "ctype": (request.headers or {}).get("content-type", ""), "page": frame_url}
 
-    async def ask(self, method: str, url: str, label: str) -> bool:
+    async def ask(self, method: str, url: str, label: str, once: bool = False) -> bool:
+        """Replay 쓰기 단계의 승인. once 면 승인받은 뒤 같은 요청이 브라우저 가드를 지날 때 한 번 다시 묻지 않는다."""
         if self.env != "op":
             self._log(method, url, "staging", label=label)
             return True
-        return await self._hold(method, url, label) == "approve"
+        ok = await self._hold(method, url, label, replay=True) == "approve"
+        if ok and once:
+            self.allow_once(method, url)
+        return ok
 
-    async def _hold(self, method: str, url: str, label: str) -> str:
+    def is_replay_hold(self, hold_id: str) -> bool:
+        return hold_id in self._replay_holds
+
+    @staticmethod
+    def _allow_key(method: str, url: str) -> tuple:
+        """쿼리는 비교하지 않는다. Replay 는 쿼리를 빼고 승인받고, 보낼 때 파라미터를 붙인다."""
+        p = urlsplit(url)
+        return method.upper(), f"{p.scheme}://{p.netloc}{p.path}"
+
+    def allow_once(self, method: str, url: str, ttl: float = ALLOW_TTL) -> None:
+        self._allow.append(self._allow_key(method, url) + (time.time() + ttl,))
+
+    def _consume_allowance(self, method: str, url: str) -> bool:
+        now = time.time()
+        self._allow = [a for a in self._allow if a[2] > now]
+        key = self._allow_key(method, url)
+        for i, a in enumerate(self._allow):
+            if a[:2] == key:
+                del self._allow[i]
+                return True
+        return False
+
+    async def _hold(self, method: str, url: str, label: str, replay: bool = False) -> str:
         hid = uuid.uuid4().hex[:8]
         fut = asyncio.get_running_loop().create_future()
         self._holds[hid] = fut
-        msg = self.pending[hid] = {"t": "hold", "id": hid, "method": method, "path": self.policy.display(url), "label": label}
+        if replay:
+            self._replay_holds.add(hid)
+        msg = self.pending[hid] = {"t": "hold", "id": hid, "method": method, "path": self.policy.display(self.safe_url(url)), "label": label}
         try:
             await self.notify(msg)
             ok = await asyncio.wait_for(asyncio.shield(fut), self.timeout)
@@ -202,6 +262,7 @@ class Guard:
         finally:
             self._holds.pop(hid, None)
             self.pending.pop(hid, None)
+            self._replay_holds.discard(hid)
         self._log(method, url, decision, hid, label)
         try:
             await self.notify({"t": "hold-end", "id": hid, "decision": decision})
@@ -224,6 +285,14 @@ class Guard:
                 n += 1
         return n
 
+    def safe_url(self, url: str) -> str:
+        """화면·승인 기록에 남길 주소. 쿼리와 경로의 개인정보·토큰을 가린다(승인 기록은 저장되고 API 로 나간다)."""
+        try:
+            return mask_url(self._masker, url, hide_tokens=True)
+        except Exception:
+            return urlsplit(url)._replace(query="").geturl()
+
     def _log(self, method: str, url: str, decision: str, hid: str = "", label: str = "") -> None:
+        url = self.safe_url(url)
         self.decisions.append({"id": hid, "method": method, "url": self.policy.display(url), "path": urlsplit(url).path,
                                "label": label or self.label, "decision": decision, "at": time.time()})

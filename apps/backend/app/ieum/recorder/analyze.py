@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qsl, urlsplit
 
-from app.ieum.discovery import infer
+from app.ieum.discovery import capture, infer
 from app.ieum.discovery.masking import HIDDEN, MASKED_RE
 from app.ieum.discovery.policy import Policy
 
@@ -120,8 +120,12 @@ def _discriminator(n: dict) -> str:
 
 
 def _is_write(n: dict, policy: Policy) -> bool:
-    """조회용으로 지정한 POST(readPost)는 쓰기가 아니다."""
-    if n["method"] in ("GET", "HEAD") and not n.get("held"):
+    """조회용으로 지정한 POST(readPost)는 쓰기가 아니다.
+
+    GET/HEAD 는 가드가 붙잡았거나(held), 스테이징에서 쓰기로 보고 보냈거나(decision=staging), 이름이 쓰기 같은 화면 스크립트
+    GET 이면 쓰기다. 스테이징은 붙잡지 않아 held 가 거짓이므로 held 만 보면 deleteItem.do 가 읽기 도구가 된다."""
+    if n["method"] in ("GET", "HEAD") and not (n.get("held") or n.get("decision") == "staging"
+                                               or capture.is_write(n["url"], n["method"], n.get("rtype") or "", policy)):
         return False
     try:
         if policy.same_origin(n["url"]) and policy.is_read_post(n["url"]):

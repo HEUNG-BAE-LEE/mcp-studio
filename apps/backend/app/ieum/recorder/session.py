@@ -32,6 +32,7 @@ class RecorderSession:
         self.last_input = time.time()
         self.closed = False
         self.stopping = False
+        self.accept_replay = False                    # 멈춘 뒤 Replay 검증이 띄운 승인 창의 결정만 받는다
         self.browser = self.ctx = self.page = self.cdp = None
         self.pages: list = []
         self._dialog = None
@@ -111,8 +112,9 @@ class RecorderSession:
         self._loop = asyncio.get_running_loop()
         self.browser, _ = await browser_mod.launch_async(pw)
         self.browser.on("disconnected", lambda _: asyncio.ensure_future(self._on_disconnected()))
+        # 서비스 워커가 가로챈 요청은 context.route 에 보이지 않는다. 막지 않으면 쓰기가 가드를 비켜 간다
         self.ctx = await self.browser.new_context(viewport={"width": relay.VIEW_W, "height": relay.VIEW_H}, locale="ko-KR",
-                                                  ignore_https_errors=True, accept_downloads=False)
+                                                  ignore_https_errors=True, accept_downloads=False, service_workers="block")
         await self.ctx.expose_binding("__ieumRec", self.trace.on_dom_event)
         await self.ctx.add_init_script(INIT_JS)
         await self.ctx.route("**/*", self.guard.route)
@@ -136,7 +138,10 @@ class RecorderSession:
             return
         self.closed = True
 
+        self.guard.deny_all()                           # 보낼 브라우저가 없다. 대기 중인 승인은 거부로 닫는다
+
         def mark(r):
+            r["approvals"] = list(self.guard.decisions)  # 멈춤과 같이 승인 기록을 남긴다(끊겨도 무엇을 보냈는지는 남아야 한다)
             if r["status"] in store.ACTIVE:
                 r.update(status="interrupted", endedAt=time.time(), error="브라우저가 예기치 않게 종료되어 기록이 중단되었습니다.")
         try:
@@ -198,9 +203,14 @@ class RecorderSession:
         t = msg.get("t")
         self.last_input = time.time()
         if t == "approve":
+            hid = str(msg.get("id"))
             if self.stopping:
-                return                                  # 멈추는 중에는 승인·거부를 받지 않는다(멈출 때 모두 거부로 닫는다)
-            self.guard.decide(str(msg.get("id")), bool(msg.get("ok")))
+                # 멈추는 중·멈춘 뒤에는 기록 중에 붙잡은 요청의 승인을 받지 않는다(멈출 때 모두 거부로 닫는다).
+                # 멈춘 뒤 Replay 검증이 묻는 쓰기 승인만 받는다. 안 받으면 승인 창이 떠 있는데 2분을 기다리다 거부가 된다
+                if self.accept_replay and self.guard.is_replay_hold(hid):
+                    self.guard.decide(hid, bool(msg.get("ok")))
+                return
+            self.guard.decide(hid, bool(msg.get("ok")))
             return
         if t == "dialog" and self._dialog is not None:
             d, self._dialog = self._dialog, None
@@ -210,7 +220,7 @@ class RecorderSession:
                 pass
             return
         if t == "pause":
-            self.trace.paused = bool(msg.get("on"))
+            await self.trace.set_paused(bool(msg.get("on")), self.page)
             return
         if t == "tab":
             i = int(msg.get("index", 0))
@@ -256,6 +266,7 @@ class RecorderSession:
             r["login"]["recipe"] = recipe
             r["login"]["path"] = login_path
         await asyncio.to_thread(store.update_recording, self.rid, fin)
+        self.accept_replay = True                       # 기록 쪽 승인은 모두 닫았다. 이제부터 오는 승인 창은 Replay 의 것이다
 
     async def close(self) -> None:
         if self.closed and self.browser is None:

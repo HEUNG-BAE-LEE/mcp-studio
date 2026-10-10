@@ -9,8 +9,9 @@ const REC_VERIFY = { verified:['검증됨','ok'], partial:['부분 검증','warn
   skipped:['검증 생략','mute'], stale:['다시 검증 필요','warn'], 'needs-login':['다시 로그인 필요','warn'], 'needs-value':['값 다시 입력 필요','warn'] };
 const REC_REASON = { needs_value:'값 입력 필요', unresolved_path:'값 경로를 찾지 못함', auth_expired:'로그인 만료', waf_blocked:'보안 장비가 막음',
   http_error:'HTTP 오류', shape_mismatch:'응답 모양이 다름', error_response:'오류 응답', browser_needed:'브라우저 실행 필요',
-  login_failed:'로그인 실패', unexpected_error:'예상하지 못한 오류', skipped:'건너뜀', pipeline_error:'분석·검증 중 오류' };
-const REC_DECISION = { approve:'승인', deny:'거부', timeout:'시간 초과', login:'로그인 통과', staging:'스테이징', error:'승인 창 오류' };
+  login_failed:'로그인 실패', unexpected_error:'예상하지 못한 오류', skipped:'건너뜀', pipeline_error:'분석·검증 중 오류',
+  chain_broken:'앞 단계 값을 이어받지 못함', write_denied:'쓰기 승인을 받지 못함', browser_only:'브라우저에서만 성공' };
+const REC_DECISION = { approve:'승인', deny:'거부', timeout:'시간 초과', login:'로그인 통과', staging:'스테이징', error:'승인 창 오류', 'denied-host':'차단 주소' };
 const REC_SOURCES = [['USER_INPUT','사용자 입력'],['PREVIOUS_STEP_OUTPUT','앞 단계 결과'],['SESSION_CONTEXT','세션 값'],
   ['SYSTEM_CONFIG','설정값'],['DERIVED','계산 값'],['CONSTANT','고정값']];
 const recPill = (map, k) => { const v = map[k] || [k || '-', 'mute']; return `<span class="pill rec-${v[1]}">${esc(v[0])}</span>`; };
@@ -150,7 +151,7 @@ function recReviewHTML() {
   const runs = (v.runs || []).map(r => {
     const bad = (r.steps || []).filter(s => s.ok === false);
     return `<li>${r.ok === true ? '✅' : r.ok === false ? '❌' : '⏭'} ${r.kind === 'same-values' ? '같은 값' : '다른 값'}
-      ${r.reason ? `<small>${esc(recReason(r.reason))}</small>` : ''}${r.note ? `<small>${esc(r.note)}</small>` : ''}
+      ${r.reason ? `<small>${esc(recReason(r.reason))}</small>` : ''}${r.note ? `<small>${esc(recReason(r.note))}</small>` : ''}
       ${bad.map(s => `<div class="rec-run-step"><small>${esc(s.id)}: ${esc(recReason(s.reason || 'error_response'))}${s.note ? ` — ${esc(s.note)}` : ''}</small></div>`).join('')}</li>`; }).join('');
   const aps = ((RECR.rec || {}).approvals || []).map(a => `<li><code>${esc(a.method)} ${esc(a.path)}</code> · ${esc(recDecision(a.decision))}</li>`).join('');
   const sel = (k, opts) => `<select class="inp sm" data-chg="recPol" data-k="${k}" aria-label="${k}"><option value="">선택</option>${opts.map(o => `<option ${f.policy[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;

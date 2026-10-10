@@ -31,6 +31,11 @@ def shot_days() -> int:
     return _int("IEUM_RECORDER_SHOT_DAYS", 7)
 
 
+def is_staging(env) -> bool:
+    """스테이징 환경인가. 기록은 "stg" 로 저장하지만 예전 표기 "staging" 도 받는다(두 표기가 갈려 쓰기를 막은 적이 있다)."""
+    return env in ("stg", "staging")
+
+
 def deny_entries() -> List[str]:
     """항상 차단에 더할 호스트·CIDR. 회사마다 막아야 할 관리 대역이 다르다."""
     return [x.strip() for x in os.environ.get("IEUM_RECORDER_DENY", "").split(",") if x.strip()]

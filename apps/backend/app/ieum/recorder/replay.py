@@ -178,6 +178,11 @@ class BrowserTransport:
             form.update(await self.page.evaluate(_FETCH_HIDDEN, [step["formPage"], hidden]) or {})
         if any(is_masked(v) for v in form.values()):     # 화면에서 토큰을 못 찾아 가린 값이 남았다
             raise NeedsValue()
+        if any(not form.get(h) for h in hidden):          # 비밀 이름의 토큰(ex="")을 화면에서 못 찾았다. 빈 값으로 보내지 않는다
+            raise NeedsValue()
+        if any(is_masked(v) for v in (params or {}).values()) or (
+                json_body is not None and any(is_masked(v) for _, v in leaves(json_body))):
+            raise NeedsValue()                            # 쿼리·JSON 본문은 새로 받지 않으므로 가린 값이 남으면 보내지 않는다
         headers = dict(headers)
         if params:
             url = url + ("&" if "?" in url else "?") + encode(params, step.get("charset"))
@@ -275,11 +280,16 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
             hidden = (p.get("from") or "").startswith("session.hidden.")
             if hidden and not st.get("formPage"):
                 return fail(st, "needs_value", note="숨은 토큰을 새로 받을 화면 주소가 없음")
+            if hidden and p["loc"] != "form":
+                # 새 토큰은 폼에만 채운다. 쿼리·본문·헤더의 토큰은 새로 받을 수 없어 기록 값(가렸거나 지난 값)이 나간다
+                return fail(st, "needs_value", note="폼이 아닌 곳의 숨은 토큰은 새로 받지 못함")
             v = _value(p, inputs, raw, outs, needs)
             if v is None:
                 return fail(st, "chain_broken")
             if _is_masked(v) and not (hidden and refreshed):
                 return fail(st, "needs_value")
+            if hidden and v == "" and not refreshed:
+                return fail(st, "needs_value", note="숨은 토큰 값이 비어 있음")
             if p["loc"] == "query":
                 params[p["a"]] = v
             elif p["loc"] == "form":
@@ -291,6 +301,8 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
         # 보내기 직전 마지막 점검: 경로·헤더·화면 주소에 가린 값이 남았는가, 채우지 못한 {자리}가 있는가
         if any(_is_masked(unquote(x)) for x in [url, st.get("formPage") or ""] + [str(h) for h in headers.values()]):
             return fail(st, "needs_value", note="경로·헤더에 가린 값이 남음")
+        if any(_is_masked(str(v)) for v in params.values()) or (body is not None and any(_is_masked(v) for _, v in leaves(body))):
+            return fail(st, "needs_value", note="쿼리·본문에 가린 값이 남음")
         if _PLACEHOLDER.search(url):
             return fail(st, "unresolved_path", note="경로의 {자리}를 채우지 못함")
         if st.get("write") and not await ask_write(st):      # 보내지 않을 요청에는 승인을 묻지 않도록 점검 뒤에 묻는다
@@ -431,7 +443,9 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
             http, browser, raw = HttpTransport(cookies, host=host), BrowserTransport(session.page), dict(session.trace.raw)
 
             async def ask(st):
-                return await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}")
+                # 브라우저로 보내는 단계는 승인받은 요청이 기록 가드를 다시 지난다. 한 번 허용을 남겨 두 번 묻지 않는다
+                return await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}",
+                                               once=st.get("exec") == "browser")
         else:
             if not auto:
                 return result("needs-login", [])
@@ -439,7 +453,7 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
             http = HttpTransport(await do_login(), host=host)
 
             async def ask(st):
-                return bf["source"].get("env") == "staging"    # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다
+                return config.is_staging(bf["source"].get("env"))    # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다
     except LoginError:
         return result("needs-login", [])
     except Exception as exc:
