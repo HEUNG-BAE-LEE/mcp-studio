@@ -121,10 +121,11 @@ module "ieum" {
 # 워크플로는 러너에서 이미지를 빌드해 공유 ACR 에 올리고(AcrPush), 이 앱의 이미지만 바꾼다(앱 단위 Contributor).
 # 공유 ACR 과 RG 의 다른 리소스(다른 서비스의 앱 · VM)는 바꿀 수 없다.
 module "cicd" {
-  source       = "./modules/github-oidc"
-  display_name = "gh-${replace(var.github_repo, "/", "-")}-${local.p}-${var.environment}"
-  github_repo  = var.github_repo
-  branches     = var.deploy_branches
+  source         = "./modules/github-oidc"
+  display_name   = "gh-${replace(var.github_repo, "/", "-")}-${local.p}-${var.environment}"
+  github_repo    = var.github_repo
+  subject_prefix = var.github_oidc_subject_prefix
+  branches       = var.deploy_branches
   role_assignments = {
     acr_push  = { scope = module.ieum.acr_id, role = "AcrPush" }
     acr_read  = { scope = module.ieum.acr_id, role = "Reader" } # az acr login 이 레지스트리 정보를 읽는다

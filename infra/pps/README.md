@@ -54,6 +54,29 @@ infra/pps/
 - **레거시만 필요할 때**: 루트에서 `module "ieum"` 을 빼면 network · legacy-vm · legacy-db · vault 만 올라간다.
 - **레거시 서버를 여러 대로 나눌 때**: `module "legacy_vm"` 을 `for_each` 로 감싸 시스템별로 한 대씩 둔다(`private_ip` 만 다르게).
 
+## staging 과 자동 배포(CI/CD)
+
+이 스택이 **staging** 이다(`environment = "staging"`, 모든 리소스 태그 `env=staging`). dev 에 머지될 때마다
+`.github/workflows/deploy-aca.yml` 이 staging 으로 자동 배포한다.
+
+```
+dev 머지 ─▶ GitHub Actions ─(OIDC)─▶ Azure 로그인(gh-…-pps-staging 앱)
+              │ docker build · push ─▶ wtembed10835/ieum-pps:<커밋 SHA>
+              │ az containerapp update ─▶ ca-pps-ieum 새 리비전
+              └ 리비전 상태 확인(Healthy · Running) — 실패하면 워크플로가 빨간색
+```
+
+- **로그인은 비밀값 없이 한다.** `modules/github-oidc` 가 Entra 앱과 연합 자격 증명을 만든다. GitHub 이 발급한 단기 토큰의 subject 가
+  `repo:HEUNG-BAE-LEE/mcp-studio:ref:refs/heads/dev` 와 정확히 같을 때만 Azure 로그인으로 바뀐다. 다른 브랜치 · 포크 · PR 은 거절된다.
+- **권한은 리소스 단위 넷뿐이다.** 공유 ACR 에 push(AcrPush) · 읽기(Reader), `ca-pps-ieum` 수정(Contributor), 앱 환경 읽기(Reader).
+  같은 RG 의 다른 서비스 리소스는 바꿀 수 없다. ACR 안 빌드(`az acr build`)는 레지스트리 전체 권한이 필요해 쓰지 않는다.
+- **워크플로에 `environment:` 를 달지 않는다.** 달면 토큰의 subject 가 `environment:<이름>` 으로 바뀌어 위 자격 증명과 맞지 않는다.
+- **헬스체크는 HTTP 가 아니라 리비전 상태로 한다.** staging 은 허용 IP 에서만 열리므로(콘솔이 인증 없이 열려 있다) 러너가 두드릴 수 없다.
+- 레거시 VM 은 자동 배포 대상이 아니다. 밀봉돼 있어(인터넷 아웃바운드 차단) pip 설치가 안 된다 — 레거시를 바꿨으면
+  `internet_lockdown=false` 로 apply → `deploy_legacy.sh` → 다시 밀봉한다.
+- **prod 를 따로 둘 때**: 같은 모듈로 `name_prefix = "pps-prod"`, `environment = "prod"`, `deploy_branches = ["master"]`,
+  상태 키 `pps-prod.tfstate` 로 한 벌 더 올리고, `deploy-aca-prod.yml` 의 대상과 client-id 를 그 출력으로 바꾼다.
+
 ## 순서
 
 ```bash

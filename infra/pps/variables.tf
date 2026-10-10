@@ -68,6 +68,12 @@ variable "github_repo" {
   default     = "HEUNG-BAE-LEE/mcp-studio"
 }
 
+variable "github_oidc_subject_prefix" {
+  description = "GitHub OIDC 토큰 subject 의 저장소 부분. 이 저장소는 ID 고정 형식이다(gh api repos/<repo>/actions/oidc/customization/sub)"
+  type        = string
+  default     = "repo:HEUNG-BAE-LEE@23379622/mcp-studio@1312471061"
+}
+
 variable "deploy_branches" {
   description = "이 환경으로 자동 배포하는 브랜치. staging 은 dev 머지마다 올라간다"
   type        = list(string)
