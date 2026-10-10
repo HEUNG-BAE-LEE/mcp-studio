@@ -30,6 +30,8 @@ ARIA_MAX = 20_000
 RES_MAX = 4_000
 SETTLE_MAX_MS = 3000
 SETTLE_QUIET_MS = 400
+PW_TIMEOUT_SEC = 3.0          # 스냅샷의 Playwright 호출 하나의 상한. 대상 페이지에 확인 창이 열려 있으면 호출이 돌아오지 않는다
+ARIA_TOTAL_SEC = 6.0          # 프레임이 많아도 ARIA 스냅샷 전체는 이 시간을 넘기지 않는다
 _PAIRS_BODY = re.compile(r"^(?:[^=&\s]+=[^&]*)?(?:&(?:[^=&\s]+=[^&]*)?)*$")
 # 내용은 CDATA 조각과 글자의 섞임이다. CDATA 는 처음 만나는 ]]> 에서 끝난다(.*? 로 두면 뒤 요소까지 삼켜 그 안의 비밀 태그를 놓친다).
 _XML_ELEM = re.compile(r"<((?:[\w.-]+:)?([\w.-]+))((?:\s[^>]*)?)>((?:<!\[CDATA\[(?:(?!\]\]>).)*\]\]>|[^<])*)</\1>", re.S)
@@ -76,6 +78,7 @@ class Trace:
         self._limit_sent = False
         self._close_lock = asyncio.Lock()
         self.ended = False
+        self.dialog_open: Callable[[], bool] = lambda: False     # 대상 페이지에 확인 창이 열려 있는지(세션이 알려 준다)
 
     # ── 마스킹 (원값은 입력칸 값만 지도에 남긴다) ───────────────────────────
     def _m(self, v: str) -> str:
@@ -150,13 +153,19 @@ class Trace:
     # ── 스냅샷 ─────────────────────────────────────────────────────────────
     async def _aria(self, page) -> str:
         parts = []
-        for frame in page.frames:
-            try:
-                text = await frame.locator("body").aria_snapshot(timeout=1500)
-            except Exception:
-                continue
-            if text:
-                parts.append(text if frame == page.main_frame else f"- frame {self.policy.display(frame.url)}:\n{text}")
+
+        async def collect():
+            for frame in list(page.frames):
+                try:
+                    text = await frame.locator("body").aria_snapshot(timeout=1500)
+                except Exception:
+                    continue
+                if text:
+                    parts.append(text if frame == page.main_frame else f"- frame {self.policy.display(frame.url)}:\n{text}")
+        try:
+            await asyncio.wait_for(collect(), ARIA_TOTAL_SEC)
+        except Exception:
+            pass                                         # 시간 초과: 지금까지 뜬 프레임만 쓴다
         return self.masker.text("\n".join(parts))[:ARIA_MAX]
 
     async def _snapshot(self, page, seq: int, when: str) -> dict:
@@ -166,16 +175,23 @@ class Trace:
         try:
             out["href"] = self._url(page.url)
             out["url"] = self.policy.display(out["href"])
-            out["title"] = await page.title()
+        except Exception:
+            pass
+        if self.dialog_open():
+            out["dialogOpen"] = True                     # 확인 창이 열린 페이지는 Playwright 호출이 멈춘다. 부르지 않고 표시만 남긴다
+            return out
+        try:
+            out["title"] = await asyncio.wait_for(page.title(), PW_TIMEOUT_SEC)
         except Exception:
             pass
         out["aria"] = await self._aria(page)
         try:
-            out["hidden"] = dict(self.masker.pairs([(k, str(v)) for k, v in (await page.evaluate(_HIDDEN_JS)).items()]))
+            hidden = await asyncio.wait_for(page.evaluate(_HIDDEN_JS), PW_TIMEOUT_SEC)
+            out["hidden"] = dict(self.masker.pairs([(k, str(v)) for k, v in hidden.items()]))
         except Exception:
             pass
         try:
-            data = await page.screenshot(type="jpeg", quality=50)
+            data = await asyncio.wait_for(page.screenshot(type="jpeg", quality=50), PW_TIMEOUT_SEC)
             name = f"{seq}-{when}.jpg"
             await asyncio.to_thread(self._write_shot, name, data)
             out["shot"] = name

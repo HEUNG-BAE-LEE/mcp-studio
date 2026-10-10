@@ -8,6 +8,7 @@
 대상 사이트의 alert/confirm 은 사용자에게 그대로 묻는다. 자동 탐색처럼 항상 취소하지 않는다.
 """
 import asyncio
+import logging
 import secrets
 import time
 from typing import Callable, Dict, Optional
@@ -18,6 +19,10 @@ from app.ieum.discovery.policy import Policy
 from app.ieum.recorder import login, relay, store
 from app.ieum.recorder.guard import Guard
 from app.ieum.recorder.trace import INIT_JS, Trace
+
+log = logging.getLogger(__name__)
+TAB_TITLE_SEC = 3.0
+FAIL_NOTICE_SEC = 30.0         # 같은 연결 실패 문구는 이 시간에 한 번만 알린다
 
 
 class RecorderSession:
@@ -36,6 +41,9 @@ class RecorderSession:
         self.browser = self.ctx = self.page = self.cdp = None
         self.pages: list = []
         self._dialog = None
+        self._closed_dialog_notice = False
+        self._fail_seen: Dict[str, float] = {}
+        self.trace.dialog_open = lambda: self._dialog is not None
         self._last_frame: Optional[str] = None
         self._loop = None
         self._on_dead = on_dead
@@ -121,6 +129,7 @@ class RecorderSession:
         self.ctx.on("request", self.trace.on_request)
         self.ctx.on("requestfinished", self.trace.on_request_done)
         self.ctx.on("requestfailed", self.trace.on_request_done)
+        self.ctx.on("requestfailed", lambda r: asyncio.ensure_future(self._on_request_failed(r)))
         self.ctx.on("response", self.trace.on_response)
         page = await self.ctx.new_page()
         await self._activate(page)
@@ -182,12 +191,43 @@ class RecorderSession:
         tabs = []
         for i, p in enumerate(self.pages):
             try:
-                tabs.append({"index": i, "url": self.policy.display(p.url), "title": await p.title()})
+                title = "" if self._dialog is not None else await asyncio.wait_for(p.title(), TAB_TITLE_SEC)   # 확인 창이 열린 페이지는 title() 이 멈춘다
+                tabs.append({"index": i, "url": self.policy.display(p.url), "title": title})
             except Exception:
                 tabs.append({"index": i, "url": "", "title": ""})
         await self.broadcast({"t": "tabs", "tabs": tabs, "active": self.pages.index(self.page) if self.page in self.pages else 0})
 
+    async def _on_request_failed(self, request) -> None:
+        """문서 요청이 연결 단계에서 실패하면 원인 문구를 로그와 콘솔에 남긴다(같은 문구는 30초에 한 번)."""
+        try:
+            if request.resource_type != "document":
+                return
+            err = (request.failure or "").strip() or "알 수 없는 오류"
+            now = time.time()
+            if now - self._fail_seen.get(err, 0.0) < FAIL_NOTICE_SEC:
+                return
+            self._fail_seen[err] = now
+            p = urlsplit(request.url)
+            shown = self.policy.display(f"{p.scheme}://{p.netloc}{p.path}")      # 쿼리는 남기지 않는다
+            log.warning("대상 사이트 연결 실패 rid=%s %s %s", self.rid, shown, err)
+            await self.broadcast({"t": "notice", "msg": f"대상 사이트 연결 실패: {err}"})
+        except Exception:
+            pass
+
+    async def _close_dialog_for_stop(self, dialog) -> None:
+        """기록을 멈추는 중에는 대상 사이트의 확인 창을 사람이 닫을 수 없다. 열려 있으면 스냅샷·종료가 멈추므로 닫는다."""
+        try:
+            await dialog.dismiss()
+        except Exception:
+            pass
+        if not self._closed_dialog_notice:
+            self._closed_dialog_notice = True
+            await self.broadcast({"t": "notice", "msg": "기록 종료 중이라 대상 사이트의 확인 창을 닫았습니다."})
+
     async def _on_dialog(self, dialog) -> None:
+        if self.stopping:
+            await self._close_dialog_for_stop(dialog)
+            return
         self._dialog = dialog
         await self.broadcast({"t": "dialog", "type": dialog.type, "message": dialog.message})
 
@@ -255,6 +295,9 @@ class RecorderSession:
     async def stop(self) -> None:
         self.stopping = True
         self.guard.closing_now()                        # 이 뒤에 붙잡힐 기록 쪽 쓰기는 묻지 않고 바로 거절한다
+        if self._dialog is not None:                    # 이미 열려 있는 확인 창도 닫는다(열린 채로는 스냅샷이 멈춘다)
+            d, self._dialog = self._dialog, None
+            await asyncio.wait_for(self._close_dialog_for_stop(d), 5)
         await self._deny_pending()
         await self.trace.finish(self.page)
         await self._deny_pending()
