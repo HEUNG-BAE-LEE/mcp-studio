@@ -9,6 +9,7 @@
 ARIA 와 응답은 같은 마스킹기로 가려 저장했으므로, 가린 값끼리 비교해도 판정이 맞다.
 """
 import copy
+import logging
 import re
 import time
 from types import SimpleNamespace
@@ -59,8 +60,10 @@ def leaves(data, limit: int = 400) -> List[Tuple[str, Any]]:
 
 def get_path(data, path: str):
     query = None
-    if "?" in path:
-        path, query = path.split("?", 1)
+    blanked = re.sub(r"\['(?:[^'\\]|\\.)*'\]", lambda m: "_" * len(m.group(0)), path)     # ['a?b'] 안의 ? 는 가린다
+    cut = blanked.rfind("?")
+    if cut >= 0:
+        path, query = path[:cut], path[cut + 1:]
     node = data
     for name, idx, quoted in re.findall(r"\.([^.\[]+)|\[(\d+)\]|\['((?:[^'\\]|\\.)*)'\]", path[1:] if path.startswith("$") else path):
         try:
@@ -124,7 +127,7 @@ def _is_write(n: dict, policy: Policy) -> bool:
         if policy.same_origin(n["url"]) and policy.is_read_post(n["url"]):
             return False
     except Exception:
-        pass
+        logging.warning("readPost 판정 실패 — 쓰기로 본다: %s", n.get("url"), exc_info=True)
     return True
 
 
@@ -202,12 +205,12 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
               "discriminator": disc, "kind": _kind(n), "charset": n.get("charset"), "exec": "http", "formPage": None, "write": write,
               "headers": {}, "outputs": {}, "params": [],
               "recordedRes": n.get("res") or "", "recordedData": copy.deepcopy(n.get("data")), "recordedStatus": n["status"],
-              "_sample": (sp, n, data), "_write": write, "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""),
+              "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""),
               "_title": (sp.get("pre") or {}).get("title", "")}
         for hk, hv in (n.get("headers") or {}).items():
             if hk.lower().startswith("x-"):
                 if HIDDEN in str(hv) or _MASKED.search(str(hv)):
-                    dropped_headers.add(hk.lower())        # 가린 값은 그대로 재생하면 안 된다
+                    st["_dropped"].add(hk.lower())        # 가린 값은 그대로 재생하면 안 된다
                 else:
                     st["headers"][hk.lower()] = hv
         seen[key] = st
@@ -218,25 +221,29 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     fill_labels = _fill_labels(spans)
     common = _common_values(steps)
     inputs: Dict[str, dict] = {}
+    contrib: list = []
     for i, st in enumerate(steps):
         sp, n, _ = st["_sample"]
         hidden = _hidden_before(spans, sp["seq"])
         for name, value, loc in _pairs(n):
             masked = HIDDEN in value or bool(_MASKED.search(value))
             p = {"a": name, "loc": loc, "ex": "" if HIDDEN in value else value, "type": _type(value), "required": value != ""}
+            links = _find_link(value, steps[:i]) if len(value) >= MIN_VALUE_LEN and HIDDEN not in value else []
             if value in user_vals:                                    # 1) 사용자가 넣은 값
-                p.update({"from": f"input.{name}", "source": USER_INPUT, "confidence": "high"})
-                inputs.setdefault(name, _input(name, p["type"], USER_INPUT, value, user_vals[value], "high", True))
+                # 같은 값이 앞 단계 응답·숨은 입력란에도 있으면 어느 쪽인지 단정하지 않는다 — 검토 화면에서 묻는다
+                conf = "low" if (links or (name in hidden and hidden[name] == value)) else "high"
+                p.update({"from": f"input.{name}", "source": USER_INPUT, "confidence": conf})
+                inputs.setdefault(name, _input(name, p["type"], USER_INPUT, value, user_vals[value], conf, True))
                 st["params"].append(p)
                 continue
-            links = _find_link(value, steps[:i]) if len(value) >= MIN_VALUE_LEN and value != HIDDEN else []   # 2) 앞 단계 응답
             if links:
                 prev, path, many = links[0][0], links[0][1], len(links) > 1
                 out_name = name if "?" in path else (path.rsplit(".", 1)[-1].split("[")[0] or name)
                 prev["outputs"][out_name] = path
+                contrib.append((prev, out_name, st["id"]))
                 weak = many or (p["type"] == "number" and not _similar(name, out_name))
                 p.update({"from": f"{prev['id']}.{out_name}", "source": PREVIOUS_STEP_OUTPUT, "confidence": "low" if weak else "high"})
-            elif (name in hidden and hidden[name] == value) or (_TOKEN_NAME.search(name) and value not in user_vals):   # 3) 숨은 입력란
+            elif (name in hidden and hidden[name] == value) or _TOKEN_NAME.search(name):   # 3) 숨은 입력란
                 p.update({"from": f"session.hidden.{name}", "source": SESSION_CONTEXT, "confidence": "high" if name in hidden else "mid"})
                 st["exec"] = "browser"
                 st["formPage"] = (sp.get("pre") or {}).get("href") or None
@@ -271,6 +278,12 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                              "why": "응답 값이 화면에 나타나지 않음"})
         else:
             kept.append(st)
+    kept_ids = {st["id"] for st in kept}
+    live = {(id(pv), nm) for pv, nm, cid in contrib if cid in kept_ids}
+    for pv, nm, cid in contrib:                       # 빠진 후보가 남긴 출력 항목은 지운다
+        if cid not in kept_ids and (id(pv), nm) not in live:
+            pv["outputs"].pop(nm, None)
+    dropped_headers = set().union(*[st["_dropped"] for st in kept]) if kept else set()
     remap = {st["id"]: f"s{k}" for k, st in enumerate(kept, 1)}
     steps = kept
     for st in steps:
@@ -309,7 +322,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     desc = _describe(rec, steps, list(inputs.values()), output, op)
     evidence = {s["id"]: s["_spans"] for s in steps}
     for s in steps:
-        for k in ("_sample", "_spans", "_label", "_title", "_write"):
+        for k in ("_sample", "_spans", "_label", "_title", "_write", "_dropped"):
             s.pop(k, None)
     login = rec.get("login") or {}
     return {"id": "bf_" + rec["id"][4:], "name": rec["name"], "desc": desc, "status": "draft",

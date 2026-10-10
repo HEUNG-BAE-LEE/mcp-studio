@@ -221,6 +221,12 @@ def test_입력이_앞_단계_출력보다_먼저다():
              span(2, {"tag": "BUTTON", "text": "상세"}, [net("GET", "/poDetail.do", "poNo=PO-2609-0142", DETAIL)], post_aria="4,850,000",
                   fills=[{"target": {"id": "poNo", "label": "발주번호"}, "value": "PO-2609-0142"}])]
     p = next(p for p in analyze.analyze(REC, spans)["steps"][1]["params"] if p["a"] == "poNo")
+    # 같은 값이 앞 응답에도 있으므로 출처는 입력이되 확신도는 낮춰 검토 화면에서 묻는다
+    assert p["source"] == "USER_INPUT" and p["confidence"] == "low"
+
+
+def test_입력만_맞으면_확신도가_높다():
+    p = next(p for p in analyze.analyze(REC, READ)["steps"][0]["params"] if p["a"] == "fromDt")
     assert p["source"] == "USER_INPUT" and p["confidence"] == "high"
 
 
@@ -263,3 +269,20 @@ def test_이름이_다른_숫자_연결은_확신도가_낮다():
              span(2, {"tag": "BUTTON", "text": "상세"}, [net("GET", "/poDetail.do", "seqNo=12345", DETAIL)], post_aria="4,850,000")]
     p = next(p for p in analyze.analyze(REC, spans)["steps"][1]["params"] if p["a"] == "seqNo")
     assert p["source"] == "PREVIOUS_STEP_OUTPUT" and p["confidence"] == "low"
+
+
+def test_get_path_물음표가_든_키_왕복():
+    data = {"a?b": "v", "rows": [{"_links": ["x.do?k=1"]}]}
+    assert analyze.get_path(data, "$['a?b']") == "v"
+    assert ("$['a?b']", "v") in analyze.leaves(data)
+    assert analyze.get_path(data, "$.rows[0]._links[0]?k") == "1"
+
+
+def test_빠진_후보가_남긴_출력과_헤더는_지운다():
+    unused = net("GET", "/poList.do", "q=1", LIST)
+    unused["headers"] = {"x-auth-token": "\u2022" * 8}
+    spans = [span(1, {"tag": "BUTTON", "text": "조회"}, [unused], post_aria="결과 없음"),
+             span(2, {"tag": "BUTTON", "text": "상세"}, [net("GET", "/poDetail.do", "poNo=ZZ", DETAIL)], post_aria="4,850,000")]
+    bf = analyze.analyze(REC, spans)
+    assert [s["role"] for s in bf["steps"]] == ["core"]
+    assert bf["auth"]["droppedHeaders"] == [] and not any("x-auth-token" in n for n in bf["notes"])
