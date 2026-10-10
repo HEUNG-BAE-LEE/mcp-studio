@@ -1,0 +1,254 @@
+# apps/backend/app/ieum/recorder/trace.py
+"""행동 묶음(ActionSpan) 기록.
+
+중계가 입력을 넣기 직전에 begin() 을 부른다. 그 순간의 화면(직전 스냅샷)을 뜨고 새 묶음을 연다. 그 뒤에 나간 요청은
+모두 이 묶음에 붙는다. 다음 begin() 이나 finish() 가 이 묶음을 닫는데, 네트워크가 잠잠해질 때까지 기다린 뒤
+직후 스냅샷을 뜨고 기록별 파일에 한 줄 덧붙인다.
+
+- 무엇을 눌렀는지는 페이지 안 기록 스크립트(INIT_JS)가 알려 준다. 영상 좌표로 추측하지 않는다.
+- 화면 이동(document) 응답도 기록한다. 서버가 결과 표를 그려 주는 레거시 화면에서는 그것이 API 다.
+  HTML 이면 표를 데이터로 바꾼 사본(data)을 함께 둔다.
+- ARIA 스냅샷은 모든 프레임을 떠서 잇는다(레거시는 iframe·frameset 이 많다). 저장 전에 마스킹한다.
+- 응답·요청·ARIA 는 마스킹한 값만 저장한다. 입력 원값은 raw 지도(마스킹 값 → 원값)에만 두고 Replay 가 쓴다.
+- 파일 쓰기와 HTML 변환은 이벤트 루프를 막지 않게 스레드로 넘긴다.
+"""
+import asyncio
+import json
+import re
+import time
+from typing import Awaitable, Callable, Dict, Optional
+from urllib.parse import parse_qsl, urlsplit
+
+from app.ieum.discovery import capture
+from app.ieum.discovery.masking import Masker
+from app.ieum.discovery.policy import Policy, is_asset
+from app.ieum.recorder import htmltable, store
+from app.ieum.recorder.guard import Guard
+
+MAX_SPANS = 300
+ARIA_MAX = 20_000
+RES_MAX = 4_000
+SETTLE_MAX_MS = 3000
+SETTLE_QUIET_MS = 400
+_CHARSET = re.compile(r"charset=([\w-]+)", re.I)
+
+INIT_JS = """
+(() => {
+  if (window.__ieumRecInstalled) return; window.__ieumRecInstalled = true;
+  const desc = (el) => el ? ({ tag: el.tagName || '', id: el.id || '', name: (el.getAttribute && (el.getAttribute('name') || '')) || '',
+      role: (el.getAttribute && el.getAttribute('role')) || '', text: ((el.innerText || el.value || (el.getAttribute && el.getAttribute('aria-label')) || '') + '').trim().slice(0, 60) }) : null;
+  const pick = (el) => (el && el.closest) ? (el.closest('button,a,input,select,textarea,tr,[onclick],[role]') || el) : el;
+  const label = (el) => { try { if (el.labels && el.labels[0]) return el.labels[0].innerText.trim().slice(0, 40);
+      const th = el.closest('td') && el.closest('td').previousElementSibling; if (th && th.tagName === 'TH') return th.innerText.trim().slice(0, 40); } catch (e) {}
+      return (el.getAttribute && el.getAttribute('aria-label')) || ''; };
+  const send = (o) => { try { window.__ieumRec(o); } catch (e) {} };
+  document.addEventListener('click', (e) => send({ type: 'click', isTrusted: e.isTrusted, el: desc(pick(e.target)), page: location.pathname }), true);
+  document.addEventListener('change', (e) => { const t = e.target; if (!t || t.type === 'password') return;
+      send({ type: 'change', isTrusted: e.isTrusted, el: Object.assign(desc(t), { label: label(t) }), value: (t.value + '').slice(0, 200), page: location.pathname }); }, true);
+})();
+"""
+
+_HIDDEN_JS = "() => Object.fromEntries([...document.querySelectorAll('input[type=hidden][name]')].slice(0, 50).map(i => [i.name, (i.value || '').slice(0, 300)]))"
+
+
+class Trace:
+    def __init__(self, rid: str, policy: Policy, guard: Guard, notify: Callable[[dict], Awaitable[None]],
+                 on_closed: Optional[Callable[[object, dict], Awaitable[None]]] = None):
+        self.rid, self.policy, self.guard, self.notify, self.on_closed = rid, policy, guard, notify, on_closed
+        self.masker = Masker(pii=True)
+        self.raw: Dict[str, str] = {}
+        self.paused = False
+        self.seq = 0
+        self.current: Optional[dict] = None
+        self._inflight = 0
+        self._limit_sent = False
+
+    # ── 마스킹 (원값은 지도에 남긴다) ───────────────────────────────────────
+    def _m(self, v: str) -> str:
+        m = self.masker.text(v)
+        if m != v and v:
+            self.raw[m] = v
+        return m
+
+    def _pairs_text(self, pairs) -> str:
+        out = []
+        for k, v in pairs:
+            masked = self.masker.pairs([(k, v)])[0][1]
+            if masked != v and v and masked != "••••••••":
+                self.raw[masked] = v
+            out.append(f"{k}={masked}")
+        return "&".join(out)
+
+    def _url(self, url: str) -> str:
+        parts = urlsplit(url)
+        return parts._replace(query=self._pairs_text(parse_qsl(parts.query, keep_blank_values=True))).geturl()
+
+    def _post(self, post: Optional[str], ctype: str) -> Optional[str]:
+        if not post:
+            return None
+        if "json" in (ctype or "").lower():
+            try:
+                return json.dumps(self.masker.value(json.loads(post)), ensure_ascii=False)[:RES_MAX]
+            except ValueError:
+                return self._m(post)[:RES_MAX]
+        return self._pairs_text(parse_qsl(post, keep_blank_values=True))[:RES_MAX]
+
+    # ── 진행 중 요청 ───────────────────────────────────────────────────────
+    def on_request(self, request) -> None:
+        if request.resource_type in ("xhr", "fetch", "document"):
+            self._inflight += 1
+
+    def on_request_done(self, request) -> None:
+        if request.resource_type in ("xhr", "fetch", "document"):
+            self._inflight = max(0, self._inflight - 1)
+
+    async def _settle(self) -> None:
+        end, quiet = time.time() + SETTLE_MAX_MS / 1000, None
+        while time.time() < end:
+            await asyncio.sleep(0.08)
+            if self._inflight <= 0:
+                quiet = quiet or time.time()
+                if (time.time() - quiet) * 1000 >= SETTLE_QUIET_MS:
+                    return
+            else:
+                quiet = None
+
+    # ── 스냅샷 ─────────────────────────────────────────────────────────────
+    async def _aria(self, page) -> str:
+        parts = []
+        for frame in page.frames:
+            try:
+                text = await frame.locator("body").aria_snapshot(timeout=1500)
+            except Exception:
+                continue
+            if text:
+                parts.append(text if frame == page.main_frame else f"- frame {self.policy.display(frame.url)}:\n{text}")
+        return self.masker.text("\n".join(parts))[:ARIA_MAX]
+
+    async def _snapshot(self, page, seq: int, when: str) -> dict:
+        out = {"url": "", "href": "", "title": "", "aria": "", "hidden": {}, "shot": None}
+        if page is None:
+            return out
+        try:
+            out["url"], out["href"] = self.policy.display(page.url), self._url(page.url)
+            out["title"] = await page.title()
+        except Exception:
+            pass
+        out["aria"] = await self._aria(page)
+        try:
+            out["hidden"] = {k: self._m(str(v)) for k, v in (await page.evaluate(_HIDDEN_JS)).items()}
+        except Exception:
+            pass
+        try:
+            data = await page.screenshot(type="jpeg", quality=50)
+            name = f"{seq}-{when}.jpg"
+            await asyncio.to_thread(self._write_shot, name, data)
+            out["shot"] = name
+        except Exception:
+            pass
+        return out
+
+    def _write_shot(self, name: str, data: bytes) -> None:
+        d = store.rec_dir(self.rid)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_bytes(data)
+
+    # ── 묶음 ───────────────────────────────────────────────────────────────
+    async def begin(self, page, kind: str) -> Optional[int]:
+        if self.paused:
+            return None
+        await self._close(page)
+        if self.seq >= MAX_SPANS:
+            if not self._limit_sent:
+                self._limit_sent = True
+                await self.notify({"t": "limit"})
+            return None
+        self.seq += 1
+        pre = await self._snapshot(page, self.seq, "pre")
+        self.current = {"seq": self.seq, "action": {"type": kind, "target": None, "isTrusted": None, "t": time.time()},
+                        "fills": [], "pre": pre, "network": [], "post": None}
+        return self.seq
+
+    async def finish(self, page) -> None:
+        await self._close(page)
+
+    async def _close(self, page) -> None:
+        span, self.current = self.current, None
+        if span is None:
+            return
+        await self._settle()
+        span["post"] = await self._snapshot(page, span["seq"], "post")
+        await asyncio.to_thread(store.append_span, self.rid, span)
+        await self.notify({"t": "span", "seq": span["seq"], "action": span["action"],
+                           "network": [{"method": n["method"], "path": n["path"], "status": n["status"], "held": n["held"],
+                                        "decision": n["decision"], "kind": "html" if n.get("data") else "data"} for n in span["network"]]})
+        if self.on_closed is not None:
+            try:
+                await self.on_closed(page, span)
+            except Exception:
+                pass
+
+    # ── 브라우저 안 이벤트 ─────────────────────────────────────────────────
+    def on_dom_event(self, source, ev: dict) -> None:
+        span = self.current
+        if span is None or not isinstance(ev, dict):
+            return
+        el = ev.get("el") or {}
+        if ev.get("type") == "click" and span["action"]["target"] is None:
+            span["action"]["target"] = el
+            span["action"]["isTrusted"] = ev.get("isTrusted")
+            self.guard.label = el.get("text") or el.get("id") or ""
+        elif ev.get("type") == "change":
+            span["fills"].append({"target": el, "value": self._m(str(ev.get("value") or ""))})
+
+    # ── 응답 ───────────────────────────────────────────────────────────────
+    async def on_response(self, response) -> None:
+        span = self.current
+        if span is None:
+            return
+        try:
+            req = response.request
+            url, rtype, status = response.url, req.resource_type, response.status
+            if not url.startswith(("http://", "https://")) or rtype in capture.STATIC_TYPES or is_asset(url) or 300 <= status < 400:
+                return
+            is_file, ctype = capture.is_file_response(response.headers)
+            body = ""
+            if not is_file:
+                try:
+                    body = (await response.text())[:capture.MAX_BODY]
+                except Exception:
+                    body = ""
+            data = None
+            if body and htmltable.looks_html(ctype, body):
+                data = await asyncio.to_thread(htmltable.to_data, body)
+                data = self.masker.value(data) if data else None
+            masked = self._mask_body(body)
+            if masked is None:
+                return                                   # 마스킹하지 못하면 저장하지 않는다
+            parts = urlsplit(url)
+            primary = self.policy.same_origin(url)
+            req_ctype = (req.headers or {}).get("content-type", "")
+            m = _CHARSET.search(req_ctype) or _CHARSET.search(ctype)
+            decision = self.guard.decided_requests.get(id(req), "")
+            span["network"].append({
+                "method": req.method.upper(), "url": self._url(url), "origin": f"{parts.scheme}://{parts.netloc}",
+                "base": self.policy.base if primary else f"{parts.scheme}://{parts.netloc}",
+                "path": self.policy.rel(parts.path) if primary else parts.path,
+                "status": status, "ctype": ctype, "charset": m.group(1).upper() if m else None, "rtype": rtype,
+                "headers": capture.keep_headers(req.headers), "post": self._post(req.post_data, req_ctype),
+                "res": masked, "data": data, "file": is_file, "held": bool(decision and decision != "staging"),
+                "decision": decision, "primary": primary, "t": time.time()})
+        except Exception:
+            pass
+
+    def _mask_body(self, body: str) -> Optional[str]:
+        try:
+            t = body.lstrip()
+            if t[:1] in ("{", "["):
+                try:
+                    return json.dumps(self.masker.value(json.loads(t)), ensure_ascii=False)[:RES_MAX]
+                except ValueError:
+                    pass
+            return self.masker.text(body)[:RES_MAX]
+        except Exception:
+            return None
