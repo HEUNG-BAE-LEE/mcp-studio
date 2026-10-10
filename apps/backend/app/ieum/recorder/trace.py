@@ -17,10 +17,10 @@ import json
 import re
 import time
 from typing import Awaitable, Callable, Dict, Optional
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from app.ieum.discovery import capture
-from app.ieum.discovery.masking import Masker
+from app.ieum.discovery.masking import HIDDEN, Masker, is_secret_key
 from app.ieum.discovery.policy import Policy, is_asset
 from app.ieum.recorder import htmltable, store
 from app.ieum.recorder.guard import Guard
@@ -56,28 +56,32 @@ class Trace:
                  on_closed: Optional[Callable[[object, dict], Awaitable[None]]] = None):
         self.rid, self.policy, self.guard, self.notify, self.on_closed = rid, policy, guard, notify, on_closed
         self.masker = Masker(pii=True)
-        self.raw: Dict[str, str] = {}
+        self.raw: Dict[str, Optional[str]] = {}
         self.paused = False
         self.seq = 0
         self.current: Optional[dict] = None
         self._inflight = 0
         self._limit_sent = False
 
-    # ── 마스킹 (원값은 지도에 남긴다) ───────────────────────────────────────
+    # ── 마스킹 (원값은 입력칸 값만 지도에 남긴다) ───────────────────────────
     def _m(self, v: str) -> str:
+        return self.masker.text(v)
+
+    def _fill_value(self, el: dict, v: str) -> str:
+        """입력칸 값을 가린다. 이름이 비밀 같으면 통째로 숨기고 지도에 두지 않는다.
+        같은 가린 값에 원값이 둘 이상이면 None 으로 모호함을 표시한다(나중 작업이 값을 되묻는다)."""
+        if is_secret_key(el.get("name") or "") or is_secret_key(el.get("id") or ""):
+            return HIDDEN
         m = self.masker.text(v)
         if m != v and v:
-            self.raw[m] = v
+            if m in self.raw and self.raw[m] != v:
+                self.raw[m] = None
+            else:
+                self.raw[m] = v
         return m
 
     def _pairs_text(self, pairs) -> str:
-        out = []
-        for k, v in pairs:
-            masked = self.masker.pairs([(k, v)])[0][1]
-            if masked != v and v and masked != "••••••••":
-                self.raw[masked] = v
-            out.append(f"{k}={masked}")
-        return "&".join(out)
+        return urlencode(self.masker.pairs(list(pairs)), safe="*•")
 
     def _url(self, url: str) -> str:
         parts = urlsplit(url)
@@ -86,12 +90,15 @@ class Trace:
     def _post(self, post: Optional[str], ctype: str) -> Optional[str]:
         if not post:
             return None
-        if "json" in (ctype or "").lower():
+        low = (ctype or "").lower()
+        if "json" in low:
             try:
                 return json.dumps(self.masker.value(json.loads(post)), ensure_ascii=False)[:RES_MAX]
             except ValueError:
                 return self._m(post)[:RES_MAX]
-        return self._pairs_text(parse_qsl(post, keep_blank_values=True))[:RES_MAX]
+        if "x-www-form-urlencoded" in low:
+            return self._pairs_text(parse_qsl(post, keep_blank_values=True))[:RES_MAX]
+        return self._m(post)[:RES_MAX]
 
     # ── 진행 중 요청 ───────────────────────────────────────────────────────
     def on_request(self, request) -> None:
@@ -130,13 +137,14 @@ class Trace:
         if page is None:
             return out
         try:
-            out["url"], out["href"] = self.policy.display(page.url), self._url(page.url)
+            out["href"] = self._url(page.url)
+            out["url"] = self.policy.display(out["href"])
             out["title"] = await page.title()
         except Exception:
             pass
         out["aria"] = await self._aria(page)
         try:
-            out["hidden"] = {k: self._m(str(v)) for k, v in (await page.evaluate(_HIDDEN_JS)).items()}
+            out["hidden"] = dict(self.masker.pairs([(k, str(v)) for k, v in (await page.evaluate(_HIDDEN_JS)).items()]))
         except Exception:
             pass
         try:
@@ -173,11 +181,14 @@ class Trace:
         await self._close(page)
 
     async def _close(self, page) -> None:
-        span, self.current = self.current, None
+        span = self.current
         if span is None:
             return
-        await self._settle()
-        span["post"] = await self._snapshot(page, span["seq"], "post")
+        try:
+            await self._settle()
+            span["post"] = await self._snapshot(page, span["seq"], "post")
+        finally:
+            self.current = None
         await asyncio.to_thread(store.append_span, self.rid, span)
         await self.notify({"t": "span", "seq": span["seq"], "action": span["action"],
                            "network": [{"method": n["method"], "path": n["path"], "status": n["status"], "held": n["held"],
@@ -199,7 +210,7 @@ class Trace:
             span["action"]["isTrusted"] = ev.get("isTrusted")
             self.guard.label = el.get("text") or el.get("id") or ""
         elif ev.get("type") == "change":
-            span["fills"].append({"target": el, "value": self._m(str(ev.get("value") or ""))})
+            span["fills"].append({"target": el, "value": self._fill_value(el, str(ev.get("value") or ""))})
 
     # ── 응답 ───────────────────────────────────────────────────────────────
     async def on_response(self, response) -> None:

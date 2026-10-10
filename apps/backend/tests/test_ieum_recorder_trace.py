@@ -13,11 +13,13 @@ from app.ieum.recorder.trace import INIT_JS, Trace
 
 pytestmark = pytest.mark.skipif(os.environ.get("IEUM_SKIP_BROWSER_TESTS") == "1" or not capabilities()["browser"], reason="브라우저가 없다")
 
-PAGE = """<title>발주 현황</title><h1>발주 현황</h1><input type="hidden" name="_csrf" value="tok-1">
+PAGE = """<title>발주 현황</title><h1>발주 현황</h1><input type="hidden" name="_csrf" value="tok-1"><input type="hidden" name="accessToken" value="abc123">
 <input id="tel" aria-label="연락처">
 <button id="btnSearch" style="position:absolute;left:10px;top:120px;width:80px;height:30px">조회</button>
+<button id="btnSlow" style="position:absolute;left:110px;top:120px;width:80px;height:30px">느린조회</button>
 <table id="t"></table>
 <script>
+document.getElementById('btnSlow').onclick = async () => { const r = await fetch('/po/slowList.do'); await r.text(); };
 document.getElementById('btnSearch').onclick = async () => {
   const tel = document.getElementById('tel').value;
   const r = await fetch('/po/poList.do?tel=' + tel, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
@@ -57,8 +59,11 @@ def _record(ieum_state, steps):
 
             async def fake(route):
                 u = route.request.url
-                if u.endswith("/po/list.html"):
+                if "/po/list.html" in u:
                     await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=PAGE)
+                elif "/po/slowList.do" in u:
+                    await asyncio.sleep(0.3)
+                    await route.fulfill(status=200, content_type="application/json", body='{"ok":1}')
                 elif "/po/vendSearch.do" in u:
                     await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=SSR)
                 else:
@@ -84,7 +89,7 @@ def test_클릭과_요청과_화면_변화를_한_묶음으로_저장하고_개�
     rec, sent, tr = _record(ieum_state, steps)
     span = store.read_spans(rec["id"])[0]
     assert span["action"]["target"]["id"] == "btnSearch" and span["action"]["isTrusted"] is True
-    assert span["pre"]["title"] == "발주 현황" and span["pre"]["hidden"] == {"_csrf": "tok-1"}
+    assert span["pre"]["title"] == "발주 현황" and span["pre"]["hidden"] == {"_csrf": "tok-1", "accessToken": "••••••••"}
     assert "PO-2609-0142" in span["post"]["aria"] and "010-4821-5678" not in span["post"]["aria"]   # ARIA 도 마스킹한다
     net = span["network"][0]
     assert net["path"] == "/poList.do" and net["base"] == "http://rec.test/po" and net["primary"] is True
@@ -113,3 +118,65 @@ def test_일시정지_중에는_묶음을_만들지_않는다(ieum_state):
     tr = Trace(rec["id"], p, Guard(p, "op", notify), notify)
     tr.paused = True
     assert asyncio.new_event_loop().run_until_complete(tr.begin(None, "click")) is None
+
+
+def test_주소_쿼리의_개인정보도_스냅샷_url에_남기지_않는다(ieum_state):
+    async def steps(page, cdp, tr):
+        await page.goto("http://rec.test/po/list.html?tel=010-4821-5678")
+        await tr.begin(page, "click")
+        await relay.click(cdp, 50, 135)
+        await page.wait_for_timeout(300)
+    rec, sent, tr = _record(ieum_state, steps)
+    span = store.read_spans(rec["id"])[0]
+    for side in ("pre", "post"):
+        assert "010-4821-5678" not in span[side]["url"] and "010-4821-5678" not in span[side]["href"]
+
+
+def test_진정_대기_중에_도착한_응답도_묶음에_담긴다(ieum_state):
+    async def steps(page, cdp, tr):
+        await tr.begin(page, "click")
+        await relay.click(cdp, 150, 135)
+        await tr.finish(page)
+    rec, sent, tr = _record(ieum_state, steps)
+    span = store.read_spans(rec["id"])[0]
+    assert any(n["path"] == "/slowList.do" for n in span["network"])
+
+
+def _bare_trace():
+    p = Policy(base="http://rec.test/po")
+
+    async def notify(msg):
+        pass
+    return Trace("x", p, Guard(p, "op", notify), notify)
+
+
+def test_json도_폼도_아닌_요청_본문은_본문_전체를_가린다():
+    tr = _bare_trace()
+    out = tr._post("<req><tel>010-4821-5678</tel></req>", "text/xml")
+    assert "010-4821-5678" not in out and "5678" in out
+    assert "010-4821-5678" not in tr._post("tel=010-4821-5678", "application/x-www-form-urlencoded")
+
+
+def test_원값_지도는_입력칸_값만_담고_충돌하면_None이다():
+    tr = _bare_trace()
+    tr.current = {"action": {"target": None}, "fills": []}
+    tr.on_dom_event(None, {"type": "change", "el": {"name": "tel"}, "value": "010-1111-5678"})
+    assert tr.raw == {"***-****-5678": "010-1111-5678"}
+    tr.on_dom_event(None, {"type": "change", "el": {"name": "tel2"}, "value": "010-2222-5678"})
+    assert tr.raw["***-****-5678"] is None
+    tr._url("http://h/po/x.do?tel=010-9999-0000")
+    assert "***-****-0000" not in tr.raw                       # 주소 쿼리는 지도에 넣지 않는다
+
+
+def test_비밀_이름의_입력칸은_숨기고_지도에_두지_않는다():
+    tr = _bare_trace()
+    tr.current = {"action": {"target": None}, "fills": []}
+    tr.on_dom_event(None, {"type": "change", "el": {"name": "accessToken"}, "value": "abc123"})
+    assert tr.current["fills"][0]["value"] == "••••••••" and not tr.raw
+
+
+def test_쿼리를_다시_부호화해도_뜻이_같다():
+    from urllib.parse import parse_qsl, urlsplit
+    tr = _bare_trace()
+    out = tr._url("http://h/po/x.do?q=a%26b+c")
+    assert parse_qsl(urlsplit(out).query) == [("q", "a&b c")]
