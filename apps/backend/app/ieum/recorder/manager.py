@@ -18,6 +18,8 @@ log = logging.getLogger(__name__)
 
 _REAP_SEC = 15
 _STOP_STUCK_SEC = 300          # 멈추는 중인 채 이 시간을 넘긴 세션은 리퍼가 실패로 회수한다(안전망)
+_STOP_CANCEL_WAIT_SEC = 10     # 멈춤 작업을 취소한 뒤 정리가 끝나기를 기다리는 시간
+_STUCK_MSG = "기록을 멈추는 데 너무 오래 걸려 실패로 처리했습니다."
 
 
 class RecorderError(Exception):
@@ -174,13 +176,12 @@ class Manager:
             await s.stop()
             await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="analyzing"))
         except asyncio.CancelledError:
-            stuck = rid in self._stuck
-            # 서버 종료로 취소되면 정리만 한다. 리퍼가 시간 초과로 끊었으면 기록은 리퍼가 실패로 적었다
-            await self._drop_after_stop_failure(rid, s, None)
-            if stuck:
-                raise RecorderError("기록을 멈추는 데 너무 오래 걸려 실패로 처리했습니다.", 500)
+            if rid in self._stuck:                    # 리퍼가 시간 초과로 끊었다: 실패로 적고 치운다
+                await self._drop_after_stop_failure(rid, s, _STUCK_MSG)
+                raise RecorderError(_STUCK_MSG, 500)
+            await self._drop_after_stop_failure(rid, s, None)     # 서버 종료로 취소되면 정리만 한다
             raise
-        except BaseException as exc:
+        except Exception as exc:                      # KeyboardInterrupt·SystemExit 같은 종료 신호는 삼키지 않는다
             # 멈추다 실패하면 세션이 stopping 인 채 영영 남는다. 실패로 적고 치운 뒤 알린다.
             msg = (str(exc).splitlines()[0][:300] if str(exc) else type(exc).__name__)
             await self._drop_after_stop_failure(rid, s, msg)
@@ -197,11 +198,11 @@ class Manager:
         if msg is not None:
             try:
                 await asyncio.shield(asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=msg, endedAt=time.time())))
-            except BaseException:
+            except Exception:                         # 취소(CancelledError)는 잡지 않고 그대로 올린다
                 log.exception("멈춤 실패를 기록하지 못했습니다")
         try:
             await asyncio.shield(s.close())
-        except BaseException:
+        except Exception:
             log.exception("멈춤 실패 뒤 세션을 닫지 못했습니다")
 
     async def close(self, rid: str) -> None:
@@ -210,8 +211,11 @@ class Manager:
             await s.close()
 
     async def shutdown(self) -> None:
-        for task in list(self._stops.values()):
+        stops = [t for t in self._stops.values() if not t.done()]
+        for task in stops:
             task.cancel()                             # 서버 종료: 멈춤 작업은 정리만 하고 끝난다
+        if stops:
+            await asyncio.wait(stops, timeout=_STOP_CANCEL_WAIT_SEC)
         for rid in list(self.sessions):
             await self.close(rid)
         if self._reaper is not None:
@@ -267,21 +271,27 @@ class Manager:
 
 
     async def _reap_stuck_stop(self, rid: str, s: RecorderSession) -> None:
-        """멈추는 중인 채 너무 오래 남은 세션: 실패로 적고 멈춤 작업을 끊고 닫는다."""
+        """멈추는 중인 채 너무 오래 남은 세션: 멈춤 작업을 먼저 끊고(정리를 기다린 뒤), 정상으로 끝났으면 건드리지 않는다."""
+        task = self._stops.get(rid)
+        if task is not None:
+            if not task.done():
+                self._stuck.add(rid)
+                task.cancel()                         # 작업이 취소를 받으면 실패로 적고 스스로 빼고 닫는다
+                await asyncio.wait({task}, timeout=_STOP_CANCEL_WAIT_SEC)
+            if task.done() and not task.cancelled() and task.exception() is None:
+                return                                # 막 정상으로 끝난 멈춤이다. 회수하지 않는다
+            if task.done():
+                if self.sessions.get(rid) is s:       # 작업이 실패로 끝나며 이미 정리했다. 남았으면 치운다
+                    self.sessions.pop(rid, None)
+                    await s.close()
+                return
         log.warning("기록 %s 이(가) %d초 넘게 멈추는 중이라 실패로 회수합니다", rid, _STOP_STUCK_SEC)
-        msg = "기록을 멈추는 데 너무 오래 걸려 실패로 처리했습니다."
         try:
-            await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=msg, endedAt=time.time()))
+            await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=_STUCK_MSG, endedAt=time.time()))
         except KeyError:
             pass
-        task = self._stops.get(rid)
-        if task is not None and not task.done():
-            self._stuck.add(rid)
-            task.cancel()                             # 작업이 취소를 받으면 스스로 빼고 닫는다
-            await asyncio.wait({task}, timeout=10)
         if self.sessions.get(rid) is s:
             self.sessions.pop(rid, None)
         await s.close()
-
 
 MANAGER = Manager()

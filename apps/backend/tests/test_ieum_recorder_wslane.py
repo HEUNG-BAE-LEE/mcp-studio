@@ -31,6 +31,14 @@ def _ws_url(base, out):
     return base.replace("http", "ws") + "/api/ieum/recorder/ws/" + out["id"] + "?token=" + out["token"]
 
 
+def _run(coro):
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
 def _bare_session():
     from app.ieum.recorder.session import RecorderSession
     rec = {"id": "rec_0000abcd", "sourceBase": "http://h:8080/po", "env": "op", "owner": "홍길동"}
@@ -68,7 +76,7 @@ def test_입력_줄이_넘치면_오래된_휠부터_버리고_다른_입력은_
             await asyncio.sleep(0.01)
         await s.close()
         return done, s._input_task
-    done, task = asyncio.new_event_loop().run_until_complete(go())
+    done, task = _run(go())
     assert [m["t"] for m in done][0] == "click" and [m["t"] for m in done][-2:] == ["text", "key"]
     assert task is None or task.done()
 
@@ -93,7 +101,7 @@ def test_입력_처리_예외는_로그만_남기고_소비_작업은_계속_돈
         alive = not task.done()
         await s.close()
         return done, alive, task.done()
-    done, alive, finished = asyncio.new_event_loop().run_until_complete(go())
+    done, alive, finished = _run(go())
     assert done == [0, 2] and alive and finished
 
 
@@ -108,7 +116,60 @@ def test_종료_시작에서_닫는_사이_새로_뜬_확인_창은_지우지_�
         s._dialog = D()
         await s.begin_stopping()
         return s._dialog is newer
-    assert asyncio.new_event_loop().run_until_complete(go())
+    assert _run(go())
+
+
+def test_비휠_입력을_버리면_한_번만_알린다():
+    from app.ieum.recorder import session as session_mod
+
+    async def go():
+        s = _bare_session()
+        sent = []
+
+        async def bc(msg):
+            sent.append(msg)
+        s.broadcast = bc
+        gate = asyncio.Event()
+
+        async def blocked(msg):
+            await gate.wait()
+        s._handle_input = blocked
+        s._enqueue_input({"t": "click"})
+        await asyncio.sleep(0.05)
+        for _ in range(session_mod.INPUT_MAX + 5):
+            s._enqueue_input({"t": "key", "key": "Tab"})
+        await asyncio.sleep(0.05)
+        await s.close()
+        return [m for m in sent if m.get("t") == "notice"]
+    notices = _run(go())
+    assert len(notices) == 1 and "입력이 밀려" in notices[0]["msg"]
+
+
+def test_닫기를_시작하면_입력을_더_받지_않고_소비_작업이_남지_않는다():
+    async def go():
+        s = _bare_session()
+        s._stop_inputs()
+        await s.dispatch({"t": "click", "x": 1, "y": 1, "w": 1, "h": 1})
+        await s.dispatch({"t": "pause", "on": True})
+        return s._input_task, s._ctl_task, len(s._inputs)
+    assert _run(go()) == (None, None, 0)
+
+
+def test_확인_창_응답이_실패하면_확인_창을_되돌린다(monkeypatch):
+    from app.ieum.recorder import session as session_mod
+    monkeypatch.setattr(session_mod, "DIALOG_REPLY_SEC", 0.05)
+
+    async def go():
+        s = _bare_session()
+
+        class D:
+            async def accept(self, text=""):
+                await asyncio.sleep(1)
+        d = D()
+        s._dialog = d
+        await s.handle({"t": "dialog", "ok": True})
+        return s._dialog is d
+    assert _run(go())
 
 
 # ── 진짜 브라우저 ─────────────────────────────────────────────────────────
@@ -261,3 +322,64 @@ def test_오래_멈추는_중인_세션은_리퍼가_실패로_회수한다(live
     assert rid not in manager.MANAGER.sessions and seen == []
     monkeypatch.setattr(login, "recipe_for", orig)
     assert start(live)["id"]
+
+
+@needs_browser
+def test_탭_전환_뒤의_클릭은_새_탭으로_간다(live, monkeypatch):
+    from app.ieum.recorder import manager, relay
+    out = start(live)
+    s = manager.MANAGER.get(out["id"])
+    first = s.page
+    call(s.ctx.new_page())
+    assert _wait(lambda: len(s.pages) == 2 and s.page is not first)
+    clicked = []
+    orig_stop = relay.stop_screencast
+
+    async def slow_stop(cdp):
+        await asyncio.sleep(0.5)                          # 탭 전환이 오래 걸리는 상황
+        await orig_stop(cdp)
+
+    async def begin(page, kind):
+        clicked.append(("begin", page))
+
+    async def click(cdp, x, y):
+        clicked.append(("click", cdp))
+    monkeypatch.setattr(relay, "stop_screencast", slow_stop)
+    monkeypatch.setattr(s.trace, "begin", begin)
+    monkeypatch.setattr(relay, "click", click)
+    try:
+        with connect(_ws_url(live, out), max_size=None) as ws:
+            ws.send(json.dumps({"t": "tab", "index": 0}))
+            ws.send(json.dumps({"t": "click", "x": 10, "y": 10, "w": relay.VIEW_W, "h": relay.VIEW_H}))
+            assert _wait(lambda: len(clicked) == 2, 10)
+        assert s.page is first
+        assert clicked == [("begin", first), ("click", s.cdp)]
+    finally:
+        call(manager.MANAGER.close(out["id"]))
+
+
+@needs_browser
+def test_일시정지_해제_뒤의_클릭은_기록된다(live, monkeypatch):
+    from app.ieum.recorder import manager, relay
+    out = start(live)
+    s = manager.MANAGER.get(out["id"])
+    call(s.handle({"t": "pause", "on": True}))
+    orig_pause, orig_begin = s.trace.set_paused, s.trace.begin
+    got = []
+
+    async def slow_pause(on, page):
+        await asyncio.sleep(0.5)
+        await orig_pause(on, page)
+
+    async def begin(page, kind):
+        got.append(await orig_begin(page, kind))
+    monkeypatch.setattr(s.trace, "set_paused", slow_pause)
+    monkeypatch.setattr(s.trace, "begin", begin)
+    try:
+        with connect(_ws_url(live, out), max_size=None) as ws:
+            ws.send(json.dumps({"t": "pause", "on": False}))
+            ws.send(json.dumps({"t": "click", "x": 10, "y": 10, "w": relay.VIEW_W, "h": relay.VIEW_H}))
+            assert _wait(lambda: len(got) == 1, 15)
+        assert got[0] is not None                         # 일시정지 중으로 보고 버리지 않았다
+    finally:
+        call(manager.MANAGER.close(out["id"]))

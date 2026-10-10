@@ -61,6 +61,8 @@ class RecorderSession:
         self._input_ready = asyncio.Event()
         self._input_task: Optional[asyncio.Task] = None
         self._ctl_task: Optional[asyncio.Task] = None
+        self._inputs_closed = False                    # 세션을 닫기 시작하면 입력·제어를 더 받지 않는다
+        self._overflow_notice_at = 0.0
 
     def dialog_open(self, page) -> bool:
         """그 페이지에 확인 창이 열려 있는가(열린 창이 있는 페이지는 Playwright 호출이 돌아오지 않는다)."""
@@ -277,6 +279,8 @@ class RecorderSession:
     async def dispatch(self, msg: dict) -> None:
         """WebSocket 메시지 처리 입구. 입력은 줄에 넣고 바로 돌아오고, 제어는 바로 처리한다."""
         t = msg.get("t")
+        if self._inputs_closed and t in INPUT_KINDS + ("pause", "tab"):
+            return
         if t in INPUT_KINDS:
             self.last_input = time.time()
             self._enqueue_input(msg)
@@ -300,7 +304,7 @@ class RecorderSession:
             log.exception("기록 화면 제어 메시지 처리에 실패했습니다: %s", self.rid)
 
     def _enqueue_input(self, msg: dict) -> None:
-        if self.closed:
+        if self.closed or self._inputs_closed:
             return
         self._inputs.append(msg)
         if len(self._inputs) > INPUT_MAX:
@@ -310,17 +314,26 @@ class RecorderSession:
             else:
                 log.warning("기록 입력 줄이 넘쳐 가장 오래된 입력을 버립니다: %s", self.rid)
                 self._inputs.popleft()
+                now = time.time()
+                if now - self._overflow_notice_at >= FAIL_NOTICE_SEC:     # 같은 알림은 30초에 한 번
+                    self._overflow_notice_at = now
+                    asyncio.get_running_loop().create_task(self.broadcast(
+                        {"t": "notice", "msg": "입력이 밀려 일부를 처리하지 못했습니다. 화면을 확인해 주세요."}))
         self._input_ready.set()
         if self._input_task is None or self._input_task.done():
             self._input_task = asyncio.get_running_loop().create_task(self._consume_inputs())
 
     async def _consume_inputs(self) -> None:
         """세션당 하나. 입력을 도착 순서대로 처리한다. 하나가 실패해도 다음 입력은 처리한다."""
-        while not self.closed:
+        while not self.closed and not self._inputs_closed:
             if not self._inputs:
                 self._input_ready.clear()
                 await self._input_ready.wait()
                 continue
+            c = self._ctl_task
+            if c is not None and not c.done():
+                await asyncio.wait({c})                  # 탭 전환·일시정지 해제가 끝난 뒤에 입력을 처리한다(먼저 온 제어가 먼저)
+                continue                                 # 기다리는 사이 줄이 바뀌었을 수 있다(멈춤·닫기). 다시 본다
             msg = self._inputs.popleft()
             try:
                 await self._handle_input(msg)
@@ -331,7 +344,9 @@ class RecorderSession:
 
     def _stop_inputs(self) -> list:
         """입력 줄을 비우고 소비 작업을 취소한다(세션이 닫힐 때). 취소한 작업을 돌려준다."""
+        self._inputs_closed = True
         self._inputs.clear()
+        self._input_ready.set()                          # 기다리던 소비 작업이 깨어나 끝나게 한다
         live = [t for t in (self._input_task, self._ctl_task) if t is not None and not t.done()]
         for task in live:
             task.cancel()
@@ -357,7 +372,8 @@ class RecorderSession:
             try:
                 await asyncio.wait_for(d.accept(msg.get("text") or "") if msg.get("ok") else d.dismiss(), DIALOG_REPLY_SEC)
             except Exception:
-                pass
+                if self._dialog is None:
+                    self._dialog = d                     # 닫지 못했다. 창이 그대로 있으니 스냅샷이 계속 건너뛰고 다시 응답받게 둔다
             return
         if t == "pause":
             await self.trace.set_paused(bool(msg.get("on")), self.page)
