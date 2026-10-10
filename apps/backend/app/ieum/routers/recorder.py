@@ -24,6 +24,10 @@ SHOT_NAME = re.compile(r"^\d+-(pre|post)\.jpg$")
 REC_ID = re.compile(r"^rec_[0-9a-f]{8}$")
 
 
+def _fid_ok(fid: str) -> bool:
+    return bool(service.FID.fullmatch(fid))
+
+
 def _startup() -> None:
     for job in (store.mark_interrupted, retention.sweep):
         try:
@@ -166,6 +170,8 @@ MANAGER.on_stopped = service.finish
 
 @router.get("/functions/{fid}/")
 async def function_get(fid: str):
+    if not _fid_ok(fid):
+        return fail(400, "잘못된 업무 기능 번호입니다.")
     try:
         return ok(await asyncio.to_thread(store.get_function, fid))
     except KeyError:
@@ -174,24 +180,40 @@ async def function_get(fid: str):
 
 @router.put("/functions/{fid}/")
 async def function_put(fid: str, payload: Optional[dict] = Body(None)):
+    if not _fid_ok(fid):
+        return fail(400, "잘못된 업무 기능 번호입니다.")
     try:
-        return ok(await asyncio.to_thread(service.update_function, fid, payload or {}))
+        await asyncio.to_thread(store.get_function, fid)            # 없는 번호만 404. 내용 오류는 400
     except KeyError:
         return fail(404, "업무 기능을 찾을 수 없습니다.")
+    try:
+        return ok(await asyncio.to_thread(service.update_function, fid, payload or {}))
+    except ValueError as exc:
+        return fail(400, str(exc))
 
 
 @router.post("/functions/{fid}/verify/")
 async def function_verify(fid: str, payload: Optional[dict] = Body(None)):
+    if not _fid_ok(fid):
+        return fail(400, "잘못된 업무 기능 번호입니다.")
+    values = (payload or {}).get("values") or None
+    if values is not None and not (isinstance(values, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in values.items())):
+        return fail(400, "values 는 입력 이름과 값(글)의 객체여야 합니다.")
     try:
-        return ok(await service.reverify(fid, (payload or {}).get("values") or None))
+        return ok(await service.reverify(fid, values))
     except KeyError:
         return fail(404, "업무 기능을 찾을 수 없습니다.")
-    except Exception as exc:
-        return fail(400, f"다시 검증하지 못했습니다. {str(exc)[:200]}")
+    except service.Busy as exc:
+        return fail(409, str(exc))
+    except Exception:
+        log.exception("다시 검증에 실패했습니다: %s", fid)
+        return fail(400, "다시 검증하지 못했습니다. 서버 로그를 확인해 주세요.")
 
 
 @router.post("/functions/{fid}/confirm/")
 async def function_confirm(fid: str):
+    if not _fid_ok(fid):
+        return fail(400, "잘못된 업무 기능 번호입니다.")
     try:
         return ok(await asyncio.to_thread(service.confirm, fid))
     except KeyError:
@@ -200,7 +222,11 @@ async def function_confirm(fid: str):
 
 @router.post("/functions/{fid}/register/")
 async def function_register(fid: str, payload: Optional[dict] = Body(None)):
+    if not _fid_ok(fid):
+        return fail(400, "잘못된 업무 기능 번호입니다.")
     mode = (payload or {}).get("mode") or "single"
+    if mode not in ("single", "steps"):
+        return fail(400, "mode 는 single 또는 steps 여야 합니다.")
     try:
         fn = service.register_steps if mode == "steps" else service.register_single
         return ok(await asyncio.to_thread(fn, fid), 201)

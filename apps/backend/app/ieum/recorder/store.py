@@ -88,6 +88,16 @@ def save_function(bf: dict) -> None:
         FUNCTIONS.save(data)
 
 
+def update_function(fid: str, fn: Callable[[dict], None]) -> dict:
+    """최신 업무 기능을 잠금 안에서 다시 읽어 fn 으로 고치고 저장한다. fn 이 예외를 내면 저장하지 않는다. 잠금을 쥔 채 기다리지 않는다."""
+    with LOCK:
+        data = FUNCTIONS.load()
+        bf = data[fid]
+        fn(bf)
+        FUNCTIONS.save(data)
+        return bf
+
+
 def get_function(fid: str) -> dict:
     return FUNCTIONS.load()[fid]
 

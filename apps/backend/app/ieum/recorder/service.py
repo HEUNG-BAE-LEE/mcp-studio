@@ -8,7 +8,9 @@
 단계마다 출처가 다를 수 있어(결재 시스템 등) 출처별 원본 시스템 아래에 등록한다.
 """
 import asyncio
+import json
 import logging
+import re
 import time
 from typing import Dict, List, Optional
 from urllib.parse import urlsplit
@@ -70,8 +72,8 @@ async def finish(rid: str, session) -> None:
         await say("verifying")
         if bf["steps"]:
             result = await replay.verify(bf, rec, spans, session)
-            bf.update(verification=result["verification"], executionMode=result["executionMode"])
-            await asyncio.to_thread(store.save_function, bf)
+            bf = await asyncio.to_thread(store.update_function, bf["id"], lambda b: b.update(
+                verification=result["verification"], executionMode=result["executionMode"]))
             await asyncio.to_thread(_audit, bf, rec, result["verification"], "검증")
         await say("review")
     except Exception as exc:
@@ -79,9 +81,10 @@ async def finish(rid: str, session) -> None:
         msg = str(exc).splitlines()[0][:300] if str(exc) else type(exc).__name__
         try:
             if bf is not None:
-                bf["verification"] = {"status": "failed", "at": time.time(), "runs": [], "reason": "pipeline_error"}
-                bf["notes"] = list(bf.get("notes") or []) + [f"분석·검증 중 오류: {msg}"]
-                await asyncio.to_thread(store.save_function, bf)
+                def mark(b):
+                    b["verification"] = {"status": "failed", "at": time.time(), "runs": [], "reason": "pipeline_error"}
+                    b["notes"] = list(b.get("notes") or []) + [f"분석·검증 중 오류: {msg}"]
+                await asyncio.to_thread(store.update_function, bf["id"], mark)
             await say("failed", error=f"분석·검증 중 오류: {msg}", endedAt=time.time())
         except Exception:
             log.exception("실패 상태를 남기지 못했습니다: %s", rid)
@@ -92,14 +95,110 @@ async def finish(rid: str, session) -> None:
             log.exception("기록 세션을 닫지 못했습니다: %s", rid)
 
 
+SOURCES = (analyze.USER_INPUT, analyze.PREVIOUS_STEP_OUTPUT, analyze.SESSION_CONTEXT, analyze.SYSTEM_CONFIG, analyze.DERIVED, analyze.CONSTANT)
+TYPES = ("string", "number", "date")
+POLICY_ENUMS = {"operation": tuple(analyze._ORDER), "risk": ("LOW", "MEDIUM", "HIGH", "CRITICAL"), "approval": ("NONE", "CONFIRM", "HITL")}
+FREE_POLICY = ("scope", "sensitivity")          # 분석은 비워 두고 사람이 짧은 글로 채운다
+FID = re.compile(r"^bf_[0-9a-f]{8}$")
+
+
+class Busy(Exception):
+    """이미 분석·검증 중이라 지금은 다시 검증할 수 없다."""
+
+
+_REVERIFYING: set = set()
+
+
+def _bad(msg: str):
+    raise ValueError(msg)
+
+
+def _validate_inputs(bf: dict, items) -> Dict[str, dict]:
+    if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+        _bad("inputs 는 객체 목록이어야 합니다.")
+    names = {i["name"] for i in bf["inputs"]}
+    by: Dict[str, dict] = {}
+    for i in items:
+        n = i.get("name")
+        if n not in names:
+            _bad(f"알 수 없는 입력입니다: {str(n)[:40]}")
+        if "source" in i and i["source"] not in SOURCES:
+            _bad("입력 출처가 올바르지 않습니다.")
+        if "type" in i and i["type"] not in TYPES:
+            _bad("입력 유형은 string, number, date 중 하나여야 합니다.")
+        if "required" in i and not isinstance(i["required"], bool):
+            _bad("required 는 참/거짓이어야 합니다.")
+        if "screenLabel" in i and (not isinstance(i["screenLabel"], str) or len(i["screenLabel"]) > 60):
+            _bad("화면 이름은 60자 이하의 글이어야 합니다.")
+        by[n] = i
+    return by
+
+
+def _validate_steps(bf: dict, items) -> List[dict]:
+    if not isinstance(items, list) or not all(isinstance(i, dict) and isinstance(i.get("id"), str) for i in items):
+        _bad("steps 는 {id, skip} 목록이어야 합니다.")
+    ids = [i["id"] for i in items]
+    if len(set(ids)) != len(ids):
+        _bad("단계 id 가 겹칩니다.")
+    have = {s["id"] for s in bf["steps"]}
+    if set(ids) - have:
+        _bad("알 수 없는 단계 id 입니다.")
+    if have - set(ids):
+        _bad("모든 단계를 한 번씩 적어야 합니다(건너뛰려면 skip: true).")
+    if any("skip" in i and not isinstance(i["skip"], bool) for i in items):
+        _bad("skip 은 참/거짓이어야 합니다.")
+    skipped = {i["id"] for i in items if i.get("skip")}
+    by_id = {s["id"]: s for s in bf["steps"]}
+    for i in items:
+        if i["id"] in skipped:
+            continue
+        for p in by_id[i["id"]]["params"]:
+            if p.get("source") == analyze.PREVIOUS_STEP_OUTPUT and (p.get("from") or "").split(".", 1)[0] in skipped:
+                _bad(f"건너뛴 단계의 결과를 {i['id']} 단계가 쓰고 있어 건너뛸 수 없습니다.")
+    if (bf.get("output") or {}).get("from") in skipped:
+        _bad("업무 결과를 내는 단계는 건너뛸 수 없습니다.")
+    return items
+
+
+def _next_step_id(bf: dict) -> str:
+    nums = [int(m.group(1)) for s in bf["steps"] for m in [re.fullmatch(r"s(\d+)", s["id"])] if m]
+    return f"s{max(nums or [0]) + 1}"
+
+
 def update_function(fid: str, patch: dict) -> dict:
-    bf = store.get_function(fid)
-    stale = False
-    for k in ("name", "desc"):
-        if k in patch:
-            bf[k] = str(patch[k])[:300]
-    if "inputs" in patch:
-        by = {i["name"]: i for i in patch["inputs"]}
+    if not isinstance(patch, dict):
+        _bad("본문은 객체여야 합니다.")
+
+    def apply(bf: dict) -> None:
+        stale = False
+        for k in ("name", "desc"):
+            if k in patch and not isinstance(patch[k], str):
+                _bad(f"{k} 는 글이어야 합니다.")
+        by = _validate_inputs(bf, patch["inputs"]) if "inputs" in patch else {}
+        order = _validate_steps(bf, patch["steps"]) if "steps" in patch else None
+        want = patch.get("promote")
+        if "promote" in patch and not (isinstance(want, dict) and isinstance(want.get("method"), str) and isinstance(want.get("path"), str)):
+            _bad("promote 는 method 와 path 글이 필요합니다.")
+        pol = patch.get("policy")
+        if "policy" in patch:
+            if not isinstance(pol, dict):
+                _bad("policy 는 객체여야 합니다.")
+            for k, v in pol.items():
+                if k in POLICY_ENUMS:
+                    if v not in POLICY_ENUMS[k]:
+                        _bad(f"{k} 값이 올바르지 않습니다.")
+                elif k in FREE_POLICY:
+                    if v is not None and (not isinstance(v, str) or len(v) > 60):
+                        _bad(f"{k} 는 60자 이하의 글이어야 합니다.")
+        hit = None
+        if want is not None:
+            hit = next((x for x in bf["excluded"] if x["method"] == want["method"] and x["path"] == want["path"]), None)
+            if hit is None:
+                _bad("제외된 요청 목록에 없는 요청입니다.")
+        # 검증을 모두 마친 뒤에만 고친다
+        for k in ("name", "desc"):
+            if k in patch:
+                bf[k] = patch[k][:300]
         for inp in bf["inputs"]:
             new = by.get(inp["name"])
             if new:
@@ -113,64 +212,87 @@ def update_function(fid: str, patch: dict) -> dict:
                             p["source"] = inp["source"]
                             p["from"] = f"input.{p['a']}" if inp["source"] == analyze.USER_INPUT else f"const:{p.get('ex', '')}"
                 stale = True
-    if "steps" in patch:
-        order = [s["id"] for s in patch["steps"] if not s.get("skip")]
-        bf["steps"] = [s for sid in order for s in bf["steps"] if s["id"] == sid]
-        stale = True
-    if "promote" in patch:
-        want = patch["promote"]
-        hit = next((x for x in bf["excluded"] if x["method"] == want["method"] and x["path"] == want["path"]), None)
-        if hit:
+        if order is not None:
+            flags = {i["id"]: bool(i.get("skip")) for i in order}
+            by_id = {s["id"]: s for s in bf["steps"]}
+            bf["steps"] = [dict(by_id[i["id"]], skip=flags[i["id"]]) for i in order]
+            stale = True
+        if hit is not None:
             bf["excluded"].remove(hit)
             bf["references"] = [x for x in bf["references"] if x["path"] != hit["path"]]
-            bf["steps"].append({"id": f"s{len(bf['steps']) + 1}", "role": "prereq", "base": bf["source"]["base"], "origin": "",
+            base = (hit.get("base") or bf["source"]["base"]).rstrip("/")
+            bf["steps"].append({"id": _next_step_id(bf), "role": "prereq", "base": base, "origin": hit.get("origin") or "",
                                 "method": hit["method"], "path": hit["path"], "discriminator": "", "kind": "json", "charset": None,
                                 "exec": "http", "formPage": None, "write": hit["method"] not in ("GET", "HEAD"), "headers": {},
                                 "outputs": {}, "params": [], "recordedRes": "", "recordedData": None, "recordedStatus": None})
             stale = True
-    if "policy" in patch:
-        for k in EDITABLE_POLICY:
-            if k in patch["policy"]:
-                bf["policy"][k] = patch["policy"][k] or None
-    bf["policyIncomplete"] = _incomplete(bf)
-    if stale:
-        bf["verification"]["status"] = "stale"
-    if bf.get("status") == "confirmed":
-        bf["status"] = "draft"
-    store.save_function(bf)
-    return bf
+        if pol:
+            for k in EDITABLE_POLICY:
+                if k in pol:
+                    bf["policy"][k] = pol[k] or None
+        bf["policyIncomplete"] = _incomplete(bf)
+        if stale:
+            bf["verification"]["status"] = "stale"
+        if bf.get("status") == "confirmed":
+            bf["status"] = "draft"
+    return store.update_function(fid, apply)
+
+
+def _active(bf: dict) -> dict:
+    """검증·등록에 쓰는 단계만 남긴 사본(건너뛴 단계는 보관만 한다)."""
+    return dict(bf, steps=[s for s in bf["steps"] if not s.get("skip")])
+
+
+def _signature(bf: dict) -> str:
+    return json.dumps([bf["inputs"], bf["steps"]], sort_keys=True, ensure_ascii=False)
 
 
 async def reverify(fid: str, values: Optional[Dict[str, str]] = None) -> dict:
     bf = await asyncio.to_thread(store.get_function, fid)
     rid = bf["source"]["recordingId"]
     rec = await asyncio.to_thread(store.get_recording, rid)
-    spans = await asyncio.to_thread(store.read_spans, rid)
-    from app.ieum.recorder.manager import MANAGER
-    result = await replay.verify(bf, rec, spans, MANAGER.get(rid), values)
-    bf.update(verification=result["verification"], executionMode=result["executionMode"] or bf.get("executionMode"))
-    await asyncio.to_thread(store.save_function, bf)
-    await asyncio.to_thread(_audit, bf, rec, result["verification"], "다시 검증")
-    return bf
+    if rec.get("status") in ("analyzing", "verifying") or fid in _REVERIFYING:
+        raise Busy("분석·검증이 진행 중입니다. 끝난 뒤 다시 시도해 주세요.")
+    _REVERIFYING.add(fid)
+    try:
+        spans = await asyncio.to_thread(store.read_spans, rid)
+        from app.ieum.recorder.manager import MANAGER
+        before = _signature(bf)
+        result = await replay.verify(_active(bf), rec, spans, MANAGER.get(rid), values)
+
+        def apply(b: dict) -> None:
+            v = dict(result["verification"])
+            if _signature(b) != before and v.get("status") == "verified":
+                v["status"] = "stale"                 # 검증하는 사이 입력·단계가 바뀌었다. 낡은 결과를 새 정의의 통과로 읽지 않게 한다
+            b.update(verification=v, executionMode=result["executionMode"] or b.get("executionMode"))
+        out = await asyncio.to_thread(store.update_function, fid, apply)
+    finally:
+        _REVERIFYING.discard(fid)
+    await asyncio.to_thread(_audit, out, rec, result["verification"], "다시 검증")
+    return out
 
 
 def confirm(fid: str) -> dict:
-    bf = store.get_function(fid)
-    bf["status"] = "confirmed"
-    bf["policyIncomplete"] = _incomplete(bf)
-    bf["confirmedAt"] = time.time()
-    store.save_function(bf)
+    def apply(b: dict) -> None:
+        b["status"] = "confirmed"
+        b["policyIncomplete"] = _incomplete(b)
+        b["confirmedAt"] = time.time()
+    bf = store.update_function(fid, apply)
     store.delete_shots(bf["source"]["recordingId"])
     return bf
 
 
-def _scrub(x):
+# 사람이 쓴 글(설명·이름·제목)과 키는 건드리지 않는다. 값 자리(예시·기본값·샘플)만 비운다.
+_TEXT_KEYS = ("desc", "name", "title", "description", "confirmQ", "d", "o", "a")
+
+
+def _scrub(x, key=None):
     """안전망: 도구 정의 어디에도 가린 문자열을 남기지 않는다(예시·응답 샘플은 비운다)."""
     if isinstance(x, dict):
-        return {k: _scrub(v) for k, v in x.items()}
+        return {k: _scrub(v, k) for k, v in x.items()}
     if isinstance(x, list):
-        return [_scrub(v) for v in x]
-    return "" if isinstance(x, str) and is_masked(x) else x
+        return [_scrub(v, key) for v in x]
+    return "" if isinstance(x, str) and key not in _TEXT_KEYS and is_masked(x) else x
 
 
 def _tool_from_step(bf: dict, st: dict, taken: set, title: str) -> dict:
@@ -210,40 +332,57 @@ def _register(bf: dict, steps: List[dict]) -> dict:
     rid = bf["source"]["recordingId"]
     cred = credentials.get(f"rec:{rid}") or {}
     recipe = (bf.get("auth") or {}).get("recipe")
-    out_sources, out_tools = [], []
-    for base, group in by_base.items():
-        sources = src_repo.list_sources()
-        existing = next((x for x in sources if x.get("proto") == "disc" and x.get("base") == base), None)
-        sid = existing["id"] if existing else _slug(bf["name"], {x["id"] for x in sources}, urlsplit(base).netloc)
-        current = tool_repo.all_tools().get(sid, [])
-        taken = {t["id"] for t in tool_repo.flat_tools()}
-        primary = base == bf["source"]["base"].rstrip("/")
-        src = {"id": sid, "name": existing["name"] if existing else (bf["name"] if primary else urlsplit(base).netloc),
-               "desc": f"도구 {len(current) + len(group)}개", "proto": "disc", "spec": "업무 기록으로 추론", "base": base,
-               "auth": "세션 (서비스 계정)", "authType": "session", "sync": "방금", "specUrl": None}
-        if primary and cred.get("username") and recipe:
-            credentials.put(sid, {"type": "session", "username": cred["username"], "password": cred.get("password", ""), "recipe": recipe})
-            session_auth.invalidate(sid)
-        out_sources.append(src_repo.upsert_source(src))
-        new = []
-        for st in group:
-            title = bf["name"] if len(steps) == 1 else f"{bf['name']} — {st['path'].rsplit('/', 1)[-1]}"
-            new.append(tool_repo.with_defaults(_tool_from_step(bf, st, taken, title), src))
-        saved = tool_repo.replace_source_tools(sid, current + new)
-        ids = {t["id"] for t in new}
-        out_tools += [t for t in saved if t["id"] in ids]
-    return {"sources": out_sources, "tools": out_tools, "loginKnown": bool(cred.get("username") and recipe)}
+    out_sources, out_tools, login_known = [], [], {}
+    with store.LOCK:         # 원본 시스템·도구 읽기, 이름 정하기, 쓰기를 한 번에 한다(재진입 가능). 겹친 등록·스튜디오 저장이 서로를 지우지 않게
+        for base, group in by_base.items():
+            sources = src_repo.list_sources()
+            existing = next((x for x in sources if x.get("proto") == "disc" and x.get("base") == base), None)
+            sid = existing["id"] if existing else _slug(bf["name"], {x["id"] for x in sources}, urlsplit(base).netloc)
+            current = list(tool_repo.all_tools().get(sid, []))
+            taken = {t["id"] for t in tool_repo.flat_tools()}
+            primary = base == bf["source"]["base"].rstrip("/")
+            src = {"id": sid, "name": existing["name"] if existing else (bf["name"] if primary else urlsplit(base).netloc),
+                   "desc": "", "proto": "disc", "spec": "업무 기록으로 추론", "base": base,
+                   "auth": "세션 (서비스 계정)", "authType": "session", "sync": "방금", "specUrl": None}
+            known = False
+            if primary and cred.get("username") and recipe:
+                if not credentials.get(sid):         # 이미 있는 원본 시스템의 인증 정보는 덮어쓰지 않는다
+                    credentials.put(sid, {"type": "session", "username": cred["username"], "password": cred.get("password", ""), "recipe": recipe})
+                    session_auth.invalidate(sid)
+                known = True
+            login_known[sid] = known or bool(credentials.get(sid))
+            ids = set()
+            for st in group:
+                title = bf["name"] if len(steps) == 1 else f"{bf['name']} — {st['path'].rsplit('/', 1)[-1]}"
+                old = next((t for t in current if (t.get("rec") or {}).get("function") == bf["id"]
+                            and t.get("method") == st["method"] and t.get("path") == st["path"]), None)
+                tool = _tool_from_step(bf, st, taken, title)
+                if old is not None:                  # 다시 등록하면 같은 도구를 제자리에서 바꾼다(이름·id 유지)
+                    taken.discard(tool["id"])
+                    tool["id"] = old["id"]
+                tool = tool_repo.with_defaults(tool, src)
+                if old is not None:
+                    tool["calls"] = old.get("calls", 0)
+                    current[current.index(old)] = tool
+                else:
+                    current.append(tool)
+                ids.add(tool["id"])
+            src["desc"] = f"도구 {len(current)}개"
+            out_sources.append(src_repo.upsert_source(src))
+            saved = tool_repo.replace_source_tools(sid, current)
+            out_tools += [t for t in saved if t["id"] in ids]
+    return {"sources": out_sources, "tools": out_tools, "loginKnown": login_known}
 
 
 def register_single(fid: str) -> dict:
-    bf = store.get_function(fid)
+    bf = _active(store.get_function(fid))
     if len(bf["steps"]) != 1:
         raise ValueError("여러 단계 업무는 다음 작업에서 도구 하나로 등록할 수 있습니다. 지금은 단계를 낱개 도구로 등록해 주세요.")
     return _register(bf, bf["steps"])
 
 
 def register_steps(fid: str) -> dict:
-    bf = store.get_function(fid)
+    bf = _active(store.get_function(fid))
     if not bf["steps"]:
         raise ValueError("등록할 단계가 없습니다.")
     return _register(bf, bf["steps"])

@@ -158,7 +158,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     items, excluded = [], []
     for sp in spans:
         for n in sp["network"]:
-            row = {"method": n["method"], "path": infer.templatize(n["path"])}
+            row = {"method": n["method"], "path": infer.templatize(n["path"]), "base": n["base"], "origin": n["origin"]}
             full = urlsplit(n["url"]).path.split(";")[0]        # ;jsessionid= 같은 경로 파라미터는 뗀다
             if full == login_path:
                 excluded.append(dict(row, role="auth", why="로그인 요청 (인증 방법으로 따로 보관)"))
@@ -184,7 +184,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         if path in code_paths:
             if key not in seen:
                 seen[key] = None
-                excluded.append({"method": n["method"], "path": path, "role": "code", "why": "코드표 응답 (상태코드 풀이용 참조)"})
+                excluded.append({"method": n["method"], "path": path, "base": n["base"], "origin": n["origin"], "role": "code", "why": "코드표 응답 (상태코드 풀이용 참조)"})
             continue
         write = _is_write(n, policy)
         aria = (sp.get("post") or {}).get("aria") or ""
@@ -193,7 +193,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         if cand and data is None:
             if key not in seen:
                 seen[key] = None
-                excluded.append({"method": n["method"], "path": path, "role": "page" if n["rtype"] == "document" else "noise",
+                excluded.append({"method": n["method"], "path": path, "base": n["base"], "origin": n["origin"], "role": "page" if n["rtype"] == "document" else "noise",
                                  "why": "응답 값이 화면에 나타나지 않음"})
             continue
         if seen.get(key) is not None:
@@ -274,7 +274,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     kept = []
     for st in steps:
         if st["role"] == "prereq" and st["id"] not in used:
-            excluded.append({"method": st["method"], "path": st["path"], "role": "page" if st["recordedData"] and st["kind"] == "html" else "noise",
+            excluded.append({"method": st["method"], "path": st["path"], "base": st["base"], "origin": st["origin"], "role": "page" if st["recordedData"] and st["kind"] == "html" else "noise",
                              "why": "응답 값이 화면에 나타나지 않음"})
         else:
             kept.append(st)

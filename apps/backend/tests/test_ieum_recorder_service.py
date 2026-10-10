@@ -169,4 +169,134 @@ def test_라우트가_업무_기능을_다룬다(saved):
     assert c.put(base, json={"name": "새 이름"}).json()["resultData"]["name"] == "새 이름"
     assert c.post(base + "register/", json={"mode": "single"}).status_code == 201
     assert c.post(base + "confirm/").json()["resultData"]["status"] == "confirmed"
-    assert c.get("/api/ieum/recorder/functions/bf_nope/").status_code == 404
+    assert c.get("/api/ieum/recorder/functions/bf_deadbeef/").status_code == 404
+    assert c.get("/api/ieum/recorder/functions/bf_nope/").status_code == 400
+
+
+# ---- 수정 1차: 잠금·중복·검증 ----
+def _two_step(saved_extra=None):
+    other = dict(STEP, id="s2", path="/b.do", params=[dict(STEP["params"][0], a="x", **{"from": "s1.VEND_CD", "source": "PREVIOUS_STEP_OUTPUT"})])
+    return other
+
+
+def test_검증하는_사이_확정해도_확정이_유지된다(saved, monkeypatch):
+    async def slow_verify(bf, rec, spans, session=None, values=None):
+        await asyncio.to_thread(service.confirm, saved["id"])       # 검증 도중 사람이 확정
+        return {"verification": {"status": "verified", "at": 9, "runs": []}, "executionMode": "session"}
+    monkeypatch.setattr(service.replay, "verify", slow_verify)
+    asyncio.run(service.reverify(saved["id"], None))
+    out = store.get_function(saved["id"])
+    assert out["status"] == "confirmed" and out["verification"]["at"] == 9
+
+
+def test_분석_검증_중이면_다시_검증을_거부한다(saved):
+    store.update_recording("rec_00000001", lambda r: r.update(status="verifying"))
+    with pytest.raises(service.Busy):
+        asyncio.run(service.reverify(saved["id"], None))
+
+
+def test_같은_원본에_동시_등록해도_도구가_모두_남는다(ieum_state):
+    import threading
+    for n in (1, 2):
+        step = dict(STEP, path=f"/list{n}.do")
+        bf = _bf([step])
+        bf["id"] = f"bf_0000000{n}"
+        bf["source"] = dict(bf["source"], recordingId=f"rec_0000000{n}")
+        store.save_function(bf)
+    errs = []
+
+    def run(n):
+        try:
+            service.register_single(f"bf_0000000{n}")
+        except Exception as e:      # pragma: no cover
+            errs.append(e)
+    ts = [threading.Thread(target=run, args=(n,)) for n in (1, 2)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    paths = sorted(t["path"] for t in tool_repo.flat_tools() if t["path"].startswith("/list"))
+    assert not errs and paths == ["/list1.do", "/list2.do"]
+
+
+def test_다시_등록하면_도구가_늘지_않는다(saved):
+    first = service.register_single(saved["id"])
+    second = service.register_single(saved["id"])
+    mine = [t for t in tool_repo.flat_tools() if (t.get("rec") or {}).get("function") == saved["id"]]
+    assert len(mine) == 1 and first["tools"][0]["id"] == second["tools"][0]["id"]
+    assert second["sources"][0]["desc"] == f"도구 {len([t for t in tool_repo.flat_tools() if t['src'] == second['sources'][0]['id']])}개"
+
+
+def test_기존_원본의_인증정보는_덮어쓰지_않는다(saved):
+    from app.ieum.gateway import credentials
+    first = service.register_single(saved["id"])
+    sid = first["sources"][0]["id"]
+    credentials.put(sid, {"type": "session", "username": "other", "password": "x", "recipe": {}})
+    service.register_single(saved["id"])
+    assert credentials.get(sid)["username"] == "other"
+
+
+@pytest.mark.parametrize("patch", [
+    {"inputs": "x"}, {"inputs": [{"name": "vendNm", "source": "BOGUS"}]}, {"inputs": [{"name": "vendNm", "type": "blob"}]},
+    {"inputs": [{"name": "vendNm", "required": "yes"}]}, {"inputs": [{"name": "nope"}]},
+    {"policy": {"risk": "SUPER"}}, {"policy": {"operation": "EXPLODE"}}, {"policy": {"approval": 3}},
+    {"steps": [{"id": "s9"}]}, {"steps": [{"id": "s1"}, {"id": "s1"}]}, {"steps": []},
+    {"promote": {"method": "GET"}}, {"promote": "x"}, {"promote": {"method": "GET", "path": "/nowhere.do"}},
+])
+def test_잘못된_수정은_거부하고_저장하지_않는다(saved, patch):
+    with pytest.raises(ValueError):
+        service.update_function(saved["id"], patch)
+    assert store.get_function(saved["id"])["inputs"][0]["source"] == "USER_INPUT"
+
+
+def test_건너뛴_단계는_보관하고_올린_단계_id는_겹치지_않는다(ieum_state):
+    bf = _bf([STEP, dict(STEP, id="s2", path="/b.do", params=[])])
+    store.save_function(bf)
+    out = service.update_function("bf_00000001", {"steps": [{"id": "s1"}, {"id": "s2", "skip": True}]})
+    assert [(s["id"], s["skip"]) for s in out["steps"]] == [("s1", False), ("s2", True)]
+    out = service.update_function("bf_00000001", {"promote": {"method": "GET", "path": "/common/codeList.do"}})
+    assert [s["id"] for s in out["steps"]] == ["s1", "s2", "s3"]
+
+
+def test_건너뛴_단계의_결과를_쓰는_단계가_있으면_거부한다(ieum_state):
+    store.save_function(_bf([STEP, _two_step()]))
+    with pytest.raises(ValueError, match="건너뛸 수 없"):
+        service.update_function("bf_00000001", {"steps": [{"id": "s1", "skip": True}, {"id": "s2"}]})
+
+
+def test_올린_단계는_제외된_요청의_출처를_쓴다(ieum_state):
+    bf = _bf([STEP])
+    bf["excluded"] = [{"method": "GET", "path": "/appr/x.do", "base": "http://appr.corp:9090", "origin": "http://appr.corp:9090", "role": "noise", "why": ""}]
+    store.save_function(bf)
+    out = service.update_function("bf_00000001", {"promote": {"method": "GET", "path": "/appr/x.do"}})
+    assert out["steps"][1]["base"] == "http://appr.corp:9090"
+
+
+def test_건너뛴_단계는_등록하지_않는다(ieum_state):
+    store.save_function(_bf([STEP, dict(STEP, id="s2", path="/b.do", params=[])]))
+    service.update_function("bf_00000001", {"steps": [{"id": "s1"}, {"id": "s2", "skip": True}]})
+    out = service.register_single("bf_00000001")
+    assert [t["path"] for t in out["tools"]] == ["/vendList.do"]
+
+
+def test_사람이_쓴_글의_별표는_지우지_않는다(ieum_state):
+    bf = _bf([STEP])
+    bf["desc"] = "별표(**) 표기 설명"
+    store.save_function(bf)
+    assert service.register_single("bf_00000001")["tools"][0]["desc"] == "별표(**) 표기 설명"
+
+
+def test_라우트_검증_오류는_400_모드는_400_출력은_고정문구(saved, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.ieum.routers.recorder import router
+    app = FastAPI()
+    app.include_router(router)
+    c = TestClient(app)
+    base = "/api/ieum/recorder/functions/bf_00000001/"
+    assert c.put(base, json={"policy": {"risk": "SUPER"}}).status_code == 400
+    assert c.post(base + "register/", json={"mode": "all"}).status_code == 400
+
+    async def boom(*a, **k):
+        raise RuntimeError("비밀 내부 정보")
+    monkeypatch.setattr(service, "reverify", boom)
+    r = c.post(base + "verify/", json={})
+    assert r.status_code == 400 and "비밀" not in r.text
