@@ -160,3 +160,37 @@ def test_Replay_쓰기_승인도_같은_창을_쓴다():
         g.decide(sent[0]["id"], True)
         return await task
     assert run(go()) is True
+
+
+def test_알림이_실패하면_운영_쓰기는_보내지_않는다():
+    async def go():
+        async def notify(msg):
+            if msg["t"] == "hold":
+                raise RuntimeError("socket closed")
+        g = Guard(P, "op", notify, timeout=5.0)
+        r = Route()
+        await g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="qty=1"))
+        return r.done, g.decisions[-1]["decision"], g.holding
+    assert run(go()) == ("abort", "error", False)
+
+
+def test_알림이_실패해도_읽기는_그대로_보낸다():
+    async def go():
+        async def notify(msg):
+            raise RuntimeError("socket closed")
+        g = Guard(P, "op", notify, timeout=5.0)
+        r = Route()
+        await g.route(r, Req("http://h:8080/po/poList.do?a=1"))
+        return r.done
+    assert run(go()) == "continue"
+
+
+def test_알림이_실패해도_차단_주소는_보내지_않는다():
+    async def go():
+        async def notify(msg):
+            raise RuntimeError("socket closed")
+        g = Guard(P, "op", notify, timeout=5.0)
+        r = Route()
+        await g.route(r, Req("http://169.254.169.254/latest", rtype="xhr"))
+        return r.done
+    assert run(go()) == "abort"

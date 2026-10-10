@@ -47,10 +47,33 @@ class Guard:
         try:
             await self._route(route, request)
         except Exception:
+            # 실패하면 닫는다. 읽기로 확정된 요청만 보내고, 쓰기일 수 있는 것은 버리고 기록한다.
+            if self._provably_read(request):
+                try:
+                    await route.continue_()
+                except Exception:
+                    pass
+                return
             try:
-                await route.continue_()
+                self._log(request.method.upper(), request.url, "error")
             except Exception:
                 pass
+            try:
+                await route.abort("blockedbyclient")
+            except Exception:
+                pass
+
+    def _provably_read(self, request) -> bool:
+        """예외가 난 뒤에도 보내도 되는 요청인가. 확실히 읽기일 때만 참이다. 판단이 실패하면 거짓(막는다)."""
+        try:
+            url, method, rtype = request.url, request.method.upper(), request.resource_type
+            if scope.blocked(url, self.target_origin, config.deny_entries()):
+                return False
+            if not capture.is_write(url, method, rtype, self.policy):
+                return True
+            return bool(self.policy.is_read_post(url))
+        except Exception:
+            return False
 
     def _is_login(self, request) -> bool:
         try:
@@ -101,16 +124,21 @@ class Guard:
         hid = uuid.uuid4().hex[:8]
         fut = asyncio.get_running_loop().create_future()
         self._holds[hid] = fut
-        await self.notify({"t": "hold", "id": hid, "method": method, "path": self.policy.display(url), "label": label})
         try:
+            await self.notify({"t": "hold", "id": hid, "method": method, "path": self.policy.display(url), "label": label})
             ok = await asyncio.wait_for(asyncio.shield(fut), self.timeout)
             decision = "approve" if ok else "deny"
         except asyncio.TimeoutError:
             decision = "timeout"
+        except Exception:
+            decision = "error"                        # 승인 창을 못 띄웠다. 승인이 없으므로 보내지 않는다.
         finally:
             self._holds.pop(hid, None)
         self._log(method, url, decision, hid, label)
-        await self.notify({"t": "hold-end", "id": hid, "decision": decision})
+        try:
+            await self.notify({"t": "hold-end", "id": hid, "decision": decision})
+        except Exception:
+            pass                                      # 종료 알림 실패는 결정을 바꾸지 않는다(결정은 decisions 에 남는다)
         return decision
 
     def decide(self, hold_id: str, ok: bool) -> bool:
