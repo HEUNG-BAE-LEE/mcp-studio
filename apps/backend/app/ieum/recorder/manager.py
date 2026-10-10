@@ -71,6 +71,14 @@ class Manager:
         return {"total": sum(by.values()), "max": config.max_sessions(), "perOwner": config.max_per_owner(), "byOwner": by}
 
     async def start(self, payload: dict) -> dict:
+        try:
+            return await self._start(payload)
+        except (RecorderError, asyncio.CancelledError):
+            raise
+        except Exception as exc:
+            raise RecorderError(str(exc).splitlines()[0][:300] if str(exc) else type(exc).__name__, 500)
+
+    async def _start(self, payload: dict) -> dict:
         name = (payload.get("name") or "").strip()
         owner = _owner_key(payload.get("owner") or "")
         base = (payload.get("base") or "").strip().rstrip("/")
@@ -96,25 +104,36 @@ class Manager:
                 raise RecorderError(f"동시 기록이 가득 찼습니다(서버 전체 {u['max']}개: {who}). 진행 중인 기록이 끝나면 다시 시작해 주세요.", 409)
             session = RecorderSession(rec, creds, on_dead=lambda rid: self.sessions.pop(rid, None))
             self.sessions[rec["id"]] = session        # 자리를 먼저 잡는다. 실패하면 아래에서 뺀다
+        ok = False
+        err: Optional[BaseException] = None
         try:
             await asyncio.to_thread(store.save_recording, rec)
             if creds:
                 await asyncio.to_thread(credentials.put, vault_key(rec["id"]), {"type": "session", "username": account, "password": password})
             await session.start(pw)
-        except Exception as exc:
-            self.sessions.pop(rec["id"], None)
-            await session.close()
-            msg = str(exc).splitlines()[0][:300] if str(exc) else type(exc).__name__
-            try:
-                await asyncio.to_thread(credentials.delete, vault_key(rec["id"]))
-            except Exception:
-                log.exception("실패한 기록의 인증 정보를 지우지 못했습니다")
-            try:
-                await asyncio.to_thread(store.update_recording, rec["id"], lambda r: r.update(status="failed", error=msg, endedAt=time.time()))
-            except KeyError:
-                pass                                  # 저장 자체가 실패한 경우
-            raise RecorderError(msg, 500)
+            ok = True
+        except BaseException as exc:                  # 취소(CancelledError)도 자리·브라우저·인증 정보를 치우고 다시 던진다
+            err = exc
+            raise
+        finally:
+            if not ok:
+                await self._cleanup_failed_start(rec["id"], session, err)
         return {"id": rec["id"], "token": session.token}
+
+    async def _cleanup_failed_start(self, rid: str, session: RecorderSession, err: Optional[BaseException]) -> None:
+        """시작이 실패하거나 취소됐을 때 단계마다 따로 치운다. 한 단계가 터져도 나머지는 하고, 원래 오류를 덮지 않는다."""
+        self.sessions.pop(rid, None)
+        msg = "시작이 취소되었습니다." if isinstance(err, asyncio.CancelledError) else (
+            (str(err).splitlines()[0][:300] if err is not None and str(err) else type(err).__name__))
+
+        async def step(coro_fn):
+            try:
+                await asyncio.shield(coro_fn())
+            except BaseException:
+                log.exception("실패한 기록 정리 단계가 실패했습니다")
+        await step(session.close)
+        await step(lambda: asyncio.to_thread(credentials.delete, vault_key(rid)))
+        await step(lambda: asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=msg, endedAt=time.time())))
 
     def get(self, rid: str) -> Optional[RecorderSession]:
         s = self.sessions.get(rid)
@@ -126,8 +145,22 @@ class Manager:
             raise RecorderError("진행 중인 기록이 아닙니다.", 404)
         if s.stopping:                                # 멈춤은 한 번만. on_stopped 가 두 번 돌면 분석이 겹친다
             raise RecorderError("이미 멈추는 중인 기록입니다.", 409)
-        await s.stop()
-        await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="analyzing"))
+        try:
+            await s.stop()
+            await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="analyzing"))
+        except Exception as exc:
+            # 멈추다 실패하면 세션이 stopping 인 채 영영 남는다. 실패로 적고 치운 뒤 알린다.
+            msg = (str(exc).splitlines()[0][:300] if str(exc) else type(exc).__name__)
+            self.sessions.pop(rid, None)
+            try:
+                await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=msg, endedAt=time.time()))
+            except Exception:
+                log.exception("멈춤 실패를 기록하지 못했습니다")
+            try:
+                await s.close()
+            except Exception:
+                log.exception("멈춤 실패 뒤 세션을 닫지 못했습니다")
+            raise RecorderError(f"기록을 멈추는 중 실패했습니다: {msg}", 500)
         if self.on_stopped is not None:
             asyncio.ensure_future(self.on_stopped(rid, s))
         else:
@@ -174,10 +207,12 @@ class Manager:
                 if status != "recording" or s.stopping:
                     continue                     # 분석·검증 중인 세션은 service.finish 가 닫는다
                 if now - s.last_input > config.idle_sec():
-                    await s.trace.finish(s.page)
-                    await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(
-                        status="interrupted", endedAt=now, error="입력이 오래 없어 기록을 멈췄습니다."))
-                    await self.close(rid)
+                    try:
+                        await s.trace.finish(s.page)
+                        await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(
+                            status="interrupted", endedAt=now, error="입력이 오래 없어 기록을 멈췄습니다."))
+                    finally:
+                        await self.close(rid)
                 elif now - s.started > config.max_sec():
                     await self.stop(rid)
             except Exception:

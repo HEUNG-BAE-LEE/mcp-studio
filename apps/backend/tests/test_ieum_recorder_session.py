@@ -228,17 +228,80 @@ def test_멈추면_대기_중인_승인은_거부로_닫힌다(live):
     out = start(live)
     s = manager.MANAGER.get(out["id"])
     call(s.page.goto(s.policy.base + "/poListView.do"))
+    manager.MANAGER.on_stopped = _noop                 # 멈춘 뒤에도 세션을 열어 두고 원본 상태를 본다
+
+    async def list_body():
+        r = await s.ctx.request.get(s.policy.base + "/poList.do")
+        return await r.text()
+    before = call(list_body())
 
     async def fire():
-        # 승인 대기를 만든다: 쓰기 요청을 페이지에서 보낸다(승인되지 않으면 원본에 닿지 않는다)
-        asyncio.ensure_future(s.page.evaluate("fetch('/demo-legacy/po/poSave.do',{method:'POST',body:'a=1'}).catch(()=>0)"))
+        # 승인 대기를 만든다: 유효한 발주 저장을 보낸다(승인되면 원본에 발주가 생긴다)
+        asyncio.ensure_future(s.page.evaluate(
+            "fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
+            "body:'vendCd=V001&itemCd=I001&qty=1&unitPrice=100&payTerm=30'}).catch(()=>0)"))
         for _ in range(100):
             if s.guard.holding:
                 return True
             await asyncio.sleep(0.05)
         return False
-    assert call(fire())
-    call(manager.MANAGER.stop(out["id"]))
-    decisions = [a["decision"] for a in store.get_recording(out["id"])["approvals"]]
-    assert "deny" in decisions and "approve" not in decisions
-    assert not s.guard.holding
+    try:
+        assert call(fire())
+        call(manager.MANAGER.stop(out["id"]))
+        decisions = [a["decision"] for a in store.get_recording(out["id"])["approvals"]]
+        assert "deny" in decisions and "approve" not in decisions
+        assert not s.guard.holding
+        assert call(list_body()) == before             # 원본에 쓰기가 닿지 않았다
+    finally:
+        manager.MANAGER.on_stopped = None
+
+
+async def _noop(rid, s):
+    return None
+
+
+def test_시작이_취소되면_자리와_인증_정보를_치운다(live, monkeypatch):
+    from app.ieum.gateway import credentials
+    from app.ieum.recorder import manager, session as session_mod
+
+    gate = {}
+
+    async def slow_start(self, pw):
+        gate["entered"].set()
+        await asyncio.sleep(60)
+    monkeypatch.setattr(session_mod.RecorderSession, "start", slow_start)
+
+    async def run():
+        gate["entered"] = asyncio.Event()
+        task = asyncio.ensure_future(manager.MANAGER.start(dict(
+            name="n", owner="홍길동", base=live + "/demo-legacy/po", start="/login.do", env="op",
+            account=DEMO_USER_ID, password=DEMO_PASSWORD)))
+        await asyncio.wait_for(gate["entered"].wait(), 20)
+        assert manager.MANAGER.usage()["total"] == 1
+        rid = next(iter(manager.MANAGER.sessions))
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        return rid
+    rid = call(run())
+    assert manager.MANAGER.usage()["total"] == 0
+    assert not credentials.get(manager.vault_key(rid))      # 인증 정보도 금고에서 지워졌다
+
+
+def test_멈춤이_실패하면_세션이_남지_않고_다시_시작할_수_있다(live, monkeypatch):
+    from app.ieum.recorder import login, manager, store
+    out = start(live)
+
+    async def boom(*a, **k):
+        raise RuntimeError("레시피 실패")
+    orig = login.recipe_for
+    monkeypatch.setattr(login, "recipe_for", boom)
+    with pytest.raises(manager.RecorderError) as e:
+        call(manager.MANAGER.stop(out["id"]))
+    assert e.value.code == 500
+    assert manager.MANAGER.get(out["id"]) is None and out["id"] not in manager.MANAGER.sessions
+    assert store.get_recording(out["id"])["status"] == "failed"
+    monkeypatch.setattr(login, "recipe_for", orig)
+    assert start(live)["id"]
