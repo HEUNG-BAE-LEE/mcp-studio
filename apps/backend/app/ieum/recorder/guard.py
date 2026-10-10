@@ -73,6 +73,7 @@ class Guard:
         self.decisions: List[dict] = []
         self.decided_requests: Dict[int, str] = {}
         self._holds: Dict[str, asyncio.Future] = {}
+        self.pending: Dict[str, dict] = {}            # 화면에 띄운 승인 창 내용. 늦게 붙은 구독자에게 다시 보낸다
 
     @property
     def holding(self) -> bool:
@@ -189,8 +190,9 @@ class Guard:
         hid = uuid.uuid4().hex[:8]
         fut = asyncio.get_running_loop().create_future()
         self._holds[hid] = fut
+        msg = self.pending[hid] = {"t": "hold", "id": hid, "method": method, "path": self.policy.display(url), "label": label}
         try:
-            await self.notify({"t": "hold", "id": hid, "method": method, "path": self.policy.display(url), "label": label})
+            await self.notify(msg)
             ok = await asyncio.wait_for(asyncio.shield(fut), self.timeout)
             decision = "approve" if ok else "deny"
         except asyncio.TimeoutError:
@@ -199,6 +201,7 @@ class Guard:
             decision = "error"                        # 승인 창을 못 띄웠다. 승인이 없으므로 보내지 않는다.
         finally:
             self._holds.pop(hid, None)
+            self.pending.pop(hid, None)
         self._log(method, url, decision, hid, label)
         try:
             await self.notify({"t": "hold-end", "id": hid, "decision": decision})

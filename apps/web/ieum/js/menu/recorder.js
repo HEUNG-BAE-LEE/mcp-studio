@@ -2,7 +2,7 @@
    화면 ① 목록 → ② 새 기록 → ③ 기록 중(화면 중계) → ④ 검토. 승인 창은 화면 안 요소다(브라우저 기본 대화상자를 쓰지 않는다).
    입력 원값(값 다시 입력 필요)은 서버로 보내 검증에만 쓰고 저장하지 않는다(요청이 끝나면 메모리에서도 지운다).
    전역 REC 는 discovery.js 가 쓰고 있어서, 이 파일의 상태 객체는 RECR 이다. */
-const RECR = { page:'list', list:[], fns:[], usage:null, demo:null, form:null, live:null, fn:null, rec:null, busy:false, values:{} };
+const RECR = { page:'list', list:[], fns:[], usage:null, demo:null, form:null, live:null, fn:null, rec:null, busy:false, values:{}, load:'loading', loadErr:'', wheel:0, wheelQ:null };
 const REC_STATUS = { recording:['기록 중','info'], analyzing:['분석 중','info'], verifying:['검증 중','info'], review:['검토 대기','warn'],
   confirmed:['확정','ok'], failed:['실패','danger'], interrupted:['중단됨','mute'] };
 const REC_VERIFY = { verified:['검증됨','ok'], partial:['부분 검증','warn'], failed:['검증 실패','danger'], pending:['검증 전','mute'],
@@ -27,9 +27,13 @@ async function recRefresh() {
   }
   try {
     const d = await api.get('/recorder/');
-    RECR.list = d.recordings; RECR.fns = d.functions; RECR.usage = d.usage; RECR.demo = d.demo;
-    if (S.view === 'rec') render();
-  } catch (e) { recErr(e); }
+    RECR.list = d.recordings; RECR.fns = d.functions; RECR.usage = d.usage; RECR.demo = d.demo; RECR.load = 'ok';
+    if (S.view === 'rec' && RECR.page === 'list') render();
+  } catch (e) {
+    RECR.load = 'error'; RECR.loadErr = e.message; RECR.usage = null;                 // 못 불러왔으면 빈 목록처럼 보이지 않게 오류 상태로 둔다
+    if (S.view === 'rec' && RECR.page === 'list') render();
+    recErr(e);
+  }
 }
 
 function vRec() {
@@ -48,19 +52,21 @@ function recRender() {
 /* ① 목록 */
 function recListHTML() {
   const fnBy = Object.fromEntries(RECR.fns.map(f => [f.id, f]));
-  const u = RECR.usage || { total:0, max:4, perOwner:1, byOwner:{} };
-  const who = Object.entries(u.byOwner).map(([k, v]) => `${esc(k)} ${v}개`).join(', ');
+  const u = RECR.usage;                                                    // 불러오기 전이거나 실패했으면 null — 숫자 줄을 그리지 않는다
+  const who = u ? Object.entries(u.byOwner).map(([k, v]) => `${esc(k)} ${+v}개`).join(', ') : '';
   const rows = RECR.list.map(r => {
     const f = r.functionId ? fnBy[r.functionId] : null;
     const kinds = f ? [...new Set(f.steps.map(s => s.kind === 'html' ? 'HTML' : 'JSON'))].join('·') : '';
     return `<tr data-act="recOpen" data-id="${esc(r.id)}" tabindex="0"><td><b>${esc(r.name)}</b><small>${esc(r.owner || '')} · ${r.env === 'op' ? '운영' : '스테이징'}</small></td>
       <td>${recPill(REC_STATUS, f && f.status === 'confirmed' ? 'confirmed' : r.status)} ${f ? recPill(REC_VERIFY, f.verification.status) : ''}
       ${f && f.policyIncomplete ? '<span class="pill rec-warn">정책 미완</span>' : ''}</td>
-      <td>${f ? esc(f.policy.operation) : ''}</td><td>${f ? `${recSteps(f).length}단계` : ''}</td><td>${esc(kinds)}</td><td>${r.spanCount}개 행동</td></tr>`;
+      <td>${f ? esc(f.policy.operation) : ''}</td><td>${f ? `${recSteps(f).length}단계` : ''}</td><td>${esc(kinds)}</td><td>${+r.spanCount || 0}개 행동</td></tr>`;
   }).join('');
   return `<div class="rec-bar"><button class="btn primary" data-act="recNew">${svg('plus', 16)}새 기록</button>
-    <span class="rec-hint">지금 기록 중 ${u.total}/${u.max}개${who ? ` (${who})` : ''} · 사람당 ${u.perOwner}개</span></div>
-    ${RECR.list.length ? `<table class="tbl rec-list"><thead><tr><th>업무</th><th>상태</th><th>작업 유형</th><th>단계</th><th>응답</th><th>기록</th></tr></thead><tbody>${rows}</tbody></table>`
+    ${u ? `<span class="rec-hint">지금 기록 중 ${+u.total}/${+u.max}개${who ? ` (${who})` : ''} · 사람당 ${+u.perOwner}개</span>` : ''}</div>
+    ${RECR.load === 'loading' ? '<div class="md-empty">기록 목록을 불러오는 중입니다…</div>'
+      : RECR.load === 'error' ? `<div class="md-empty">기록 목록을 불러오지 못했습니다. ${esc(RECR.loadErr)}<br><button class="btn sm" data-act="recRetry">다시 불러오기</button></div>`
+      : RECR.list.length ? `<table class="tbl rec-list"><thead><tr><th>업무</th><th>상태</th><th>작업 유형</th><th>단계</th><th>응답</th><th>기록</th></tr></thead><tbody>${rows}</tbody></table>`
       : '<div class="md-empty">아직 기록한 업무가 없습니다. <b>새 기록</b>을 눌러 업무 하나를 기록해 보세요.</div>'}`;
 }
 
@@ -83,30 +89,41 @@ function recNewHTML() {
       <button class="btn primary" data-act="recStart" ${RECR.busy ? 'disabled' : ''}>${RECR.busy ? '브라우저를 띄우는 중…' : '기록 시작'}</button></div></div>`;
 }
 
-/* ③ 기록 중 */
-function recLiveHTML() {
-  const L = RECR.live;
-  const tl = L.spans.slice(-60).map(s => `<li><b>${s.seq}</b> ${esc(((s.action.target || {}).text || s.action.type || '').slice(0, 24))}
-      ${s.network.map(n => `<div class="${n.held ? 'w' : ''}">${esc(n.method)} ${esc(n.path)} ${n.status == null ? '' : n.status}${n.kind === 'html' ? ' · HTML' : ''}${n.decision ? ` · ${esc(recDecision(n.decision))}` : ''}</div>`).join('')}</li>`).join('');
-  const blocked = L.blocked.slice(-5).map(b => `<li class="b">차단(서버 보호) ${esc(b.why)} — ${esc(b.url)}</li>`).join('');
-  const tabs = L.tabs.length > 1 ? `<span class="rec-tabs">${L.tabs.map(t => `<button class="btn sm ${t.index === L.active ? 'primary' : ''}" data-act="recTab" data-i="${t.index}">${esc((t.title || t.url || '탭').slice(0, 14))}</button>`).join('')}</span>` : '';
-  return `<div class="rec-live">
-    <div class="rec-top ${L.env === 'op' ? 'op' : ''}"><span class="dot"></span><b>${L.status === 'recording' ? (L.paused ? '일시정지' : '기록 중') : esc((REC_STATUS[L.status] || [L.status])[0])}</b>
+/* ③ 기록 중. 캔버스와 입력 칸(#recIme)은 한 번 만든 뒤 바꾸지 않는다 — 한글 조합 중에 다시 만들면 입력이 끊긴다.
+   메시지가 올 때는 상단 줄·안내·승인 창·타임라인 영역의 안쪽만 바꾼다(recPatch). */
+function recTopHTML(L) {
+  const tabs = L.tabs.length > 1 ? `<span class="rec-tabs">${L.tabs.map(t => `<button class="btn sm ${+t.index === +L.active ? 'primary' : ''}" data-act="recTab" data-i="${+t.index}">${esc((t.title || t.url || '탭').slice(0, 14))}</button>`).join('')}</span>` : '';
+  return `<span class="dot"></span><b>${L.status === 'recording' ? (L.paused ? '일시정지' : '기록 중') : esc((REC_STATUS[L.status] || [L.status])[0])}</b>
       <span>${esc(L.name)}</span><span class="env">${L.env === 'op' ? '운영' : '스테이징'}</span>${tabs}
       <span class="sp"></span>${L.status === 'recording' ? `<button class="btn sm" data-act="recPause">${L.paused ? '다시 기록' : '일시정지'}</button>
-      <button class="btn sm primary" data-act="recStop">기록 종료</button>` : '<button class="btn sm" data-act="recBack">목록으로</button>'}</div>
-    ${L.msg ? `<div class="rec-msg">${esc(L.msg)}</div>` : ''}
-    <div class="rec-body"><div class="rec-screen"><canvas id="recCv" width="960" height="600"></canvas>
-      <textarea id="recIme" autocomplete="off" aria-label="키보드 입력"></textarea>
-      ${L.hold ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>${svg('lock', 16)} 쓰기 요청 승인</b>
+      <button class="btn sm primary" data-act="recStop">기록 종료</button>` : '<button class="btn sm" data-act="recBack">목록으로</button>'}`;
+}
+const recMsgHTML = L => L.msg ? `<div class="rec-msg">${esc(L.msg)}</div>` : '';
+function recOverlayHTML(L) {
+  return (L.hold ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>${svg('lock', 16)} 쓰기 요청 승인</b>
         <p>"${esc(L.hold.label || '알 수 없는 버튼')}" → <code>${esc(L.hold.method)} ${esc(L.hold.path)}</code></p>
         <p>운영 데이터가 바뀝니다. 2분 안에 답하지 않으면 보내지 않습니다.</p>
-        <button class="btn danger-fill" data-act="recApprove" data-ok="1">승인하고 보내기</button> <button class="btn" data-act="recApprove" data-ok="0">보내지 않기</button></div>` : ''}
-      ${L.dialog ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>대상 사이트의 확인 창</b><p>${esc(L.dialog.message)}</p>
-        <button class="btn primary" data-act="recDialog" data-ok="1">확인</button> ${L.dialog.type !== 'alert' ? '<button class="btn" data-act="recDialog" data-ok="0">취소</button>' : ''}</div>` : ''}
+        <button class="btn danger-fill" data-act="recApprove" data-ok="1">승인하고 보내기</button> <button class="btn" data-act="recApprove" data-ok="0">보내지 않기</button></div>` : '')
+    + (L.dialog ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>대상 사이트의 확인 창</b><p>${esc(L.dialog.message)}</p>
+        <button class="btn primary" data-act="recDialog" data-ok="1">확인</button> ${L.dialog.type !== 'alert' ? '<button class="btn" data-act="recDialog" data-ok="0">취소</button>' : ''}</div>` : '');
+}
+function recSideHTML(L) {
+  const tl = L.spans.slice(-60).map(s => `<li><b>${+s.seq}</b> ${esc(((s.action.target || {}).text || s.action.type || '').slice(0, 24))}
+      ${s.network.map(n => `<div class="${n.held ? 'w' : ''}">${esc(n.method)} ${esc(n.path)} ${n.status == null ? '' : esc(n.status)}${n.kind === 'html' ? ' · HTML' : ''}${n.decision ? ` · ${esc(recDecision(n.decision))}` : ''}</div>`).join('')}</li>`).join('');
+  const blocked = L.blocked.slice(-5).map(b => `<li class="b">차단(서버 보호) ${esc(b.why)} — ${esc(b.url)}</li>`).join('');
+  return `<div class="label">타임라인</div><ol class="rec-tl">${tl || '<li class="mute">화면을 클릭하면 여기에 쌓입니다</li>'}${blocked}</ol>
+      <div class="rec-count">요청 ${L.spans.reduce((a, s) => a + s.network.length, 0)} · 쓰기 ${L.spans.reduce((a, s) => a + s.network.filter(n => n.held).length, 0)} · 차단 ${L.blocked.length}</div>`;
+}
+function recLiveHTML() {
+  const L = RECR.live;
+  return `<div class="rec-live" data-rid="${esc(L.id)}">
+    <div class="rec-top ${L.env === 'op' ? 'op' : ''}" id="recTop">${recTopHTML(L)}</div>
+    <div id="recMsg">${recMsgHTML(L)}</div>
+    <div class="rec-body"><div class="rec-screen"><canvas id="recCv" width="960" height="600"></canvas>
+      <textarea id="recIme" autocomplete="off" aria-label="키보드 입력"></textarea>
+      <div id="recOv">${recOverlayHTML(L)}</div>
     </div>
-    <aside class="rec-side"><div class="label">타임라인</div><ol class="rec-tl">${tl || '<li class="mute">화면을 클릭하면 여기에 쌓입니다</li>'}${blocked}</ol>
-      <div class="rec-count">요청 ${L.spans.reduce((a, s) => a + s.network.length, 0)} · 쓰기 ${L.spans.reduce((a, s) => a + s.network.filter(n => n.held).length, 0)} · 차단 ${L.blocked.length}</div></aside></div></div>`;
+    <aside class="rec-side" id="recSide">${recSideHTML(L)}</aside></div></div>`;
 }
 
 /* ④ 검토 */
@@ -116,7 +133,7 @@ function recReviewHTML() {
       <td><select class="inp sm" data-chg="recSrc" data-n="${esc(i.name)}" aria-label="${esc(i.name)} 출처">${REC_SOURCES.map(([k, l]) => `<option value="${k}" ${i.source === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
       ${i.confidence === 'low' ? '<span class="pill rec-warn">확인 필요</span>' : ''}</td>
       <td class="mono">${i.needsValue ? `<input class="inp sm" type="password" autocomplete="off" data-inp="recVal" data-n="${esc(i.name)}" placeholder="${esc(i.ex || '검증할 값')}" aria-label="${esc(i.name)} 검증할 값"><small>값 다시 입력 필요 · 저장하지 않습니다</small>` : esc(i.ex)}</td></tr>`).join('');
-  const ev = (seq, w) => seq ? `<img class="rec-shot" alt="행동 ${seq} ${w}" src="/api/ieum/recorder/recordings/${esc(rid)}/shots/${seq}-${w}.jpg" onerror="this.replaceWith(Object.assign(document.createElement('button'),{className:'btn sm',textContent:'화면 글자 보기',onclick:()=>recAria('${esc(rid)}',${seq})}))">` : '';
+  const ev = (seq, w) => seq ? `<img class="rec-shot" alt="행동 ${seq} ${w}" src="/api/ieum/recorder/recordings/${esc(rid)}/shots/${seq}-${w}.jpg" data-rid="${esc(rid)}" data-seq="${+seq}">` : '';
   const steps = f.steps.map((s, i) => { const seq = (f.evidence[s.id] || [])[0];
     return `<div class="rec-step ${s.skip ? 'skip' : ''}"><b>${esc(s.id)} · ${s.role === 'core' ? '핵심' : '선행'}</b>${s.skip ? ' <span class="pill rec-mute">건너뜀</span>' : ''}
       <span class="pill rec-mute">${s.kind === 'html' ? 'HTML 표' : s.kind === 'json' ? 'JSON' : '기타'}</span> <span class="pill rec-mute">${s.exec === 'browser' ? '브라우저 실행' : 'HTTP'}</span>
@@ -165,6 +182,15 @@ function recReviewHTML() {
     </aside></div>`;
 }
 
+/* 캡처 이미지가 없으면(확정 뒤 삭제) 같은 자리에 "화면 글자 보기" 버튼을 둔다. error 는 버블링하지 않아 캡처 단계에서 받는다 */
+document.addEventListener('error', e => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.classList.contains('rec-shot')) return;
+  const b = document.createElement('button');
+  b.className = 'btn sm'; b.textContent = '화면 글자 보기'; b.dataset.act = 'recAriaOpen'; b.dataset.rid = img.dataset.rid; b.dataset.seq = img.dataset.seq;
+  img.replaceWith(b);
+}, true);
+
 async function recAria(rid, seq) {
   try {
     const d = await api.get(`/recorder/recordings/${rid}/spans/${seq}/`);
@@ -180,7 +206,11 @@ const recWs = {
     this.close();
     const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ieum/recorder/ws/${id}?token=${encodeURIComponent(token)}`;
     const ws = new WebSocket(url); this.sock = ws;
-    ws.onmessage = ev => { this.tries = 0; try { recOnMsg(JSON.parse(ev.data)); } catch (e) {} };
+    ws.onmessage = ev => {
+      this.tries = 0;
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      try { recOnMsg(m); } catch (e) { console.error('업무 기록 화면 갱신 오류', e); }       // 파싱 실패만 조용히 넘기고, 처리 오류는 드러낸다
+    };
     ws.onclose = ev => {
       if (this.sock !== ws) return;
       this.sock = null;
@@ -192,7 +222,7 @@ const recWs = {
       setTimeout(() => RECR.live && RECR.live.id === id && !this.sock && this.open(id, token), 2000);
     };
   },
-  send(m) { if (this.sock && this.sock.readyState === 1) this.sock.send(JSON.stringify(m)); },
+  send(m) { if (this.sock && this.sock.readyState === 1) { this.sock.send(JSON.stringify(m)); return true; } return false; },
   close() { if (this.sock) { const s = this.sock; this.sock = null; try { s.close(); } catch (e) {} } },
 };
 
@@ -216,17 +246,28 @@ function recOnMsg(m) {
 }
 
 function recPatch() {
-  if (S.view !== 'rec' || RECR.page !== 'live') return;
-  const cv = $('#recCv'); const keep = cv ? cv.toDataURL('image/jpeg', 0.7) : null;
-  render(); recBind();
-  if (keep) { const img = new Image(); img.onload = () => { const c = $('#recCv'); if (c) c.getContext('2d').drawImage(img, 0, 0); }; img.src = keep; }
+  if (S.view !== 'rec' || RECR.page !== 'live' || !RECR.live) return;
+  const L = RECR.live, root = $('.rec-live');
+  if (!root || root.dataset.rid !== L.id || !$('#recCv')) { render(); recBind(); return; }      // 틀이 없을 때만 통째로 그린다
+  const set = (id, html) => { const el = $(id); if (el && el.innerHTML !== html) el.innerHTML = html; };
+  const top = $('#recTop'); if (top) top.className = 'rec-top' + (L.env === 'op' ? ' op' : '');
+  set('#recTop', recTopHTML(L)); set('#recMsg', recMsgHTML(L)); set('#recOv', recOverlayHTML(L));
+  const side = $('#recSide'), keep = side ? side.scrollTop : 0;
+  set('#recSide', recSideHTML(L)); if (side) side.scrollTop = keep;
+  const ime = $('#recIme');                                   // 승인 창이 닫혔으면 입력 칸으로 돌아온다(조합 중이거나 다른 입력에 있으면 건드리지 않는다)
+  if (ime && !L.hold && !L.dialog && (document.activeElement === document.body || !document.activeElement)) ime.focus();
 }
 
 function recBind() {
   const cv = $('#recCv'), ime = $('#recIme'); if (!cv || !ime) return;
   const box = () => cv.getBoundingClientRect();
   cv.onmousedown = e => { if (RECR.live.hold || RECR.live.dialog) return; const r = box(); recWs.send({ t:'click', x:e.clientX - r.left, y:e.clientY - r.top, w:r.width, h:r.height }); setTimeout(() => ime.focus(), 0); };
-  cv.onwheel = e => { e.preventDefault(); const r = box(); recWs.send({ t:'wheel', x:e.clientX - r.left, y:e.clientY - r.top, w:r.width, h:r.height, dy:e.deltaY }); };
+  cv.onwheel = e => {                                          // 한 프레임에 받은 휠은 모아서 한 번만 보낸다
+    e.preventDefault(); const r = box();
+    RECR.wheel += e.deltaY; RECR.wheelQ = { x:e.clientX - r.left, y:e.clientY - r.top, w:r.width, h:r.height };
+    if (RECR.wheelRaf) return;
+    RECR.wheelRaf = requestAnimationFrame(() => { const q = RECR.wheelQ, dy = RECR.wheel; RECR.wheel = 0; RECR.wheelRaf = 0; if (q && dy) recWs.send({ t:'wheel', x:q.x, y:q.y, w:q.w, h:q.h, dy }); });
+  };
   ime.oncompositionend = e => { if (e.data) recWs.send({ t:'text', data:e.data }); ime.value = ''; };
   ime.oninput = e => { if (!e.isComposing && e.inputType === 'insertText' && e.data) { recWs.send({ t:'text', data:e.data }); ime.value = ''; } };
   ime.onkeydown = e => { if (e.isComposing) return; if (['Enter','Backspace','Tab','Escape','Delete','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(e.key)) { e.preventDefault(); recWs.send({ t:'key', key:e.key }); } };
@@ -284,9 +325,15 @@ Object.assign(ACT, {
     recOpenFn(r.id); },
   recPause: () => { RECR.live.paused = !RECR.live.paused; recWs.send({ t:'pause', on:RECR.live.paused }); recPatch(); },
   recStop: async () => { try { await api.post(`/recorder/recordings/${RECR.live.id}/stop/`); RECR.live.status = 'analyzing'; RECR.live.msg = '기록을 마쳤습니다. 분석하고 다시 실행해 검증하는 중입니다…'; recPatch(); } catch (e) { recErr(e); } },
-  recApprove: a => { if (!RECR.live.hold) return; recWs.send({ t:'approve', id:RECR.live.hold.id, ok:a.dataset.ok === '1' }); RECR.live.hold = null; recPatch(); },
-  recDialog: a => { recWs.send({ t:'dialog', ok:a.dataset.ok === '1' }); RECR.live.dialog = null; recPatch(); },
+  recApprove: a => { if (!RECR.live.hold) return;
+    if (!recWs.send({ t:'approve', id:RECR.live.hold.id, ok:a.dataset.ok === '1' })) { toast('연결이 끊겨 승인을 보내지 못했습니다. 연결되면 다시 눌러 주세요.', 'warn'); return; }   // 못 보냈으면 창을 닫지 않는다
+    RECR.live.hold = null; recPatch(); },
+  recDialog: a => {
+    if (!recWs.send({ t:'dialog', ok:a.dataset.ok === '1' })) { toast('연결이 끊겨 답을 보내지 못했습니다. 연결되면 다시 눌러 주세요.', 'warn'); return; }
+    RECR.live.dialog = null; recPatch(); },
   recTab: a => recWs.send({ t:'tab', index:+a.dataset.i }),
+  recRetry: () => { RECR.load = 'loading'; render(); recRefresh(); },
+  recAriaOpen: a => recAria(a.dataset.rid, +a.dataset.seq),
   recPromote: a => recSaveFn({ promote:{ method:a.dataset.m, path:a.dataset.p } }),
   recStepMove: a => {
     const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i, j = i + +a.dataset.d;

@@ -63,5 +63,5 @@ $$('[data-ico]').forEach(el => el.insertAdjacentHTML('afterbegin', svg(el.datase
 $('#logoMark').innerHTML = MARK(26);
 
 document.body.setAttribute('aria-busy', 'true');
-loadAll().then(() => { document.body.removeAttribute('aria-busy'); $('#wsCompany').textContent = WS.company; $('#wsUser').textContent = WS.user; $('#wsAvatar').textContent = (WS.user || '?').slice(0, 1); render(); refreshDash(); })
+loadAll().then(() => { document.body.removeAttribute('aria-busy'); $('#wsCompany').textContent = WS.company; $('#wsUser').textContent = WS.user; $('#wsAvatar').textContent = (WS.user || '?').slice(0, 1); render(); refreshDash(); if (S.view === 'rec') recRefresh(); })
   .catch(e => { $('#view').innerHTML = `<div class="md-empty" style="margin:40px">서버에서 데이터를 불러오지 못했습니다. ${esc(e.message)}</div>`; });

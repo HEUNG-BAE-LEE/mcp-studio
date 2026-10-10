@@ -44,6 +44,9 @@ class RecorderSession:
         sender = self.subs[ws] = relay.LatestSender(lambda data, ws=ws: ws.send_json({"t": "frame", "data": data}))
         if self._last_frame is not None:
             self._offer_threadsafe(sender, self._last_frame)         # 화면이 멈춰 있으면 새 프레임이 안 온다. 늦게 붙은 구독자에게 마지막 화면을 준다
+        pending = list(self.guard.pending.values()) + ([{"t": "dialog", "type": self._dialog.type, "message": self._dialog.message}] if self._dialog is not None else [])
+        for msg in pending:                                          # 떠 있는 승인 창·확인 창도 다시 보낸다(목록에서 다시 연 화면이 승인 창을 놓치지 않게)
+            self._send_threadsafe(ws, msg)
 
     def unsubscribe(self, ws) -> None:
         self.subs.pop(ws, None)
@@ -61,6 +64,26 @@ class RecorderSession:
                 self._loop.call_soon_threadsafe(sender.offer, data)
             except RuntimeError:
                 pass                                      # 루프가 막 닫혔다. 보낼 곳이 없다
+
+    def _send_threadsafe(self, ws, msg: dict) -> None:
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is not None and running is self._loop:
+            running.create_task(self._safe_send(ws, msg))
+        elif self._loop is not None and not self._loop.is_closed():
+            try:
+                asyncio.run_coroutine_threadsafe(self._safe_send(ws, msg), self._loop)
+            except RuntimeError:
+                pass
+
+    @staticmethod
+    async def _safe_send(ws, msg: dict) -> None:
+        try:
+            await ws.send_json(msg)
+        except Exception:
+            pass
 
     def _prune(self) -> None:
         """보내기가 실패한 구독자(끊긴 WebSocket)는 다시 시도하지 않고 뺀다."""

@@ -303,3 +303,33 @@ def test_멈춤이_실패하면_세션이_남지_않고_다시_시작할_수_있
     assert store.get_recording(out["id"])["status"] == "failed"
     monkeypatch.setattr(login, "recipe_for", orig)
     assert start(live)["id"]
+
+
+def test_늦게_붙은_구독자도_떠_있는_승인_창을_받는다(live):
+    from app.ieum.recorder import manager
+    out = start(live)
+    s = manager.MANAGER.get(out["id"])
+    call(s.page.goto(s.policy.base + "/poListView.do"))
+    manager.MANAGER.on_stopped = _noop
+
+    async def fire():
+        asyncio.ensure_future(s.page.evaluate(
+            "fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
+            "body:'vendCd=V001&itemCd=I001&qty=1&unitPrice=100&payTerm=30'}).catch(()=>0)"))
+        for _ in range(100):
+            if s.guard.holding:
+                return True
+            await asyncio.sleep(0.05)
+        return False
+    try:
+        assert call(fire())
+        late = WS()
+        s.subscribe(late)
+        end = time.time() + 5
+        while time.time() < end and not any(m["t"] == "hold" for m in late.msgs):
+            time.sleep(0.1)
+        holds = [m for m in late.msgs if m["t"] == "hold"]
+        assert len(holds) == 1 and holds[0]["method"] == "POST"
+        call(manager.MANAGER.stop(out["id"]))
+    finally:
+        manager.MANAGER.on_stopped = None
