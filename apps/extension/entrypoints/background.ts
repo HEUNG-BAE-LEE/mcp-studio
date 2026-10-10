@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:18000";
 
 // MV3 서비스 워커는 30초쯤 유휴하면 종료된다. 모듈 레벨 변수에 기록 상태를
 // 두면 워커가 죽는 순간 수집한 데이터가 통째로 사라지고, 깨어난 워커는

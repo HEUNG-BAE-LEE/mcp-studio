@@ -20,8 +20,8 @@ const MARK = "data-mcp-studio-ext";
 function isAdminOrigin(): boolean {
   const { hostname, port } = location;
   if (hostname === "localhost" || hostname === "127.0.0.1") {
-    // 5173 = vite 개발 서버, 8000 = 백엔드가 화면까지 서빙하는 컨테이너 모드
-    return port === "5173" || port === "8000";
+    // 15173 = vite 개발 서버(start.sh), 18000 · 8000 = 백엔드가 화면까지 서빙하는 컨테이너 모드
+    return port === "15173" || port === "18000" || port === "8000";
   }
   return hostname.endsWith(".azurecontainerapps.io");
 }

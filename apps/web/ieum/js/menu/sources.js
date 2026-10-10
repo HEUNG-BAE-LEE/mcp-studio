@@ -27,7 +27,8 @@ function vSrc() {
       ${[['all', '연결 방식 전체'], ['soap', 'SOAP'], ['rest', 'REST'], ['gov', '공공데이터'], ['sample', '샘플 추론'], ['disc', '자동 탐색']].map(([v, l]) => `<option value="${v}" ${S.srcProto === v ? 'selected' : ''}>${l}</option>`).join('')}
     </select>
     <span class="sp"></span>
-    <button class="btn primary" data-act="wzOpen">${svg('plus', 17)}원본 시스템 연결</button>
+    <button class="btn" data-act="wzOpen">${svg('plus', 17)}하나씩 연결</button>
+    <button class="btn primary" data-act="obOpen">${svg('plus', 17)}한 번에 연결</button>
   </div>
   <div class="twrap"><table class="utbl" style="min-width:980px">
     <thead><tr><th class="l">원본 시스템</th><th>연결 방식</th><th class="l">명세</th><th>인증</th><th>AI 도구</th><th>상태</th><th>마지막 동기화</th><th>관리</th></tr></thead>

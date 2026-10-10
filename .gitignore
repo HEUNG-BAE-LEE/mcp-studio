@@ -35,3 +35,6 @@ tfplan
 *.tfplan
 crash.log
 # .terraform.lock.hcl 은 provider 버전을 고정하므로 커밋한다
+
+# 한 번에 연결(apps/onboarding) 빌드 결과 — start.sh · Dockerfile 이 만든다
+apps/web/ieum/onboarding/

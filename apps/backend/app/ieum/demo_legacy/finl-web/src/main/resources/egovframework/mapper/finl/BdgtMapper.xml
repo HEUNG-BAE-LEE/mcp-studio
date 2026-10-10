@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="egovframework.finl.service.impl.BdgtMapper">
+
+    <!-- 수요기관 예산 배정·집행 확인. 배정액은 FINL 자체 예산 테이블(TB_BDGT_ASIGN), 집행액은 지급 완료 대금의 합 -->
+    <select id="selectBdgtCnfm" parameterType="map" resultType="egovMap">
+        SELECT A.DMINSTT_CD
+             , A.BDGT_YR
+             , A.ASIGN_AMT
+             , COALESCE(SUM(CAST(REPLACE(P.REQ_AMT, ',', '') AS NUMERIC)), 0)                 AS EXCUT_AMT
+             , A.ASIGN_AMT - COALESCE(SUM(CAST(REPLACE(P.REQ_AMT, ',', '') AS NUMERIC)), 0)   AS RMND_AMT
+          FROM TB_BDGT_ASIGN A
+          LEFT OUTER JOIN TB_PYMNT P ON P.DMINSTT_CD = A.DMINSTT_CD AND P.PYMNT_STTS_CD = '30'
+         WHERE A.DMINSTT_CD = #{dminsttCd}
+           AND A.BDGT_YR = COALESCE(#{bdgtYr}, '2026')
+         GROUP BY A.DMINSTT_CD, A.BDGT_YR, A.ASIGN_AMT
+    </select>
+
+</mapper>

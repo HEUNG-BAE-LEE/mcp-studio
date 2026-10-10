@@ -1,0 +1,5 @@
+subscription_id         = "<구독 ID>"
+resource_group_name     = "<리소스 그룹>"
+container_registry_name = "<기존 ACR 이름>"
+admin_ssh_public_key    = "ssh-ed25519 AAAA... 본인 공개키"
+allowed_cidrs           = ["본인 공인IP/32"]

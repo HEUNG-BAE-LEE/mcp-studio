@@ -1,5 +1,5 @@
 {
   "name": "mcp-studio",
   "private": true,
-  "workspaces": ["packages/*", "apps/extension", "apps/admin"]
+  "workspaces": ["packages/*", "apps/extension", "apps/admin", "apps/onboarding"]
 }

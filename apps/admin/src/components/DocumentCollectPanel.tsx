@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { errorMessage } from "../api/client";
+import { BASE, errorMessage } from "../api/client";
 
 /**
  * 문서 기반 수집.
@@ -12,7 +12,6 @@ import { errorMessage } from "../api/client";
  * 한 줄이면 어느 파일이 문제인지 알 수 없다.
  */
 
-const BASE = "http://localhost:8000";
 const ACCEPT = ".pdf,.txt,.md,.json,.yaml,.yml,.html,.htm,.docx,.csv";
 
 type Report = {

@@ -4,6 +4,7 @@
 도구를 실행할 때 이음이 같은 레시피로 서비스 계정에 로그인해 쿠키를 받아 원본 요청에 싣는다.
 쿠키는 잠깐 기억하고(TTL), 만료되면 다시 로그인한다.
 """
+import re
 import threading
 import time
 from html.parser import HTMLParser
@@ -13,6 +14,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 TTL = 20 * 60
+_EXPIRED_TEXT = re.compile(r"세션이\s*만료|다시\s*로그인|재로그인|로그인이\s*필요|session (has )?expired|login required", re.I)
 TIMEOUT = 10
 _CACHE: Dict[str, tuple] = {}      # 원본 시스템 id -> (쿠키 dict, 만료 시각)
 _LOCK = threading.Lock()
@@ -136,7 +138,11 @@ def expired(status: int, location: Optional[str], content_type: str, text: str) 
         return True
     if 300 <= status < 400:
         return "login" in urlsplit(location or "").path.lower()
-    return "html" in (content_type or "").lower() and ('type="password"' in text.lower() or "type='password'" in text.lower())
+    if "html" not in (content_type or "").lower():
+        return False
+    low = text.lower()
+    # 로그인 폼을 다시 그리는 시스템도, 200 + "세션이 만료되었습니다" 안내 페이지만 주는 2000년대식 시스템도 있다
+    return 'type="password"' in low or "type='password'" in low or bool(_EXPIRED_TEXT.search(text))
 
 
 def _join(cookies: Dict[str, str]) -> str:

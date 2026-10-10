@@ -22,7 +22,7 @@ AI 프로토콜 변압기 "이음"의 관리 콘솔입니다. 바닐라 JS, 빌�
 
 ```bash
 ./start.sh
-# http://localhost:8000/ieum/
+# http://localhost:18000/ieum/
 ```
 
 의존성(PyYAML, cryptography)은 `apps/backend/requirements.txt` 에 있습니다. `start.sh` 가 불러오지 못하면 알려 줍니다.
@@ -91,8 +91,8 @@ claude mcp add --transport http ieum-hr http://127.0.0.1:8100/mcp --header "Auth
 ## 바로 써 보기
 
 시연용 레거시 인사 시스템(REST + SOAP)이 백엔드 안에 들어 있습니다.
-원본 시스템 연결 → REST → 명세 URL `http://localhost:8000/demo-origin/openapi.json`, 인증 API Key(헤더 `X-API-KEY`, 값 `demo-key`).
-SOAP은 `http://localhost:8000/demo-origin/hr.wsdl`, 인증 없음.
+원본 시스템 연결 → REST → 명세 URL `http://localhost:18000/demo-origin/openapi.json`, 인증 API Key(헤더 `X-API-KEY`, 값 `demo-key`).
+SOAP은 `http://localhost:18000/demo-origin/hr.wsdl`, 인증 없음.
 
 연결 후: 변환 스튜디오에서 검토 후 공개(**변경사항 저장**까지) → AI 연결 배포에서 묶음 만들기, 배포, 키 발급 → 발급된 키로 MCP 연결.
 

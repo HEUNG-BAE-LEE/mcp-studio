@@ -58,7 +58,7 @@ function vDash() {
     ${al.length ? al.map(a => `<div class="alert ${a[0]}">${svg(a[0] === 'info' ? 'info' : 'alert', 18)}<div class="tx"><b>${esc(a[1])}</b><span>${a[2]}</span></div><button class="btn sm" ${a[4]}>${a[3]}</button></div>`).join('')
       : `<div class="md-empty" style="margin:18px;border:0">확인이 필요한 항목이 없습니다.</div>`}</div>`;
 
-  if (!SOURCES.length) return pageHead('dash') + `<div class="box" style="padding:36px 28px;text-align:center"><h3 style="margin:0 0 8px">연결된 원본 시스템이 없습니다</h3><p class="tab-hint" style="margin:0 0 18px">REST(OpenAPI), SOAP(WSDL) 명세나 호출 샘플로 시스템을 연결하면 AI 도구 후보가 만들어집니다.<br>직접 붙여 볼 시스템이 없다면 이 서버의 시연용 인사 시스템(<span class="inline-code">${location.origin}/demo-origin/openapi.json</span>, 인증 X-API-KEY: demo-key)을 연결해 보세요.</p><button class="btn primary" data-act="wzOpen">원본 시스템 연결</button></div>`;
+  if (!SOURCES.length) return pageHead('dash') + `<div class="box" style="padding:36px 28px;text-align:center"><h3 style="margin:0 0 8px">연결된 원본 시스템이 없습니다</h3><p class="tab-hint" style="margin:0 0 18px">REST(OpenAPI), SOAP(WSDL) 명세나 호출 샘플로 시스템을 연결하면 AI 도구 후보가 만들어집니다.<br>직접 붙여 볼 시스템이 없다면 이 서버의 시연용 인사 시스템(<span class="inline-code">${location.origin}/demo-origin/openapi.json</span>, 인증 X-API-KEY: demo-key)을 연결해 보세요.</p><div style="display:flex;gap:8px;justify-content:center"><button class="btn" data-act="wzOpen">하나씩 연결</button><button class="btn primary" data-act="obOpen">한 번에 연결</button></div></div>`;
   return pageHead('dash') + kpi + `<div class="dgrid"><div class="dcol">${topo}${chart}</div><div class="dcol">${alerts}${rank}</div></div>`;
 }
 
