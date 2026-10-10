@@ -17,22 +17,17 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
-from urllib.parse import parse_qsl, urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from app.ieum.discovery import browser as browser_mod
-from app.ieum.discovery.masking import is_secret_key
-from app.ieum.discovery.policy import SESSION_KILL, Policy, is_asset, risky_call
+from app.ieum.discovery import capture
+from app.ieum.discovery.capture import DUP_EVENTS, FILE_TYPES, MAX_BODY, MAX_SAMPLES, STATIC_TYPES  # noqa: F401 (다시 내보냄)
+from app.ieum.discovery.policy import SESSION_KILL, Policy
 
 VIEWPORT = {"width": 1100, "height": 680}
-# 화면을 그리는 자원이라 API 후보가 아니다.
-STATIC_TYPES = {"image", "stylesheet", "font", "media", "script", "manifest", "texttrack", "websocket", "eventsource"}
-FILE_TYPES = ("spreadsheetml", "ms-excel", "octet-stream", "pdf", "zip", "msword", "hwp", "x-download")
-MAX_BODY = 40_000          # 응답 본문은 스키마 추론에만 쓴다. 통째로 들고 있지 않는다
 MAX_ACTIONS = 12           # 한 화면에서 누르는 버튼 수 상한
 MAX_SKIP_EVENTS = 25       # 건너뛴 링크를 화면 기록에 다 쏟아내면 읽을 수 없다
 OBSERVE_MS = 1600          # 화면마다 마지막에 잠깐 지켜본다. 자동 저장, 폴링처럼 화면이 스스로 부르는 요청을 보려는 것이다
-DUP_EVENTS = 3             # 같은 요청은 기록에 이 횟수까지만 올린다(자동 저장처럼 반복되는 요청)
-MAX_SAMPLES = 10           # 같은 (메서드, 경로)의 요청은 이만큼만 본문까지 들고 있는다. 폴링 화면이 메모리를 먹지 않게
 
 # 화면 안의 눌러볼 만한 것을 모은다. 번호를 data 속성으로 붙여 두면 다시 찾을 수 있고, 같은 요소를 두 번 누르지 않는다.
 _CANDIDATES_JS = """
@@ -117,20 +112,6 @@ class CrawlResult:
     seconds: float = 0.0
 
 
-def _parse_form(body: Optional[str], ctype: str) -> Dict[str, str]:
-    """로그인 요청 본문에서 {필드: 값}. 폼과 JSON 만 안다."""
-    if not body:
-        return {}
-    if "json" in (ctype or "").lower():
-        try:
-            import json
-            data = json.loads(body)
-            return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
-        except ValueError:
-            return {}
-    return dict(parse_qsl(body, keep_blank_values=True))
-
-
 class Crawler:
     def __init__(self, policy: Policy, start_url: str, creds: Optional[dict], *, emit: Callable, on_shot: Callable,
                  cancelled: Callable[[], bool]):
@@ -147,13 +128,13 @@ class Crawler:
         self._login_req: Optional[dict] = None
         self._pending: list = []
         self._inflight = 0
-        self._dups: Dict[str, int] = {}
+        self._dups = capture.EventDedup()
         self._queue: deque = deque()
         self._skip_events = 0
         self._skip_seen: set = set()          # 같은 건너뜀(로그아웃 링크 등)이 화면마다 반복 기록되지 않게
         self._started = 0.0
         self._relogins = 0
-        self._samples: Dict[str, int] = {}
+        self._samples = capture.SampleCounter()
         self._blocked_reqs: set = set()      # 우리가 가로챈 요청. 가짜 응답이 response 이벤트로 또 올라오는 것을 거른다
         self._creating_main = False
         self.login_page_path = ""
@@ -502,17 +483,11 @@ class Crawler:
 
     def _build_recipe(self, login_page: str, user: str, pw: str) -> None:
         """로그인 요청에서 필드 이름을 알아낸다. 도구를 실행할 때 같은 방식으로 로그인하려는 것이다."""
-        req = self._login_req
-        if not req:
-            return
-        fields = _parse_form(req["post"], req["ctype"])
-        user_field = next((k for k, v in fields.items() if v == user), "")
-        pass_field = next((k for k, v in fields.items() if v == pw), "")
-        extra = {k: v for k, v in fields.items() if k not in (user_field, pass_field) and v != ""}
-        self.res.login_path = urlsplit(req["url"]).path
-        if user_field and pass_field:
-            self.res.recipe = {"loginUrl": login_page, "action": req["url"], "method": req["method"], "json": "json" in (req["ctype"] or "").lower(),
-                               "userField": user_field, "passField": pass_field, "extra": extra}
+        path, recipe = capture.build_recipe(self._login_req, login_page, user, pw)
+        if path:
+            self.res.login_path = path
+        if recipe:
+            self.res.recipe = recipe
 
     # ── 네트워크 ────────────────────────────────────────────────────────────
 
@@ -531,13 +506,7 @@ class Crawler:
 
     def _route_inner(self, route, request) -> None:
         url, method, rtype = request.url, request.method.upper(), request.resource_type
-        if not url.startswith(("http://", "https://")) or rtype in STATIC_TYPES or is_asset(url):
-            route.continue_()
-            return
-        # 클릭 없이 화면 스크립트가 부르는 GET 중에도 삭제·승인처럼 보이는 이름이 있다(레거시는 쓰기를 GET 으로 만들기도 한다).
-        # 화면 이동(document)은 읽기라 제외하고, 데이터를 부르는 요청(xhr, fetch)만 이름으로 본다.
-        risky_get = method in ("GET", "HEAD") and rtype in ("xhr", "fetch") and self.policy.same_origin(url) and risky_call(urlsplit(url).path)
-        if method in ("GET", "HEAD") and not risky_get:
+        if not capture.is_write(url, method, rtype, self.policy):
             route.continue_()
             return
         post = None
@@ -570,33 +539,21 @@ class Crawler:
 
     def _room(self, key: str) -> bool:
         """같은 요청의 표본을 더 들고 있을 자리가 있는가."""
-        self._samples[key] = self._samples.get(key, 0) + 1
-        return self._samples[key] <= MAX_SAMPLES
+        return self._samples.room(key)
 
     def _keep_headers(self, headers: Optional[dict]) -> Dict[str, str]:
         """도구를 만들 때 다시 보내야 하는 요청 헤더만 남긴다. 인증·세션 값과 요청마다 바뀌는 토큰은 뺀다."""
-        keep = {}
-        for k, v in (headers or {}).items():
-            lk = k.lower()
-            if is_secret_key(lk) or "csrf" in lk or "xsrf" in lk:
-                continue
-            if lk in ("x-requested-with", "content-type", "accept") or lk.startswith("x-"):
-                keep[lk] = v
-        return keep
+        return capture.keep_headers(headers)
 
     def _on_response(self, response) -> None:
         try:
             req = response.request
             if req in self._blocked_reqs:
                 return
-            rtype, url, status = req.resource_type, response.url, response.status
-            if rtype in STATIC_TYPES or is_asset(url) or 300 <= status < 400:
+            kind = capture.response_kind(req.resource_type, response.url, response.status, response.headers)
+            if kind is None:
                 return
-            headers = response.headers or {}
-            ctype = headers.get("content-type", "")
-            is_file = "attachment" in headers.get("content-disposition", "").lower() or any(t in ctype.lower() for t in FILE_TYPES)
-            if rtype == "document" and not is_file:
-                return                                       # 화면 이동이다. API 가 아니다
+            is_file, ctype = kind
             self._pending.append((response, req, is_file, ctype))
         except Exception:
             pass
@@ -633,9 +590,7 @@ class Crawler:
             self._record_event("out" if obs.out_of_scope else "cap", method, url, response.status, ms)
 
     def _record_event(self, tag: str, method: str, url: str, code: Optional[int], ms: Optional[int] = None) -> None:
-        key = f"{tag} {method} {urlsplit(url).path}"
-        self._dups[key] = self._dups.get(key, 0) + 1
-        if self._dups[key] > DUP_EVENTS:
+        if not self._dups.allow(f"{tag} {method} {urlsplit(url).path}"):
             return
         self._emit("web", "req", m=method, p=self.policy.display(url), code=code, tag=tag, ms=ms)
 
