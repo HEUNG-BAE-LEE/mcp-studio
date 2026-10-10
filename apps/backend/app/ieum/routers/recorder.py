@@ -14,7 +14,7 @@ from fastapi import APIRouter, Body, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
 from app.ieum.gateway import credentials
-from app.ieum.recorder import retention, store
+from app.ieum.recorder import retention, service, store
 from app.ieum.recorder.manager import MANAGER, RecorderError, vault_key
 from app.ieum.responses import fail, ok
 
@@ -159,3 +159,52 @@ async def recording_ws(websocket: WebSocket, rid: str, token: str = ""):
         pass
     finally:
         s.unsubscribe(websocket)
+
+
+MANAGER.on_stopped = service.finish
+
+
+@router.get("/functions/{fid}/")
+async def function_get(fid: str):
+    try:
+        return ok(await asyncio.to_thread(store.get_function, fid))
+    except KeyError:
+        return fail(404, "업무 기능을 찾을 수 없습니다.")
+
+
+@router.put("/functions/{fid}/")
+async def function_put(fid: str, payload: Optional[dict] = Body(None)):
+    try:
+        return ok(await asyncio.to_thread(service.update_function, fid, payload or {}))
+    except KeyError:
+        return fail(404, "업무 기능을 찾을 수 없습니다.")
+
+
+@router.post("/functions/{fid}/verify/")
+async def function_verify(fid: str, payload: Optional[dict] = Body(None)):
+    try:
+        return ok(await service.reverify(fid, (payload or {}).get("values") or None))
+    except KeyError:
+        return fail(404, "업무 기능을 찾을 수 없습니다.")
+    except Exception as exc:
+        return fail(400, f"다시 검증하지 못했습니다. {str(exc)[:200]}")
+
+
+@router.post("/functions/{fid}/confirm/")
+async def function_confirm(fid: str):
+    try:
+        return ok(await asyncio.to_thread(service.confirm, fid))
+    except KeyError:
+        return fail(404, "업무 기능을 찾을 수 없습니다.")
+
+
+@router.post("/functions/{fid}/register/")
+async def function_register(fid: str, payload: Optional[dict] = Body(None)):
+    mode = (payload or {}).get("mode") or "single"
+    try:
+        fn = service.register_steps if mode == "steps" else service.register_single
+        return ok(await asyncio.to_thread(fn, fid), 201)
+    except KeyError:
+        return fail(404, "업무 기능을 찾을 수 없습니다.")
+    except ValueError as exc:
+        return fail(400, str(exc))
