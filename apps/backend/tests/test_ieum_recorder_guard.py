@@ -266,3 +266,22 @@ def test_다른_출처의_로그인_모양_요청은_승인을_받는다():
         await g.route(r, Req("http://other.corp/po/loginProc.do", "POST", post="userId=a&userPw=b"))
         return r.done, g.login_req
     assert run(go()) == ("abort", None)
+
+
+def test_흔한_로그인_필드_이름도_로그인으로_본다():
+    async def go():
+        out = []
+        for post in ("username=a&password=b", "j_username=a&j_password=b", "loginId=a&passWord=b"):
+            g, sent = make()
+            r = Route()
+            await g.route(r, Req("http://h:8080/po/loginProc.do", "POST", post=post))
+            out.append((r.done, sent, g.login_req is not None))
+        return out
+    assert run(go()) == [("continue", [], True)] * 3
+
+
+def test_콘솔_경로의_표기_변형도_막는다():
+    for url in ("http://127.0.0.1:8000/api/ieum%2fx", "http://127.0.0.1:8000//api/ieum/x",
+                "http://127.0.0.1:8000/%69eum/x"):
+        assert scope.blocked(url, "http://127.0.0.1:8000") is not None, url
+    assert scope.blocked("http://127.0.0.1:8000/demo-legacy/po/main.do", "http://127.0.0.1:8000") is None

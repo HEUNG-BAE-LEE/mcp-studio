@@ -20,26 +20,24 @@ from app.ieum.discovery import capture
 from app.ieum.discovery.policy import Policy
 from app.ieum.recorder import config, scope
 
-_PW_LAST = frozenset("pw pwd passwd password".split())
-_ID_WORDS = frozenset("id user login account email usr".split())
-_LOGIN_CTYPES = ("application/x-www-form-urlencoded", "multipart/form-data")
-_WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
+_PW_ENDS = ("pw", "pwd", "passwd", "password")
+_ID_PARTS = ("user", "login", "account", "email", "usr")
+_LOGIN_CTYPES = ("application/x-www-form-urlencoded",)   # multipart 는 parse_form 이 못 읽으므로 뺐다
 
 
-def _words(name: str) -> List[str]:
-    return [w.lower() for w in _WORD.findall(str(name))]
+def _compact(name: str) -> str:
+    """이름을 소문자로 하고 영문·숫자만 남긴다. j_username, passWord, login_id 를 같은 꼴로 본다."""
+    return re.sub(r"[^a-z0-9]", "", str(name).lower())
 
 
 def _is_password_field(name: str) -> bool:
-    """마지막 단어가 비밀번호 계열이거나 필드 이름이 정확히 pass 인 것만. passYn 같은 것은 아니다."""
-    if str(name).lower() == "pass":
-        return True
-    ws = _words(name)
-    return bool(ws) and ws[-1] in _PW_LAST
+    c = _compact(name)
+    return c == "pass" or any(c.endswith(p) for p in _PW_ENDS)
 
 
 def _is_id_field(name: str) -> bool:
-    return any(w in _ID_WORDS for w in _words(name))
+    c = _compact(name)
+    return any(p in c for p in _ID_PARTS) or c.endswith("id")
 
 
 class Guard:

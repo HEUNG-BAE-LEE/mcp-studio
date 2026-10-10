@@ -10,8 +10,9 @@
 모두 같은 루프백·메타데이터로 취급한다. 판단할 수 없는 포트·주소는 막는다.
 """
 import ipaddress
+import re
 from typing import List, Optional
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 DENY_SCHEMES = ("file", "chrome", "chrome-extension", "devtools", "view-source", "ftp")
 DENY_HOSTS = {"metadata.google.internal", "metadata"}
@@ -32,6 +33,17 @@ def _ip(host: str):
     if ip.version == 6 and ip.ipv4_mapped is not None:
         return ip.ipv4_mapped
     return ip
+
+
+def _norm_path(path: str) -> str:
+    """콘솔 경로 판정용 표기. 퍼센트 부호화를 풀고(두 번까지), 겹친 슬래시를 하나로 모으고, 소문자로 한다."""
+    p = path
+    for _ in range(2):
+        q = unquote(p)
+        if q == p:
+            break
+        p = q
+    return re.sub(r"/{2,}", "/", p).lower()
 
 
 def _key(scheme: str, host: str, port: Optional[int]) -> tuple:
@@ -70,6 +82,6 @@ def blocked(url: str, target_origin: str, extra: Optional[List[str]] = None) -> 
         target = _key(tparts.scheme.lower(), _norm_host(tparts.hostname or ""), tparts.port)
         if _key(scheme, host, port) != target:
             return "서버 자신"
-        if parts.path.lower().startswith(CONSOLE_PATHS):
+        if (_norm_path(parts.path) + "/").startswith(CONSOLE_PATHS):
             return "이음 콘솔"
     return None
