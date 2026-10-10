@@ -39,3 +39,16 @@ def is_staging(env) -> bool:
 def deny_entries() -> List[str]:
     """항상 차단에 더할 호스트·CIDR. 회사마다 막아야 할 관리 대역이 다르다."""
     return [x.strip() for x in os.environ.get("IEUM_RECORDER_DENY", "").split(",") if x.strip()]
+
+
+# 승인을 묻지 않고 막는 외부 통계(beacon) 호스트. 앞의 "*." 는 있어도 없어도 같다(끝 점 경계 접미 일치).
+BEACON_HOSTS = ("google-analytics.com", "analytics.google.com", "doubleclick.net", "www.googletagmanager.com",
+                "wcs.naver.net", "wcs.naver.com", "stats.wp.com", "bat.bing.com", "clarity.ms")
+# *.google.com 은 아래 경로일 때만 통계로 본다(검색·로그인 같은 일반 요청을 막지 않는다)
+BEACON_GOOGLE_PATHS = ("/g/collect", "/j/collect", "/collect", "/r/collect")
+
+
+def beacon_hosts() -> List[str]:
+    """기본 목록에 환경변수 IEUM_RECORDER_BEACON_HOSTS(쉼표 목록)를 덧붙인다."""
+    extra = [x.strip().lower().lstrip("*.").rstrip(".") for x in os.environ.get("IEUM_RECORDER_BEACON_HOSTS", "").split(",") if x.strip()]
+    return list(BEACON_HOSTS) + [x for x in extra if x]

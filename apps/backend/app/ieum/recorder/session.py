@@ -254,6 +254,7 @@ class RecorderSession:
 
     async def stop(self) -> None:
         self.stopping = True
+        self.guard.closing_now()                        # 이 뒤에 붙잡힐 기록 쪽 쓰기는 묻지 않고 바로 거절한다
         await self._deny_pending()
         await self.trace.finish(self.page)
         await self._deny_pending()

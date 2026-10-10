@@ -60,22 +60,14 @@ def test_멈춘_뒤에도_Replay_쓰기_승인은_받고_브라우저_단계는_
         assert len(posts) == 1                                         # 쓰기는 정확히 한 번 나갔다
         assert any(d["decision"] == "approve" and d["label"].startswith("Replay") for d in s.guard.decisions)
 
-        # 기록 중에 붙잡은 요청(Replay 가 아닌 승인 창)은 멈춘 뒤 승인해도 받지 않는다
-        async def fire():
-            asyncio.ensure_future(s.page.evaluate(
-                "fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
-                f"body:'{SAVE_BODY}'}}).catch(()=>0)"))
-            for _ in range(100):
-                if s.guard.pending:
-                    return next(iter(s.guard.pending))
-                await asyncio.sleep(0.05)
-            return None
-        other = call(fire())
-        assert other and not s.guard.is_replay_hold(other)
-        call(s.handle({"t": "approve", "id": other, "ok": True}))
+        # 멈춘 뒤 기록 쪽 쓰기는 승인 창 없이 바로 거절한다(예전에는 붙잡아 두고 2분을 기다렸다)
+        holds_before = [m.get("t") for m in ws.msgs].count("hold")
+        call(s.page.evaluate(
+            "fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
+            f"body:'{SAVE_BODY}'}}).catch(()=>0)"))
         time.sleep(0.3)
-        assert s.guard.holding and len(posts) == 1
-        s.guard.deny_all()
+        assert not s.guard.holding and len(posts) == 1
+        assert [m.get("t") for m in ws.msgs].count("hold") == holds_before
     finally:
         manager.MANAGER.on_stopped = None
         call(manager.MANAGER.close(rid))
@@ -123,3 +115,28 @@ def test_편집_가능한_요소와_입력_역할은_글자_대신_이름표를_
     finally:
         call(manager.MANAGER.close(out["id"]))
     assert texts == ["메모", "검색어", "PO-2609-0142"], texts
+
+
+def test_멈추기_시작한_뒤_페이지가_보낸_쓰기는_120초_기다리지_않고_바로_거절한다(live):
+    from app.ieum.recorder import manager
+    out = start(live)
+    rid = out["id"]
+    s = manager.MANAGER.get(rid)
+    call(s.page.goto(s.policy.base + "/poListView.do"))
+    manager.MANAGER.on_stopped = _noop
+    ws = WS()
+    s.subscribe(ws)
+    try:
+        call(s.page.evaluate(
+            "setTimeout(()=>fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
+            f"body:'{SAVE_BODY}'}}).catch(()=>0),1500)"))
+        t0 = time.time()
+        call(manager.MANAGER.stop(rid))
+        time.sleep(2.5)                                    # 쓰기가 나간 뒤까지 기다린다(멈춤은 그 전에 시작했다)
+        assert time.time() - t0 < 15
+        assert not [m for m in ws.msgs if m.get("t") == "hold"]
+        assert not s.guard.holding
+        assert any(d["decision"] == "deny" and d["label"] == "기록 종료 중" for d in s.guard.decisions)
+    finally:
+        manager.MANAGER.on_stopped = None
+        call(manager.MANAGER.close(rid))

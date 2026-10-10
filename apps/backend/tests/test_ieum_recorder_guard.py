@@ -357,3 +357,85 @@ def test_승인받은_재로그인도_login_req_에_남는다():
         await task
         return r2.done, g.login_req["post"], g.decisions[-1]["decision"]
     assert run(go()) == ("continue", "userId=c&userPw=d", "approve")
+
+
+# ── 외부 통계 자동 차단 · 종료 중 즉시 거절 ─────────────────────────────────
+def _route_one(req, **kw):
+    async def go():
+        g, sent = make(**kw)
+        r = Route()
+        task = asyncio.ensure_future(g.route(r, req))
+        await asyncio.sleep(0.1)
+        out = (r.done, [m["t"] for m in sent], [d["decision"] for d in g.decisions], g.beacon_count, g.holding)
+        g.deny_all()
+        await task
+        return out
+    return run(go())
+
+
+def test_ping_타입_다른_출처_쓰기는_승인_없이_막는다():
+    done, sent, dec, cnt, holding = _route_one(Req("http://other.example/x", "POST", rtype="ping", post="a=1"))
+    assert done == "abort" and sent == [] and dec == ["beacon"] and cnt == 1 and not holding
+
+
+def test_GA_수집_요청은_승인_없이_막고_같은_주소는_기록을_한_번만_남긴다():
+    async def go():
+        g, sent = make()
+        for _ in range(3):
+            r = Route()
+            await g.route(r, Req("https://www.google-analytics.com/g/collect?v=2&tid=G-1", "POST", rtype="fetch"))
+            assert r.done == "abort"
+        r = Route()
+        await g.route(r, Req("https://stats.g.doubleclick.net/j/collect", "POST", rtype="xhr"))
+        r = Route()
+        await g.route(r, Req("https://www.google.com/g/collect", "POST", rtype="xhr"))
+        return sent, [d["decision"] for d in g.decisions], g.beacon_count
+    sent, dec, cnt = run(go())
+    assert sent == [] and dec == ["beacon"] * 3 and cnt == 5      # (GA, doubleclick, google.com) 각 1건, 개수는 5
+
+
+def test_비슷한_이름의_호스트와_일반_구글_요청은_통계가_아니다():
+    from app.ieum.recorder.guard import is_beacon
+    assert not is_beacon("https://evil-google-analytics.com/g/collect", "fetch")
+    assert not is_beacon("https://www.google.com/search", "xhr")
+    assert is_beacon("https://WWW.Google-Analytics.com./g/collect", "fetch")
+    done, sent, dec, cnt, holding = _route_one(Req("https://evil-google-analytics.com/g/collect", "POST", rtype="fetch", post="a=1"))
+    assert sent == ["hold"] and holding and cnt == 0
+
+
+def test_환경변수로_통계_호스트를_더한다(monkeypatch):
+    from app.ieum.recorder.guard import is_beacon
+    monkeypatch.setenv("IEUM_RECORDER_BEACON_HOSTS", "stat.corp.example, *.metrics.test")
+    assert is_beacon("https://stat.corp.example/c", "xhr") and is_beacon("https://a.metrics.test/c", "xhr")
+
+
+def test_대상_출처_쓰기는_통계_규칙을_타지_않고_기존대로_묻는다():
+    done, sent, dec, cnt, holding = _route_one(Req("http://h:8080/po/poSave.do", "POST", rtype="ping", post="a=1"))
+    assert sent == ["hold"] and holding and cnt == 0
+
+
+def test_종료_중에는_기록_쪽_쓰기를_묻지_않고_바로_거절한다():
+    async def go():
+        g, sent = make()
+        g.closing_now()
+        r = Route()
+        await g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="a=1"))
+        return r.done, sent, g.decisions[-1]
+    done, sent, d = run(go())
+    assert done == "abort" and sent == [] and d["decision"] == "deny" and d["label"] == "기록 종료 중"
+
+
+def test_종료_중에도_Replay_승인은_묻고_정확히_일치한_요청은_통과한다():
+    async def go():
+        g, sent = make()
+        g.closing_now()
+        t = asyncio.ensure_future(g.ask("POST", "http://h:8080/po/poSave.do", "Replay 저장"))
+        await asyncio.sleep(0.05)
+        hid = sent[0]["id"]
+        assert g.is_replay_hold(hid) and g.decide(hid, True)
+        ok = await t
+        g.allow_exact("POST", "http://h:8080/po/poSave.do", "a=1")
+        r = Route()
+        await g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="a=1"))
+        return ok, r.done
+    assert run(go()) == (True, "continue")

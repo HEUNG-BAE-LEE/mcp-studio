@@ -102,6 +102,25 @@ def _is_change_path(url: str) -> bool:
     return bool(words & _CHANGE_PATH_WORDS) or any(p in _compact(path) for p in _CHANGE_PATH_PARTS)
 
 
+def _host_matches(host: str, entry: str) -> bool:
+    """정확 일치 또는 '.' 경계 접미 일치. evil-google-analytics.com 은 google-analytics.com 과 다르다."""
+    return host == entry or host.endswith("." + entry)
+
+
+def is_beacon(url: str, rtype: str) -> bool:
+    """외부 통계·beacon 요청인가. ping 타입(sendBeacon, <a ping>)이거나 통계 호스트 목록에 맞는다."""
+    if rtype == "ping":
+        return True
+    p = urlsplit(url)
+    host = (p.hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    if any(_host_matches(host, e) for e in config.beacon_hosts()):
+        return True
+    path = p.path.rstrip("/") if p.path != "/" else p.path
+    return _host_matches(host, "google.com") and path in config.BEACON_GOOGLE_PATHS
+
+
 class Guard:
     def __init__(self, policy: Policy, env: str, notify: Callable[[dict], Awaitable[None]], timeout: float = 120.0):
         self.policy, self.env, self.notify, self.timeout = policy, env, notify, timeout
@@ -118,6 +137,13 @@ class Guard:
         self._tokens = itertools.count(1)
         self._exact: Dict[int, tuple] = {}            # Replay 가 승인받아 지금 보내는 요청 (메서드, 주소, 본문). 보내는 동안만 있다
         self._masker = Masker(pii=True)
+        self.closing = False                          # 기록을 멈추는 중이다. 새로 붙잡힐 기록 쪽 쓰기는 묻지 않고 거절한다
+        self.beacon_count = 0                         # 자동으로 막은 외부 통계 요청 수(주소별 첫 1건만 decisions 에 남는다)
+        self._beacon_seen: set = set()
+
+    def closing_now(self) -> None:
+        """기록 종료를 시작한다. 이후 기록 쪽 쓰기는 승인 창 없이 즉시 거절한다(Replay 의 ask 는 영향받지 않는다)."""
+        self.closing = True
 
     @property
     def holding(self) -> bool:
@@ -198,6 +224,16 @@ class Guard:
             self.decided_requests[id(request)] = "approve"
             await route.continue_()
             return
+        if not self.policy.same_origin(url) and is_beacon(url, rtype):
+            # 외부 통계는 사람이 판단할 일이 아니다. 승인 창 없이 막고, 같은 (호스트, 경로)는 첫 1건만 기록한다
+            self.beacon_count += 1
+            sp = urlsplit(url)
+            key = ((sp.hostname or "").lower(), sp.path)
+            if key not in self._beacon_seen:
+                self._beacon_seen.add(key)
+                self._log(method, url, "beacon")
+            await route.abort("blockedbyclient")
+            return
         is_login = self._is_login(request, url)
         if is_login and method == "POST" and not self.login_passed:
             self.login_passed = True
@@ -214,6 +250,11 @@ class Guard:
             if is_login:
                 self._remember_login(request, url, method)
             await route.continue_()
+            return
+        if self.closing:
+            self._log(method, url, "deny", label="기록 종료 중")
+            self.decided_requests[id(request)] = "deny"
+            await route.abort("blockedbyclient")
             return
         decision = await self._hold(method, url, self.label)
         self.decided_requests[id(request)] = decision
