@@ -178,3 +178,29 @@ def stat_page(env: str) -> str:
 <tbody></tbody>
 </table>"""
     return layout(env, "통계", body, assets.STAT_JS, "statView.do")
+
+
+def vend_search_page(env: str, token: str, rows=None, name: str = "") -> str:
+    """서버가 결과 표까지 그려 주는 화면(JSP 방식). 업무 기록의 HTML 표 변환을 시연하려고 둔다. 메뉴에는 없다."""
+    form = ('<h2>거래처 검색</h2><form method="post" action="vendSearch.do"><input type="hidden" name="_csrf" value="%s">'
+            '거래처명 <input name="vendNm" id="vendNm" value="%s"> <button type="submit" id="btnSsrSearch">검색</button></form>'
+            % (html.escape(token, quote=True), html.escape(name, quote=True)))
+    table = ""
+    if rows is not None:
+        trs = "".join('<tr><td><a href="vendDetail.do?vendCd=%s">%s</a></td><td>%s</td><td>%s</td></tr>'
+                      % (html.escape(r["VEND_CD"]), html.escape(r["VEND_CD"]), html.escape(r["VEND_NM"]), html.escape(r["TEL"])) for r in rows)
+        table = '<table class="list" id="vendResult"><tr><th>거래처코드</th><th>거래처명</th><th>대표전화</th></tr>%s</table>' % trs
+    return layout(env, "거래처 검색", form + table, "", "vendListView.do")
+
+
+def vend_detail_page(env: str, vend_cd: str) -> str:
+    v = data.VENDOR_BY_CD.get(vend_cd)
+    if not v:
+        return layout(env, "거래처 상세", '<p class="err">거래처를 찾을 수 없습니다.</p>', "", "vendListView.do")
+    body = ('<h2>거래처 상세</h2><table class="form" id="vendInfo"><tr><th>거래처명</th><td>%s</td><th>사업자번호</th><td>%s</td></tr>'
+            '<tr><th>담당자</th><td>%s</td><th>휴대전화</th><td>%s</td></tr></table>' % tuple(html.escape(x) for x in (v[1], v[2], v[4], v[5])))
+    return layout(env, "거래처 상세", body, "", "vendListView.do")
+
+
+def error_page(env: str, message: str) -> str:
+    return layout(env, "오류", '<p class="err">%s</p>' % html.escape(message), "", "")

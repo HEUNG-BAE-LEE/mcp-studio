@@ -191,6 +191,22 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 다른 곳(컨테이너)에 배포하려면 `supervisor` 자리만 바꾼다. 예전에 있던 콘솔 안의 `/mcp/<ws>/<slug>` 라우트는 없앴다 —
 같은 묶음을 두 방식으로 서빙하면 한쪽은 스냅샷이고 한쪽은 실시간이라 어긋난다.
 
+**업무 기록은 이음 안의 별도 메뉴다** (`app/ieum/recorder/`, 화면 `apps/web/ieum/js/menu/recorder.js`, 설계
+`docs/superpowers/specs/2026-10-10-ieum-web-recorder-design.md`). 기록 하나마다 서버에 헤드리스 브라우저가 뜨고, 화면은 CDP 프레임을
+WebSocket(`/api/ieum/recorder/ws/{id}?token=`)으로 구독자마다 최신 것만 중계한다(`relay.py`). 사람은 그 화면을 조작해 업무 하나를 기록한다.
+행동 묶음(ActionSpan: 행동 + 직전/직후 ARIA + 네트워크)은 **다음 행동이 시작되거나 기록을 끝낼 때 닫혀서** 기록별 파일
+(`data/ieum/recorder/<id>/spans.jsonl`)에 쌓인다 — 마지막 행동의 묶음은 클릭 직후가 아니라 종료 뒤에야 보인다. 끝나면
+분석(`analyze.py`, 규칙 기반) → 다시 실행해 검증(`replay.py`) → 검토 → 확정 → 도구 등록(`service.py`)으로 흐른다.
+**쓰기 판단은 버튼 글자가 아니라 나가는 요청으로 한다**(`guard.py`): GET/HEAD 가 아닌 것은 전부 쓰기라 붙잡아 승인받고, 예외는 기록 시작 때 준
+`readPost` 경로(같은 출처)와 로그인 POST 한 번뿐이다. 판정이 실패하면 쓰기로 본다(fail-closed). 자동 탐색과 달리 **가짜 응답을 만들지 않는다.**
+ARIA·응답·요청 값은 마스킹해 저장하고 입력 원값 지도(`trace.raw`)는 **세션 메모리에만** 둔다(디스크에 쓰지 않는다). 서버가 그려 주는 화면은 HTML 표를
+JSON 사본으로 바꿔(`htmltable.py`) 다룬다. 화면을 열 때마다 새로 만드는 숨은 `_csrf` 같은 값은 분석이 그 단계를 `exec: "browser"` 로 표시하고,
+Replay 는 브라우저 안에서 formPage 를 불러 토큰을 새로 읽어 보낸다. **Replay 는 마스킹된 값을 절대 보내지 않는다** — 원값이 없으면 `needs_value`/`unresolved_path`
+로 실패하고, 입력이 필요한 단계는 verify 의 `values` 로 받는다. 운영 주소로 가는 Replay 요청 간격은 스펙대로 **0.6초**다. 본체 `executor` 의 1.0초와 둘 다 있는데, 이쪽은 사람이 한 업무를 되풀이하는 것이라 기준이 다르고 저쪽은 공공 포털을 자동으로 부르기 때문이다.
+업무 기능·도구를 읽고-고쳐-쓰는 구간은 `store.LOCK` 안에서 다시 읽어 반영한다(`PUT` 은 단계를 전부 `{id, skip}` 으로 보내야 하고, 등록 응답의 `loginKnown` 은 출처별 사전이다).
+Playwright 는 uvicorn 이벤트 루프에 살므로(`manager.MANAGER.loop`) 루프를 막는 동기 작업은 `asyncio.to_thread` 로 넘긴다.
+콘솔 전역 이름은 `RECR` 다 — `REC` 는 `discovery.js` 가 이미 쓴다.
+
 ## 밟으면 아픈 것들
 
 - **콘솔 JS 는 classic script 라 파일 간 전역 선언이 충돌한다.** `const hostOf` 를 두 파일에 선언하면 한쪽이 통째로
@@ -229,6 +245,12 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 - **호출 간격 `MIN_INTERVAL_SEC = 1.0`.** 공공 서버 배려용이므로 낮추지 않는다.
 - **응답 본문 원문은 저장하지 않는다.** 구조 + 샘플 1건만 (`services/body.py`).
 - **마스킹은 세 곳.** URL 쿼리·요청 본문·응답 샘플 (`services/masking.py`).
+- **레코더 시험은 서버의 이벤트 루프에서 세션을 만진다.** Playwright 비동기 객체는 만든 루프에 묶여서, 시험 코드에서 `await s.page...`
+  를 그냥 부르면 멈춘다. `asyncio.run_coroutine_threadsafe(coro, MANAGER.loop)` 로 넣는다(`test_ieum_recorder_e2e.py`).
+- **레코더 WebSocket 은 시작 응답의 토큰이 있어야 열린다.** 콘솔에 사용자 로그인이 없어 남의 기록 화면을 막는 장치가 이것뿐이다.
+  토큰은 탭의 `sessionStorage` 에만 있으므로 다른 탭에서는 기록 중 화면을 다시 열 수 없다(의도된 동작).
+- **시연 사이트의 서버 렌더링 화면(`vendSearchView.do` 등)은 메뉴에 없다.** 메뉴에 넣으면 `test_ieum_demo_legacy.py` 의 메뉴 HTML 비교와
+  자동 탐색 e2e 의 API 목록이 바뀐다. 업무 기록 시험은 주소로 직접 열고, 검색 POST(`vendSearch.do`)는 `readPost` 로 알려 줘야 승인 없이 지나간다.
 
 ## 규칙
 

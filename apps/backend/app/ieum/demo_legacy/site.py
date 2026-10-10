@@ -72,11 +72,13 @@ def make_router(env: str, mount: str) -> APIRouter:
     mount = mount.rstrip("/")
     db = data.LegacyDb()
     sessions = {}  # type: Dict[str, str]  # JSESSIONID -> 로그인 사용자 ID
+    csrf = {}  # type: Dict[str, str]  # JSESSIONID -> 거래처 검색 화면의 토큰
     router = APIRouter(tags=["ieum-demo-legacy"])
 
     def reset() -> None:
         db.reset()
         sessions.clear()
+        csrf.clear()
 
     router.reset = reset  # type: ignore[attr-defined]
 
@@ -147,6 +149,25 @@ def make_router(env: str, mount: str) -> APIRouter:
     page("prRegView.do", lambda request: pages.pr_reg_page(env, db.next_pr_no(), db.draft))
     page("vendListView.do", lambda request: pages.vend_list_page(env))
     page("statView.do", lambda request: pages.stat_page(env))
+
+    # ------------------------------------------------------------ 서버 렌더링 화면 (메뉴 밖, 업무 기록 시연용)
+    def _new_csrf(request: Request) -> str:
+        tok = secrets.token_hex(8)
+        csrf[request.cookies.get("JSESSIONID", "")] = tok
+        return tok
+
+    page("vendSearchView.do", lambda request: pages.vend_search_page(env, _new_csrf(request)))
+    page("vendDetail.do", lambda request: pages.vend_detail_page(env, request.query_params.get("vendCd", "")))
+
+    @router.post("/vendSearch.do", include_in_schema=False)
+    async def vend_search(request: Request) -> Response:
+        if not logged_in(request):
+            return redirect("login.do")
+        p = await _params(request)
+        if not p.get("_csrf") or p.get("_csrf") != csrf.get(request.cookies.get("JSESSIONID", "")):
+            return HTMLResponse(pages.error_page(env, "잘못된 요청입니다. 화면을 다시 열어 주세요."), status_code=403, media_type=HTML_TYPE)
+        rows = data.search_vendors(p.get("vendNm", ""))
+        return HTMLResponse(pages.vend_search_page(env, _new_csrf(request), rows, p.get("vendNm", "")), media_type=HTML_TYPE)
 
     # ------------------------------------------------------------ 발주
     def po_list(p: Dict[str, str]) -> Response:
