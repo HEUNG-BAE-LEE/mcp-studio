@@ -167,13 +167,99 @@ def test_가려진_값은_상수로_굳히지_않고_같은_가림_문자열끼�
     s1, s2 = bf["steps"]
     for st in bf["steps"]:
         for p in st["params"]:
-            assert p["source"] != "CONSTANT" or HIDDEN not in p["ex"]
-            assert not str(p.get("from", "")).startswith("const:" + HIDDEN)
+            assert p["source"] != "CONSTANT" and HIDDEN not in p["ex"] and "const:" not in p["from"]
     pwd = next(p for p in s1["params"] if p["a"] == "pwd")
     assert pwd["source"] == "USER_INPUT" and pwd["ex"] == ""
+    assert {i["name"]: i["screenLabel"] for i in bf["inputs"]}["pwd"] == "비밀번호"      # 이름(id)으로 짝지은 라벨
     sec = next(p for p in s2["params"] if p["a"] == "secret")
     assert sec["source"] == "USER_INPUT" and sec["ex"] == ""
     inp = {i["name"]: i for i in bf["inputs"]}
     assert inp["pwd"]["needsValue"] is True and inp["pwd"]["ex"] == "" and inp["secret"]["needsValue"] is True
     tel = next(p for p in s2["params"] if p["a"] == "tel")
     assert tel["source"] == "PREVIOUS_STEP_OUTPUT" and tel["from"] == "s1.TEL"
+
+
+def _masked_span(query, res=None, fills=None, seq=1, aria="홍길동", headers=None):
+    n = net("GET", "/custList.do", query, res or {"rows": [{"NM": "홍길동"}]})
+    if headers:
+        n["headers"] = headers
+    return span(seq, {"tag": "BUTTON", "text": "조회"}, [n], post_aria=aria, fills=fills)
+
+
+def test_채우지_않은_가림_값은_라벨을_빌리지_않고_높은_확신도가_아니다():
+    from app.ieum.discovery.masking import HIDDEN
+    fills = [{"target": {"id": "pwd", "label": "비밀번호"}, "value": HIDDEN}]
+    bf = analyze.analyze(REC, [_masked_span(f"pwd={HIDDEN}&pin={HIDDEN}", fills=fills)])
+    inp = {i["name"]: i for i in bf["inputs"]}
+    assert inp["pwd"]["screenLabel"] == "비밀번호"
+    assert inp["pin"]["screenLabel"] == "" and inp["pin"]["confidence"] != "high" and inp["pin"]["needsValue"] is True and inp["pin"]["ex"] == ""
+
+
+def test_가린_값끼리_우연히_같아도_앞_단계_출력으로_잇지_않는다():
+    from app.ieum.discovery.masking import HIDDEN
+    spans = [_masked_span("q=1", {"rows": [{"NM": "홍길동"}], "token": HIDDEN}, aria="홍길동"),
+             span(2, {"tag": "BUTTON", "text": "확인"}, [net("GET", "/custDetail.do", f"password={HIDDEN}", {"c": {"NM": "홍길동"}})], post_aria="홍길동")]
+    p = next(p for p in analyze.analyze(REC, spans)["steps"][1]["params"] if p["a"] == "password")
+    assert p["source"] == "USER_INPUT" and p["ex"] == ""
+
+
+def test_부분_가림_값은_고정값이_아니라_입력이다():
+    bf = analyze.analyze(REC, [_masked_span("tel=010-****-5678")])
+    p = bf["steps"][0]["params"][0]
+    assert p["source"] == "USER_INPUT" and bf["inputs"][0]["needsValue"] is True
+
+
+def test_가린_헤더는_단계에서_빼고_알린다():
+    bf = analyze.analyze(REC, [_masked_span("q=1", headers={"x-auth-token": "\u2022" * 8, "x-requested-with": "XMLHttpRequest"})])
+    assert bf["steps"][0]["headers"] == {"x-requested-with": "XMLHttpRequest"}
+    assert bf["auth"]["droppedHeaders"] == ["x-auth-token"] and any("x-auth-token" in n for n in bf["notes"])
+
+
+def test_입력이_앞_단계_출력보다_먼저다():
+    # 사용자가 친 값이 앞 응답에도 있으면 사용자 입력으로 본다(설계 6절 5번 표 순서)
+    spans = [span(1, {"tag": "BUTTON", "text": "조회"}, [net("GET", "/poList.do", "q=1", LIST)], post_aria="PO-2609-0142"),
+             span(2, {"tag": "BUTTON", "text": "상세"}, [net("GET", "/poDetail.do", "poNo=PO-2609-0142", DETAIL)], post_aria="4,850,000",
+                  fills=[{"target": {"id": "poNo", "label": "발주번호"}, "value": "PO-2609-0142"}])]
+    p = next(p for p in analyze.analyze(REC, spans)["steps"][1]["params"] if p["a"] == "poNo")
+    assert p["source"] == "USER_INPUT" and p["confidence"] == "high"
+
+
+def test_화면에_안_보이지만_뒤_단계가_쓰는_응답은_prereq():
+    spans = [span(1, {"tag": "BUTTON", "text": "조회"}, [net("GET", "/poList.do", "q=1", LIST)], post_aria="결과 없음"),
+             span(2, {"tag": "BUTTON", "text": "상세"}, [net("GET", "/poDetail.do", "poNo=PO-2609-0142", DETAIL)], post_aria="4,850,000")]
+    bf = analyze.analyze(REC, spans)
+    assert [(s["id"], s["role"]) for s in bf["steps"]] == [("s1", "prereq"), ("s2", "core")]
+    assert next(p for p in bf["steps"][1]["params"] if p["a"] == "poNo")["from"] == "s1.PO_NO"
+    # 쓰이지 않으면 빠진다
+    bf2 = analyze.analyze(REC, spans[:1] + [span(2, {"tag": "BUTTON", "text": "상세"}, [net("GET", "/poDetail.do", "poNo=ZZ", DETAIL)], post_aria="4,850,000")])
+    assert [s["role"] for s in bf2["steps"]] == ["core"] and bf2["steps"][0]["id"] == "s1"
+
+
+def test_readPost_로_지정한_POST_는_쓰기가_아니다():
+    rec = dict(REC, readPost="/po/search*")
+    spans = [span(1, {"tag": "BUTTON", "text": "검색"}, [net("POST", "/search.do", "", LIST, post="q=1")], post_aria="PO-2609-0142")]
+    bf = analyze.analyze(rec, spans)
+    assert bf["steps"][0]["write"] is False and bf["policy"]["operation"] == "READ"
+
+
+def test_로그인_경로의_jsessionid_는_떼고_비교한다():
+    rec = dict(REC, login=dict(REC["login"], path="/po/loginProc.do"))
+    n = net("POST", "/loginProc.do;jsessionid=ABC", "", {"ok": 1}, post="userId=a")
+    n["url"] = "http://h:8080/po/loginProc.do;jsessionid=ABC"
+    bf = analyze.analyze(rec, [span(1, {"tag": "BUTTON", "text": "로그인"}, [n])])
+    assert bf["steps"] == [] and any(x["role"] == "auth" for x in bf["excluded"])
+
+
+def test_get_path_문자열_인덱싱과_점이_든_키():
+    assert analyze.get_path({"a": "abc"}, "$.a[0]") is None
+    assert analyze.get_path({"a": 5}, "$.a?x") is None
+    data = {"No.": "7", "rows": [{"a[1]": "z"}]}
+    assert ("$['No.']", "7") in analyze.leaves(data) and analyze.get_path(data, "$['No.']") == "7"
+    assert analyze.get_path(data, "$.rows[0]['a[1]']") == "z"
+
+
+def test_이름이_다른_숫자_연결은_확신도가_낮다():
+    spans = [span(1, {"tag": "BUTTON", "text": "조회"}, [net("GET", "/poList.do", "q=1", {"rows": [{"QTY": "12345"}]})], post_aria="12345"),
+             span(2, {"tag": "BUTTON", "text": "상세"}, [net("GET", "/poDetail.do", "seqNo=12345", DETAIL)], post_aria="4,850,000")]
+    p = next(p for p in analyze.analyze(REC, spans)["steps"][1]["params"] if p["a"] == "seqNo")
+    assert p["source"] == "PREVIOUS_STEP_OUTPUT" and p["confidence"] == "low"

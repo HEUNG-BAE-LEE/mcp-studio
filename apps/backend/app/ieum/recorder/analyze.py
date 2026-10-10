@@ -8,6 +8,7 @@
 같은 값이 여러 곳에 있으면 하나를 골라 조용히 확정하지 않는다. 확신도를 낮춰 검토 화면에서 사람에게 묻는다.
 ARIA 와 응답은 같은 마스킹기로 가려 저장했으므로, 가린 값끼리 비교해도 판정이 맞다.
 """
+import copy
 import re
 import time
 from types import SimpleNamespace
@@ -16,6 +17,7 @@ from urllib.parse import parse_qsl, urlsplit
 
 from app.ieum.discovery import infer
 from app.ieum.discovery.masking import HIDDEN
+from app.ieum.discovery.policy import Policy
 
 USER_INPUT, PREVIOUS_STEP_OUTPUT, SESSION_CONTEXT = "USER_INPUT", "PREVIOUS_STEP_OUTPUT", "SESSION_CONTEXT"
 SYSTEM_CONFIG, DERIVED, CONSTANT = "SYSTEM_CONFIG", "DERIVED", "CONSTANT"
@@ -41,7 +43,11 @@ def leaves(data, limit: int = 400) -> List[Tuple[str, Any]]:
             return
         if isinstance(node, dict):
             for k, v in node.items():
-                walk(v, f"{path}.{k}")
+                k = str(k)
+                if re.search(r"[.\[\]?']", k):          # 점·대괄호·물음표가 든 키는 경로를 깨므로 ['키'] 로 쓴다
+                    walk(v, path + "['" + k.replace("\\", "\\\\").replace("'", "\\'") + "']")
+                else:
+                    walk(v, f"{path}.{k}")
         elif isinstance(node, list):
             for i, v in enumerate(node[:50]):
                 walk(v, f"{path}[{i}]")
@@ -56,12 +62,21 @@ def get_path(data, path: str):
     if "?" in path:
         path, query = path.split("?", 1)
     node = data
-    for name, idx in re.findall(r"\.([^.\[]+)|\[(\d+)\]", path[1:]):
+    for name, idx, quoted in re.findall(r"\.([^.\[]+)|\[(\d+)\]|\['((?:[^'\\]|\\.)*)'\]", path[1:] if path.startswith("$") else path):
         try:
-            node = node[name] if name else node[int(idx)]
-        except (KeyError, IndexError, TypeError):
+            if quoted or name:
+                if not isinstance(node, dict):
+                    return None
+                node = node[re.sub(r"\\(.)", r"\1", quoted) if quoted else name]
+            else:
+                if not isinstance(node, list):          # 문자열 인덱싱("abc"[0])으로 엉뚱한 값을 꺼내지 않는다
+                    return None
+                node = node[int(idx)]
+        except (KeyError, IndexError):
             return None
-    if query and isinstance(node, str):
+    if query:
+        if not isinstance(node, str):
+            return None
         return dict(parse_qsl(urlsplit(node).query)).get(query)
     return node
 
@@ -101,8 +116,20 @@ def _discriminator(n: dict) -> str:
     return ""
 
 
-def _op_of(n: dict, label: str) -> str:
+def _is_write(n: dict, policy: Policy) -> bool:
+    """조회용으로 지정한 POST(readPost)는 쓰기가 아니다."""
     if n["method"] in ("GET", "HEAD") and not n.get("held"):
+        return False
+    try:
+        if policy.same_origin(n["url"]) and policy.is_read_post(n["url"]):
+            return False
+    except Exception:
+        pass
+    return True
+
+
+def _op_of(n: dict, label: str, write: bool = True) -> str:
+    if not write:
         return "READ"
     text = f"{n['path']} {label}"
     for op, pat in _OPS:
@@ -116,18 +143,20 @@ def _shown(data, raw: str, aria: str) -> bool:
     if not aria:
         return False
     if data is not None:
-        return any(len(str(v)) >= MIN_VALUE_LEN and str(v) in aria for p, v in leaves(data)[:300] if "_links" not in p and ".hidden." not in p)
+        return any(len(str(v)) >= MIN_VALUE_LEN and str(v) != HIDDEN and str(v) in aria
+                   for p, v in leaves(data)[:300] if "_links" not in p and ".hidden." not in p)
     texts = re.findall(r">([^<>]{3,})<", raw or "")
     return any(t.strip() and t.strip() in aria for t in texts[:50])
 
 
 def analyze(rec: dict, spans: List[dict]) -> dict:
-    login_path = (rec.get("login") or {}).get("path") or ""
+    login_path = ((rec.get("login") or {}).get("path") or "").split(";")[0]
+    policy = Policy(base=rec["sourceBase"], read_post=rec.get("readPost") or "")
     items, excluded = [], []
     for sp in spans:
         for n in sp["network"]:
             row = {"method": n["method"], "path": infer.templatize(n["path"])}
-            full = urlsplit(n["url"]).path
+            full = urlsplit(n["url"]).path.split(";")[0]        # ;jsessionid= 같은 경로 파라미터는 뗀다
             if full == login_path:
                 excluded.append(dict(row, role="auth", why="로그인 요청 (인증 방법으로 따로 보관)"))
             elif sp["action"]["target"] is None:
@@ -144,6 +173,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
 
     # 1) 핵심 후보
     steps: List[dict] = []
+    dropped_headers: set = set()
     seen: Dict[tuple, Optional[dict]] = {}
     for sp, n, path, data in items:
         disc = _discriminator(n)
@@ -153,9 +183,11 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                 seen[key] = None
                 excluded.append({"method": n["method"], "path": path, "role": "code", "why": "코드표 응답 (상태코드 풀이용 참조)"})
             continue
-        write = n["method"] not in ("GET", "HEAD") or bool(n.get("held"))
+        write = _is_write(n, policy)
         aria = (sp.get("post") or {}).get("aria") or ""
-        if not (_shown(data, n.get("res") or "", aria) or write):
+        shown = _shown(data, n.get("res") or "", aria)
+        cand = not (shown or write)                       # 화면에 안 나타난 요청: 뒤 단계가 쓰면 prereq, 아니면 빠진다
+        if cand and data is None:
             if key not in seen:
                 seen[key] = None
                 excluded.append({"method": n["method"], "path": path, "role": "page" if n["rtype"] == "document" else "noise",
@@ -163,56 +195,91 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
             continue
         if seen.get(key) is not None:
             seen[key]["_spans"].append(sp["seq"])
+            if not cand and seen[key]["role"] == "prereq":
+                seen[key]["role"] = "core"
             continue
-        st = {"id": f"s{len(steps) + 1}", "role": "core", "base": n["base"], "origin": n["origin"], "method": n["method"], "path": path,
+        st = {"id": f"t{len(steps) + 1}", "role": "prereq" if cand else "core", "base": n["base"], "origin": n["origin"], "method": n["method"], "path": path,
               "discriminator": disc, "kind": _kind(n), "charset": n.get("charset"), "exec": "http", "formPage": None, "write": write,
-              "headers": {k: v for k, v in (n.get("headers") or {}).items() if k.startswith("x-")}, "outputs": {}, "params": [],
-              "recordedRes": n.get("res") or "", "recordedData": n.get("data"), "recordedStatus": n["status"],
-              "_sample": (sp, n, data), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""),
+              "headers": {}, "outputs": {}, "params": [],
+              "recordedRes": n.get("res") or "", "recordedData": copy.deepcopy(n.get("data")), "recordedStatus": n["status"],
+              "_sample": (sp, n, data), "_write": write, "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""),
               "_title": (sp.get("pre") or {}).get("title", "")}
+        for hk, hv in (n.get("headers") or {}).items():
+            if hk.lower().startswith("x-"):
+                if HIDDEN in str(hv) or _MASKED.search(str(hv)):
+                    dropped_headers.add(hk.lower())        # 가린 값은 그대로 재생하면 안 된다
+                else:
+                    st["headers"][hk.lower()] = hv
         seen[key] = st
         steps.append(st)
 
     # 2) 파라미터와 값 연결
     user_vals = _user_values(spans)
+    fill_labels = _fill_labels(spans)
     common = _common_values(steps)
     inputs: Dict[str, dict] = {}
     for i, st in enumerate(steps):
         sp, n, _ = st["_sample"]
         hidden = _hidden_before(spans, sp["seq"])
         for name, value, loc in _pairs(n):
+            masked = HIDDEN in value or bool(_MASKED.search(value))
             p = {"a": name, "loc": loc, "ex": "" if HIDDEN in value else value, "type": _type(value), "required": value != ""}
-            links = _find_link(value, steps[:i]) if len(value) >= MIN_VALUE_LEN else []
+            if value in user_vals:                                    # 1) 사용자가 넣은 값
+                p.update({"from": f"input.{name}", "source": USER_INPUT, "confidence": "high"})
+                inputs.setdefault(name, _input(name, p["type"], USER_INPUT, value, user_vals[value], "high", True))
+                st["params"].append(p)
+                continue
+            links = _find_link(value, steps[:i]) if len(value) >= MIN_VALUE_LEN and value != HIDDEN else []   # 2) 앞 단계 응답
             if links:
                 prev, path, many = links[0][0], links[0][1], len(links) > 1
                 out_name = name if "?" in path else (path.rsplit(".", 1)[-1].split("[")[0] or name)
                 prev["outputs"][out_name] = path
-                p.update({"from": f"{prev['id']}.{out_name}", "source": PREVIOUS_STEP_OUTPUT, "confidence": "low" if many else "high"})
-                if prev["role"] != "core":
-                    prev["role"] = "prereq"
-            elif (name in hidden and hidden[name] == value) or (_TOKEN_NAME.search(name) and value not in user_vals):
+                weak = many or (p["type"] == "number" and not _similar(name, out_name))
+                p.update({"from": f"{prev['id']}.{out_name}", "source": PREVIOUS_STEP_OUTPUT, "confidence": "low" if weak else "high"})
+            elif (name in hidden and hidden[name] == value) or (_TOKEN_NAME.search(name) and value not in user_vals):   # 3) 숨은 입력란
                 p.update({"from": f"session.hidden.{name}", "source": SESSION_CONTEXT, "confidence": "high" if name in hidden else "mid"})
                 st["exec"] = "browser"
                 st["formPage"] = (sp.get("pre") or {}).get("href") or None
-            elif value in user_vals:
-                p.update({"from": f"input.{name}", "source": USER_INPUT, "confidence": "high"})
-                inputs.setdefault(name, _input(name, p["type"], USER_INPUT, value, user_vals[value], "high", True))
             elif value == "":
                 p.update({"from": f"input.{name}", "source": USER_INPUT, "confidence": "low", "required": False})
                 inputs.setdefault(name, _input(name, "string", USER_INPUT, "", "", "low", False))
+            elif masked:
+                # 가린 값(전체든 일부든)은 고정값이 될 수 없다. 실행 때 사람이(또는 금고에서) 채우는 입력이다.
+                label = fill_labels.get(name)
+                p.update({"from": f"input.{name}", "source": USER_INPUT, "confidence": "mid" if label else "low"})
+                inputs.setdefault(name, _input(name, "string", USER_INPUT, value, label or "", "mid" if label else "low", True))
             elif name in common and common[name] == value:
                 p.update({"from": f"config.{name}", "source": SYSTEM_CONFIG, "confidence": "mid"})
             elif p["type"] == "date" and value == time.strftime("%Y%m%d", time.localtime(sp["action"]["t"] or time.time())):
                 p.update({"from": f"input.{name}", "source": DERIVED, "confidence": "low"})
                 inputs.setdefault(name, _input(name, "date", DERIVED, value, "", "low", True))
-            elif HIDDEN in value:
-                # 가린 비밀 값은 고정값이 될 수 없다. 실행 때 사용자(또는 금고)가 채우는 입력이다.
-                p.update({"from": f"input.{name}", "source": USER_INPUT, "confidence": "low"})
-                inputs.setdefault(name, _input(name, "string", USER_INPUT, value, "", "low", True))
             else:
-                looks_variable = p["type"] in ("date", "number") or bool(_MASKED.search(value))
-                p.update({"from": f"const:{value}", "source": CONSTANT, "confidence": "low" if looks_variable else "mid"})
+                p.update({"from": f"const:{value}", "source": CONSTANT, "confidence": "low" if p["type"] in ("date", "number") else "mid"})
             st["params"].append(p)
+
+    # 2-1) 뒤 단계가 쓰지 않은 후보(화면에 안 나타난 요청)는 뺀다. 쓰인 것은 prereq 로 남는다
+    used = set()
+    for st in reversed(steps):
+        if st["role"] == "core" or st["id"] in used:
+            for p in st["params"]:
+                if p.get("source") == PREVIOUS_STEP_OUTPUT:
+                    used.add(p["from"].split(".", 1)[0])
+    kept = []
+    for st in steps:
+        if st["role"] == "prereq" and st["id"] not in used:
+            excluded.append({"method": st["method"], "path": st["path"], "role": "page" if st["recordedData"] and st["kind"] == "html" else "noise",
+                             "why": "응답 값이 화면에 나타나지 않음"})
+        else:
+            kept.append(st)
+    remap = {st["id"]: f"s{k}" for k, st in enumerate(kept, 1)}
+    steps = kept
+    for st in steps:
+        for p in st["params"]:
+            if p.get("source") == PREVIOUS_STEP_OUTPUT:
+                head, tail = p["from"].split(".", 1)
+                p["from"] = f"{remap[head]}.{tail}"
+    for st in steps:
+        st["id"] = remap[st["id"]]
 
     # 3) 출력
     output = {"from": None, "fields": []}
@@ -223,10 +290,10 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         aria = (sp.get("post") or {}).get("aria") or ""
         if data is not None:
             output = {"from": last["id"], "fields": [p for p, v in leaves(data)[:300]
-                                                     if len(str(v)) >= 2 and str(v) in aria and "_links" not in p and ".hidden." not in p][:20]}
+                                                     if len(str(v)) >= 2 and str(v) != HIDDEN and str(v) in aria and "_links" not in p and ".hidden." not in p][:20]}
 
     # 4) 정책
-    ops = [_op_of(s["_sample"][1], s["_label"]) for s in steps] or ["READ"]
+    ops = [_op_of(s["_sample"][1], s["_label"], s["write"]) for s in steps] or ["READ"]
     op = max(ops, key=_ORDER.index)
     risk, approval = _RISK[op]
     policy_meta = {"operation": op, "risk": risk, "approval": approval, "envPolicy": "op-auto" if op == "READ" else "op-confirm",
@@ -237,17 +304,20 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         notes.append("핵심 요청을 찾지 못했습니다. 아래 전체 요청 목록에서 업무에 해당하는 것을 골라 주세요.")
     if any(s["kind"] == "other" for s in steps):
         notes.append("JSON 도 표도 아닌 응답이 있어 그 단계에서는 값을 꺼낼 수 없습니다.")
+    if dropped_headers:
+        notes.append("가려진 값이 든 헤더는 단계에서 뺐습니다(재생하면 가림 문자가 그대로 나갑니다): " + ", ".join(sorted(dropped_headers)))
     desc = _describe(rec, steps, list(inputs.values()), output, op)
     evidence = {s["id"]: s["_spans"] for s in steps}
     for s in steps:
-        for k in ("_sample", "_spans", "_label", "_title"):
+        for k in ("_sample", "_spans", "_label", "_title", "_write"):
             s.pop(k, None)
     login = rec.get("login") or {}
     return {"id": "bf_" + rec["id"][4:], "name": rec["name"], "desc": desc, "status": "draft",
             "source": {"base": rec["sourceBase"], "recordingId": rec["id"], "made": "manual-record", "env": rec["env"]},
             "inputs": list(inputs.values()), "steps": steps, "references": [x for x in excluded if x["role"] == "code"],
             "excluded": excluded, "output": output,
-            "auth": {"mode": "session" if login.get("recipe") else "none", "recipe": login.get("recipe")},
+            "auth": {"mode": "session" if login.get("recipe") else "none", "recipe": login.get("recipe"),
+                     "droppedHeaders": sorted(dropped_headers)},
             "executionMode": None, "policy": policy_meta, "policyIncomplete": True,
             "verification": {"status": "pending", "at": None, "runs": []}, "evidence": evidence, "notes": notes}
 
@@ -272,10 +342,28 @@ def _user_values(spans: List[dict]) -> Dict[str, str]:
     for sp in spans:
         for f in sp.get("fills", []):
             v = str(f.get("value") or "")
-            if v:
+            if v and v != HIDDEN:                      # 가린 비밀 값은 서로 같아 보이므로 값 열쇠로 쓰지 않는다
                 t = f.get("target") or {}
                 out.setdefault(v, t.get("label") or t.get("text") or t.get("name") or t.get("id") or "")
     return out
+
+
+def _fill_labels(spans: List[dict]) -> Dict[str, str]:
+    """입력란 이름·id → 화면 라벨. 가린 값은 값으로 짝지을 수 없어 이름으로 짝짓는다."""
+    out: Dict[str, str] = {}
+    for sp in spans:
+        for f in sp.get("fills", []):
+            t = f.get("target") or {}
+            label = t.get("label") or t.get("text") or t.get("name") or t.get("id") or ""
+            for key in (t.get("name"), t.get("id")):
+                if key:
+                    out.setdefault(str(key), label)
+    return out
+
+
+def _similar(a: str, b: str) -> bool:
+    x, y = re.sub(r"[^0-9a-z]", "", a.lower()), re.sub(r"[^0-9a-z]", "", b.lower())
+    return bool(x and y) and (x in y or y in x)
 
 
 def _hidden_before(spans: List[dict], seq: int) -> Dict[str, str]:
