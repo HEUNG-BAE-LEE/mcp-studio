@@ -214,7 +214,7 @@ class RecorderSession:
     async def _on_request_failed(self, request) -> None:
         """문서 요청이 연결 단계에서 실패하면 원인 문구를 로그와 콘솔에 남긴다(같은 문구는 30초에 한 번)."""
         try:
-            if request.resource_type != "document" or request.frame != self.page.main_frame:
+            if request.resource_type != "document" or request.frame.parent_frame is not None:
                 return                                   # 최상위 문서만. 광고 iframe 의 실패는 알리지 않는다
             err = (request.failure or "").strip()
             if not _CONN_ERR.search(err):
@@ -319,11 +319,12 @@ class RecorderSession:
         self.stopping = True
         self.guard.closing_now()
         if self._dialog is not None:
-            d, self._dialog = self._dialog, None
+            d = self._dialog
             try:
                 await asyncio.wait_for(self._close_dialog_for_stop(d), 5)
+                self._dialog = None
             except Exception:
-                pass                                     # 닫지 못해도 멈춤은 계속한다(스냅샷이 확인 창을 건너뛴다)
+                pass                                     # 닫지 못해도 멈춤은 계속한다. _dialog 를 남겨 두어 스냅샷이 그 페이지를 계속 건너뛴다
 
     async def stop(self) -> None:
         await self.begin_stopping()

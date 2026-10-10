@@ -202,13 +202,13 @@ def test_리퍼는_한_번_실패해도_계속_돈다(live, monkeypatch):
     assert store.get_recording(out["id"])["status"] == "interrupted" and manager.MANAGER.get(out["id"]) is None
 
 
-def test_중복_멈춤은_409이고_on_stopped는_한_번(live):
+def test_중복_멈춤은_409이고_on_stopped는_한_번(live, monkeypatch):
     from app.ieum.recorder import manager
     seen = []
 
     async def done(rid, s):
         seen.append(rid)
-    manager.MANAGER.on_stopped = done
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", done)
     try:
         out = start(live)
         call(manager.MANAGER.stop(out["id"]))
@@ -218,15 +218,15 @@ def test_중복_멈춤은_409이고_on_stopped는_한_번(live):
         time.sleep(0.3)
         assert seen == [out["id"]]
     finally:
-        manager.MANAGER.on_stopped = None
+        pass
 
 
-def test_멈추면_대기_중인_승인은_거부로_닫힌다(live):
+def test_멈추면_대기_중인_승인은_거부로_닫힌다(live, monkeypatch):
     from app.ieum.recorder import manager, store
     out = start(live)
     s = manager.MANAGER.get(out["id"])
     call(s.page.goto(s.policy.base + "/poListView.do"))
-    manager.MANAGER.on_stopped = _noop                 # 멈춘 뒤에도 세션을 열어 두고 원본 상태를 본다
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)                 # 멈춘 뒤에도 세션을 열어 두고 원본 상태를 본다
 
     async def list_body():
         r = await s.ctx.request.get(s.policy.base + "/poList.do")
@@ -251,7 +251,7 @@ def test_멈추면_대기_중인_승인은_거부로_닫힌다(live):
         assert not s.guard.holding
         assert call(list_body()) == before             # 원본에 쓰기가 닿지 않았다
     finally:
-        manager.MANAGER.on_stopped = None
+        pass
 
 
 async def _noop(rid, s):
@@ -305,12 +305,12 @@ def test_멈춤이_실패하면_세션이_남지_않고_다시_시작할_수_있
     assert start(live)["id"]
 
 
-def test_늦게_붙은_구독자도_떠_있는_승인_창을_받는다(live):
+def test_늦게_붙은_구독자도_떠_있는_승인_창을_받는다(live, monkeypatch):
     from app.ieum.recorder import manager
     out = start(live)
     s = manager.MANAGER.get(out["id"])
     call(s.page.goto(s.policy.base + "/poListView.do"))
-    manager.MANAGER.on_stopped = _noop
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)
 
     async def fire():
         asyncio.ensure_future(s.page.evaluate(
@@ -332,4 +332,4 @@ def test_늦게_붙은_구독자도_떠_있는_승인_창을_받는다(live):
         assert len(holds) == 1 and holds[0]["method"] == "POST"
         call(manager.MANAGER.stop(out["id"]))
     finally:
-        manager.MANAGER.on_stopped = None
+        pass

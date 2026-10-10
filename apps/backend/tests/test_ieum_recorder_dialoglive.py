@@ -72,12 +72,11 @@ def test_확인_창이_열린_채로도_begin_finish_탭목록이_상한_안에_
         call(manager.MANAGER.close(rid))
 
 
-def test_알림이_반복되는_사이트에서_확인_창이_열린_채_멈춰도_끝난다(live, site):
+def test_알림이_반복되는_사이트에서_확인_창이_열린_채_멈춰도_끝난다(live, site, monkeypatch):
     from app.ieum.recorder import manager, store
     rid = call(manager.MANAGER.start(dict(name="알림 반복", owner="홍길동", base=site, start="/detail", env="op")))["id"]   # 기록 대상이 로컬 사이트다
     s = manager.MANAGER.get(rid)
-    saved = manager.MANAGER.on_stopped
-    manager.MANAGER.on_stopped = _noop
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)
     ws = WS()
     s.subscribe(ws)
     try:
@@ -91,7 +90,7 @@ def test_알림이_반복되는_사이트에서_확인_창이_열린_채_멈춰�
         assert store.get_recording(rid)["status"] == "analyzing"
         assert [m for m in ws.msgs if m.get("t") == "notice" and "확인 창을 닫았" in m.get("msg", "")]
     finally:
-        manager.MANAGER.on_stopped = saved               # 원래 값(service.finish)을 되돌린다. None 으로 두면 뒤 시험의 분석이 안 돈다
+        pass
         call(manager.MANAGER.close(rid))
 
 
@@ -137,15 +136,19 @@ def test_확인_창이_열린_채_묶음을_닫아도_로그인_확인에서_멈
 
 
 def test_유휴_멈춤도_확인_창을_닫고_가드를_닫는다(live, monkeypatch):
-    from app.ieum.recorder import manager
+    from app.ieum.recorder import manager, store
     rid = start(live)["id"]
     s = manager.MANAGER.get(rid)
+    ws = WS()
+    s.subscribe(ws)
     _open_alert(s)
     monkeypatch.setenv("IEUM_RECORDER_IDLE_SEC", "0")
     t0 = time.time()
     call(manager.MANAGER._reap_once(), timeout=40)
     assert time.time() - t0 < 20
     assert s.guard.closing and s._dialog is None
+    assert store.get_recording(rid)["status"] == "interrupted"
+    assert [m for m in ws.msgs if m.get("t") == "notice" and "확인 창을 닫았" in m.get("msg", "")]
 
 
 def test_막히거나_취소된_문서_요청은_연결_실패로_알리지_않는다(live, site):

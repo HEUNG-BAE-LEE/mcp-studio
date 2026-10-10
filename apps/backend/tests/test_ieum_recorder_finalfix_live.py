@@ -20,13 +20,13 @@ def _save_bf(base):
             "auth": {"mode": "session"}}
 
 
-def test_멈춘_뒤에도_Replay_쓰기_승인은_받고_브라우저_단계는_한_번만_묻는다(live):
+def test_멈춘_뒤에도_Replay_쓰기_승인은_받고_브라우저_단계는_한_번만_묻는다(live, monkeypatch):
     from app.ieum.recorder import manager, replay, store
     out = start(live)
     rid = out["id"]
     s = manager.MANAGER.get(rid)
     call(s.page.goto(s.policy.base + "/poListView.do"))
-    manager.MANAGER.on_stopped = _noop                 # 멈춘 뒤에도 세션을 열어 둔다(service.finish 대신 시험이 검증을 부른다)
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)                 # 멈춘 뒤에도 세션을 열어 둔다(service.finish 대신 시험이 검증을 부른다)
     ws = WS()
     s.subscribe(ws)
     posts = []
@@ -69,7 +69,7 @@ def test_멈춘_뒤에도_Replay_쓰기_승인은_받고_브라우저_단계는_
         assert not s.guard.holding and len(posts) == 1
         assert [m.get("t") for m in ws.msgs].count("hold") == holds_before
     finally:
-        manager.MANAGER.on_stopped = None
+        pass
         call(manager.MANAGER.close(rid))
 
 
@@ -117,13 +117,13 @@ def test_편집_가능한_요소와_입력_역할은_글자_대신_이름표를_
     assert texts == ["메모", "검색어", "PO-2609-0142"], texts
 
 
-def test_멈추기_시작한_뒤_페이지가_보낸_쓰기는_120초_기다리지_않고_바로_거절한다(live):
+def test_멈추기_시작한_뒤_페이지가_보낸_쓰기는_120초_기다리지_않고_바로_거절한다(live, monkeypatch):
     from app.ieum.recorder import manager
     out = start(live)
     rid = out["id"]
     s = manager.MANAGER.get(rid)
     call(s.page.goto(s.policy.base + "/poListView.do"))
-    manager.MANAGER.on_stopped = _noop
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)
     ws = WS()
     s.subscribe(ws)
     try:
@@ -138,5 +138,5 @@ def test_멈추기_시작한_뒤_페이지가_보낸_쓰기는_120초_기다리�
         assert not s.guard.holding
         assert any(d["decision"] == "deny" and d["label"] == "기록 종료 중" for d in s.guard.decisions)
     finally:
-        manager.MANAGER.on_stopped = None
+        pass
         call(manager.MANAGER.close(rid))
