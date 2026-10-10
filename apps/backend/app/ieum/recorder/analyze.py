@@ -146,8 +146,14 @@ def _shown(data, raw: str, aria: str) -> bool:
     if not aria:
         return False
     if data is not None:
+        found = [(p, v) for p, v in leaves(data)[:300] if "_links" not in p and ".hidden." not in p and ".columns[" not in p]
+        rows: Dict[str, set] = {}                     # 표 머리글과 한 줄 안내 행(colspan)은 응답 값이 아니라 화면 틀이다
+        for p, v in found:
+            if ".rows[" in p:
+                rows.setdefault(p.rsplit(".", 1)[0], set()).add(str(v))
+        guide = {r for r, vals in rows.items() if len(vals) == 1 and sum(1 for p, _ in found if p.startswith(r + ".")) >= 2}
         return any(len(str(v)) >= MIN_VALUE_LEN and str(v) != HIDDEN and str(v) in aria
-                   for p, v in leaves(data)[:300] if "_links" not in p and ".hidden." not in p)
+                   for p, v in found if not (".rows[" in p and p.rsplit(".", 1)[0] in guide))
     texts = re.findall(r">([^<>]{3,})<", raw or "")
     return any(t.strip() and t.strip() in aria for t in texts[:50])
 

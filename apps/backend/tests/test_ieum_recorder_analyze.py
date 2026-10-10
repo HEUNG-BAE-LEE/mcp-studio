@@ -286,3 +286,12 @@ def test_빠진_후보가_남긴_출력과_헤더는_지운다():
     bf = analyze.analyze(REC, spans)
     assert [s["role"] for s in bf["steps"]] == ["core"]
     assert bf["auth"]["droppedHeaders"] == [] and not any("x-auth-token" in n for n in bf["notes"])
+
+
+def test_표_머리글과_안내_행만_있는_화면_이동은_핵심_단계가_아니라_page():
+    page_html = ('<table><tr><th>발주번호</th><th>거래처</th></tr><tr><td colspan="2">조회 조건을 입력하고 [조회] 버튼을 누르세요.</td></tr></table>')
+    spans = [span(1, {"tag": "A", "text": "발주 현황"}, [net("GET", "/poListView.do", "", page_html, rtype="document", data=htmltable.to_data(page_html))],
+                  post_aria="- table:\n  - columnheader: 발주번호\n  - columnheader: 거래처\n  - cell: 조회 조건을 입력하고 [조회] 버튼을 누르세요.")]
+    bf = analyze.analyze(REC, spans)
+    assert not bf["steps"]
+    assert any(e["path"] == "/poListView.do" and e["role"] == "page" for e in bf["excluded"]), bf.get("excluded")

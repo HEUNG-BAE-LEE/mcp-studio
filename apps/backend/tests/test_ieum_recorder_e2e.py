@@ -90,6 +90,17 @@ class Driver:
             time.sleep(0.5)
         raise AssertionError("분석·검증이 끝나지 않았다")
 
+    def close(self):
+        """시험이 끝나면 기록을 멈추고 연결을 닫는다(브라우저 세션을 남기지 않는다)."""
+        try:
+            httpx.post(self.base + f"/api/ieum/recorder/recordings/{self.rid}/stop/", timeout=60)
+        except Exception:
+            pass
+        try:
+            self.ws.close()
+        except Exception:
+            pass
+
     def function(self, rec):
         return httpx.get(self.base + f"/api/ieum/recorder/functions/{rec['functionId']}/").json()["resultData"]
 
@@ -102,10 +113,10 @@ def test_XHR_읽기_업무가_두_단계_업무_기능이_되고_검증된다(ie
     rec = d.stop_and_wait()
     assert rec["status"] == "review", rec.get("error")
     bf = d.function(rec)
-    # 메뉴를 눌러 화면을 연 요청(poListView.do)도 단계로 남는다 — 업무의 데이터 단계는 마지막 둘이다
-    assert [s["path"] for s in bf["steps"]][-2:] == ["/poList.do", "/poDetail.do"]
-    po = next(p for p in bf["steps"][-1]["params"] if p["a"] == "poNo")
-    assert po["from"].startswith("s%d." % (len(bf["steps"]) - 1)) and po["source"] == "PREVIOUS_STEP_OUTPUT"
+    assert [s["path"] for s in bf["steps"]] == ["/poList.do", "/poDetail.do"]
+    assert any(e["path"] == "/poListView.do" and e["role"] == "page" for e in bf["excluded"])   # 메뉴 화면 이동은 단계가 아니다
+    po = next(p for p in bf["steps"][1]["params"] if p["a"] == "poNo")
+    assert po["from"].startswith("s1.") and po["source"] == "PREVIOUS_STEP_OUTPUT"
     assert bf["verification"]["runs"][0]["ok"] is True and bf["desc"]
 
 
@@ -124,39 +135,50 @@ def test_서버_렌더링_업무가_HTML_표_단계와_브라우저_실행으로
     assert (s1["method"], s1["path"], s1["kind"], s1["exec"]) == ("POST", "/vendSearch.do", "html", "browser")
     assert (s2["path"], s2["kind"]) == ("/vendDetail.do", "html")
     v = next(p for p in s2["params"] if p["a"] == "vendCd")
-    assert v["source"] == "PREVIOUS_STEP_OUTPUT"
+    assert v["source"] == "PREVIOUS_STEP_OUTPUT" and v["from"].startswith("s1.")
     assert bf["verification"]["runs"][0]["ok"] is True and bf["executionMode"] == "browser"
-    aria = " ".join(s["post"]["aria"] for s in store.read_spans(rec["id"]))
-    assert "010-4821-5678" not in aria                               # 상세 화면의 휴대전화는 가려서 저장했다
+    spans = store.read_spans(rec["id"])
+    saved = " ".join(s["post"]["aria"] + json.dumps(s["network"], ensure_ascii=False) for s in spans)
+    assert "010-4821-5678" not in saved                              # 상세 화면의 휴대전화는 ARIA·응답 사본 어디에도 원값으로 남지 않는다
 
 
 def test_운영_쓰기는_거절하면_닿지_않고_승인하면_닿는다(ieum_server):
     d = Driver(ieum_server)
-    d.click("text=발주 등록")
-    d.click("#btnVend")
-    d.click("a.vendPick >> nth=0")
-    d.click("button.pick >> nth=0")
-    d.click("#btnSave")
-    hold = d.wait(lambda m: m["t"] == "hold")
-    assert hold["path"].endswith("/poSave.do")
-    d.ws.send(json.dumps({"t": "approve", "id": hold["id"], "ok": False}))
-    d.wait(lambda m: m["t"] == "hold-end" and m["decision"] == "deny")
-    q = dict(params={"fromDt": "20261001", "toDt": "20261031"}, headers={"X-Requested-With": "XMLHttpRequest"}, timeout=10)
-    assert httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 0
-    d.msgs.clear()
-    d.click("#btnSave")
-    hold = d.wait(lambda m: m["t"] == "hold")
-    d.ws.send(json.dumps({"t": "approve", "id": hold["id"], "ok": True}))
-    d.wait(lambda m: m["t"] == "hold-end" and m["decision"] == "approve")
-    time.sleep(1.0)
-    assert httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 1
+    try:
+        d.click("text=발주 등록")
+        d.click("#btnVend")
+        d.click("a.vendPick >> nth=0")
+        d.click("button.pick >> nth=0")
+        d.click("#btnSave")
+        hold = d.wait(lambda m: m["t"] == "hold")
+        assert hold["path"].endswith("/poSave.do")
+        d.ws.send(json.dumps({"t": "approve", "id": hold["id"], "ok": False}))
+        d.wait(lambda m: m["t"] == "hold-end" and m["decision"] == "deny")
+        q = dict(params={"fromDt": "20261001", "toDt": "20261031"}, headers={"X-Requested-With": "XMLHttpRequest"}, timeout=10)
+        assert httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 0
+        d.msgs.clear()
+        d.click("#btnSave")
+        hold = d.wait(lambda m: m["t"] == "hold")
+        d.ws.send(json.dumps({"t": "approve", "id": hold["id"], "ok": True}))
+        d.wait(lambda m: m["t"] == "hold-end" and m["decision"] == "approve")
+        end = time.time() + 15
+        while time.time() < end:
+            if httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 1:
+                break
+            time.sleep(0.3)
+        assert httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 1
+    finally:
+        d.close()
 
 
 def test_한글_입력이_깨지지_않는다(ieum_server):
     d = Driver(ieum_server)
-    d.click("text=발주 등록")
-    d.click("#vendNm")
-    for _ in range(4):
-        d.key("Backspace")
-    d.text("한빛")
-    assert d.run(d.session.page.input_value("#vendNm")) == "한빛"
+    try:
+        d.click("text=발주 등록")
+        d.click("#vendNm")
+        for _ in range(4):
+            d.key("Backspace")
+        d.text("한빛")
+        assert d.run(d.session.page.input_value("#vendNm")) == "한빛"
+    finally:
+        d.close()
