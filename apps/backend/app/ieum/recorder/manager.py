@@ -1,0 +1,152 @@
+# apps/backend/app/ieum/recorder/manager.py
+"""기록 세션 관리: 만들기, 찾기, 상한(서버 전체·사람당), 유휴 회수, 보관 정리 주기, Playwright 수명.
+
+Playwright 비동기 객체는 만든 이벤트 루프에 묶인다. 시험처럼 서버(루프)가 바뀌면 이전 것은 쓸 수 없으므로 새로 만든다.
+사람당 상한은 기록하는 사람 이름으로 센다(콘솔 로그인이 생기면 계정으로 바꾼다).
+"""
+import asyncio
+import time
+from typing import Awaitable, Callable, Dict, Optional
+
+from app.ieum.gateway import credentials
+from app.ieum.recorder import config, retention, store
+from app.ieum.recorder.session import RecorderSession
+
+
+class RecorderError(Exception):
+    def __init__(self, message: str, code: int = 400):
+        super().__init__(message)
+        self.code = code
+
+
+def vault_key(rid: str) -> str:
+    return f"rec:{rid}"
+
+
+def _owner_key(name: str) -> str:
+    return " ".join((name or "").split())
+
+
+class Manager:
+    def __init__(self) -> None:
+        self.sessions: Dict[str, RecorderSession] = {}
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self._pw = None
+        self._reaper: Optional[asyncio.Task] = None
+        self._swept_at = 0.0
+        self.on_stopped: Optional[Callable[[str, RecorderSession], Awaitable[None]]] = None
+
+    async def _ensure(self):
+        loop = asyncio.get_running_loop()
+        if self.loop is not loop:                     # 루프가 바뀌었다(서버 재기동, 시험). 이전 세션은 쓸 수 없다
+            self.sessions, self._pw, self._reaper = {}, None, None
+            self.loop = loop
+        if self._pw is None:
+            from playwright.async_api import async_playwright
+            self._pw = await async_playwright().start()
+        if self._reaper is None:
+            self._reaper = asyncio.ensure_future(self._reap())
+        return self._pw
+
+    def usage(self) -> dict:
+        by: Dict[str, int] = {}
+        for s in self.sessions.values():
+            if not s.closed:
+                by[_owner_key(s.owner)] = by.get(_owner_key(s.owner), 0) + 1
+        return {"total": sum(by.values()), "max": config.max_sessions(), "perOwner": config.max_per_owner(), "byOwner": by}
+
+    async def start(self, payload: dict) -> dict:
+        name = (payload.get("name") or "").strip()
+        owner = _owner_key(payload.get("owner") or "")
+        base = (payload.get("base") or "").strip().rstrip("/")
+        env = payload.get("env") or "op"
+        if not name:
+            raise RecorderError("업무 이름을 입력해 주세요.")
+        if not owner:
+            raise RecorderError("기록하는 사람을 입력해 주세요. 동시 기록 상한을 사람마다 셉니다.")
+        if not base.startswith(("http://", "https://")):
+            raise RecorderError("대상 시스템 주소는 http:// 또는 https:// 로 시작해야 합니다.")
+        if env not in ("op", "stg"):
+            raise RecorderError("환경은 운영(op) 또는 스테이징(stg) 이어야 합니다.")
+        pw = await self._ensure()
+        u = self.usage()
+        if u["byOwner"].get(owner, 0) >= u["perOwner"]:
+            raise RecorderError(f"{owner} 님이 이미 {u['byOwner'][owner]}개를 기록 중입니다(사람당 {u['perOwner']}개). 진행 중인 기록을 끝내고 다시 시작해 주세요.", 409)
+        if u["total"] >= u["max"]:
+            who = ", ".join(f"{k} {v}개" for k, v in u["byOwner"].items())
+            raise RecorderError(f"동시 기록이 가득 찼습니다(서버 전체 {u['max']}개: {who}). 진행 중인 기록이 끝나면 다시 시작해 주세요.", 409)
+        account, password = payload.get("account") or "", payload.get("password") or ""
+        creds = {"username": account, "password": password} if account and password else None
+        rec = store.new_recording(name, owner, base, payload.get("start") or "", env, "auto" if creds else "manual", payload.get("readPost") or "")
+        await asyncio.to_thread(store.save_recording, rec)
+        if creds:
+            await asyncio.to_thread(credentials.put, vault_key(rec["id"]), {"type": "session", "username": account, "password": password})
+        session = RecorderSession(rec, creds, on_dead=lambda rid: self.sessions.pop(rid, None))
+        self.sessions[rec["id"]] = session
+        try:
+            await session.start(pw)
+        except Exception as exc:
+            self.sessions.pop(rec["id"], None)
+            await session.close()
+            msg = str(exc).splitlines()[0][:300] if str(exc) else type(exc).__name__
+            await asyncio.to_thread(store.update_recording, rec["id"], lambda r: r.update(status="failed", error=msg, endedAt=time.time()))
+            raise RecorderError(msg, 500)
+        return {"id": rec["id"], "token": session.token}
+
+    def get(self, rid: str) -> Optional[RecorderSession]:
+        s = self.sessions.get(rid)
+        return None if s is None or s.closed else s
+
+    async def stop(self, rid: str) -> None:
+        s = self.get(rid)
+        if s is None:
+            raise RecorderError("진행 중인 기록이 아닙니다.", 404)
+        await s.stop()
+        await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="analyzing"))
+        if self.on_stopped is not None:
+            asyncio.ensure_future(self.on_stopped(rid, s))
+        else:
+            await self.close(rid)
+
+    async def close(self, rid: str) -> None:
+        s = self.sessions.pop(rid, None)
+        if s is not None:
+            await s.close()
+
+    async def shutdown(self) -> None:
+        for rid in list(self.sessions):
+            await self.close(rid)
+        if self._reaper is not None:
+            self._reaper.cancel()
+        if self._pw is not None:
+            try:
+                await self._pw.stop()
+            except Exception:
+                pass
+        self._pw, self._reaper = None, None
+
+    async def _reap(self) -> None:
+        while True:
+            await asyncio.sleep(15)
+            now = time.time()
+            if now - self._swept_at > 86400:
+                self._swept_at = now
+                await asyncio.to_thread(retention.sweep, now)
+            for rid, s in list(self.sessions.items()):
+                try:
+                    status = (await asyncio.to_thread(store.get_recording, rid))["status"]
+                except KeyError:
+                    await self.close(rid)
+                    continue
+                if status != "recording":
+                    continue                     # 분석·검증 중인 세션은 service.finish 가 닫는다
+                if now - s.last_input > config.idle_sec():
+                    await s.trace.finish(s.page)
+                    await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(
+                        status="interrupted", endedAt=now, error="입력이 오래 없어 기록을 멈췄습니다."))
+                    await self.close(rid)
+                elif now - s.started > config.max_sec():
+                    await self.stop(rid)
+
+
+MANAGER = Manager()
