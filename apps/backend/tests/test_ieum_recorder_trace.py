@@ -98,6 +98,17 @@ def test_클릭과_요청과_화면_변화를_한_묶음으로_저장하고_개�
     assert (store.rec_dir(rec["id"]) / "1-pre.jpg").exists() and any(m["t"] == "span" for m in sent)
 
 
+def test_입력칸을_눌러도_입력_원값이_행동_대상에_남지_않는다(ieum_state):
+    async def steps(page, cdp, tr):
+        await page.fill("#tel", "010-4821-5678")
+        await tr.begin(page, "click")
+        await page.click("#tel")
+        await page.wait_for_timeout(500)
+    rec, sent, tr = _record(ieum_state, steps)
+    span = store.read_spans(rec["id"])[0]
+    assert span["action"]["target"]["id"] == "tel" and "010-4821-5678" not in str(span["action"])
+
+
 def test_서버가_그린_화면_응답도_기록하고_표를_바꾼다(ieum_state):
     async def steps(page, cdp, tr):
         await tr.begin(page, "click")

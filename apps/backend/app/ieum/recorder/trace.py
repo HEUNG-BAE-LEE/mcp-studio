@@ -39,8 +39,10 @@ _CHARSET = re.compile(r"charset=([\w-]+)", re.I)
 INIT_JS = """
 (() => {
   if (window.__ieumRecInstalled) return; window.__ieumRecInstalled = true;
+  const isForm = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName || '');   // 입력칸의 값(.value)은 대상 설명에 쓰지 않는다
   const desc = (el) => el ? ({ tag: el.tagName || '', id: el.id || '', name: (el.getAttribute && (el.getAttribute('name') || '')) || '',
-      role: (el.getAttribute && el.getAttribute('role')) || '', text: ((el.innerText || el.value || (el.getAttribute && el.getAttribute('aria-label')) || '') + '').trim().slice(0, 60) }) : null;
+      role: (el.getAttribute && el.getAttribute('role')) || '', text: (isForm(el) ? ((el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || '') + '')
+        : ((el.innerText || (el.getAttribute && el.getAttribute('aria-label')) || '') + '')).trim().slice(0, 60) }) : null;
   const pick = (el) => (el && el.closest) ? (el.closest('button,a,input,select,textarea,tr,[onclick],[role]') || el) : el;
   const label = (el) => { try { if (el.labels && el.labels[0]) return el.labels[0].innerText.trim().slice(0, 40);
       const th = el.closest('td') && el.closest('td').previousElementSibling; if (th && th.tagName === 'TH') return th.innerText.trim().slice(0, 40); } catch (e) {}
@@ -228,6 +230,8 @@ class Trace:
             return
         el = ev.get("el") or {}
         if ev.get("type") == "click" and span["action"]["target"] is None:
+            if isinstance(el, dict) and isinstance(el.get("text"), str):
+                el = dict(el, text=self.masker.text(el["text"]))      # 대상 글자에 값이 섞여도 가려서 저장한다
             span["action"]["target"] = el
             span["action"]["isTrusted"] = ev.get("isTrusted")
             self.guard.label = el.get("text") or el.get("id") or ""

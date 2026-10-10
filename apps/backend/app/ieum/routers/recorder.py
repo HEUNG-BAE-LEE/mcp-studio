@@ -4,6 +4,8 @@ WebSocket 은 기록 세션마다 시작 응답으로 받은 토큰이 있어야
 화면을 열 수 없게 하는 장치가 이 토큰뿐이다. 스토어·파일을 다루는 동기 함수는 이벤트 루프를 막지 않게 스레드로 넘긴다.
 """
 import asyncio
+import json
+import logging
 import re
 import secrets
 from typing import Optional
@@ -16,13 +18,18 @@ from app.ieum.recorder import retention, store
 from app.ieum.recorder.manager import MANAGER, RecorderError, vault_key
 from app.ieum.responses import fail, ok
 
+log = logging.getLogger(__name__)
+
 SHOT_NAME = re.compile(r"^\d+-(pre|post)\.jpg$")
 REC_ID = re.compile(r"^rec_[0-9a-f]{8}$")
 
 
 def _startup() -> None:
-    store.mark_interrupted()
-    retention.sweep()
+    for job in (store.mark_interrupted, retention.sweep):
+        try:
+            job()
+        except Exception:
+            log.exception("기록 기동 정리(%s)에 실패했지만 서버는 계속 뜹니다.", job.__name__)
 
 
 async def _shutdown() -> None:
@@ -57,6 +64,8 @@ async def recording_start(payload: Optional[dict] = Body(None)):
 
 @router.get("/recordings/{rid}/")
 async def recording_get(rid: str):
+    if not REC_ID.fullmatch(rid):
+        return fail(400, "잘못된 기록 번호입니다.")
     try:
         return ok(await asyncio.to_thread(store.get_recording, rid))
     except KeyError:
@@ -65,6 +74,8 @@ async def recording_get(rid: str):
 
 @router.get("/recordings/{rid}/spans/{seq}/")
 async def recording_span(rid: str, seq: int):
+    if not REC_ID.fullmatch(rid):
+        return fail(400, "잘못된 기록 번호입니다.")
     spans = await asyncio.to_thread(store.read_spans, rid)
     sp = next((s for s in spans if s["seq"] == seq), None)
     if sp is None:
@@ -75,6 +86,8 @@ async def recording_span(rid: str, seq: int):
 
 @router.post("/recordings/{rid}/stop/")
 async def recording_stop(rid: str):
+    if not REC_ID.fullmatch(rid):
+        return fail(400, "잘못된 기록 번호입니다.")
     try:
         await MANAGER.stop(rid)
     except RecorderError as exc:
@@ -87,18 +100,34 @@ async def recording_stop(rid: str):
 
 @router.delete("/recordings/{rid}/")
 async def recording_delete(rid: str):
-    await MANAGER.close(rid)
+    if not REC_ID.fullmatch(rid):
+        return fail(400, "잘못된 기록 번호입니다.")
+    missing, errors = False, []
+    try:
+        await MANAGER.close(rid)
+    except Exception:
+        log.exception("기록 세션을 닫지 못했습니다: %s", rid)
+        errors.append("세션")
     try:
         await asyncio.to_thread(store.delete_recording, rid)
     except KeyError:
-        return fail(404, "기록을 찾을 수 없습니다.")
-    await asyncio.to_thread(credentials.delete, vault_key(rid))
-    return ok({"deleted": rid})
+        missing = True
+    except Exception:
+        log.exception("기록 삭제에 실패했습니다: %s", rid)
+        errors.append("기록")
+    try:
+        await asyncio.to_thread(credentials.delete, vault_key(rid))      # 기록이 이미 없어도 금고 키는 지운다
+    except Exception:
+        log.exception("금고 키 삭제에 실패했습니다: %s", rid)
+        errors.append("금고")
+    if errors:
+        return fail(500, "일부를 지우지 못했습니다: " + ", ".join(errors))
+    return fail(404, "기록을 찾을 수 없습니다.") if missing else ok({"deleted": rid})
 
 
 @router.get("/recordings/{rid}/shots/{name}")
 def recording_shot(rid: str, name: str):
-    if not SHOT_NAME.match(name) or not REC_ID.match(rid):
+    if not SHOT_NAME.fullmatch(name) or not REC_ID.fullmatch(rid):
         return fail(400, "잘못된 화면 캡처 이름입니다.")
     path = store.rec_dir(rid) / name
     if not path.exists():
@@ -108,19 +137,25 @@ def recording_shot(rid: str, name: str):
 
 @router.websocket("/ws/{rid}")
 async def recording_ws(websocket: WebSocket, rid: str, token: str = ""):
-    s = MANAGER.get(rid)
-    if s is None or not secrets.compare_digest(token, s.token):
+    s = MANAGER.get(rid) if REC_ID.fullmatch(rid) else None
+    if s is None or not secrets.compare_digest(token.encode(), s.token.encode()):
+        await websocket.accept()
         await websocket.close(code=4403)
         return
     await websocket.accept()
     s.subscribe(websocket)
-    await s.send_tabs()
     try:
+        await s.send_tabs()
         while True:
-            await s.handle(await websocket.receive_json())
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+                if not isinstance(msg, dict):
+                    continue
+                await s.handle(msg)
+            except Exception:
+                log.exception("기록 화면 메시지 처리에 실패했습니다: %s", rid)
     except WebSocketDisconnect:
-        pass
-    except Exception:
         pass
     finally:
         s.unsubscribe(websocket)
