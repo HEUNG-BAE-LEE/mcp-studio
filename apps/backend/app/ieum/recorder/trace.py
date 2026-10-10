@@ -30,8 +30,10 @@ ARIA_MAX = 20_000
 RES_MAX = 4_000
 SETTLE_MAX_MS = 3000
 SETTLE_QUIET_MS = 400
-_PAIRS_BODY = re.compile(r"^[^=&\s]+=[^&]*(?:&[^=&\s]+=[^&]*)*$")
-_XML_ELEM = re.compile(r"<((?:[\w.-]+:)?([\w.-]+))((?:\s[^>]*)?)>([^<]*)</\1>")
+_PAIRS_BODY = re.compile(r"^(?:[^=&\s]+=[^&]*)?(?:&(?:[^=&\s]+=[^&]*)?)*$")
+_XML_ELEM = re.compile(r"<((?:[\w.-]+:)?([\w.-]+))((?:\s[^>]*)?)>(<!\[CDATA\[.*?\]\]>|[^<]*)</\1>", re.S)
+_XML_TAG = re.compile(r"<[\w.:-]+\s[^<>]*>")
+_XML_ATTR = re.compile(r"([\w.:-]+)(\s*=\s*)(\"[^\"]*\"|'[^']*')")
 _CHARSET = re.compile(r"charset=([\w-]+)", re.I)
 
 INIT_JS = """
@@ -65,6 +67,7 @@ class Trace:
         self._inflight = 0
         self._limit_sent = False
         self._close_lock = asyncio.Lock()
+        self.ended = False
 
     # ── 마스킹 (원값은 입력칸 값만 지도에 남긴다) ───────────────────────────
     def _m(self, v: str) -> str:
@@ -101,7 +104,7 @@ class Trace:
                 return self._m(post)[:RES_MAX]
         if "x-www-form-urlencoded" in low:
             return self._pairs_text(parse_qsl(post, keep_blank_values=True))[:RES_MAX]
-        if _PAIRS_BODY.match(post) and not post.lstrip().startswith("<"):
+        if "=" in post and _PAIRS_BODY.match(post) and not post.lstrip().startswith("<"):
             return self._pairs_text(parse_qsl(post, keep_blank_values=True))[:RES_MAX]
         return self._hide_xml_secrets(post, self._m)[:RES_MAX]
 
@@ -112,7 +115,9 @@ class Trace:
             if m.group(4) and is_secret_key(m.group(2)):
                 return f"<{m.group(1)}{m.group(3)}>{HIDDEN}</{m.group(1)}>"
             return m.group(0)
-        return mask(_XML_ELEM.sub(repl, text))
+        def attrs(m):
+            return _XML_ATTR.sub(lambda a: f'{a.group(1)}{a.group(2)}"{HIDDEN}"' if is_secret_key(a.group(1)) else a.group(0), m.group(0))
+        return mask(_XML_TAG.sub(attrs, _XML_ELEM.sub(repl, text)))
 
     # ── 진행 중 요청 ───────────────────────────────────────────────────────
     def on_request(self, request) -> None:
@@ -177,25 +182,24 @@ class Trace:
 
     # ── 묶음 ───────────────────────────────────────────────────────────────
     async def begin(self, page, kind: str) -> Optional[int]:
-        if self.paused:
-            return None
-        await self._close(page)
-        if self.seq >= MAX_SPANS:
-            if not self._limit_sent:
-                self._limit_sent = True
-                await self.notify({"t": "limit"})
-            return None
-        self.seq += 1
-        pre = await self._snapshot(page, self.seq, "pre")
-        self.current = {"seq": self.seq, "action": {"type": kind, "target": None, "isTrusted": None, "t": time.time()},
-                        "fills": [], "pre": pre, "network": [], "post": None}
-        return self.seq
+        async with self._close_lock:                     # 닫기와 열기를 한 잠금으로 묶어 묶음이 겹치거나 사라지지 않게 한다
+            if self.paused or self.ended:
+                return None
+            await self._close_locked(page)
+            if self.seq >= MAX_SPANS:
+                if not self._limit_sent:
+                    self._limit_sent = True
+                    await self.notify({"t": "limit"})
+                return None
+            self.seq += 1
+            pre = await self._snapshot(page, self.seq, "pre")
+            self.current = {"seq": self.seq, "action": {"type": kind, "target": None, "isTrusted": None, "t": time.time()},
+                            "fills": [], "pre": pre, "network": [], "post": None}
+            return self.seq
 
     async def finish(self, page) -> None:
-        await self._close(page)
-
-    async def _close(self, page) -> None:
-        async with self._close_lock:                     # 같은 묶음을 두 번 닫지 않는다
+        async with self._close_lock:
+            self.ended = True
             await self._close_locked(page)
 
     async def _close_locked(self, page) -> None:

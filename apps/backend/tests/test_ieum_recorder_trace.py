@@ -231,3 +231,57 @@ def test_잘린_표_본문은_조각난_값을_남기지_않는다():
     data = tr.current["network"][0]["data"]
     tels = [r.get("TEL") for t in data["tables"] for r in t["rows"]]
     assert tels and all(re.match(r"^\*\*\*-\*\*\*\*-5678$", v) for v in tels), tels[-3:]
+
+
+def _fake_trace():
+    tr = _bare_trace()
+    stored = []
+
+    async def snap(page, seq, when):
+        await asyncio.sleep(0.05)
+        return {"url": "", "href": "", "title": "", "aria": "", "hidden": {}, "shot": None}
+
+    async def settle():
+        return None
+    tr._snapshot, tr._settle = snap, settle
+    import app.ieum.recorder.trace as mod
+    return tr, stored, mod
+
+
+def test_겹친_begin도_묶음을_잃지_않는다(monkeypatch):
+    tr, stored, mod = _fake_trace()
+    monkeypatch.setattr(mod.store, "append_span", lambda rid, span: stored.append(span["seq"]))
+
+    async def go():
+        await asyncio.gather(tr.begin(None, "click"), tr.begin(None, "click"))
+        await tr.finish(None)
+    asyncio.new_event_loop().run_until_complete(go())
+    assert stored == [1, 2]
+
+
+def test_스냅샷_중_finish가_와도_열린_묶음이_저장되고_이후_begin은_거절된다(monkeypatch):
+    tr, stored, mod = _fake_trace()
+    monkeypatch.setattr(mod.store, "append_span", lambda rid, span: stored.append(span["seq"]))
+
+    async def go():
+        b = asyncio.ensure_future(tr.begin(None, "click"))
+        await asyncio.sleep(0.01)                       # begin 이 직전 스냅샷을 뜨는 중
+        await tr.finish(None)
+        await b
+        return await tr.begin(None, "click")
+    late = asyncio.new_event_loop().run_until_complete(go())
+    assert tr.current is None and stored == [1] and late is None
+
+
+def test_끝에_앰퍼샌드가_붙거나_연속인_본문도_쌍으로_가린다():
+    tr = _bare_trace()
+    assert "s3cret" not in tr._post("userPw=s3cret&", "text/plain")
+    assert "s3cret" not in tr._post("a=1&&userPw=s3cret", "")
+
+
+def test_cdata와_속성의_비밀도_가린다():
+    tr = _bare_trace()
+    out = tr._post("<login><password><![CDATA[s3cret]]></password><userId>kim</userId></login>", "text/xml")
+    assert "s3cret" not in out and "kim" in out
+    out = tr._post('<a auth_token="s3cret" name="kim"/>', "text/xml")
+    assert "s3cret" not in out and "kim" in out
