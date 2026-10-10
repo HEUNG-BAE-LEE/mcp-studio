@@ -52,6 +52,7 @@ try { const v = localStorage.getItem('ieum.view'); if (v) S.view = v; } catch (e
 const VIEWS = [
   { id:'dash', label:'대시보드', h:'대시보드', p:'원본 시스템이 AI 도구로 바뀌어 얼마나, 어떻게 쓰이고 있는지 확인합니다.' },
   { id:'src', label:'원본 시스템', h:'원본 시스템', p:'사내 시스템이나 공공 API를 연결하면 명세를 읽어 AI가 쓸 수 있는 도구 후보를 자동으로 만듭니다.' },
+  { id:'rec', label:'업무 기록', h:'업무 기록', p:'사람이 업무를 한 번 수행하면, 그 과정의 화면 조작과 API 호출을 묶어 다시 실행할 수 있는 업무 기능으로 만듭니다.' },
   { id:'studio', label:'변환 스튜디오', h:'변환 스튜디오', p:'원본 작업이 AI 도구로 어떻게 바뀌는지 확인하고, 설명과 파라미터 매핑을 다듬습니다.' },
   { id:'play', label:'테스트 실행', h:'테스트 실행', p:'AI 모델에게 질문해 도구 호출부터 원본 응답 변환까지 단계별로 확인합니다.' },
   { id:'deploy', label:'AI 연결 배포', h:'AI 연결 배포', p:'도구를 묶어 MCP 서버로 배포하고 Claude, Gemini, GPT, 사내 Agent에 연결합니다.' },

@@ -1,0 +1,315 @@
+/* 업무 기록: 사람이 서버 브라우저를 조작해 업무 하나를 기록하고, 검증된 업무 기능으로 만든다.
+   화면 ① 목록 → ② 새 기록 → ③ 기록 중(화면 중계) → ④ 검토. 승인 창은 화면 안 요소다(브라우저 기본 대화상자를 쓰지 않는다).
+   입력 원값(값 다시 입력 필요)은 서버로 보내 검증에만 쓰고 저장하지 않는다(요청이 끝나면 메모리에서도 지운다).
+   전역 REC 는 discovery.js 가 쓰고 있어서, 이 파일의 상태 객체는 RECR 이다. */
+const RECR = { page:'list', list:[], fns:[], usage:null, demo:null, form:null, live:null, fn:null, rec:null, busy:false, values:{} };
+const REC_STATUS = { recording:['기록 중','info'], analyzing:['분석 중','info'], verifying:['검증 중','info'], review:['검토 대기','warn'],
+  confirmed:['확정','ok'], failed:['실패','danger'], interrupted:['중단됨','mute'] };
+const REC_VERIFY = { verified:['검증됨','ok'], partial:['부분 검증','warn'], failed:['검증 실패','danger'], pending:['검증 전','mute'],
+  skipped:['검증 생략','mute'], stale:['다시 검증 필요','warn'], 'needs-login':['다시 로그인 필요','warn'], 'needs-value':['값 다시 입력 필요','warn'] };
+const REC_REASON = { needs_value:'값 입력 필요', unresolved_path:'값 경로를 찾지 못함', auth_expired:'로그인 만료', waf_blocked:'보안 장비가 막음',
+  http_error:'HTTP 오류', shape_mismatch:'응답 모양이 다름', error_response:'오류 응답', browser_needed:'브라우저 실행 필요',
+  login_failed:'로그인 실패', unexpected_error:'예상하지 못한 오류', skipped:'건너뜀', pipeline_error:'분석·검증 중 오류' };
+const REC_DECISION = { approve:'승인', deny:'거부', timeout:'시간 초과', login:'로그인 통과', staging:'스테이징', error:'승인 창 오류' };
+const REC_SOURCES = [['USER_INPUT','사용자 입력'],['PREVIOUS_STEP_OUTPUT','앞 단계 결과'],['SESSION_CONTEXT','세션 값'],
+  ['SYSTEM_CONFIG','설정값'],['DERIVED','계산 값'],['CONSTANT','고정값']];
+const recPill = (map, k) => { const v = map[k] || [k || '-', 'mute']; return `<span class="pill rec-${v[1]}">${esc(v[0])}</span>`; };
+const recReason = c => REC_REASON[c] || c;                                     // 모르는 사유는 코드를 그대로 보인다
+const recDecision = c => REC_DECISION[c] || c;
+const recErr = e => toast(esc(e.message), 'warn');                              // toast 는 innerHTML 이라 서버 문구도 거른다
+const recSteps = f => f.steps.filter(s => !s.skip);
+
+async function recRefresh() {
+  if (RECR.page === 'live' && RECR.live) {                                      // 다른 메뉴를 다녀온 기록 화면: 중계를 다시 붙인다
+    render(); recBind();
+    if (RECR.live.status === 'recording' && RECR.live.token) recWs.open(RECR.live.id, RECR.live.token);
+    return;
+  }
+  try {
+    const d = await api.get('/recorder/');
+    RECR.list = d.recordings; RECR.fns = d.functions; RECR.usage = d.usage; RECR.demo = d.demo;
+    if (S.view === 'rec') render();
+  } catch (e) { recErr(e); }
+}
+
+function vRec() {
+  if (RECR.page === 'new' && RECR.form) return pageHead('rec') + recNewHTML();
+  if (RECR.page === 'live' && RECR.live) return recLiveHTML();
+  if (RECR.page === 'review' && RECR.fn) return pageHead('rec') + recReviewHTML();
+  return pageHead('rec') + recListHTML();
+}
+
+/* 검토 화면은 다시 그리면 "값 다시 입력" 칸이 비므로, 메모리에 있는 값을 칸에 되돌린다(저장소에는 두지 않는다) */
+function recRender() {
+  render();
+  $$('input[data-inp="recVal"]').forEach(el => { el.value = RECR.values[el.dataset.n] || ''; });
+}
+
+/* ① 목록 */
+function recListHTML() {
+  const fnBy = Object.fromEntries(RECR.fns.map(f => [f.id, f]));
+  const u = RECR.usage || { total:0, max:4, perOwner:1, byOwner:{} };
+  const who = Object.entries(u.byOwner).map(([k, v]) => `${esc(k)} ${v}개`).join(', ');
+  const rows = RECR.list.map(r => {
+    const f = r.functionId ? fnBy[r.functionId] : null;
+    const kinds = f ? [...new Set(f.steps.map(s => s.kind === 'html' ? 'HTML' : 'JSON'))].join('·') : '';
+    return `<tr data-act="recOpen" data-id="${esc(r.id)}" tabindex="0"><td><b>${esc(r.name)}</b><small>${esc(r.owner || '')} · ${r.env === 'op' ? '운영' : '스테이징'}</small></td>
+      <td>${recPill(REC_STATUS, f && f.status === 'confirmed' ? 'confirmed' : r.status)} ${f ? recPill(REC_VERIFY, f.verification.status) : ''}
+      ${f && f.policyIncomplete ? '<span class="pill rec-warn">정책 미완</span>' : ''}</td>
+      <td>${f ? esc(f.policy.operation) : ''}</td><td>${f ? `${recSteps(f).length}단계` : ''}</td><td>${esc(kinds)}</td><td>${r.spanCount}개 행동</td></tr>`;
+  }).join('');
+  return `<div class="rec-bar"><button class="btn primary" data-act="recNew">${svg('plus', 16)}새 기록</button>
+    <span class="rec-hint">지금 기록 중 ${u.total}/${u.max}개${who ? ` (${who})` : ''} · 사람당 ${u.perOwner}개</span></div>
+    ${RECR.list.length ? `<table class="tbl rec-list"><thead><tr><th>업무</th><th>상태</th><th>작업 유형</th><th>단계</th><th>응답</th><th>기록</th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<div class="md-empty">아직 기록한 업무가 없습니다. <b>새 기록</b>을 눌러 업무 하나를 기록해 보세요.</div>'}`;
+}
+
+/* ② 새 기록 */
+function recNewHTML() {
+  const f = RECR.form;
+  const inp = (k, ph, o = {}) => `<input class="inp ${o.mono ? 'mono' : ''}" ${o.type ? `type="${o.type}"` : ''} data-inp="recF" data-k="${k}" value="${esc(f[k] || '')}" placeholder="${esc(ph)}" aria-label="${esc(ph)}">`;
+  return `<div class="card rec-form">
+    <div class="field"><label>업무 이름</label>${inp('name', '9월 발주 상세 조회')}</div>
+    <div class="field"><label>대상 시스템 주소</label>${inp('base', 'http://10.20.4.30:8080/po', { mono:1 })}<small>기록을 시작할 기준점입니다. 업무 중 다른 시스템으로 넘어가도 막지 않고 함께 기록합니다.</small></div>
+    <div class="field"><label>시작 화면 (선택)</label>${inp('start', '/login.do', { mono:1 })}</div>
+    <div class="field"><label>환경</label><div class="rec-env">
+      <label><input type="radio" name="recEnv" data-chg="recEnv" value="op" ${f.env === 'op' ? 'checked' : ''}> 운영 — 쓰기 요청은 승인 후에만 보냅니다</label>
+      <label><input type="radio" name="recEnv" data-chg="recEnv" value="stg" ${f.env === 'stg' ? 'checked' : ''}> 스테이징 — 쓰기도 그대로 보냅니다</label></div></div>
+    <div class="field"><label>서비스 계정 (선택)</label><div class="two">${inp('account', '아이디')}${inp('password', '비밀번호', { type:'password' })}</div>
+      <small>비우거나 자동 로그인이 실패하면 기록 화면에서 직접 로그인합니다. 직접 로그인한 비밀번호는 저장하지 않습니다.</small></div>
+    <div class="field"><label>조회용 POST 경로 (선택)</label>${inp('readPost', '/po/searchPost.do', { mono:1 })}<small>검색을 POST 로 하는 화면이면 적어 주세요. 승인 없이 보냅니다.</small></div>
+    <div class="field"><label>기록하는 사람</label>${inp('owner', '홍길동')}<small>동시 기록 상한을 사람마다 셉니다.</small></div>
+    <div class="rec-actions"><button class="btn" data-act="recBack">취소</button>${RECR.demo ? '<button class="btn" data-act="recDemo">시연용 값 채우기</button>' : ''}
+      <button class="btn primary" data-act="recStart" ${RECR.busy ? 'disabled' : ''}>${RECR.busy ? '브라우저를 띄우는 중…' : '기록 시작'}</button></div></div>`;
+}
+
+/* ③ 기록 중 */
+function recLiveHTML() {
+  const L = RECR.live;
+  const tl = L.spans.slice(-60).map(s => `<li><b>${s.seq}</b> ${esc(((s.action.target || {}).text || s.action.type || '').slice(0, 24))}
+      ${s.network.map(n => `<div class="${n.held ? 'w' : ''}">${esc(n.method)} ${esc(n.path)} ${n.status == null ? '' : n.status}${n.kind === 'html' ? ' · HTML' : ''}${n.decision ? ` · ${esc(recDecision(n.decision))}` : ''}</div>`).join('')}</li>`).join('');
+  const blocked = L.blocked.slice(-5).map(b => `<li class="b">차단(서버 보호) ${esc(b.why)} — ${esc(b.url)}</li>`).join('');
+  const tabs = L.tabs.length > 1 ? `<span class="rec-tabs">${L.tabs.map(t => `<button class="btn sm ${t.index === L.active ? 'primary' : ''}" data-act="recTab" data-i="${t.index}">${esc((t.title || t.url || '탭').slice(0, 14))}</button>`).join('')}</span>` : '';
+  return `<div class="rec-live">
+    <div class="rec-top ${L.env === 'op' ? 'op' : ''}"><span class="dot"></span><b>${L.status === 'recording' ? (L.paused ? '일시정지' : '기록 중') : esc((REC_STATUS[L.status] || [L.status])[0])}</b>
+      <span>${esc(L.name)}</span><span class="env">${L.env === 'op' ? '운영' : '스테이징'}</span>${tabs}
+      <span class="sp"></span>${L.status === 'recording' ? `<button class="btn sm" data-act="recPause">${L.paused ? '다시 기록' : '일시정지'}</button>
+      <button class="btn sm primary" data-act="recStop">기록 종료</button>` : '<button class="btn sm" data-act="recBack">목록으로</button>'}</div>
+    ${L.msg ? `<div class="rec-msg">${esc(L.msg)}</div>` : ''}
+    <div class="rec-body"><div class="rec-screen"><canvas id="recCv" width="960" height="600"></canvas>
+      <textarea id="recIme" autocomplete="off" aria-label="키보드 입력"></textarea>
+      ${L.hold ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>${svg('lock', 16)} 쓰기 요청 승인</b>
+        <p>"${esc(L.hold.label || '알 수 없는 버튼')}" → <code>${esc(L.hold.method)} ${esc(L.hold.path)}</code></p>
+        <p>운영 데이터가 바뀝니다. 2분 안에 답하지 않으면 보내지 않습니다.</p>
+        <button class="btn danger-fill" data-act="recApprove" data-ok="1">승인하고 보내기</button> <button class="btn" data-act="recApprove" data-ok="0">보내지 않기</button></div>` : ''}
+      ${L.dialog ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>대상 사이트의 확인 창</b><p>${esc(L.dialog.message)}</p>
+        <button class="btn primary" data-act="recDialog" data-ok="1">확인</button> ${L.dialog.type !== 'alert' ? '<button class="btn" data-act="recDialog" data-ok="0">취소</button>' : ''}</div>` : ''}
+    </div>
+    <aside class="rec-side"><div class="label">타임라인</div><ol class="rec-tl">${tl || '<li class="mute">화면을 클릭하면 여기에 쌓입니다</li>'}${blocked}</ol>
+      <div class="rec-count">요청 ${L.spans.reduce((a, s) => a + s.network.length, 0)} · 쓰기 ${L.spans.reduce((a, s) => a + s.network.filter(n => n.held).length, 0)} · 차단 ${L.blocked.length}</div></aside></div></div>`;
+}
+
+/* ④ 검토 */
+function recReviewHTML() {
+  const f = RECR.fn, v = f.verification || {}, rid = f.source.recordingId, active = recSteps(f);
+  const inputs = f.inputs.map(i => `<tr class="${i.confidence === 'low' || i.needsValue ? 'low' : ''}"><td class="mono">${esc(i.name)}</td><td>${esc(i.screenLabel || '-')}</td>
+      <td><select class="inp sm" data-chg="recSrc" data-n="${esc(i.name)}" aria-label="${esc(i.name)} 출처">${REC_SOURCES.map(([k, l]) => `<option value="${k}" ${i.source === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      ${i.confidence === 'low' ? '<span class="pill rec-warn">확인 필요</span>' : ''}</td>
+      <td class="mono">${i.needsValue ? `<input class="inp sm" type="password" autocomplete="off" data-inp="recVal" data-n="${esc(i.name)}" placeholder="${esc(i.ex || '검증할 값')}" aria-label="${esc(i.name)} 검증할 값"><small>값 다시 입력 필요 · 저장하지 않습니다</small>` : esc(i.ex)}</td></tr>`).join('');
+  const ev = (seq, w) => seq ? `<img class="rec-shot" alt="행동 ${seq} ${w}" src="/api/ieum/recorder/recordings/${esc(rid)}/shots/${seq}-${w}.jpg" onerror="this.replaceWith(Object.assign(document.createElement('button'),{className:'btn sm',textContent:'화면 글자 보기',onclick:()=>recAria('${esc(rid)}',${seq})}))">` : '';
+  const steps = f.steps.map((s, i) => { const seq = (f.evidence[s.id] || [])[0];
+    return `<div class="rec-step ${s.skip ? 'skip' : ''}"><b>${esc(s.id)} · ${s.role === 'core' ? '핵심' : '선행'}</b>${s.skip ? ' <span class="pill rec-mute">건너뜀</span>' : ''}
+      <span class="pill rec-mute">${s.kind === 'html' ? 'HTML 표' : s.kind === 'json' ? 'JSON' : '기타'}</span> <span class="pill rec-mute">${s.exec === 'browser' ? '브라우저 실행' : 'HTTP'}</span>
+      <div class="rec-step-ctl"><button class="btn sm" data-act="recStepMove" data-i="${i}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="${esc(s.id)} 앞으로">↑</button>
+        <button class="btn sm" data-act="recStepMove" data-i="${i}" data-d="1" ${i === f.steps.length - 1 ? 'disabled' : ''} aria-label="${esc(s.id)} 뒤로">↓</button>
+        <button class="btn sm" data-act="recStepSkip" data-i="${i}">${s.skip ? '다시 쓰기' : '건너뛰기'}</button></div>
+      <div class="mono">${esc(s.method)} ${esc(s.path)}${s.discriminator ? ` (${esc(s.discriminator)})` : ''}</div>
+      ${s.base !== f.source.base ? `<small>다른 시스템: ${esc(s.base)}</small><br>` : ''}
+      ${s.params.map(p => `<small>${esc(p.a)} ← ${esc(p.from)}${p.confidence === 'low' ? ' ⚠' : ''}</small>`).join('<br>')}
+      ${Object.keys(s.outputs).length ? `<br><small>꺼내는 값: ${Object.entries(s.outputs).map(([k, p]) => `${esc(k)}=${esc(p)}`).join(', ')}</small>` : ''}
+      <div class="rec-shots">${ev(seq, 'pre')}${ev(seq, 'post')}</div></div>`; }).join('');
+  const excl = f.excluded.map(x => `<li><code>${esc(x.method)} ${esc(x.path)}</code> · ${esc(x.role)} — ${esc(x.why)}
+      ${['auth', 'denied'].includes(x.role) ? '' : `<button class="btn sm" data-act="recPromote" data-m="${esc(x.method)}" data-p="${esc(x.path)}">단계로 올리기</button>`}</li>`).join('');
+  const runs = (v.runs || []).map(r => {
+    const bad = (r.steps || []).filter(s => s.ok === false);
+    return `<li>${r.ok === true ? '✅' : r.ok === false ? '❌' : '⏭'} ${r.kind === 'same-values' ? '같은 값' : '다른 값'}
+      ${r.reason ? `<small>${esc(recReason(r.reason))}</small>` : ''}${r.note ? `<small>${esc(r.note)}</small>` : ''}
+      ${bad.map(s => `<div class="rec-run-step"><small>${esc(s.id)}: ${esc(recReason(s.reason || 'error_response'))}${s.note ? ` — ${esc(s.note)}` : ''}</small></div>`).join('')}</li>`; }).join('');
+  const aps = ((RECR.rec || {}).approvals || []).map(a => `<li><code>${esc(a.method)} ${esc(a.path)}</code> · ${esc(recDecision(a.decision))}</li>`).join('');
+  const sel = (k, opts) => `<select class="inp sm" data-chg="recPol" data-k="${k}" aria-label="${k}"><option value="">선택</option>${opts.map(o => `<option ${f.policy[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+  const regSingle = active.length === 1;
+  return `<div class="rec-rv-head"><div><h3>${esc(f.name)}</h3><small>${esc(f.policy.operation)} · 위험 ${esc(f.policy.risk)} · 승인 ${esc(f.policy.approval)} · 실행 ${esc(f.executionMode || '-')}</small></div>
+    <div><button class="btn" data-act="recBack">목록</button> <button class="btn" data-act="recVerify" ${RECR.busy ? 'disabled' : ''}>${RECR.busy ? '검증하는 중…' : '다시 검증'}</button> <button class="btn primary" data-act="recConfirm">확정</button></div></div>
+    ${(f.notes || []).map(n => `<div class="rec-msg">${esc(n)}</div>`).join('')}
+    <div class="rec-rv"><div>
+      <div class="label">설명 (AI 가 이 업무를 고를 때 읽습니다)</div>
+      <textarea class="inp rec-desc" data-chg="recDesc" rows="2" aria-label="업무 설명">${esc(f.desc || '')}</textarea>
+      <div class="label">입력값</div>
+      <table class="tbl"><thead><tr><th>이름</th><th>화면 라벨</th><th>출처</th><th>기록 값</th></tr></thead><tbody>${inputs || '<tr><td colspan="4" class="mute">입력값이 없습니다</td></tr>'}</tbody></table>
+      <div class="label">단계 (위에서 아래 순서로 실행합니다. 건너뛴 단계는 보관만 하고 되돌릴 수 있습니다)</div><div class="rec-steps">${steps || '<div class="md-empty">단계가 없습니다. 아래에서 업무에 해당하는 요청을 단계로 올려 주세요.</div>'}</div>
+      <details ${f.steps.length ? '' : 'open'}><summary class="label">단계에 넣지 않은 요청 (${f.excluded.length})</summary><ul class="rec-excl">${excl}</ul></details>
+    </div><aside>
+      <div class="card"><div class="label">검증 ${recPill(REC_VERIFY, v.status)}${v.reason ? ` <small>${esc(recReason(v.reason))}</small>` : ''}</div><ul class="rec-runs">${runs}</ul></div>
+      ${aps ? `<div class="card"><div class="label">쓰기 승인 기록</div><ul class="rec-runs">${aps}</ul></div>` : ''}
+      <div class="card"><div class="label">정책 (자동 추정 · 고칠 수 있음)</div>
+        <div class="rec-pol"><span>작업 유형</span>${sel('operation', ['READ','CREATE','UPDATE','DELETE','APPROVE'])}</div>
+        <div class="rec-pol"><span>위험도</span>${sel('risk', ['LOW','MEDIUM','HIGH','CRITICAL'])}</div>
+        <div class="rec-pol"><span>승인 방식</span>${sel('approval', ['NONE','CONFIRM','HITL'])}</div>
+        <div class="rec-pol ${f.policy.scope ? '' : 'low'}"><span>권한 범위</span>${sel('scope', ['본인 데이터','부서 데이터','회사 전체','관리자 전용'])}</div>
+        <div class="rec-pol ${f.policy.sensitivity ? '' : 'low'}"><span>데이터 민감도</span>${sel('sensitivity', ['일반','개인정보','민감정보','재무정보'])}</div></div>
+      <div class="card"><div class="label">이음 도구로 등록</div>
+        ${regSingle ? '<button class="btn primary" data-act="recRegister" data-m="single">도구로 등록</button>'
+          : `<small>${active.length}단계 업무라 지금은 도구 하나로 등록할 수 없습니다. 여러 단계 도구는 다음 작업에서 지원합니다.</small><br>
+             <button class="btn sm" data-act="recRegister" data-m="steps" ${active.length ? '' : 'disabled'}>단계를 낱개 도구로 등록</button>`}</div>
+      <small class="mute">확정하면 화면 캡처를 지웁니다. 이후 근거는 가린 화면 글자로 보여 줍니다.</small>
+    </aside></div>`;
+}
+
+async function recAria(rid, seq) {
+  try {
+    const d = await api.get(`/recorder/recordings/${rid}/spans/${seq}/`);
+    openModal(`행동 ${seq} 화면 글자`, `<div class="label">직전 — ${esc(d.pre.title || d.pre.url || '')}</div><pre class="rec-aria">${esc(d.pre.aria || '')}</pre>
+      <div class="label">직후 — ${esc(d.post.title || d.post.url || '')}</div><pre class="rec-aria">${esc(d.post.aria || '')}</pre>`, null, null, { wide:true, cancel:'닫기' });
+  } catch (e) { recErr(e); }
+}
+
+/* 화면 중계. 토큰이 틀리면 서버가 연 뒤 4403 으로 닫는다 — 이때는 다시 붙이지 않는다 */
+const recWs = {
+  sock:null, tries:0,
+  open(id, token) {
+    this.close();
+    const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ieum/recorder/ws/${id}?token=${encodeURIComponent(token)}`;
+    const ws = new WebSocket(url); this.sock = ws;
+    ws.onmessage = ev => { this.tries = 0; try { recOnMsg(JSON.parse(ev.data)); } catch (e) {} };
+    ws.onclose = ev => {
+      if (this.sock !== ws) return;
+      this.sock = null;
+      const L = RECR.live; if (!L || L.id !== id) return;
+      if (ev.code === 4403) { L.msg = '접속 권한이 없습니다. 이 기록은 시작한 브라우저 탭에서만 화면을 열 수 있습니다.'; L.token = null; recPatch(); return; }
+      if (L.status !== 'recording') return;
+      if (++this.tries > 15) { L.msg = '연결을 다시 맺지 못했습니다. 목록으로 나가 기록을 다시 열어 주세요.'; recPatch(); return; }
+      L.msg = '연결이 끊겼습니다. 기록은 서버에서 계속됩니다. 다시 연결하는 중…'; recPatch();
+      setTimeout(() => RECR.live && RECR.live.id === id && !this.sock && this.open(id, token), 2000);
+    };
+  },
+  send(m) { if (this.sock && this.sock.readyState === 1) this.sock.send(JSON.stringify(m)); },
+  close() { if (this.sock) { const s = this.sock; this.sock = null; try { s.close(); } catch (e) {} } },
+};
+
+function recOnMsg(m) {
+  const L = RECR.live; if (!L) return;
+  if (m.t === 'frame') { const img = new Image(); img.onload = () => { const cv = $('#recCv'); if (cv) cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); }; img.src = 'data:image/jpeg;base64,' + m.data; return; }
+  if (L.msg && L.msg.startsWith('연결이 끊겼습니다')) L.msg = '';
+  if (m.t === 'span') L.spans.push(m);
+  else if (m.t === 'hold') L.hold = m;
+  else if (m.t === 'hold-end') { if (L.hold && L.hold.id === m.id) L.hold = null; if (m.decision === 'timeout') toast('응답이 없어 쓰기 요청을 보내지 않았습니다.', 'warn'); }
+  else if (m.t === 'blocked') L.blocked.push(m);
+  else if (m.t === 'dialog') L.dialog = m;
+  else if (m.t === 'tabs') { L.tabs = m.tabs; L.active = m.active; }
+  else if (m.t === 'login' || m.t === 'notice') L.msg = m.msg;
+  else if (m.t === 'limit') L.msg = '행동 기록 상한(300개)에 도달했습니다. 기록을 종료해 주세요.';
+  else if (m.t === 'status') {
+    if (m.status === 'closed') return;                       // 정리 신호다. 상태를 덮지 않는다
+    L.status = m.status; if (m.status === 'review') { recOpenFn(L.id); return; }
+    if (m.status === 'failed' || m.status === 'interrupted') L.msg = (m.status === 'failed' ? '분석·검증에 실패했습니다. ' : '기록이 중단되었습니다. ') + (m.error || ''); }
+  recPatch();
+}
+
+function recPatch() {
+  if (S.view !== 'rec' || RECR.page !== 'live') return;
+  const cv = $('#recCv'); const keep = cv ? cv.toDataURL('image/jpeg', 0.7) : null;
+  render(); recBind();
+  if (keep) { const img = new Image(); img.onload = () => { const c = $('#recCv'); if (c) c.getContext('2d').drawImage(img, 0, 0); }; img.src = keep; }
+}
+
+function recBind() {
+  const cv = $('#recCv'), ime = $('#recIme'); if (!cv || !ime) return;
+  const box = () => cv.getBoundingClientRect();
+  cv.onmousedown = e => { if (RECR.live.hold || RECR.live.dialog) return; const r = box(); recWs.send({ t:'click', x:e.clientX - r.left, y:e.clientY - r.top, w:r.width, h:r.height }); setTimeout(() => ime.focus(), 0); };
+  cv.onwheel = e => { e.preventDefault(); const r = box(); recWs.send({ t:'wheel', x:e.clientX - r.left, y:e.clientY - r.top, w:r.width, h:r.height, dy:e.deltaY }); };
+  ime.oncompositionend = e => { if (e.data) recWs.send({ t:'text', data:e.data }); ime.value = ''; };
+  ime.oninput = e => { if (!e.isComposing && e.inputType === 'insertText' && e.data) { recWs.send({ t:'text', data:e.data }); ime.value = ''; } };
+  ime.onkeydown = e => { if (e.isComposing) return; if (['Enter','Backspace','Tab','Escape','Delete','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(e.key)) { e.preventDefault(); recWs.send({ t:'key', key:e.key }); } };
+  if (!RECR.live.hold && !RECR.live.dialog) ime.focus();
+}
+
+async function recOpenFn(rid) {
+  try {
+    const r = await api.get(`/recorder/recordings/${rid}/`);
+    if (!r.functionId) { toast('아직 업무 기능이 만들어지지 않았습니다.', 'info'); return; }
+    RECR.fn = await api.get(`/recorder/functions/${r.functionId}/`);
+    RECR.rec = r; RECR.values = {};
+    recWs.close(); RECR.live = null; RECR.page = 'review'; render();
+  } catch (e) { recErr(e); }
+}
+
+async function recSaveFn(patch) {
+  try { RECR.fn = await api.put(`/recorder/functions/${RECR.fn.id}/`, patch); recRender(); }
+  catch (e) { recErr(e); recRender(); }                          // 거절되면 화면의 선택을 서버 값으로 되돌린다
+}
+
+/* 단계 순서·건너뛰기는 현재 단계 전체를 {id, skip} 으로 보낸다(빠뜨린 단계가 있으면 서버가 400 으로 거절한다) */
+const recStepsBody = list => list.map(s => ({ id:s.id, skip:!!s.skip }));
+
+const recNewLive = (id, name, env, token) => ({ id, name, env, token, status:'recording', spans:[], blocked:[], tabs:[], active:0, hold:null, dialog:null, paused:false, msg:'' });
+
+Object.assign(INP, {
+  recF: el => { RECR.form[el.dataset.k] = el.value; },
+  recVal: el => { RECR.values[el.dataset.n] = el.value; },
+});
+Object.assign(CHG, {
+  recEnv: el => { RECR.form.env = el.value; },
+  recSrc: el => recSaveFn({ inputs:[{ name:el.dataset.n, source:el.value }] }),
+  recPol: el => recSaveFn({ policy:{ [el.dataset.k]: el.value || null } }),
+  recDesc: el => recSaveFn({ desc:el.value }),
+});
+Object.assign(ACT, {
+  recNew: () => { RECR.form = { name:'', base:'', start:'', env:'op', account:'', password:'', readPost:'', owner:WS.user || '' }; RECR.page = 'new'; render(); },
+  recBack: () => { recWs.close(); RECR.page = 'list'; RECR.live = null; RECR.fn = null; RECR.rec = null; RECR.form = null; RECR.values = {}; render(); recRefresh(); },
+  recDemo: () => { Object.assign(RECR.form, RECR.demo); render(); },
+  recStart: async () => {
+    RECR.busy = true; render();
+    try {
+      const out = await api.post('/recorder/recordings/', RECR.form);
+      RECR.live = recNewLive(out.id, RECR.form.name, RECR.form.env, out.token);
+      RECR.form.password = '';                                   // 서비스 계정 비밀번호는 서버로 넘어갔으니 화면 메모리에서 지운다
+      RECR.page = 'live'; RECR.busy = false; render(); recBind(); recWs.open(out.id, out.token);
+      try { sessionStorage.setItem('ieum.rec.' + out.id, out.token); } catch (e) {}
+    } catch (e) { RECR.busy = false; render(); recErr(e); }
+  },
+  recOpen: a => { const r = RECR.list.find(x => x.id === a.dataset.id); if (!r) return;
+    if (r.status === 'recording') { let tok = null; try { tok = sessionStorage.getItem('ieum.rec.' + r.id); } catch (e) {}
+      if (!tok) { toast('이 기록은 다른 탭에서 시작되어 이 탭에서는 화면을 열 수 없습니다.', 'info'); return; }
+      RECR.live = recNewLive(r.id, r.name, r.env, tok); RECR.page = 'live'; render(); recBind(); recWs.open(r.id, tok); return; }
+    recOpenFn(r.id); },
+  recPause: () => { RECR.live.paused = !RECR.live.paused; recWs.send({ t:'pause', on:RECR.live.paused }); recPatch(); },
+  recStop: async () => { try { await api.post(`/recorder/recordings/${RECR.live.id}/stop/`); RECR.live.status = 'analyzing'; RECR.live.msg = '기록을 마쳤습니다. 분석하고 다시 실행해 검증하는 중입니다…'; recPatch(); } catch (e) { recErr(e); } },
+  recApprove: a => { if (!RECR.live.hold) return; recWs.send({ t:'approve', id:RECR.live.hold.id, ok:a.dataset.ok === '1' }); RECR.live.hold = null; recPatch(); },
+  recDialog: a => { recWs.send({ t:'dialog', ok:a.dataset.ok === '1' }); RECR.live.dialog = null; recPatch(); },
+  recTab: a => recWs.send({ t:'tab', index:+a.dataset.i }),
+  recPromote: a => recSaveFn({ promote:{ method:a.dataset.m, path:a.dataset.p } }),
+  recStepMove: a => {
+    const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i, j = i + +a.dataset.d;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]]; recSaveFn({ steps:list });
+  },
+  recStepSkip: a => { const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i; list[i].skip = !list[i].skip; recSaveFn({ steps:list }); },
+  recVerify: async () => {
+    if (RECR.busy) return;
+    const need = RECR.fn.inputs.filter(i => i.needsValue && !RECR.values[i.name]);
+    if (need.length) { toast(`값을 먼저 입력해 주세요: ${esc(need.map(i => i.name).join(', '))}`, 'warn'); return; }
+    const values = Object.assign({}, RECR.values);                // 이름으로 묶어 보낸다
+    RECR.busy = true; recRender();
+    try { RECR.fn = await api.post(`/recorder/functions/${RECR.fn.id}/verify/`, { values }); toast('다시 검증했습니다.', 'ok'); }
+    catch (e) { recErr(e); }                                      // 409(진행 중)도 문구만 보이고 자동으로 다시 시도하지 않는다
+    finally { RECR.busy = false; RECR.values = {}; for (const k in values) values[k] = ''; recRender(); }   // 입력 원값은 요청이 끝나면 지운다
+  },
+  recConfirm: async () => { try { RECR.fn = await api.post(`/recorder/functions/${RECR.fn.id}/confirm/`); recRender(); toast(RECR.fn.policyIncomplete ? '확정했습니다. 권한 범위·민감도가 비어 "정책 미완"으로 표시됩니다.' : '확정했습니다.', 'ok'); } catch (e) { recErr(e); } },
+  recRegister: async a => {
+    try {
+      const out = await api.post(`/recorder/functions/${RECR.fn.id}/register/`, { mode:a.dataset.m });
+      const unknown = Object.values(out.loginKnown || {}).some(v => !v);        // 원본 시스템별 {id: bool}. 객체는 항상 참이라 값을 본다
+      toast(`도구 ${out.tools.length}개를 변환 스튜디오에 등록했습니다.` + (unknown ? ' 로그인 정보를 알 수 없는 원본 시스템이 있어, 원본 시스템 메뉴에서 인증 정보를 등록해야 실행됩니다.' : ''), unknown ? 'warn' : 'ok');
+    } catch (e) { recErr(e); }
+  },
+});
