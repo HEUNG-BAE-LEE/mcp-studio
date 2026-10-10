@@ -9,6 +9,7 @@
 """
 import asyncio
 import logging
+import re
 import secrets
 import time
 from typing import Callable, Dict, Optional
@@ -21,7 +22,8 @@ from app.ieum.recorder.guard import Guard
 from app.ieum.recorder.trace import INIT_JS, Trace
 
 log = logging.getLogger(__name__)
-TAB_TITLE_SEC = 3.0
+_CONN_ERR = re.compile(r"ERR_(CONNECTION_|TIMED_OUT|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE|INTERNET_DISCONNECTED|SSL_|CERT_)")
+TAB_TITLE_SEC = 5.0
 FAIL_NOTICE_SEC = 30.0         # 같은 연결 실패 문구는 이 시간에 한 번만 알린다
 
 
@@ -43,10 +45,20 @@ class RecorderSession:
         self._dialog = None
         self._closed_dialog_notice = False
         self._fail_seen: Dict[str, float] = {}
-        self.trace.dialog_open = lambda: self._dialog is not None
+        self.trace.dialog_open = self.dialog_open
         self._last_frame: Optional[str] = None
         self._loop = None
         self._on_dead = on_dead
+
+    def dialog_open(self, page) -> bool:
+        """그 페이지에 확인 창이 열려 있는가(열린 창이 있는 페이지는 Playwright 호출이 돌아오지 않는다)."""
+        d = self._dialog
+        if d is None:
+            return False
+        try:
+            return d.page is page
+        except Exception:
+            return True
 
     # ── 구독 ───────────────────────────────────────────────────────────────
     def subscribe(self, ws) -> None:
@@ -180,6 +192,8 @@ class RecorderSession:
         await self.send_tabs()
 
     async def _on_close(self, page) -> None:
+        if self._dialog is not None and self.dialog_open(page):
+            self._dialog = None                           # 닫힌 페이지의 확인 창은 더 응답할 수 없다
         if page in self.pages:
             self.pages.remove(page)
         if page is self.page and self.pages and not self.closed:
@@ -191,7 +205,7 @@ class RecorderSession:
         tabs = []
         for i, p in enumerate(self.pages):
             try:
-                title = "" if self._dialog is not None else await asyncio.wait_for(p.title(), TAB_TITLE_SEC)   # 확인 창이 열린 페이지는 title() 이 멈춘다
+                title = "" if self.dialog_open(p) else await asyncio.wait_for(p.title(), TAB_TITLE_SEC)   # 확인 창이 열린 페이지는 title() 이 멈춘다
                 tabs.append({"index": i, "url": self.policy.display(p.url), "title": title})
             except Exception:
                 tabs.append({"index": i, "url": "", "title": ""})
@@ -200,9 +214,11 @@ class RecorderSession:
     async def _on_request_failed(self, request) -> None:
         """문서 요청이 연결 단계에서 실패하면 원인 문구를 로그와 콘솔에 남긴다(같은 문구는 30초에 한 번)."""
         try:
-            if request.resource_type != "document":
-                return
-            err = (request.failure or "").strip() or "알 수 없는 오류"
+            if request.resource_type != "document" or request.frame != self.page.main_frame:
+                return                                   # 최상위 문서만. 광고 iframe 의 실패는 알리지 않는다
+            err = (request.failure or "").strip()
+            if not _CONN_ERR.search(err):
+                return                                   # 취소·가드 차단 같은 오류는 연결 실패가 아니다
             now = time.time()
             if now - self._fail_seen.get(err, 0.0) < FAIL_NOTICE_SEC:
                 return
@@ -235,7 +251,13 @@ class RecorderSession:
         """기록 도중 로그인 화면으로 튕겼으면 알린다. 기록은 이어진다(가드가 로그인 요청을 통과시킨다).
 
         trace 의 잠금 안에서 불리므로 trace.begin/finish 를 부르지 않는다(교착)."""
-        if page is not None and span["seq"] > 1 and await login.on_login_page(page):
+        if page is None or span["seq"] <= 1 or self.dialog_open(page):
+            return                                       # 확인 창이 열린 페이지에는 질의가 돌아오지 않는다
+        try:
+            on_login = await asyncio.wait_for(login.on_login_page(page), TAB_TITLE_SEC)
+        except Exception:
+            return
+        if on_login:
             await self.broadcast({"t": "login", "state": "needed", "msg": "세션이 끊겼습니다. 화면에서 다시 로그인해 주세요. 기록은 이어집니다."})
 
     # ── 입력 ───────────────────────────────────────────────────────────────
@@ -292,12 +314,19 @@ class RecorderSession:
                 return
             await asyncio.sleep(0.02)
 
-    async def stop(self) -> None:
+    async def begin_stopping(self) -> None:
+        """멈춤의 시작: 입력을 끊고, 이 뒤에 붙잡힐 기록 쪽 쓰기는 바로 거절하고, 열려 있는 확인 창을 닫는다(정상 멈춤·유휴 멈춤 공통)."""
         self.stopping = True
-        self.guard.closing_now()                        # 이 뒤에 붙잡힐 기록 쪽 쓰기는 묻지 않고 바로 거절한다
-        if self._dialog is not None:                    # 이미 열려 있는 확인 창도 닫는다(열린 채로는 스냅샷이 멈춘다)
+        self.guard.closing_now()
+        if self._dialog is not None:
             d, self._dialog = self._dialog, None
-            await asyncio.wait_for(self._close_dialog_for_stop(d), 5)
+            try:
+                await asyncio.wait_for(self._close_dialog_for_stop(d), 5)
+            except Exception:
+                pass                                     # 닫지 못해도 멈춤은 계속한다(스냅샷이 확인 창을 건너뛴다)
+
+    async def stop(self) -> None:
+        await self.begin_stopping()
         await self._deny_pending()
         await self.trace.finish(self.page)
         await self._deny_pending()

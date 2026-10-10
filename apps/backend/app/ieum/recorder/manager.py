@@ -208,7 +208,7 @@ class Manager:
                     continue                     # 분석·검증 중인 세션은 service.finish 가 닫는다
                 if now - s.last_input > config.idle_sec():
                     try:
-                        s.stopping = True             # 멈춤과 같이: 입력을 끊고, 대기 승인을 거부로 닫고, 승인 기록을 남긴다
+                        await s.begin_stopping()          # 멈춤과 같이: 입력을 끊고, 대기 승인을 거부로 닫고, 승인 기록을 남긴다
                         await s._deny_pending()
                         await s.trace.finish(s.page)
                         await s._deny_pending()
