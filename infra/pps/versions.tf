@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
   }
   # 상태 저장소는 이 스택 밖에서 먼저 만든다(README 0단계). 값은 backend.hcl 로 넘긴다.
   # 이전 mcp-studio 상태 저장소(sttfstatemcpstudio)는 2026-09-21 삭제됐다 — 재사용하지 않는다.
