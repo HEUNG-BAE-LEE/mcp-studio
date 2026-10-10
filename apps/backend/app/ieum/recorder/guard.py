@@ -40,6 +40,26 @@ def _is_id_field(name: str) -> bool:
     return any(p in c for p in _ID_PARTS) or c.endswith("id")
 
 
+_CHANGE_PREFIXES = ("new", "old", "cur", "confirm", "chg", "change", "reset")
+_CHANGE_PATH_WORDS = frozenset("change modify update reset chg edit save mod upd".split())
+_CHANGE_PATH_PARTS = ("change", "modify", "update", "reset")
+_WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
+
+
+def _is_change_field(name: str) -> bool:
+    """새 비밀번호·현재 비밀번호 같은 변경용 필드 이름인가."""
+    c = _compact(name)
+    return any(c.startswith(p) for p in _CHANGE_PREFIXES)
+
+
+def _is_change_path(url: str) -> bool:
+    """경로가 변경·수정 동작을 가리키는가. 마지막 조각의 단어, 또는 경로 전체의 압축 표기로 본다."""
+    path = urlsplit(url).path
+    last = path.rsplit("/", 1)[-1]
+    words = {w.lower() for w in _WORD.findall(last)}
+    return bool(words & _CHANGE_PATH_WORDS) or any(p in _compact(path) for p in _CHANGE_PATH_PARTS)
+
+
 class Guard:
     def __init__(self, policy: Policy, env: str, notify: Callable[[dict], Awaitable[None]], timeout: float = 120.0):
         self.policy, self.env, self.notify, self.timeout = policy, env, notify, timeout
@@ -102,10 +122,14 @@ class Guard:
             if not (any(c in ctype for c in _LOGIN_CTYPES) or "json" in ctype):
                 return False
             names = list(capture.parse_form(request.post_data, ctype).keys())
-            for pk in names:
-                if _is_password_field(pk) and any(k != pk and _is_id_field(k) for k in names):
-                    return True
-            return False
+            pw_names = [k for k in names if _is_password_field(k)]
+            if not pw_names:
+                return False
+            # 비밀번호 변경은 로그인이 아니다: 변경용 필드(newPw, confirmPw...)나 변경 동작의 경로(pwChange.do...)면 승인을 받는다.
+            # 잔여 위험: 경로와 필드 이름 어디에도 이 단어가 없는 비밀번호 변경은 여전히 승인 없이 나간다.
+            if any(_is_change_field(k) for k in pw_names) or _is_change_path(url):
+                return False
+            return any(k != pk and _is_id_field(k) for pk in pw_names for k in names)
         except Exception:
             return False
 

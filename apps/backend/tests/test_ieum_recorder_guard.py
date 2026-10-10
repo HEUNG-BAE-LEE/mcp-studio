@@ -285,3 +285,23 @@ def test_콘솔_경로의_표기_변형도_막는다():
                 "http://127.0.0.1:8000/%69eum/x"):
         assert scope.blocked(url, "http://127.0.0.1:8000") is not None, url
     assert scope.blocked("http://127.0.0.1:8000/demo-legacy/po/main.do", "http://127.0.0.1:8000") is None
+
+
+def test_비밀번호_변경은_로그인으로_오인하지_않는다():
+    async def go():
+        g, sent = make(timeout=0.05)
+        r1, r2 = Route(), Route()
+        await g.route(r1, Req("http://h:8080/po/pwChange.do", "POST", post="memberId=a&newPw=b&confirmPw=b"))
+        await g.route(r2, Req("http://h:8080/po/updateMyInfo.do", "POST", post="userId=a&userPw=b"))
+        return r1.done, r2.done, g.login_req
+    assert run(go()) == ("abort", "abort", None)
+
+
+def test_변경이_아닌_로그인_경로는_그대로_로그인이다():
+    async def go():
+        g, sent = make()
+        r1, r2 = Route(), Route()
+        await g.route(r1, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
+        await g.route(r2, Req("http://h:8080/po/j_security_check", "POST", post="j_username=a&j_password=b"))
+        return r1.done, r2.done, sent, g.login_req is not None
+    assert run(go()) == ("continue", "continue", [], True)
