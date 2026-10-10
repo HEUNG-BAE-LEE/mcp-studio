@@ -68,3 +68,10 @@ def test_onclick_큰따옴표_인자와_빈_인자를_함께_읽는다():
     html = '<table><tr><th>A</th><th>B</th></tr><tr onclick="go(&quot;X-9&quot;, \'\')"><td>1</td><td>2</td></tr></table>'
     d = htmltable.to_data(html)
     assert "X-9" in d["tables"][0]["rows"][0]["_links"]
+
+
+def test_colspan_한_칸이_모든_열을_덮는_안내_행은_버리고_같은_값의_데이터_행은_둔다():
+    guide = '<table><tr><th>코드</th><th>이름</th></tr><tr><td colspan="2">조회 결과가 없습니다.</td></tr></table>'
+    assert htmltable.to_data(guide)["tables"][0]["rows"] == []
+    same = '<table><tr><th>코드</th><th>이름</th></tr><tr><td>PO-1</td><td>PO-1</td></tr></table>'
+    assert htmltable.to_data(same)["tables"][0]["rows"] == [{"코드": "PO-1", "이름": "PO-1"}]

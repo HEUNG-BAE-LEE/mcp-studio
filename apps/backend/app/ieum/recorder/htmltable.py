@@ -158,6 +158,8 @@ def to_data(html: str) -> Optional[dict]:
             for line, row_links in grid[head + 1:]:
                 if not line or all(c["th"] for c in line):
                     continue
+                if len(cols) >= 2 and len(line) >= len(cols) and len({id(c) for c in line}) == 1:
+                    continue                     # 칸 하나가 모든 열을 덮는 행(colspan)은 "조회 결과 없음" 같은 안내라 데이터가 아니다
                 row = {cols[i]: c["text"] for i, c in enumerate(line[:len(cols)])}
                 links = list(dict.fromkeys(row_links + [x for c in line for x in c["links"]]))
                 if links:

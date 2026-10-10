@@ -295,3 +295,16 @@ def test_표_머리글과_안내_행만_있는_화면_이동은_핵심_단계가
     bf = analyze.analyze(REC, spans)
     assert not bf["steps"]
     assert any(e["path"] == "/poListView.do" and e["role"] == "page" for e in bf["excluded"]), bf.get("excluded")
+
+
+def test_두_열이_같은_값인_데이터_행도_화면에_보이면_핵심_단계():
+    html = '<table><tr><th>코드</th><th>이름</th></tr><tr><td>PO-2026-0001</td><td>PO-2026-0001</td></tr></table>'
+    spans = [span(1, {"tag": "BUTTON", "text": "조회"}, [net("GET", "/poFind.do", "", html, rtype="document", data=htmltable.to_data(html))],
+                  post_aria="- table: PO-2026-0001 PO-2026-0001")]
+    assert [s["path"] for s in analyze.analyze(REC, spans)["steps"]] == ["/poFind.do"]
+
+
+def test_JSON_rows_의_같은_값도_화면에_보이면_핵심_단계():
+    res = {"rows": [{"a": "x1x1x1", "b": "x1x1x1"}]}
+    spans = [span(1, {"tag": "BUTTON", "text": "조회"}, [net("GET", "/jFind.do", "", res)], post_aria="- row: x1x1x1")]
+    assert [s["path"] for s in analyze.analyze(REC, spans)["steps"]] == ["/jFind.do"]
