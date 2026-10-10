@@ -43,3 +43,14 @@ def test_HTML_판별():
     assert htmltable.looks_html("text/html;charset=EUC-KR", "")
     assert htmltable.looks_html("", "  <table>")
     assert not htmltable.looks_html("application/json", '{"a":1}')
+
+
+def test_닫는_태그를_생략한_표():
+    d = htmltable.to_data("<table><tr><th>A<th>B<tr><td>1<td>2<tr><td>3<td>4</table>")
+    assert d["tables"][0]["columns"] == ["A", "B"]
+    assert d["tables"][0]["rows"] == [{"A": "1", "B": "2"}, {"A": "3", "B": "4"}]
+
+
+def test_닫는_태그를_생략한_상세_화면():
+    d = htmltable.to_data("<table><tr><th>거래처명<td>한빛상사<th>대표자<td>홍길동</table>")
+    assert d["fields"] == {"거래처명": "한빛상사", "대표자": "홍길동"}

@@ -30,6 +30,11 @@ class _Parser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         a = {k: (v or "") for k, v in attrs}
         t = self.stack[-1] if self.stack else None
+        # 닫는 태그를 생략한 레거시 HTML: 새 칸·새 행이 시작되면 열린 것을 먼저 닫는다.
+        if t is not None and tag in ("td", "th", "tr"):
+            _close_cell(t)
+        if t is not None and tag == "tr":
+            _close_row(t)
         if tag == "table":
             self.stack.append({"rows": [], "row": None, "cell": None})
         elif tag == "tr" and t is not None:
@@ -49,20 +54,34 @@ class _Parser(HTMLParser):
         t = self.stack[-1] if self.stack else None
         if t is None:
             return
-        if tag in ("td", "th") and t["cell"] is not None and t["row"] is not None:
-            c = t["cell"]
-            c["text"] = " ".join("".join(c["text"]).split())
-            t["row"]["cells"].append(c)
-            t["cell"] = None
-        elif tag == "tr" and t["row"] is not None:
-            t["rows"].append(t["row"])
-            t["row"] = None
+        if tag in ("td", "th"):
+            _close_cell(t)
+        elif tag == "tr":
+            _close_row(t)
         elif tag == "table":
+            _close_row(t)
             self.done.append(self.stack.pop()["rows"])
 
     def handle_data(self, data):
         if self.stack and self.stack[-1]["cell"] is not None:
             self.stack[-1]["cell"]["text"].append(data)
+
+
+def _close_cell(t: dict) -> None:
+    """열린 칸을 행에 붙인다. 닫는 태그가 없어도 다음 칸·행이나 표 끝에서 닫힌다."""
+    if t["cell"] is not None and t["row"] is not None:
+        c = t["cell"]
+        c["text"] = " ".join("".join(c["text"]).split())
+        t["row"]["cells"].append(c)
+    t["cell"] = None
+
+
+def _close_row(t: dict) -> None:
+    """열린 칸과 행을 닫는다."""
+    _close_cell(t)
+    if t["row"] is not None:
+        t["rows"].append(t["row"])
+        t["row"] = None
 
 
 def _int(v: Optional[str]) -> int:
@@ -114,8 +133,10 @@ def to_data(html: str) -> Optional[dict]:
         p.close()
     except Exception:
         return None
-    while p.stack:
-        p.done.append(p.stack.pop()["rows"])
+    while p.stack:                           # 입력이 끝나도 닫히지 않은 표는 여기서 마감한다
+        t = p.stack.pop()
+        _close_row(t)
+        p.done.append(t["rows"])
     tables, fields = [], {}
     for rows in p.done:
         grid = _grid(rows)
