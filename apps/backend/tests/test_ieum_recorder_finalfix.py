@@ -11,6 +11,7 @@ from app.ieum.discovery.policy import Policy
 from app.ieum.recorder import analyze, config, replay
 from app.ieum.recorder.guard import Guard
 from app.ieum.recorder.trace import Trace
+from app.ieum.discovery.masking import HIDDEN
 
 from tests.test_ieum_recorder_analyze import BASE, REC, net, span
 from tests.test_ieum_recorder_guard import P, Req, Route, make
@@ -50,48 +51,67 @@ def test_기록_중_붙잡은_요청은_replay_승인이_아니다():
     assert run(go()) is False
 
 
-def test_Replay_가_승인받은_요청은_브라우저에서_다시_묻지_않고_한_번만_통과한다():
+class _GuardPage:
+    """BrowserTransport 가 보내는 요청을 가드에 그대로 통과시켜 보는 가짜 페이지."""
+
+    def __init__(self, guard, tokens=None, fail=False):
+        self.guard, self.tokens, self.fail, self.routes = guard, tokens or {}, fail, []
+
+    async def evaluate(self, script, arg):
+        if script == replay._FETCH_HIDDEN:
+            if self.fail:
+                raise RuntimeError("화면을 못 받음")
+            return dict(self.tokens)
+        m, u, h, body = arg
+        r = Route()
+        await self.guard.route(r, Req(u, m, post=body))
+        self.routes.append(r.done)
+        return [200, None, "application/json", "{}"]
+
+
+def _write_step(**kw):
+    st = {"method": "POST", "charset": None, "write": True, "params": []}
+    st.update(kw)
+    return st
+
+
+def test_Replay_가_승인받은_그_요청만_정확히_한_번_통과한다():
     g, sent = make()
+    page = _GuardPage(g)
+    tr = replay.BrowserTransport(page, g)
+    run(tr.send(_write_step(), "http://h:8080/po/poSave.do", {}, {"q": "1"}, {"a": "1"}, None))
+    assert page.routes == ["continue"] and not g.holding and not g._exact
+    assert [m["t"] for m in sent].count("hold") == 0                  # 승인은 ask 가 이미 받았다(여기서는 다시 묻지 않는다)
+
+
+def test_본문이나_쿼리가_다른_같은_경로_쓰기는_허용을_쓰지_못하고_붙잡힌다():
+    g, sent = make(timeout=0.2)
 
     async def go():
-        t = asyncio.ensure_future(g.ask("POST", "http://h:8080/po/poSave.do", "Replay", once=True))
-        await asyncio.sleep(0.05)
-        g.decide(next(iter(g.pending)), True)
-        assert await t
-        r1 = Route()
-        await g.route(r1, Req("http://h:8080/po/poSave.do?x=1", "POST", post="a=1"))     # 쿼리는 비교하지 않는다
-        r2 = Route()
-        t2 = asyncio.ensure_future(g.route(r2, Req("http://h:8080/po/poSave.do", "POST", post="a=1")))
-        await asyncio.sleep(0.05)
-        second_held = g.holding
-        g.deny_all()
-        await t2
-        return r1.done, r2.done, second_held
-    first, second, held = run(go())
-    assert first == "continue" and held and second == "abort"
-    assert [m["t"] for m in sent].count("hold") == 2          # 첫 승인 + 허용을 다 쓴 뒤의 새 요청
+        token = g.allow_exact("POST", "http://h:8080/po/poSave.do?q=1", "a=1")
+        out = []
+        for u, body in (("http://h:8080/po/poSave.do?q=1", "a=2"), ("http://h:8080/po/poSave.do?q=2", "a=1"), ("http://h:8080/po/poSave.do", "a=1")):
+            r = Route()
+            await g.route(r, Req(u, "POST", post=body))
+            out.append(r.done)
+        g.revoke(token)
+        return out
+    assert run(go()) == ["abort", "abort", "abort"]
+    assert [m["t"] for m in sent].count("hold") == 3
 
 
-def test_한_번_허용은_다른_메서드나_주소에는_쓰이지_않고_시간이_지나면_사라진다():
-    g, _ = make()
-    g.allow_once("POST", "http://h:8080/po/poSave.do", ttl=30)
-    assert not g._consume_allowance("PUT", "http://h:8080/po/poSave.do")
-    assert not g._consume_allowance("POST", "http://h:8080/po/poDelete.do")
-    g.allow_once("POST", "http://h:8080/po/a.do", ttl=-1)
-    assert not g._consume_allowance("POST", "http://h:8080/po/a.do")
-    assert g._consume_allowance("POST", "http://h:8080/po/poSave.do")
-    assert not g._consume_allowance("POST", "http://h:8080/po/poSave.do")
-
-
-def test_거절된_Replay_승인은_한_번_허용을_남기지_않는다():
-    g, _ = make()
-
-    async def go():
-        t = asyncio.ensure_future(g.ask("POST", "http://h:8080/po/poSave.do", "Replay", once=True))
-        await asyncio.sleep(0.05)
-        g.decide(next(iter(g.pending)), False)
-        return await t
-    assert run(go()) is False and not g._allow
+def test_승인받았지만_보내지_못하면_허용이_남지_않아_뒤따른_쓰기는_붙잡힌다():
+    g, sent = make(timeout=0.2)
+    page = _GuardPage(g, tokens={})                                    # 숨은 토큰을 못 찾는다
+    bf = _one()
+    bf["steps"][0].update(exec="browser", method="POST", write=True, formPage="http://h:8080/po/form.do",
+                          params=[{"a": "_csrf", "loc": "form", "from": "session.hidden._csrf", "ex": "ab****cd"}])
+    out = run(replay.run_once(bf, {}, {}, None, replay.BrowserTransport(page, g), lambda st: _true(), 0))
+    assert out["reason"] == "needs_value" and "승인했지만 보내지 않음" in out["steps"][0]["note"]
+    assert not g._exact and page.routes == []
+    r = Route()
+    run(g.route(r, Req("http://h:8080/po/poList.do", "POST", post="a=1")))
+    assert r.done == "abort"
 
 
 # ── I1: 서비스 워커 차단 ───────────────────────────────────────────────────
@@ -294,3 +314,64 @@ def test_묶음_주소의_경로_조각에_든_개인정보도_가린다():
     u = tr._url("http://rec.test/po/member/01012345678/detail.do?tel=010-1234-5678")
     assert "01012345678" not in u and "010-1234-5678" not in u
     assert u.startswith("http://rec.test/po/member/") and "/detail.do?tel=" in u and u.count("/") == 6     # 경로 모양은 그대로
+
+
+# ── 수정 2: 숨은 필드 규칙을 토큰으로 좁힌다 ─────────────────────────────
+def _hidden_span(method, path, query="", post=None, hidden=None):
+    return [span(1, {"tag": "BUTTON", "text": "조회"}, [net(method, path, query, {"RSLT": "0000", "resultList": [{"PO_NO": "PO-2609-0142"}]}, post=post)],
+                 post_aria="- row: PO-2609-0142", hidden=hidden)]
+
+
+class _Capture(_CountTransport):
+    def __init__(self):
+        super().__init__()
+        self.args = []
+
+    async def send(self, step, url, headers, params, form, json_body):
+        self.args.append((step["method"], dict(params), dict(form)))
+        return await super().send(step, url, headers, params, form, json_body)
+
+
+def test_eGov_모양의_숨은_페이지_번호는_기록값으로_보낸다():
+    spans = _hidden_span("GET", "/poList.do", "pageIndex=1&cmd=", hidden={"pageIndex": "1", "cmd": ""})
+    bf = analyze.analyze(REC, spans)
+    st = bf["steps"][0]
+    assert st["exec"] == "http" and not any((p.get("from") or "").startswith("session.hidden.") for p in st["params"])
+    t = _Capture()
+    out = run(replay.run_once(bf, {i["name"]: i.get("ex") or "" for i in bf["inputs"]}, {}, t, None, lambda st: _true(), 0))
+    assert out["ok"], out
+    assert t.sent == 1 and t.args[0][1]["pageIndex"] == "1"
+
+
+def test_숨은_빈_mode_가_든_폼_쓰기는_승인되면_한_번_보낸다():
+    spans = _hidden_span("POST", "/poSave.do", post="mode=&vendCd=V001", hidden={"mode": "", "vendCd": "V001"})
+    bf = analyze.analyze(dict(REC, env="op"), spans)
+    st = bf["steps"][0]
+    assert st["write"] and st["exec"] == "http"
+    asked = []
+
+    async def ask(step):
+        asked.append(step["id"])
+        return True
+    t = _Capture()
+    out = run(replay.run_once(bf, {i["name"]: i.get("ex") or "" for i in bf["inputs"]}, {}, t, None, ask, 0))
+    assert asked == ["s1"] and t.sent == 1 and t.args[0][2].get("mode") == "", out
+
+
+def test_토큰_이름이거나_가린_숨은_값만_세션_숨은_값이_된다():
+    spans = _hidden_span("POST", "/poSave.do", post="_csrf=tok-1&mode=A&vendCd=V001", hidden={"_csrf": "tok-1", "mode": "A", "vendCd": "V001"})
+    st = analyze.analyze(REC, spans)["steps"][0]
+    froms = {p["a"]: p["from"] for p in st["params"]}
+    assert froms["_csrf"] == "session.hidden._csrf" and st["exec"] == "browser"
+    assert froms["mode"] == "const:A" and froms["vendCd"] == "const:V001"
+
+
+def test_묶음에_저장한_주소와_본문은_토큰_값을_숨기고_분석_결과는_같다():
+    tr = _bare()
+    assert "tok-1" not in tr._url("http://rec.test/po/poList.do?_csrf=tok-1&q=1") and "q=1" in tr._url("http://rec.test/po/poList.do?_csrf=tok-1&q=1")
+    assert "tok-1" not in tr._post("_csrf=tok-1&q=1", "application/x-www-form-urlencoded")
+    assert "tok-1" not in tr._post('{"csrfToken":"tok-1","q":"1"}', "application/json")
+    raw = analyze.analyze(REC, _hidden_span("POST", "/poSave.do", post="_csrf=tok-1&vendCd=V001", hidden={"_csrf": "tok-1"}))["steps"][0]
+    hid = analyze.analyze(REC, _hidden_span("POST", "/poSave.do", post=f"_csrf={HIDDEN}&vendCd=V001", hidden={"_csrf": "tok-1"}))["steps"][0]
+    keep = lambda st: (st["exec"], st["formPage"], [(p["a"], p["from"], p["source"], p["confidence"]) for p in st["params"]])
+    assert keep(raw) == keep(hid)

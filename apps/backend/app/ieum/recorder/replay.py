@@ -168,8 +168,8 @@ class BrowserTransport:
     본문은 파이썬에서 기록한 인코딩으로 미리 만들어 문자열로 넘긴다(URLSearchParams 는 항상 UTF-8)."""
     mode = "browser"
 
-    def __init__(self, page):
-        self.page = page
+    def __init__(self, page, guard=None):
+        self.page, self.guard = page, guard
 
     async def send(self, step, url, headers, params, form, json_body):
         form = dict(form or {})
@@ -192,7 +192,14 @@ class BrowserTransport:
         elif form:
             body = encode(form, step.get("charset"))
             headers["content-type"] = f"application/x-www-form-urlencoded; charset={step.get('charset') or 'UTF-8'}"
-        r = await self.page.evaluate(_FETCH_SEND, [step["method"], url, headers, body])
+        # 승인받은 쓰기는 기록 가드를 다시 지난다. 바로 이 요청(메서드·최종 주소·본문)만, 보내는 동안만 통과시킨다.
+        # 표시 헤더를 붙이는 방식은 쓰지 않는다(다른 출처면 CORS 사전 요청이 생겨 그것이 붙잡힌다).
+        token = self.guard.allow_exact(step["method"], url, body) if (self.guard is not None and step.get("write")) else None
+        try:
+            r = await self.page.evaluate(_FETCH_SEND, [step["method"], url, headers, body])
+        finally:
+            if token is not None:
+                self.guard.revoke(token)
         return r[0], r[1], r[2], (r[3] or "")[:200_000]
 
 
@@ -308,6 +315,7 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
         if st.get("write") and not await ask_write(st):      # 보내지 않을 요청에는 승인을 묻지 않도록 점검 뒤에 묻는다
             return fail(st, "write_denied")
         url_noq = url.split("?")[0]
+        approved = "승인했지만 보내지 않음: " if st.get("write") else ""   # 승인 뒤 전송 전에 멈추면 결과에 남겨 보이게 한다
         note = None
         while True:
             await pause()
@@ -317,9 +325,9 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
                 pace[0] = time.monotonic()
                 status, loc, ctype, text = await transport.send(st, url_noq, headers, params, form, body)
             except NeedsValue:
-                return fail(st, "needs_value", note="숨은 토큰을 화면에서 찾지 못해 가린 값이 남음")
+                return fail(st, "needs_value", note=approved + "숨은 토큰을 화면에서 찾지 못해 가린 값이 남음")
             except Exception as exc:
-                return fail(st, "http_error", note=type(exc).__name__)
+                return fail(st, "http_error", note=(approved.replace("보내지 않음", "보내지 못함") if approved else "") + type(exc).__name__)
             ok, why, data = await asyncio.to_thread(judge, status, loc, ctype, text, st, headers)
             if why == "auth_expired" and relogin and not state["relogged"] and transport is http and not st.get("write"):
                 state["relogged"] = True                      # 실행당 한 번만 다시 로그인하고 이 단계부터 이어 간다
@@ -440,12 +448,10 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
         if session is not None and not session.closed:
             cookies = [{"name": c["name"], "value": c["value"], "domain": c.get("domain", ""), "path": c.get("path", "/")}
                        for c in await session.ctx.cookies()]
-            http, browser, raw = HttpTransport(cookies, host=host), BrowserTransport(session.page), dict(session.trace.raw)
+            http, browser, raw = HttpTransport(cookies, host=host), BrowserTransport(session.page, session.guard), dict(session.trace.raw)
 
             async def ask(st):
-                # 브라우저로 보내는 단계는 승인받은 요청이 기록 가드를 다시 지난다. 한 번 허용을 남겨 두 번 묻지 않는다
-                return await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}",
-                                               once=st.get("exec") == "browser")
+                return await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}")
         else:
             if not auto:
                 return result("needs-login", [])

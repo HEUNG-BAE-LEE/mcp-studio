@@ -138,7 +138,7 @@ class RecorderSession:
             return
         self.closed = True
 
-        self.guard.deny_all()                           # 보낼 브라우저가 없다. 대기 중인 승인은 거부로 닫는다
+        await self._deny_pending()                      # 보낼 브라우저가 없다. 대기 승인을 거부로 닫고 그 결정이 남을 때까지 기다린다
 
         def mark(r):
             r["approvals"] = list(self.guard.decisions)  # 멈춤과 같이 승인 기록을 남긴다(끊겨도 무엇을 보냈는지는 남아야 한다)

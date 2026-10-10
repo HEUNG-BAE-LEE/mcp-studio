@@ -23,7 +23,7 @@ from app.ieum.discovery import capture
 from app.ieum.discovery.masking import HIDDEN, Masker, is_secret_key
 from app.ieum.discovery.policy import Policy, is_asset
 from app.ieum.recorder import htmltable, store
-from app.ieum.recorder.guard import Guard, mask_url
+from app.ieum.recorder.guard import Guard, hide_token_pairs, hide_token_values, mask_url
 
 MAX_SPANS = 300
 ARIA_MAX = 20_000
@@ -95,11 +95,12 @@ class Trace:
         return m
 
     def _pairs_text(self, pairs) -> str:
-        return urlencode(self.masker.pairs(list(pairs)), safe="*•")
+        """가린 뒤 토큰 이름(_csrf 등)의 값도 숨긴다. 분석은 토큰을 이름으로 알아보므로 값이 없어도 된다."""
+        return urlencode(hide_token_pairs(self.masker.pairs(list(pairs))), safe="*•")
 
     def _url(self, url: str) -> str:
         """쿼리와 경로 조각을 같은 마스킹기로 가린다(/member/01012345678 처럼 경로에 든 값도). 경로 모양은 그대로다."""
-        return mask_url(self.masker, url)
+        return mask_url(self.masker, url, hide_tokens=True)
 
     def _post(self, post: Optional[str], ctype: str) -> Optional[str]:
         if not post:
@@ -107,7 +108,7 @@ class Trace:
         low = (ctype or "").lower()
         if "json" in low:
             try:
-                return json.dumps(self.masker.value(json.loads(post)), ensure_ascii=False)[:RES_MAX]
+                return json.dumps(hide_token_values(self.masker.value(json.loads(post))), ensure_ascii=False)[:RES_MAX]
             except ValueError:
                 return self._m(post)[:RES_MAX]
         if "x-www-form-urlencoded" in low:

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qsl, urlsplit
 
 from app.ieum.discovery import capture, infer
-from app.ieum.discovery.masking import HIDDEN, MASKED_RE
+from app.ieum.discovery.masking import HIDDEN, MASKED_RE, is_secret_key
 from app.ieum.discovery.policy import Policy
 
 USER_INPUT, PREVIOUS_STEP_OUTPUT, SESSION_CONTEXT = "USER_INPUT", "PREVIOUS_STEP_OUTPUT", "SESSION_CONTEXT"
@@ -248,7 +248,9 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                 contrib.append((prev, out_name, st["id"]))
                 weak = many or (p["type"] == "number" and not _similar(name, out_name))
                 p.update({"from": f"{prev['id']}.{out_name}", "source": PREVIOUS_STEP_OUTPUT, "confidence": "low" if weak else "high"})
-            elif (name in hidden and hidden[name] == value) or _TOKEN_NAME.search(name):   # 3) 숨은 입력란
+            elif _TOKEN_NAME.search(name) or (name in hidden and hidden[name] == value and (masked or is_secret_key(name))):
+                # 3) 매번 바뀌는 숨은 토큰. 이름이 토큰 같거나 가린 숨은 값만 그렇다. pageIndex=1, cmd="" 같은 평범한 숨은 필드는
+                #    아래 상수·입력 규칙으로 기록 값을 그대로 쓴다(전부 토큰으로 보면 Replay 가 needs_value 로 멈춘다).
                 p.update({"from": f"session.hidden.{name}", "source": SESSION_CONTEXT, "confidence": "high" if name in hidden else "mid"})
                 st["exec"] = "browser"
                 st["formPage"] = (sp.get("pre") or {}).get("href") or None

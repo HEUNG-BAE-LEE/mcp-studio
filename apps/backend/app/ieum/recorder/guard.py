@@ -41,10 +41,21 @@ def _is_id_field(name: str) -> bool:
     return any(p in c for p in _ID_PARTS) or c.endswith("id")
 
 
-ALLOW_TTL = 30.0                                         # Replay 가 승인받은 요청을 브라우저가 보낼 때까지 기다리는 시간(초)
-
-
 _TOKEN_NAME = re.compile(r"csrf|xsrf|token|viewstate|eventvalidation|nonce", re.I)
+
+
+def hide_token_pairs(pairs):
+    """csrf·nonce 같은 토큰 이름의 값을 숨긴다. Masker 는 token 낱말만 비밀로 보아 _csrf 값이 남는다."""
+    return [(k, HIDDEN if v and _TOKEN_NAME.search(str(k)) else v) for k, v in pairs]
+
+
+def hide_token_values(v):
+    """JSON 값에서 토큰 이름 키의 글자 값을 숨긴다(재귀)."""
+    if isinstance(v, dict):
+        return {k: (HIDDEN if isinstance(x, (str, int, float)) and x != "" and _TOKEN_NAME.search(str(k)) else hide_token_values(x)) for k, x in v.items()}
+    if isinstance(v, list):
+        return [hide_token_values(x) for x in v]
+    return v
 
 
 def mask_url(masker: Masker, url: str, hide_tokens: bool = False) -> str:
@@ -59,7 +70,7 @@ def mask_url(masker: Masker, url: str, hide_tokens: bool = False) -> str:
     path = "/".join(seg(x) for x in parts.path.split("/"))
     pairs = masker.pairs(parse_qsl(parts.query, keep_blank_values=True))
     if hide_tokens:
-        pairs = [(k, HIDDEN if v and _TOKEN_NAME.search(k) else v) for k, v in pairs]
+        pairs = hide_token_pairs(pairs)
     query = urlencode(pairs, safe="*•")
     return parts._replace(path=path, query=query).geturl()
 
@@ -99,7 +110,7 @@ class Guard:
         self._holds: Dict[str, asyncio.Future] = {}
         self.pending: Dict[str, dict] = {}            # 화면에 띄운 승인 창 내용. 늦게 붙은 구독자에게 다시 보낸다
         self._replay_holds: set = set()               # Replay 가 ask 로 띄운 승인 창. 기록을 멈춘 뒤에도 이것만 승인받는다
-        self._allow: List[tuple] = []                 # Replay 가 승인받은 요청의 한 번 허용 (메서드, 출처+경로, 만료 시각)
+        self._exact: Dict[int, tuple] = {}            # Replay 가 승인받아 지금 보내는 요청 (메서드, 주소, 본문). 보내는 동안만 있다
         self._masker = Masker(pii=True)
 
     @property
@@ -176,8 +187,8 @@ class Guard:
         if not self._is_write_req(url, method, rtype):
             await route.continue_()
             return
-        if self._consume_allowance(method, url):
-            # Replay 가 방금 승인받은 그 요청이 브라우저를 거쳐 다시 들어왔다. 같은 요청을 두 번 묻지 않는다(결정은 ask 가 남겼다).
+        if self._consume_exact(method, url, request.post_data):
+            # Replay 가 승인받고 지금 보내는 바로 그 요청(메서드·주소·본문이 같다)이다. 같은 요청을 두 번 묻지 않는다(결정은 ask 가 남겼다).
             self.decided_requests[id(request)] = "approve"
             await route.continue_()
             return
@@ -212,35 +223,31 @@ class Guard:
         self.login_req = {"url": url, "method": method, "post": request.post_data,
                           "ctype": (request.headers or {}).get("content-type", ""), "page": frame_url}
 
-    async def ask(self, method: str, url: str, label: str, once: bool = False) -> bool:
-        """Replay 쓰기 단계의 승인. once 면 승인받은 뒤 같은 요청이 브라우저 가드를 지날 때 한 번 다시 묻지 않는다."""
+    async def ask(self, method: str, url: str, label: str) -> bool:
+        """Replay 쓰기 단계의 승인. 기록을 멈춘 뒤에도 이 승인 창의 결정은 받는다(is_replay_hold)."""
         if self.env != "op":
             self._log(method, url, "staging", label=label)
             return True
-        ok = await self._hold(method, url, label, replay=True) == "approve"
-        if ok and once:
-            self.allow_once(method, url)
-        return ok
+        return await self._hold(method, url, label, replay=True) == "approve"
 
     def is_replay_hold(self, hold_id: str) -> bool:
         return hold_id in self._replay_holds
 
-    @staticmethod
-    def _allow_key(method: str, url: str) -> tuple:
-        """쿼리는 비교하지 않는다. Replay 는 쿼리를 빼고 승인받고, 보낼 때 파라미터를 붙인다."""
-        p = urlsplit(url)
-        return method.upper(), f"{p.scheme}://{p.netloc}{p.path}"
+    def allow_exact(self, method: str, url: str, body: Optional[str]) -> int:
+        """승인받은 Replay 요청을 브라우저로 보내는 동안만 그 요청 하나를 통과시킨다. 보낸 뒤 revoke 로 지운다.
+        메서드·주소(쿼리 포함)·본문이 모두 같아야 하므로 멈춘 화면이 같은 경로로 보내는 다른 쓰기는 여전히 붙잡힌다."""
+        token = id(object()) ^ int(time.time() * 1e6)
+        self._exact[token] = (method.upper(), url, body or "")
+        return token
 
-    def allow_once(self, method: str, url: str, ttl: float = ALLOW_TTL) -> None:
-        self._allow.append(self._allow_key(method, url) + (time.time() + ttl,))
+    def revoke(self, token: int) -> None:
+        self._exact.pop(token, None)
 
-    def _consume_allowance(self, method: str, url: str) -> bool:
-        now = time.time()
-        self._allow = [a for a in self._allow if a[2] > now]
-        key = self._allow_key(method, url)
-        for i, a in enumerate(self._allow):
-            if a[:2] == key:
-                del self._allow[i]
+    def _consume_exact(self, method: str, url: str, body: Optional[str]) -> bool:
+        key = (method.upper(), url, body or "")
+        for token, v in list(self._exact.items()):
+            if v == key:
+                del self._exact[token]
                 return True
         return False
 
