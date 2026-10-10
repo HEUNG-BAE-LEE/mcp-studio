@@ -196,7 +196,7 @@ def test_리퍼는_한_번_실패해도_계속_돈다(live, monkeypatch):
         calls["n"] += 1
         raise RuntimeError("정리 실패")
     monkeypatch.setattr(retention, "sweep", boom)
-    manager.MANAGER._swept_at = 0.0
+    monkeypatch.setattr(manager.MANAGER, "_swept_at", 0.0)
     call(manager.MANAGER._reap_once())        # 정리가 터져도 같은 주기의 세션 회수는 돈다
     assert calls["n"] == 1
     assert store.get_recording(out["id"])["status"] == "interrupted" and manager.MANAGER.get(out["id"]) is None

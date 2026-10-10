@@ -439,3 +439,19 @@ def test_종료_중에도_Replay_승인은_묻고_정확히_일치한_요청은_
         await g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="a=1"))
         return ok, r.done
     assert run(go()) == (True, "continue")
+
+
+def test_외부_통계_기록의_이름은_사용자_동작이_아니라_고정_문구다():
+    async def go():
+        g, sent = make()
+        g.label = "조회 버튼 클릭"
+        r = Route()
+        await g.route(r, Req("https://www.google-analytics.com/g/collect?v=2", "POST", rtype="fetch"))
+        return [(d["decision"], d["label"]) for d in g.decisions]
+    assert run(go()) == [("beacon", "외부 통계")]
+
+
+def test_구글을_흉내낸_호스트와_구글_일반_POST_는_통계가_아니라_승인을_받는다():
+    for url in ("https://google.com.evil.net/g/collect", "https://accounts.google.com/x"):
+        done, sent, dec, cnt, holding = _route_one(Req(url, "POST", rtype="xhr", post="a=1"))
+        assert sent == ["hold"] and holding and cnt == 0 and "beacon" not in dec, url

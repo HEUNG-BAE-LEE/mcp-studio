@@ -17,6 +17,7 @@ from app.ieum.recorder.session import RecorderSession
 log = logging.getLogger(__name__)
 
 _REAP_SEC = 15
+_STOP_STUCK_SEC = 300          # 멈추는 중인 채 이 시간을 넘긴 세션은 리퍼가 실패로 회수한다(안전망)
 
 
 class RecorderError(Exception):
@@ -43,6 +44,8 @@ class Manager:
         self._lock: Optional[asyncio.Lock] = None
         self._lock_loop = None
         self.on_stopped: Optional[Callable[[str, RecorderSession], Awaitable[None]]] = None
+        self._stops: Dict[str, asyncio.Task] = {}      # 진행 중인 멈춤 작업(요청이 취소돼도 끝까지 돈다. 참조를 쥐어 GC 를 막는다)
+        self._stuck: set = set()                        # 리퍼가 시간 초과로 끊은 멈춤
 
     def _guard(self) -> asyncio.Lock:
         """상한 확인부터 등록까지, 그리고 Playwright 기동을 한 번에 한 요청만 지나가게 하는 잠금(루프마다 새로 만든다)."""
@@ -55,6 +58,7 @@ class Manager:
         loop = asyncio.get_running_loop()
         if self.loop is not loop:                     # 루프가 바뀌었다(서버 재기동, 시험). 이전 세션은 쓸 수 없다
             self.sessions, self._pw, self._reaper = {}, None, None
+            self._stops, self._stuck = {}, set()
             self.loop = loop
         if self._pw is None:
             from playwright.async_api import async_playwright
@@ -143,28 +147,62 @@ class Manager:
         s = self.get(rid)
         if s is None:
             raise RecorderError("진행 중인 기록이 아닙니다.", 404)
-        if s.stopping:                                # 멈춤은 한 번만. on_stopped 가 두 번 돌면 분석이 겹친다
+        if s.stopping or rid in self._stops:          # 멈춤은 한 번만. on_stopped 가 두 번 돌면 분석이 겹친다
             raise RecorderError("이미 멈추는 중인 기록입니다.", 409)
+        # 멈춤은 별도 작업으로 돌리고 요청은 그 끝을 기다리기만 한다. 요청(연결)이 취소돼도 멈춤 작업은 끝까지 돌아
+        # 분석 예약(on_stopped)까지 스스로 마친다. 안 그러면 세션이 stopping 인 채 갇혀 사람당 상한을 계속 차지한다.
+        await asyncio.shield(self._begin_stop(rid, s))
+
+    def _begin_stop(self, rid: str, s: RecorderSession) -> asyncio.Task:
+        task = self._stops[rid] = asyncio.ensure_future(self._stop_session(rid, s))
+        task.add_done_callback(lambda t, rid=rid: self._stop_done(rid, t))
+        return task
+
+    def _stop_done(self, rid: str, task: asyncio.Task) -> None:
+        """멈춤 작업 완료 콜백. 기다리던 요청이 취소됐으면 결과를 받을 곳이 없으므로 여기서 거둔다."""
+        if self._stops.get(rid) is task:
+            self._stops.pop(rid, None)
+        self._stuck.discard(rid)
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            log.warning("기록 %s 멈춤 작업이 실패로 끝났습니다: %s", rid, exc)
+
+    async def _stop_session(self, rid: str, s: RecorderSession) -> None:
         try:
             await s.stop()
             await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="analyzing"))
-        except Exception as exc:
+        except asyncio.CancelledError:
+            stuck = rid in self._stuck
+            # 서버 종료로 취소되면 정리만 한다. 리퍼가 시간 초과로 끊었으면 기록은 리퍼가 실패로 적었다
+            await self._drop_after_stop_failure(rid, s, None)
+            if stuck:
+                raise RecorderError("기록을 멈추는 데 너무 오래 걸려 실패로 처리했습니다.", 500)
+            raise
+        except BaseException as exc:
             # 멈추다 실패하면 세션이 stopping 인 채 영영 남는다. 실패로 적고 치운 뒤 알린다.
             msg = (str(exc).splitlines()[0][:300] if str(exc) else type(exc).__name__)
-            self.sessions.pop(rid, None)
-            try:
-                await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=msg, endedAt=time.time()))
-            except Exception:
-                log.exception("멈춤 실패를 기록하지 못했습니다")
-            try:
-                await s.close()
-            except Exception:
-                log.exception("멈춤 실패 뒤 세션을 닫지 못했습니다")
+            await self._drop_after_stop_failure(rid, s, msg)
             raise RecorderError(f"기록을 멈추는 중 실패했습니다: {msg}", 500)
         if self.on_stopped is not None:
             asyncio.ensure_future(self.on_stopped(rid, s))
         else:
             await self.close(rid)
+
+    async def _drop_after_stop_failure(self, rid: str, s: RecorderSession, msg: Optional[str]) -> None:
+        """멈춤 실패·취소 뒤 정리: 관리자에서 빼고, (사유가 있으면) 실패로 적고, 세션을 닫는다. 정리는 취소되지 않게 감싼다."""
+        if self.sessions.get(rid) is s:
+            self.sessions.pop(rid, None)
+        if msg is not None:
+            try:
+                await asyncio.shield(asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=msg, endedAt=time.time())))
+            except BaseException:
+                log.exception("멈춤 실패를 기록하지 못했습니다")
+        try:
+            await asyncio.shield(s.close())
+        except BaseException:
+            log.exception("멈춤 실패 뒤 세션을 닫지 못했습니다")
 
     async def close(self, rid: str) -> None:
         s = self.sessions.pop(rid, None)
@@ -172,6 +210,8 @@ class Manager:
             await s.close()
 
     async def shutdown(self) -> None:
+        for task in list(self._stops.values()):
+            task.cancel()                             # 서버 종료: 멈춤 작업은 정리만 하고 끝난다
         for rid in list(self.sessions):
             await self.close(rid)
         if self._reaper is not None:
@@ -204,7 +244,10 @@ class Manager:
                 except KeyError:
                     await self.close(rid)
                     continue
-                if status != "recording" or s.stopping:
+                if s.stopping and not s.accept_replay and s.stopping_at and now - s.stopping_at > _STOP_STUCK_SEC:
+                    await self._reap_stuck_stop(rid, s)
+                    continue
+                if status != "recording" or s.stopping or rid in self._stops:
                     continue                     # 분석·검증 중인 세션은 service.finish 가 닫는다
                 if now - s.last_input > config.idle_sec():
                     try:
@@ -218,9 +261,27 @@ class Manager:
                     finally:
                         await self.close(rid)
                 elif now - s.started > config.max_sec():
-                    await self.stop(rid)
+                    self._begin_stop(rid, s)          # 기다리지 않는다. 멈춤이 오래 걸려도 리퍼(안전망)는 계속 돌아야 한다
             except Exception:
                 log.exception("기록 %s 회수 단계에 실패했습니다", rid)
+
+
+    async def _reap_stuck_stop(self, rid: str, s: RecorderSession) -> None:
+        """멈추는 중인 채 너무 오래 남은 세션: 실패로 적고 멈춤 작업을 끊고 닫는다."""
+        log.warning("기록 %s 이(가) %d초 넘게 멈추는 중이라 실패로 회수합니다", rid, _STOP_STUCK_SEC)
+        msg = "기록을 멈추는 데 너무 오래 걸려 실패로 처리했습니다."
+        try:
+            await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=msg, endedAt=time.time()))
+        except KeyError:
+            pass
+        task = self._stops.get(rid)
+        if task is not None and not task.done():
+            self._stuck.add(rid)
+            task.cancel()                             # 작업이 취소를 받으면 스스로 빼고 닫는다
+            await asyncio.wait({task}, timeout=10)
+        if self.sessions.get(rid) is s:
+            self.sessions.pop(rid, None)
+        await s.close()
 
 
 MANAGER = Manager()

@@ -231,7 +231,7 @@ class Guard:
             key = ((sp.hostname or "").lower(), sp.path)
             if key not in self._beacon_seen:
                 self._beacon_seen.add(key)
-                self._log(method, url, "beacon")
+                self._log(method, url, "beacon", label="외부 통계")
             await route.abort("blockedbyclient")
             return
         is_login = self._is_login(request, url)

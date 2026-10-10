@@ -5,6 +5,9 @@
 입력은 relay 로 넣는다. 입력을 넣기 직전에 trace.begin() 을 불러 직전 화면을 뜬다.
 
 쓰기 승인 창이 떠 있는 동안에는 다른 입력을 받지 않는다(승인 창 아래 클릭이 엉뚱한 곳에 들어가지 않게).
+화면에서 오는 메시지는 둘로 나눈다(dispatch). 제어(승인·확인 창·일시 정지·탭)는 받는 즉시 처리하고, 입력(클릭·휠·글자·키)은
+세션마다 한 줄에 넣어 소비 작업 하나가 도착 순서대로 처리한다. 확인 창이 열린 페이지에서 입력 처리(스냅샷)가 막혀도
+같은 연결로 온 확인 창 응답이 그 뒤에 갇히지 않게 하려는 것이다.
 대상 사이트의 alert/confirm 은 사용자에게 그대로 묻는다. 자동 탐색처럼 항상 취소하지 않는다.
 """
 import asyncio
@@ -12,6 +15,7 @@ import logging
 import re
 import secrets
 import time
+from collections import deque
 from typing import Callable, Dict, Optional
 from urllib.parse import urlsplit
 
@@ -25,6 +29,9 @@ log = logging.getLogger(__name__)
 _CONN_ERR = re.compile(r"ERR_(CONNECTION_|TIMED_OUT|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE|INTERNET_DISCONNECTED|SSL_|CERT_)")
 TAB_TITLE_SEC = 5.0
 FAIL_NOTICE_SEC = 30.0         # 같은 연결 실패 문구는 이 시간에 한 번만 알린다
+INPUT_KINDS = ("click", "wheel", "text", "key")
+INPUT_MAX = 50                 # 입력 줄 상한. 넘치면 오래된 휠부터 버린다
+DIALOG_REPLY_SEC = 5.0
 
 
 class RecorderSession:
@@ -39,6 +46,7 @@ class RecorderSession:
         self.last_input = time.time()
         self.closed = False
         self.stopping = False
+        self.stopping_at = 0.0                        # 멈춤을 시작한 시각(리퍼가 오래 멈추는 중인 세션을 회수한다)
         self.accept_replay = False                    # 멈춘 뒤 Replay 검증이 띄운 승인 창의 결정만 받는다
         self.browser = self.ctx = self.page = self.cdp = None
         self.pages: list = []
@@ -49,6 +57,10 @@ class RecorderSession:
         self._last_frame: Optional[str] = None
         self._loop = None
         self._on_dead = on_dead
+        self._inputs: deque = deque()
+        self._input_ready = asyncio.Event()
+        self._input_task: Optional[asyncio.Task] = None
+        self._ctl_task: Optional[asyncio.Task] = None
 
     def dialog_open(self, page) -> bool:
         """그 페이지에 확인 창이 열려 있는가(열린 창이 있는 페이지는 Playwright 호출이 돌아오지 않는다)."""
@@ -158,6 +170,7 @@ class RecorderSession:
         if self.closed:
             return
         self.closed = True
+        self._stop_inputs()
 
         await self._deny_pending()                      # 보낼 브라우저가 없다. 대기 승인을 거부로 닫고 그 결정이 남을 때까지 기다린다
 
@@ -261,7 +274,72 @@ class RecorderSession:
             await self.broadcast({"t": "login", "state": "needed", "msg": "세션이 끊겼습니다. 화면에서 다시 로그인해 주세요. 기록은 이어집니다."})
 
     # ── 입력 ───────────────────────────────────────────────────────────────
+    async def dispatch(self, msg: dict) -> None:
+        """WebSocket 메시지 처리 입구. 입력은 줄에 넣고 바로 돌아오고, 제어는 바로 처리한다."""
+        t = msg.get("t")
+        if t in INPUT_KINDS:
+            self.last_input = time.time()
+            self._enqueue_input(msg)
+            return
+        if t in ("pause", "tab"):
+            # 일시 정지·탭 전환은 trace 잠금·CDP 를 기다릴 수 있다. 수신 루프를 막지 않게 따로 돌리되 둘끼리는 순서를 지킨다
+            self.last_input = time.time()
+            prev = self._ctl_task
+            self._ctl_task = asyncio.get_running_loop().create_task(self._ordered_control(prev, msg))
+            return
+        await self.handle(msg)                           # 승인·확인 창 응답은 기다릴 것이 없다. 바로 처리한다
+
+    async def _ordered_control(self, prev: Optional[asyncio.Task], msg: dict) -> None:
+        if prev is not None and not prev.done():
+            await asyncio.wait({prev})
+        if self.closed:
+            return
+        try:
+            await self.handle(msg)
+        except Exception:
+            log.exception("기록 화면 제어 메시지 처리에 실패했습니다: %s", self.rid)
+
+    def _enqueue_input(self, msg: dict) -> None:
+        if self.closed:
+            return
+        self._inputs.append(msg)
+        if len(self._inputs) > INPUT_MAX:
+            drop = next((m for m in self._inputs if m.get("t") == "wheel"), None)
+            if drop is not None:
+                self._inputs.remove(drop)               # 휠은 버려도 화면이 조금 덜 움직일 뿐이다
+            else:
+                log.warning("기록 입력 줄이 넘쳐 가장 오래된 입력을 버립니다: %s", self.rid)
+                self._inputs.popleft()
+        self._input_ready.set()
+        if self._input_task is None or self._input_task.done():
+            self._input_task = asyncio.get_running_loop().create_task(self._consume_inputs())
+
+    async def _consume_inputs(self) -> None:
+        """세션당 하나. 입력을 도착 순서대로 처리한다. 하나가 실패해도 다음 입력은 처리한다."""
+        while not self.closed:
+            if not self._inputs:
+                self._input_ready.clear()
+                await self._input_ready.wait()
+                continue
+            msg = self._inputs.popleft()
+            try:
+                await self._handle_input(msg)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("기록 화면 입력 처리에 실패했습니다: %s", self.rid)
+
+    def _stop_inputs(self) -> list:
+        """입력 줄을 비우고 소비 작업을 취소한다(세션이 닫힐 때). 취소한 작업을 돌려준다."""
+        self._inputs.clear()
+        live = [t for t in (self._input_task, self._ctl_task) if t is not None and not t.done()]
+        for task in live:
+            task.cancel()
+        self._input_task = self._ctl_task = None
+        return live
+
     async def handle(self, msg: dict) -> None:
+        """메시지 하나를 바로 처리한다. 입력도 여기서 바로 처리하므로 WebSocket 경로는 dispatch 를 거친다."""
         t = msg.get("t")
         self.last_input = time.time()
         if t == "approve":
@@ -277,7 +355,7 @@ class RecorderSession:
         if t == "dialog" and self._dialog is not None:
             d, self._dialog = self._dialog, None
             try:
-                await (d.accept(msg.get("text") or "") if msg.get("ok") else d.dismiss())
+                await asyncio.wait_for(d.accept(msg.get("text") or "") if msg.get("ok") else d.dismiss(), DIALOG_REPLY_SEC)
             except Exception:
                 pass
             return
@@ -289,6 +367,10 @@ class RecorderSession:
             if 0 <= i < len(self.pages):
                 await self._activate(self.pages[i])
             return
+        await self._handle_input(msg)
+
+    async def _handle_input(self, msg: dict) -> None:
+        t = msg.get("t")
         if self.guard.holding or self.cdp is None or self.stopping:
             return                                      # 승인 창이 떠 있는 동안 다른 입력은 받지 않는다
         if t == "click":
@@ -317,12 +399,16 @@ class RecorderSession:
     async def begin_stopping(self) -> None:
         """멈춤의 시작: 입력을 끊고, 이 뒤에 붙잡힐 기록 쪽 쓰기는 바로 거절하고, 열려 있는 확인 창을 닫는다(정상 멈춤·유휴 멈춤 공통)."""
         self.stopping = True
+        if not self.stopping_at:
+            self.stopping_at = time.time()
+        self._inputs.clear()                             # 줄에 남은 입력은 멈춤 뒤에 처리하지 않는다
         self.guard.closing_now()
         if self._dialog is not None:
             d = self._dialog
             try:
                 await asyncio.wait_for(self._close_dialog_for_stop(d), 5)
-                self._dialog = None
+                if self._dialog is d:
+                    self._dialog = None                  # 닫는 사이 새로 뜬 창은 지우지 않는다
             except Exception:
                 pass                                     # 닫지 못해도 멈춤은 계속한다. _dialog 를 남겨 두어 스냅샷이 그 페이지를 계속 건너뛴다
 
@@ -343,6 +429,10 @@ class RecorderSession:
         self.accept_replay = True                       # 기록 쪽 승인은 모두 닫았다. 이제부터 오는 승인 창은 Replay 의 것이다
 
     async def close(self) -> None:
+        me = asyncio.current_task()
+        left = [t for t in self._stop_inputs() if t is not me]
+        if left:
+            await asyncio.wait(left, timeout=2)          # 취소가 실제로 끝날 때까지 잠깐 기다린다(누수 없음)
         if self.closed and self.browser is None:
             return
         self.closed = True

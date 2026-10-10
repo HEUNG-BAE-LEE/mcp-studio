@@ -156,7 +156,7 @@ async def recording_ws(websocket: WebSocket, rid: str, token: str = ""):
                 msg = json.loads(raw)
                 if not isinstance(msg, dict):
                     continue
-                await s.handle(msg)
+                await s.dispatch(msg)           # 제어는 바로, 입력은 세션의 입력 줄로
             except Exception:
                 log.exception("기록 화면 메시지 처리에 실패했습니다: %s", rid)
     except WebSocketDisconnect:
