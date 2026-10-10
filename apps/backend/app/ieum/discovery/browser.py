@@ -40,28 +40,35 @@ def _system_channels() -> list:
     return [ch for ch, paths in _SYSTEM_BROWSERS if any(Path(p).exists() for p in paths)]
 
 
+def _attempts() -> list:
+    """시도할 실행 방법 순서: 번들 Chromium, 그다음 설치된 시스템 브라우저."""
+    return [("chromium", {})] + [(ch, {"channel": ch}) for ch in _system_channels()]
+
+
+def _unavailable(errors: list) -> BrowserUnavailable:
+    return BrowserUnavailable("브라우저를 띄우지 못했습니다. " + INSTALL_HINT + " (" + "; ".join(errors) + ")")
+
+
 def launch(pw) -> Tuple[object, str]:
     """(브라우저, 이름). 번들 Chromium → Chrome → Edge 순서로 시도한다."""
-    attempts = [("chromium", {})] + [(ch, {"channel": ch}) for ch in _system_channels()]
     errors = []
-    for name, kw in attempts:
+    for name, kw in _attempts():
         try:
             return pw.chromium.launch(headless=True, timeout=LAUNCH_TIMEOUT_MS, **kw), name
         except Exception as exc:  # 설치 안 됨, 실행 실패 모두
             errors.append(f"{name}: {str(exc).splitlines()[0][:120]}")
-    raise BrowserUnavailable("브라우저를 띄우지 못했습니다. " + INSTALL_HINT + " (" + "; ".join(errors) + ")")
+    raise _unavailable(errors)
 
 
 async def launch_async(pw) -> Tuple[object, str]:
     """launch 와 같은 순서의 비동기판. 업무 기록은 화면 중계 때문에 비동기 Playwright 를 쓴다."""
-    attempts = [("chromium", {})] + [(ch, {"channel": ch}) for ch in _system_channels()]
     errors = []
-    for name, kw in attempts:
+    for name, kw in _attempts():
         try:
             return await pw.chromium.launch(headless=True, timeout=LAUNCH_TIMEOUT_MS, **kw), name
         except Exception as exc:  # 설치 안 됨, 실행 실패 모두
             errors.append(f"{name}: {str(exc).splitlines()[0][:120]}")
-    raise BrowserUnavailable("브라우저를 띄우지 못했습니다. " + INSTALL_HINT + " (" + "; ".join(errors) + ")")
+    raise _unavailable(errors)
 
 
 # 상태 확인은 Playwright 드라이버를 띄우므로 비싸다. 잠깐 기억한다.

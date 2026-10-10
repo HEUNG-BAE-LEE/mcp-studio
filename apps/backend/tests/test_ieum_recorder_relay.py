@@ -13,6 +13,7 @@ browser_needed = pytest.mark.skipif(os.environ.get("IEUM_SKIP_BROWSER_TESTS") ==
 def test_줄여_보인_좌표를_브라우저_좌표로_바꾼다():
     assert relay.to_page(480, 300, 960, 600) == (640.0, 400.0)
     assert relay.to_page(2000, -5, 960, 600) == (relay.VIEW_W - 1, 0.0)
+    assert relay.to_page(10, 10, 0, 0) == (relay.VIEW_W - 1, relay.VIEW_H - 1)
 
 
 def test_느린_구독자에게는_최신_프레임만_간다():
@@ -31,6 +32,26 @@ def test_느린_구독자에게는_최신_프레임만_간다():
         return s
     s = asyncio.new_event_loop().run_until_complete(go())
     assert got[-1] == "19" and len(got) < 20 and s.dropped == 20 - len(got)
+
+
+def test_보내기가_실패하면_표시하고_이후_프레임은_받지_않는다():
+    calls = []
+
+    async def broken_send(data):
+        calls.append(data)
+        raise RuntimeError("구독자 끊김")
+
+    async def go():
+        s = relay.LatestSender(broken_send)
+        s.offer("a")
+        await asyncio.sleep(0.05)
+        s.offer("b")
+        s.offer("c")
+        await asyncio.sleep(0.05)
+        return s
+    s = asyncio.new_event_loop().run_until_complete(go())
+    assert s.failed is True
+    assert calls == ["a"]
 
 
 @browser_needed

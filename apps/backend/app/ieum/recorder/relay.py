@@ -19,6 +19,8 @@ KEYS: Dict[str, Tuple[int, str]] = {
 
 
 def to_page(x: float, y: float, w: float, h: float) -> Tuple[float, float]:
+    # 화면 크기가 0 이하로 올 수 있다(아직 레이아웃이 없을 때). 0으로 나누지 않도록 1로 본다.
+    w, h = max(w, 1), max(h, 1)
     px = min(max(x * VIEW_W / w, 0.0), VIEW_W - 1)
     py = min(max(y * VIEW_H / h, 0.0), VIEW_H - 1)
     return float(px), float(py)
@@ -63,22 +65,26 @@ async def stop_screencast(cdp) -> None:
 
 
 class LatestSender:
-    """구독자 하나에 최신 프레임만 보낸다."""
+    """구독자 하나에 최신 프레임만 보낸다. 보내기가 한 번이라도 실패하면 failed 를 세우고 더 받지 않는다."""
 
     def __init__(self, send: Callable[[str], Awaitable[None]]):
         self._send = send
         self._latest: Optional[str] = None
         self._busy = False
+        self._task: Optional[asyncio.Future] = None  # 펌프 작업을 붙잡아 두어 중간에 수거되지 않게 한다
+        self.failed = False
         self.dropped = 0
         self.sent = 0
 
     def offer(self, data: str) -> None:
+        if self.failed:
+            return
         if self._latest is not None:
             self.dropped += 1
         self._latest = data
         if not self._busy:
             self._busy = True
-            asyncio.ensure_future(self._pump())
+            self._task = asyncio.ensure_future(self._pump())
 
     async def _pump(self) -> None:
         try:
@@ -87,6 +93,8 @@ class LatestSender:
                 await self._send(data)
                 self.sent += 1
         except Exception:
+            # 끊긴 구독자다. 세션이 failed 를 보고 목록에서 뺀다.
+            self.failed = True
             self._latest = None
         finally:
             self._busy = False
