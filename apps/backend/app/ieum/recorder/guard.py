@@ -20,12 +20,26 @@ from app.ieum.discovery import capture
 from app.ieum.discovery.policy import Policy
 from app.ieum.recorder import config, scope
 
-_PW_WORDS = frozenset("pw pwd pass passwd password".split())
+_PW_LAST = frozenset("pw pwd passwd password".split())
+_ID_WORDS = frozenset("id user login account email usr".split())
+_LOGIN_CTYPES = ("application/x-www-form-urlencoded", "multipart/form-data")
 _WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
 
 
+def _words(name: str) -> List[str]:
+    return [w.lower() for w in _WORD.findall(str(name))]
+
+
 def _is_password_field(name: str) -> bool:
-    return any(w.lower() in _PW_WORDS for w in _WORD.findall(str(name)))
+    """마지막 단어가 비밀번호 계열이거나 필드 이름이 정확히 pass 인 것만. passYn 같은 것은 아니다."""
+    if str(name).lower() == "pass":
+        return True
+    ws = _words(name)
+    return bool(ws) and ws[-1] in _PW_LAST
+
+
+def _is_id_field(name: str) -> bool:
+    return any(w in _ID_WORDS for w in _words(name))
 
 
 class Guard:
@@ -63,24 +77,39 @@ class Guard:
             except Exception:
                 pass
 
+    def _is_write_req(self, url: str, method: str, rtype: str) -> bool:
+        """쓰기로 다룰 요청인가. GET/HEAD 가 아니면 주소 모양·자원 종류와 상관없이 쓰기다(예: imgSave.do?name=logo.png)."""
+        if method not in ("GET", "HEAD"):
+            return True
+        return capture.is_write(url, method, rtype, self.policy)
+
     def _provably_read(self, request) -> bool:
         """예외가 난 뒤에도 보내도 되는 요청인가. 확실히 읽기일 때만 참이다. 판단이 실패하면 거짓(막는다)."""
         try:
             url, method, rtype = request.url, request.method.upper(), request.resource_type
             if scope.blocked(url, self.target_origin, config.deny_entries()):
                 return False
-            if not capture.is_write(url, method, rtype, self.policy):
+            if not self._is_write_req(url, method, rtype):
                 return True
-            return bool(self.policy.is_read_post(url))
+            return self.policy.same_origin(url) and bool(self.policy.is_read_post(url))
         except Exception:
             return False
 
-    def _is_login(self, request) -> bool:
+    def _is_login(self, request, url: str) -> bool:
+        """로그인은 대상 출처로 가는 폼·JSON 이고, 비밀번호 필드와 아이디 계열 필드가 함께 있을 때만이다."""
         try:
-            fields = capture.parse_form(request.post_data, (request.headers or {}).get("content-type", ""))
+            if not self.policy.same_origin(url):
+                return False
+            ctype = ((request.headers or {}).get("content-type", "") or "").lower()
+            if not (any(c in ctype for c in _LOGIN_CTYPES) or "json" in ctype):
+                return False
+            names = list(capture.parse_form(request.post_data, ctype).keys())
+            for pk in names:
+                if _is_password_field(pk) and any(k != pk and _is_id_field(k) for k in names):
+                    return True
+            return False
         except Exception:
             return False
-        return any(_is_password_field(k) for k in fields)
 
     async def _route(self, route, request) -> None:
         url, method, rtype = request.url, request.method.upper(), request.resource_type
@@ -90,16 +119,16 @@ class Guard:
             await self.notify({"t": "blocked", "url": url[:200], "why": why})
             await route.abort("blockedbyclient")
             return
-        if not capture.is_write(url, method, rtype, self.policy):
+        if not self._is_write_req(url, method, rtype):
             await route.continue_()
             return
-        if self._is_login(request):
+        if self._is_login(request, url):
             frame_url = getattr(getattr(request, "frame", None), "url", "") or ""
             self.login_req = {"url": url, "method": method, "post": request.post_data,
                               "ctype": (request.headers or {}).get("content-type", ""), "page": frame_url}
             await route.continue_()
             return
-        if self.policy.is_read_post(url):
+        if self.policy.same_origin(url) and self.policy.is_read_post(url):
             await route.continue_()
             return
         if self.env != "op":

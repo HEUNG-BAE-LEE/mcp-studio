@@ -194,3 +194,75 @@ def test_알림이_실패해도_차단_주소는_보내지_않는다():
         await g.route(r, Req("http://169.254.169.254/latest", rtype="xhr"))
         return r.done
     assert run(go()) == "abort"
+
+
+def test_루프백_표기_변형도_막는다():
+    # 대상은 http://h:8080. 같은 호스트 표기가 달라도 서버 자신·메타데이터로 본다
+    for url in ("http://[::ffff:7f00:1]:8000/api/ieum/x", "http://[::ffff:a9fe:a9fe]/latest",
+                "http://0.0.0.0:8000/x", "http://[::]:8000/x", "http://localhost.:8000/x",
+                "http://a.localhost:8000/x", "http://[::ffff:127.0.0.1]:8080/po/x"):
+        assert scope.blocked(url, "http://h:8080") is not None, url
+
+
+def test_루프백_표기_정규화는_허용_규칙을_흔들지_않는다():
+    # 대상이 localhost 면 그 출처의 업무 화면은 열고, 같은 출처의 콘솔 경로만 막는다(표기 변형 포함)
+    assert scope.blocked("http://localhost.:8000/demo-legacy/po/main.do", "http://localhost:8000") is None
+    assert scope.blocked("http://[::ffff:127.0.0.1]:8000/api/ieum/x", "http://127.0.0.1:8000") is not None
+    assert scope.blocked("http://127.0.0.1:8000/demo-legacy/po/main.do", "http://127.0.0.1:8000") is None
+
+
+def test_자원_모양_주소의_POST_도_쓰기로_승인을_받는다():
+    async def go():
+        g, sent = make(timeout=0.05)
+        r = Route()
+        await g.route(r, Req("http://h:8080/po/imgSave.do?name=logo.png", "POST", post="x=1"))
+        return r.done, sent[0]["t"], g.decisions[-1]["decision"]
+    assert run(go()) == ("abort", "hold", "timeout")
+
+
+def test_다른_출처의_조회용_POST_는_승인을_받고_대상_출처는_통과한다():
+    async def go():
+        g, sent = make(timeout=0.05)
+        r1, r2 = Route(), Route()
+        await g.route(r1, Req("http://other.corp/po/searchPost.do", "POST", post="q=1"))
+        await g.route(r2, Req("http://h:8080/po/searchPost.do", "POST", post="q=1"))
+        return r1.done, r2.done, g.decisions[-1]["decision"]
+    assert run(go()) == ("abort", "continue", "timeout")
+
+
+def test_넓은_로그인_판정으로_저장을_통과시키지_않는다():
+    async def go():
+        g, sent = make(timeout=0.05)
+        r1, r2 = Route(), Route()
+        await g.route(r1, Req("http://h:8080/po/inspSave.do", "POST", post="passYn=Y&qty=1"))
+        await g.route(r2, Req("http://h:8080/po/pwChange.do", "POST", post="newPw=a&confirmPw=b"))
+        return r1.done, r2.done, g.login_req
+    assert run(go()) == ("abort", "abort", None)
+
+
+def test_텍스트_본문의_비밀번호는_로그인이_아니다():
+    async def go():
+        g, sent = make(timeout=0.05)
+        r = Route()
+        await g.route(r, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=x", ctype="text/plain"))
+        return r.done, g.login_req
+    assert run(go()) == ("abort", None)
+
+
+def test_JSON_로그인은_대상_출처에서_승인_없이_보낸다():
+    async def go():
+        g, sent = make()
+        r = Route()
+        await g.route(r, Req("http://h:8080/po/loginProc.do", "POST", post='{"userId":"a","userPw":"b"}',
+                             ctype="application/json"))
+        return r.done, sent, g.login_req["ctype"]
+    assert run(go()) == ("continue", [], "application/json")
+
+
+def test_다른_출처의_로그인_모양_요청은_승인을_받는다():
+    async def go():
+        g, sent = make(timeout=0.05)
+        r = Route()
+        await g.route(r, Req("http://other.corp/po/loginProc.do", "POST", post="userId=a&userPw=b"))
+        return r.done, g.login_req
+    assert run(go()) == ("abort", None)
