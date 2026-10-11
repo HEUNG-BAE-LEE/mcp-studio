@@ -14,7 +14,7 @@ def test_replay_는_core_의_같은_함수를_쓴다():
 
 
 def test_core_는_playwright_와_레코더_세션을_불러오지_않는다():
-    code = ("import sys, app.ieum.flow.core; "
+    code = ("import sys, app.ieum.flow.core, app.ieum.flow.runner; "
             "bad=[m for m in sys.modules if m.startswith(('playwright','app.ieum.recorder.session','app.ieum.recorder.manager'))]; "
             "print(bad); sys.exit(1 if bad else 0)")
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=".")
@@ -28,6 +28,18 @@ def test_recordedShape_로도_모양을_판정한다():
     ok, why, _ = core.judge(200, None, "text/html", page, {"kind": "html", "recordedShape": shape}, {})
     assert ok and why == ""
     ok, why, _ = core.judge(200, None, "text/html", "<p>전혀 다른 화면</p>", {"kind": "html", "recordedShape": shape}, {})
+    assert (ok, why) == (False, "shape_mismatch")
+
+
+def test_JSON_도_recordedShape_로_모양을_판정한다():
+    # 업무 도구 단계 사본은 recordedRes 없이 recordedShape(JSON 키 경로)만 든다
+    shape = sorted(core._keys({"id": "1", "items": [{"title": "가"}]}))
+    step = {"kind": "json", "recordedShape": shape}
+    ok, why, _ = core.judge(200, None, "application/json", '{"id": "2", "items": [{"title": "나"}]}', step, {})
+    assert ok and why == ""
+    ok, why, _ = core.judge(200, None, "application/json", '{"other": 1, "x": {"y": 2}}', step, {})
+    assert (ok, why) == (False, "shape_mismatch")
+    ok, why, _ = core.judge(200, None, "text/html", "<p>JSON 아님</p>", step, {})
     assert (ok, why) == (False, "shape_mismatch")
 
 

@@ -82,7 +82,8 @@ def judge(status: int, location: Optional[str], ctype: str, text: str, step: dic
     data, before = infer.parse_json(text or ""), infer.parse_json(step.get("recordedRes") or "")
     if _looks_error(data, text, step.get("recordedRes") or "", step.get("recordedErrSeen")):
         return False, "error_response", data
-    if before is not None:
+    # 업무 도구 단계 사본은 recordedRes 없이 recordedShape 만 들므로 그것만 있어도 모양을 본다
+    if "recordedShape" in step or before is not None:
         kb = set(step["recordedShape"]) if "recordedShape" in step else _keys(before)
         if data is None or (kb and len(kb & _keys(data)) / len(kb) < 0.6):
             return False, "shape_mismatch", data
