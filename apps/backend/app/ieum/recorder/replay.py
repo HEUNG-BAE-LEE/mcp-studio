@@ -478,6 +478,9 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
     relogin = None
     login = rec.get("login") or {}
     auto = login.get("mode") == "auto" and bool(login.get("recipe"))
+    # 기록 중 로그인을 한 번도 보지 못했으면(레시피·로그인 경로·login 승인 기록 모두 없음) 공개 화면으로 보고 세션 밖에서 쿠키 없이 다시 검증한다
+    anonymous = (not login.get("recipe") and not login.get("path")
+                 and not any((a or {}).get("decision") == "login" for a in rec.get("approvals") or []))
 
     def result(status, runs, reason=""):
         v = {"status": status, "at": time.time(), "runs": runs}
@@ -503,8 +506,9 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
             relogin_cb.note = "다시 로그인 실패"
             return None
 
+    outside = session is None or session.closed           # 세션 밖 재검증(익명 실행 포함)
     try:
-        if session is not None and not session.closed:
+        if not outside:
             cookies = [{"name": c["name"], "value": c["value"], "domain": c.get("domain", ""), "path": c.get("path", "/")}
                        for c in await session.ctx.cookies()]
             http, browser, raw = HttpTransport(cookies, host=host), BrowserTransport(session.page, session.guard), dict(session.trace.raw)
@@ -516,10 +520,10 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
                 ok = await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], label)
                 return ("approve" if session.guard.env == "op" else "staging") if ok else False     # 사람 승인인지 결과 문구가 가린다
         else:
-            if not auto:
+            if not auto and not anonymous:
                 return result("needs-login", [])
 
-            http = HttpTransport(await do_login(), host=host)
+            http = HttpTransport(await do_login() if auto else [], host=host)
 
             async def ask(st):
                 return "staging" if config.is_staging(bf["source"].get("env")) else False    # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다
@@ -557,6 +561,8 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
         runs.append({"kind": "varied-values", "ok": None, "steps": [], "reason": "skipped"})
     if same["reason"] == "needs_value":
         status = "needs-value"
+    elif outside and not auto and same["reason"] == "auth_expired":
+        status = "needs-login"                                # 쿠키 없이 보냈더니 로그인으로 보냈다: 공개 화면이 아니었다
     elif not same["ok"]:
         status = "failed"
     elif all(r["ok"] is not False for r in runs):

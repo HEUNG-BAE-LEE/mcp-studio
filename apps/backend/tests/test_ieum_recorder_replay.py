@@ -572,3 +572,70 @@ def test_기록_때_전체_화면의_오류_문구를_errSeen_으로_남긴다()
     tr.current = {"network": []}
     asyncio.new_event_loop().run_until_complete(tr.on_response(Resp()))
     assert tr.current["network"][0]["errSeen"] == ["오류가 발생", "처리 중 오류"]   # 40KB 뒤 코드표의 문구까지
+
+
+# T11: 로그인 없이 기록한 공개 사이트는 세션 밖에서도 다시 검증한다
+def _public_server(hits):
+    import http.server
+    import threading
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits.append((self.path, self.headers.get("Cookie")))
+            if self.path.startswith("/private.do"):
+                self.send_response(302)
+                self.send_header("Location", "/login.do")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            b = json.dumps({"RSLT": "0000", "resultList": [{"PO_NO": "PO-1"}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+def _public_bf(base, path="/list.do"):
+    return {"id": "bf_p", "source": {"base": base, "env": "op", "recordingId": "rec_p"}, "inputs": [], "auth": {"mode": "none"},
+            "steps": [{"id": "s1", "base": base, "method": "GET", "path": path, "kind": "json", "exec": "http", "charset": None, "write": False,
+                       "headers": {}, "outputs": {}, "params": [], "recordedData": None,
+                       "recordedRes": json.dumps({"RSLT": "0000", "resultList": [{"PO_NO": "PO-9"}]})}]}
+
+
+PUBLIC_REC = {"id": "rec_p", "login": {"mode": "manual", "recipe": None, "path": ""}, "approvals": [{"decision": "beacon"}, {"decision": "sent"}]}
+
+
+def test_로그인_없던_공개_기록은_세션_밖에서_익명으로_다시_검증한다():
+    hits = []
+    srv, base = _public_server(hits)
+    try:
+        out = asyncio.new_event_loop().run_until_complete(replay.verify(_public_bf(base), PUBLIC_REC, [], None))
+    finally:
+        srv.shutdown()
+    assert out["verification"]["status"] == "verified", out
+    assert hits and all(path == "/list.do" and cookie is None for path, cookie in hits)
+
+
+def test_직접_로그인한_기록은_여전히_needs_login():
+    for login, approvals in (({"mode": "manual", "recipe": None, "path": "/loginProc.do"}, []),
+                             ({"mode": "manual", "recipe": None, "path": ""}, [{"decision": "login"}])):
+        rec = {"id": "rec_m", "login": login, "approvals": approvals}
+        out = asyncio.new_event_loop().run_until_complete(replay.verify(_public_bf("http://127.0.0.1:9"), rec, [], None))
+        assert out["verification"]["status"] == "needs-login"
+
+
+def test_익명_재검증이_로그인_화면으로_보내지면_needs_login():
+    hits = []
+    srv, base = _public_server(hits)
+    try:
+        out = asyncio.new_event_loop().run_until_complete(replay.verify(_public_bf(base, "/private.do"), PUBLIC_REC, [], None))
+    finally:
+        srv.shutdown()
+    assert out["verification"]["status"] == "needs-login"
