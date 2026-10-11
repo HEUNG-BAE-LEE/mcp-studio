@@ -363,7 +363,11 @@ class _SessionExpired(Exception):
 
 
 def invoke(source, tool, args, ctx=None):
-    """도구를 실제로 실행한다. {'result', 'trace'} 를 돌려주고, 실패하면 trace 를 담은 ToolError 를 일으킨다."""
+    """도구를 실제로 실행한다. (result, trace) 를 돌려주고, 실패하면 trace 를 담은 ToolError 를 일으킨다.
+    업무 도구(kind == "flow")는 여러 단계를 이어 실행하는 flow.runner 로 넘긴다."""
+    if tool.get("kind") == "flow":
+        from app.ieum.flow import runner as flow_runner  # 순환 import 를 피해 여기서 부른다
+        return flow_runner.invoke(source, tool, args, ctx)
     try:
         return _invoke_once(source, tool, args, ctx, retry=True)
     except _SessionExpired:

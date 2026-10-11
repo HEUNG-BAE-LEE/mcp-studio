@@ -354,3 +354,25 @@ def test_k_는_고르는_묶음의_출처만_바꾼다():
     froms = [p["from"] for p in out[1]["params"]]
     assert froms == ["s1.links[/art/{id}@ul.news>li.it][2.0/1].id", other]
     assert set(out[0]["outputs"]) == {"links[/art/{id}@ul.news>li.it][2.0/1].id", other[3:]}
+
+
+def test_run_tool_과_MCP_정의가_업무_도구를_다룬다(site):
+    from app.ieum.gateway import runner as gw
+    from app.ieum.repositories import sources as src_repo, studio as tool_repo
+    base, _ = site
+    src_repo.upsert_source({"id": "t-src", "name": "시험", "proto": "disc", "base": base, "authType": "none", "spec": "업무 기록으로 추론"})
+    tool_repo.replace_source_tools("t-src", [tool_repo.with_defaults(_tool(base), {"proto": "disc"})])
+    out = gw.run_tool("news_t", {"index": 1}, client="test", require_published=True)
+    assert out["ok"] and out["result"]["picked"]["index"] == 1
+    d = gw.mcp_definition(tool_repo.find_tool("news_t")[1])
+    assert set(d["inputSchema"]["properties"]) == {"index", "match"} and d["annotations"]["readOnlyHint"] is True
+
+
+def test_배포_스냅샷에_flow_가_들어간다(site):
+    from app.ieum.runtime import manifest
+    from app.ieum.repositories import studio as tool_repo
+    base, _ = site
+    t = dict(tool_repo.with_defaults(_tool(base), {"proto": "disc"}), src="t-src")
+    m = manifest.build({"id": "ts", "slug": "s", "name": "s", "tools": ["news_t"]}, "v1", [t],
+                       {"t-src": {"id": "t-src", "name": "시험", "proto": "disc", "base": base, "authType": "none"}})
+    assert m["tools"][0]["flow"]["pick"]["step"] == "s2"
