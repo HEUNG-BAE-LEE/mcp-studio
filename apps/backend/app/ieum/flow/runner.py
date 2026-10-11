@@ -6,10 +6,15 @@ import asyncio
 import copy
 import json
 import re
+import ipaddress
 import time
+from http.cookies import CookieError, SimpleCookie
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlsplit
 
+import httpx
+
+from app.ieum.discovery.masking import Masker
 from app.ieum.flow import core
 from app.ieum.gateway import credentials, engine, session_auth
 from app.ieum.recorder import analyze, htmltable
@@ -57,8 +62,74 @@ def _rows(data, pick) -> list:
     return [(ri, text.get(ri, "")) for ri in ids]
 
 
-def _listing(rows) -> dict:
-    return {"items": [{"index": i + 1, "text": t[:ROW_TEXT]} for i, (_, t) in enumerate(rows[:LIST_MAX])], "total": len(rows), "hint": HINT}
+def _shown(text: str, mask: bool) -> str:
+    """AI 에게 돌려줄 행 글자(120자). 행 글자는 자유 글이라 값 통째로 가리는 engine._mask 대신 개인정보 패턴(전화·주민번호·카드·이메일 등)만 가린다.
+    고르기(match)는 가리기 전 글자로 비교하고, 돌려주는 글자는 언제나 이것을 거친다."""
+    t = text or ""
+    return (Masker().text(t) if mask else t)[:ROW_TEXT]
+
+
+def _listing(rows, mask: bool = True) -> dict:
+    return {"items": [{"index": i + 1, "text": _shown(t, mask)} for i, (_, t) in enumerate(rows[:LIST_MAX])], "total": len(rows), "hint": HINT}
+
+
+def _is_ip(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+        return True
+    except ValueError:
+        return False
+
+
+class _FlowTransport(core.HttpTransport):
+    """업무 도구 한 호출 안에서 응답의 Set-Cookie 를 받아 뒤 단계에 이어 보낸다(설계 3절 2).
+    레코더 재실행의 core.HttpTransport 동작은 바꾸지 않으려고 여기서만 덧붙인다. 보내는 규칙은 부모의 _cookie_header 그대로다:
+    Domain 이 없으면 응답 호스트 한 곳에만, 있으면 그 도메인과 하위 호스트에만(응답 호스트가 그 도메인에 속할 때만 받는다)."""
+
+    def _take(self, url: str, values: List[str]) -> None:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        if not host:
+            return
+        req_path = parts.path or "/"
+        default_path = (req_path[:req_path.rfind("/")] or "/") if req_path.startswith("/") else "/"
+        for raw in values:
+            jar = SimpleCookie()
+            try:
+                jar.load(raw)
+            except CookieError:
+                continue
+            for name, m in jar.items():
+                dom = (m["domain"] or "").lower().lstrip(".")
+                if dom:
+                    # 응답 호스트가 속하지 않는 도메인, 점 없는 최상위 이름(com 등), IP 주소의 상위 도메인 지정은 받지 않는다
+                    if "." not in dom or (_is_ip(host) and dom != host) or (host != dom and not host.endswith("." + dom)):
+                        continue
+                    domain = "." + dom
+                else:
+                    domain = host                               # 점 없는 도메인 = 그 호스트 한 곳에만
+                path = m["path"] if (m["path"] or "").startswith("/") else default_path
+                gone = m["max-age"] not in ("", None) and str(m["max-age"]).strip().lstrip("-").isdigit() and int(m["max-age"]) <= 0
+                self.items = [c for c in self.items if not (c["name"] == name and (c.get("domain") or "").lower() == domain
+                                                            and (c.get("path") or "/") == path)]
+                if not gone:
+                    self.items.append({"name": name, "value": m.value, "domain": domain, "path": path, "secure": bool(m["secure"])})
+
+    async def send(self, step, url, headers, params, form, json_body):
+        if params:
+            url = url + ("&" if "?" in url else "?") + core.encode(params, step.get("charset"))
+        content = None
+        headers = dict(headers)
+        if form:
+            content = core.encode(form, step.get("charset"))
+            headers["content-type"] = f"application/x-www-form-urlencoded; charset={step.get('charset') or 'UTF-8'}"
+        ck = self._cookie_header(url)
+        if ck:
+            headers["Cookie"] = ck
+        async with httpx.AsyncClient(follow_redirects=False, timeout=core.TIMEOUT, verify=False, transport=self._transport) as c:
+            r = await c.request(step["method"], url, headers=headers, content=content, json=json_body)
+            self._take(url, r.headers.get_list("set-cookie"))
+            return r.status_code, r.headers.get("location"), r.headers.get("content-type", ""), r.text[:htmltable.MAX_SCAN]
 
 
 def _sub_k(rx, s: str, k: int) -> str:
@@ -249,7 +320,7 @@ async def _run(source: dict, tool: dict, args: dict, index: Optional[int], match
     default_base = source.get("base") or (steps[0].get("base") if steps else "") or ""
     steps, cookies, session_ids = await _auth(steps, source)
     gap = 0.0 if all((urlsplit((st.get("base") or default_base)).hostname or "").lower() in _LOCAL for st in steps) else GAP
-    rec = _Recording(core.HttpTransport(cookies), pace)
+    rec = _Recording(_FlowTransport(cookies), pace)
     trace["_rec"] = rec
     inputs = {p["a"]: str(args[p["a"]]) for p in tool.get("params") or [] if p.get("loc") == "input" and p["a"] in args}
 
@@ -273,7 +344,8 @@ async def _run(source: dict, tool: dict, args: dict, index: Optional[int], match
         return res["data"].get(steps[-1]["id"]), None, False
     res = await run(_without_link_outputs(steps, pick), stop_after=pick["list"])
     rows = _rows(res["data"].get(pick["list"]), pick)
-    listing = _listing(rows)
+    mask = tool.get("mask", True)
+    listing = _listing(rows, mask)
     if index is None and match is None:
         return listing, None, True
     if index is not None:
@@ -288,7 +360,7 @@ async def _run(source: dict, tool: dict, args: dict, index: Optional[int], match
             trace["list"] = listing
             raise _Fail("no_match", f"목록에서 \"{match}\" 가 든 항목을 찾지 못했습니다.", pick["list"])
     res = await run(_with_k(steps, pick, k))
-    return res["data"].get(steps[-1]["id"]), {"index": k + 1, "text": rows[k][1][:ROW_TEXT]}, False
+    return res["data"].get(steps[-1]["id"]), {"index": k + 1, "text": _shown(rows[k][1], mask)}, False
 
 
 def _finish_trace(trace: dict) -> None:

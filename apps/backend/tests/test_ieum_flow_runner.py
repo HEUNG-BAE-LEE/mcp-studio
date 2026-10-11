@@ -179,3 +179,99 @@ def test_단계가_상한을_넘으면_too_many_steps(site):
     with pytest.raises(engine.ToolError) as e:
         runner.invoke(dict(SRC, base=base), t, {}, {})
     assert str(e.value).startswith("[too_many_steps]") and st["hits"] == []
+
+
+@pytest.fixture
+def cookie_site():
+    """목록이 SID 쿠키를 주고 상세는 그 쿠키가 있어야 열리는 사이트. /other 는 받은 Cookie 헤더를 남긴다."""
+    state = {"cookies": {}}
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            got = self.headers.get("Cookie") or ""
+            state["cookies"][self.path] = got
+            extra = []
+            if self.path.startswith("/list"):
+                body, ct = _list_html(ROWS), "text/html; charset=utf-8"
+                extra = [("Set-Cookie", "SID=abc; Path=/"), ("Set-Cookie", "WIDE=x; Domain=com; Path=/")]
+            elif self.path.startswith("/art/"):
+                if "SID=abc" not in got:
+                    self.send_response(403); self.end_headers(); return
+                aid = self.path.rsplit("/", 1)[1]
+                body, ct = json.dumps({"id": aid}), "application/json"
+            elif self.path.startswith("/other"):
+                body, ct = json.dumps({"ok": "1"}), "application/json"
+            else:
+                self.send_response(404); self.end_headers(); return
+            data = body.encode()
+            self.send_response(200)
+            for k, v in extra:
+                self.send_header(k, v)
+            self.send_header("Content-Type", ct); self.send_header("Content-Length", str(len(data))); self.end_headers()
+            self.wfile.write(data)
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield srv.server_address[1], state
+    srv.shutdown()
+
+
+def test_한_호출_안의_쿠키는_뒤_단계로_이어진다(cookie_site):
+    port, st = cookie_site
+    base = f"http://127.0.0.1:{port}"
+    t = _tool(base, "/art/{id}", "json")
+    out, trace = runner.invoke(dict(SRC, base=base), t, {"index": 2}, {})
+    assert out["picked"]["index"] == 2 and [s["id"] for s in trace["steps"]] == ["s1", "s2"]
+    assert st["cookies"]["/list"] == "" and "SID=abc" in st["cookies"]["/art/202"]
+    assert "WIDE" not in st["cookies"]["/art/202"]          # 최상위 이름(com) 도메인 쿠키는 받지 않는다
+    # 쿠키는 그 호출 안에서만 산다: 다음 호출의 첫 단계에는 없다
+    runner.invoke(dict(SRC, base=base), t, {}, {})
+    assert st["cookies"]["/list"] == ""
+
+
+def test_받은_쿠키는_허용된_호스트로만_보낸다():
+    # 시험 서버가 둘째 루프백 호스트를 허용하지 않아(scope: 서버 자신) 전송기만 가짜 전송으로 본다
+    import asyncio
+    import httpx
+    seen = {}
+
+    def handler(req):
+        seen[str(req.url)] = req.headers.get("cookie", "")
+        if req.url.path == "/list":
+            return httpx.Response(200, headers=[("set-cookie", "SID=abc; Path=/"), ("set-cookie", "DOM=d; Domain=example.com; Path=/"),
+                                                ("set-cookie", "EVIL=e; Domain=other.org; Path=/"), ("set-cookie", "SEC=s; Path=/; Secure"),
+                                                ("set-cookie", "SUB=p; Path=/app")], text="ok")
+        return httpx.Response(200, text="ok")
+
+    tr = runner._FlowTransport({}, transport=httpx.MockTransport(handler))
+    step = {"method": "GET"}
+
+    async def go():
+        for u in ("http://a.example.com/list", "http://a.example.com/app/x", "http://a.example.com/x",
+                  "http://b.example.com/x", "http://other.org/x", "https://a.example.com/y"):
+            await tr.send(step, u, {}, {}, {}, None)
+    asyncio.run(go())
+    assert seen["http://a.example.com/list"] == ""
+    assert seen["http://a.example.com/app/x"] == "SID=abc; DOM=d; SUB=p"
+    assert seen["http://a.example.com/x"] == "SID=abc; DOM=d"
+    assert seen["http://b.example.com/x"] == "DOM=d"          # Domain 지정 쿠키만 형제 호스트로
+    assert seen["http://other.org/x"] == ""                    # 응답 호스트가 속하지 않는 Domain 은 받지 않는다
+    assert "SEC=s" in seen["https://a.example.com/y"] and "SEC" not in seen["http://a.example.com/x"]
+
+
+def test_행_글자는_가림_설정에_따라_가리고_match_는_원래_글자로_비교한다(site):
+    base, st = site
+    st["rows"] = [("101", "담당 010-1234-5678 공지"), ("202", "둘째 기사")]
+    t = _tool(base)
+    t["flow"]["steps"][0]["recordedShape"] = []
+    t["mask"] = True
+    out, _ = runner.invoke(dict(SRC, base=base), t, {}, {})
+    assert "010-1234-5678" not in out["items"][0]["text"] and "5678" in out["items"][0]["text"]
+    out, _ = runner.invoke(dict(SRC, base=base), t, {"match": "010-1234"}, {})
+    assert st["hits"][-1] == "/art/101" and "010-1234-5678" not in out["picked"]["text"]
+    t["mask"] = False
+    out, _ = runner.invoke(dict(SRC, base=base), t, {}, {})
+    assert "010-1234-5678" in out["items"][0]["text"]
