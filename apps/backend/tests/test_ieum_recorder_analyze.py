@@ -2,6 +2,8 @@
 """분석: 기록 → 업무 기능. 브라우저 없이 돈다."""
 import json
 
+import pytest
+
 from app.ieum.recorder import analyze, htmltable
 
 BASE = "http://h:8080/po"
@@ -241,9 +243,6 @@ def test_화면에_안_보이지만_뒤_단계가_쓰는_응답은_prereq():
     assert [s["role"] for s in bf2["steps"]] == ["core"] and bf2["steps"][0]["id"] == "s1"
 
 
-import pytest
-
-
 @pytest.mark.parametrize("method,path,rtype,write", [
     ("GET", "/poList.do", "xhr", False),
     ("GET", "/deleteItem.do", "xhr", True),                  # 이름이 쓰기 같은 화면 스크립트 GET
@@ -255,6 +254,17 @@ import pytest
     ("POST", "/po/발주조회.do", "xhr", False),
     ("POST", "/po_list_view.do", "xhr", False),
     ("POST", "/ord-search.do", "xhr", False),
+    ("DELETE", "/list/1", "xhr", True),                       # PUT/PATCH/DELETE 는 이름과 상관없이 쓰기
+    ("PATCH", "/api/searches/1", "xhr", True),
+    ("PUT", "/selectList.do", "xhr", True),
+    ("POST", "/poListUpd.do", "xhr", True),                   # 기존 위험 낱말(upd, proc ...)도 쓰기
+    ("POST", "/selectRejectProc.do", "xhr", True),
+    ("POST", "/selectList/%EC%82%AD%EC%A0%9C.do", "xhr", True),   # 인코딩된 한글 경로(삭제)
+    ("POST", "/%EC%A1%B0%ED%9A%8C.do", "xhr", False),              # 조회
+    ("POST", "/selectList.do", "xhr", False),
+    ("POST", "/selectAccounts.do", "xhr", False),             # 단순 복수는 조회 낱말
+    ("POST", "/listing.do", "xhr", True),                     # 조회 낱말은 접두 일치를 쓰지 않는다
+    ("POST", "/acctTransfer이체.do", "xhr", True),
 ])
 def test_조회_쓰기_판정_표(method, path, rtype, write):
     bf = analyze.analyze(REC, [span(1, {"tag": "BUTTON", "text": "실행"}, [net(method, path, "", LIST, post="q=1" if method == "POST" else None,
@@ -272,6 +282,14 @@ def test_writeWhy_는_근거를_남긴다():
     assert why("POST", "/selectList.do") == "POST — 조회 낱말(select)"
     assert why("POST", "/poSave.do") == "POST — 변경 낱말(save)"
     assert why("POST", "/poData.do") == "POST — 기본 쓰기"
+
+
+def test_구분_파라미터의_변경_값은_쓰기로_보고_조회_값은_조회_근거가_아니다():
+    def w(path, query):
+        bf = analyze.analyze(REC, [span(1, {"tag": "BUTTON", "text": "실행"}, [net("POST", path, query, LIST, post="q=1")], post_aria="PO-2609-0142")])
+        return bf["steps"][0]["write"]
+    assert w("/selectList.do", "cmd=delete") is True
+    assert w("/poData.do", "cmd=select") is True            # 구분 값의 조회 낱말로 조회가 되지는 않는다
 
 
 def test_held_나_decision_은_판정에_쓰지_않는다():

@@ -14,10 +14,11 @@ import re
 import time
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 from app.ieum.discovery import capture, infer
 from app.ieum.discovery.masking import HIDDEN, MASKED_RE, is_secret_key
+from app.ieum.discovery import policy as policy_mod
 from app.ieum.discovery.policy import Policy
 
 USER_INPUT, PREVIOUS_STEP_OUTPUT, SESSION_CONTEXT = "USER_INPUT", "PREVIOUS_STEP_OUTPUT", "SESSION_CONTEXT"
@@ -124,7 +125,7 @@ READ_WORDS = ("select", "search", "list", "get", "find", "query", "inquiry", "re
 WRITE_WORDS = ("save", "insert", "update", "delete", "del", "regist", "create", "modify", "mod", "edit", "apply", "approve", "confirm",
                "cancel", "pay", "payment", "order", "send", "upload", "reset", "change", "remove", "add", "submit", "register")
 READ_KO = ("조회", "검색", "목록")
-WRITE_KO = ("저장", "등록", "수정", "삭제", "승인", "결재", "결제", "취소", "변경")
+WRITE_KO = ("저장", "등록", "수정", "삭제", "승인", "결재", "결제", "취소", "변경", "이체", "전송", "발송", "탈퇴")
 _SPLIT = re.compile(r"[/_.\-;]+|(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
 
@@ -132,19 +133,21 @@ def path_words(path: str) -> List[str]:
     return [w.lower() for w in _SPLIT.split(path or "") if w]
 
 
-def _hit(words: List[str], vocab: Tuple[str, ...]) -> Optional[str]:
-    """낱말이 어휘와 같거나(4글자 이상이면) 그 어휘로 시작하면 그 어휘를 돌려준다."""
+def _hit(words: List[str], vocab: Tuple[str, ...], prefix: bool) -> Optional[str]:
+    """낱말이 어휘와 같으면 그 어휘를 돌려준다. prefix 면 4글자 이상 어휘로 시작해도 같다(변경 낱말 전용), 아니면 단순 복수(-s)만 같게 본다."""
     for w in words:
         for v in vocab:
-            if w == v or (len(v) >= 4 and w.startswith(v)):
+            if w == v or (prefix and len(v) >= 4 and w.startswith(v)) or (not prefix and w == v + "s"):
                 return v
     return None
 
 
 def classify_write(n: dict, policy: Policy) -> Tuple[bool, str]:
-    """(쓰기 여부, 근거). 붙잡힘(held)·결정(decision) 은 보지 않는다 — 기록 중 쓰기는 붙잡지 않고 보내므로 이름만 근거다."""
+    """(쓰기 여부, 근거). 붙잡힘(held)·결정(decision) 은 보지 않는다 — 기록 중 쓰기는 붙잡지 않고 보내므로 이름만 근거다.
+
+    이름으로 조회로 볼 수 있는 것은 POST(와 표준이 아닌 메서드)뿐이다. PUT/PATCH/DELETE 는 이름과 상관없이 쓰기다."""
     method = (n["method"] or "").upper()
-    full = urlsplit(n["url"]).path.split(";")[0]
+    full = unquote(urlsplit(n["url"]).path.split(";")[0])       # 실제 URL 은 한글이 %EC.. 로 인코딩돼 있다
     if method in ("GET", "HEAD"):
         try:
             risky = capture.is_write(n["url"], method, n.get("rtype") or "", policy)
@@ -154,11 +157,16 @@ def classify_write(n: dict, policy: Policy) -> Tuple[bool, str]:
         if risky:
             return True, f"이름이 쓰기 같은 {method}({full.rsplit('/', 1)[-1].rsplit('.', 1)[0]})"
         return False, method
+    if method in ("PUT", "PATCH", "DELETE"):
+        return True, f"{method} — 항상 쓰기"
     words = path_words(full)
-    w = _hit(words, WRITE_WORDS) or next((k for k in WRITE_KO if k in full), None)
+    disc = _discriminator(n)                                   # cmd=delete 같은 구분 값은 변경 낱말 검사에만 쓴다
+    dwords = path_words(disc.split("=", 1)[1]) if "=" in disc else []
+    w = (_hit(words + dwords, WRITE_WORDS, True) or next((k for k in WRITE_KO if k in full or k in disc), None)
+         or policy_mod.risky_call(full) or None)
     if w:
         return True, f"{method} — 변경 낱말({w})"
-    r = _hit(words, READ_WORDS) or next((k for k in READ_KO if k in full), None)
+    r = _hit(words, READ_WORDS, False) or next((k for k in READ_KO if k in full), None)
     if r:
         return False, f"{method} — 조회 낱말({r})"
     return True, f"{method} — 기본 쓰기"

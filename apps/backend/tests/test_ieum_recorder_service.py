@@ -315,17 +315,39 @@ def test_검토에서_write_를_바꾸면_낡음이_되고_정책을_다시_계�
     assert back["steps"][0]["write"] is False and back["policy"]["operation"] == "READ" and back["policy"]["approval"] == "NONE"
 
 
-def test_write_를_안_적거나_같은_값이면_근거와_검증을_건드리지_않는다(saved):
-    st = dict(STEP, writeWhy="GET")
-    store.save_function(_bf([st]))
+def test_write_를_안_적으면_근거와_검증을_건드리지_않고_같은_값이라도_적으면_사람이_지정한_것이다(saved):
+    store.save_function(_bf([dict(STEP, writeWhy="GET")]))
     out = service.update_function(saved["id"], {"steps": [{"id": "s1"}]})
     assert out["steps"][0]["writeWhy"] == "GET"
     out = service.update_function(saved["id"], {"steps": [{"id": "s1", "write": False}]})
-    assert out["steps"][0]["writeWhy"] == "GET"
+    assert out["steps"][0]["writeWhy"] == "사람이 지정" and out["policy"]["operation"] == "READ"
+
+
+def test_이름만으로_조회라고_본_POST_는_쓰기_도구로_등록하고_사람이_확인하면_읽기_도구가_된다(ieum_state):
+    store.save_function(_bf([dict(STEP, method="POST", write=False, writeWhy="POST — 조회 낱말(select)")]))
+    tool = service.register_single("bf_00000001")["tools"][0]
+    assert tool["mode"] == "write" and tool["confirmQ"]
+    service.update_function("bf_00000001", {"steps": [{"id": "s1", "write": False}]})
+    assert service.register_single("bf_00000001")["tools"][0]["mode"] == "read"
+
+
+def test_쓰기로_바꿀_때_사람이_올려_둔_위험도는_내리지_않는다(saved):
+    service.update_function(saved["id"], {"policy": {"risk": "CRITICAL", "approval": "HITL"}})
+    out = service.update_function(saved["id"], {"steps": [{"id": "s1", "write": True}]})
+    assert out["policy"]["risk"] == "CRITICAL" and out["policy"]["approval"] == "HITL"
+
+
+def test_올린_단계도_이름으로_판정한다(saved):
+    bf = store.get_function(saved["id"])
+    bf["excluded"].append({"method": "POST", "path": "/vendDelete.do", "role": "noise", "why": ""})
+    store.save_function(bf)
+    out = service.update_function(saved["id"], {"promote": {"method": "POST", "path": "/vendDelete.do"}})
+    st = out["steps"][1]
+    assert st["write"] is True and st["writeWhy"] == "POST — 변경 낱말(delete)" and out["policy"]["operation"] == "DELETE"
 
 
 def test_도구_모드는_단계의_write_를_따른다(ieum_state):
-    store.save_function(_bf([dict(STEP, method="POST", write=False, writeWhy="POST — 조회 낱말(select)")]))
+    store.save_function(_bf([dict(STEP, method="GET", write=False, writeWhy="GET")]))
     assert service.register_single("bf_00000001")["tools"][0]["mode"] == "read"
     out = service.update_function("bf_00000001", {"steps": [{"id": "s1", "write": True}]})
     tool = service.register_single("bf_00000001")["tools"][0]

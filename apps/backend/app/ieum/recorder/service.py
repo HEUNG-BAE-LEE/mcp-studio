@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 from urllib.parse import urlsplit
 
 from app.ieum.discovery import infer
+from app.ieum.discovery.policy import Policy
 from app.ieum.discovery.jobs import _slug
 from app.ieum.discovery.masking import Masker, is_masked
 from app.ieum.gateway import credentials, session_auth, spec
@@ -167,6 +168,18 @@ def _next_step_id(bf: dict) -> str:
     return f"s{max(nums or [0]) + 1}"
 
 
+_LEVELS = {"risk": ("LOW", "MEDIUM", "HIGH", "CRITICAL"), "approval": ("NONE", "CONFIRM", "HITL")}
+
+
+def _apply_policy(cur: dict, fresh: dict, keep_higher: bool) -> None:
+    """다시 계산한 정책을 적용한다. 쓰기가 있으면 사람이 올려 둔 위험도·승인은 내리지 않는다."""
+    for k in ("operation", "risk", "approval", "envPolicy"):
+        old, new = cur.get(k), fresh[k]
+        if keep_higher and k in _LEVELS and old in _LEVELS[k]:
+            new = max(old, new, key=_LEVELS[k].index)
+        cur[k] = new
+
+
 def update_function(fid: str, patch: dict) -> dict:
     if not isinstance(patch, dict):
         _bad("본문은 객체여야 합니다.")
@@ -221,24 +234,30 @@ def update_function(fid: str, patch: dict) -> dict:
             new_steps = []
             for i in order:
                 st = dict(by_id[i["id"]], skip=flags[i["id"]])
-                if "write" in i and i["write"] != bool(st.get("write")):
-                    st.update(write=i["write"], writeWhy="사람이 지정")        # 근거는 사람이 정했다고 남긴다
-                    write_changed = True
+                if "write" in i:
+                    if i["write"] != bool(st.get("write")):
+                        write_changed = True
+                    st.update(write=i["write"], writeWhy="사람이 지정")      # 명시한 값은 같아도 사람이 확인한 것으로 남긴다
                 new_steps.append(st)
             bf["steps"] = new_steps
             stale = True
             if write_changed:                                              # 설계 3판 6절: 단계의 write 로 정책을 다시 구한다
                 fresh = analyze.policy_for([analyze.step_op(s) for s in new_steps if not s.get("skip")])
-                for k in ("operation", "risk", "approval", "envPolicy"):
-                    bf["policy"][k] = fresh[k]
+                _apply_policy(bf["policy"], fresh, keep_higher=any(x.get("write") for x in new_steps if not x.get("skip")))
         if hit is not None:
             bf["excluded"].remove(hit)
             bf["references"] = [x for x in bf["references"] if x["path"] != hit["path"]]
             base = (hit.get("base") or bf["source"]["base"]).rstrip("/")
-            bf["steps"].append({"id": _next_step_id(bf), "role": "prereq", "base": base, "origin": hit.get("origin") or "",
-                                "method": hit["method"], "path": hit["path"], "discriminator": "", "kind": "json", "charset": None,
-                                "exec": "http", "formPage": None, "write": hit["method"] not in ("GET", "HEAD"), "headers": {},
-                                "outputs": {}, "params": [], "recordedRes": "", "recordedData": None, "recordedStatus": None})
+            write, why = analyze.classify_write({"method": hit["method"], "url": base + hit["path"], "rtype": "xhr", "post": None},
+                                                Policy(base=bf["source"]["base"], read_post=""))
+            new = {"id": _next_step_id(bf), "role": "prereq", "base": base, "origin": hit.get("origin") or "",
+                   "method": hit["method"], "path": hit["path"], "discriminator": "", "kind": "json", "charset": None,
+                   "exec": "http", "formPage": None, "write": write, "writeWhy": why, "label": "", "headers": {},
+                   "outputs": {}, "params": [], "recordedRes": "", "recordedData": None, "recordedStatus": None}
+            bf["steps"].append(new)
+            if write:
+                fresh = analyze.policy_for([analyze.step_op(x) for x in bf["steps"] if not x.get("skip")])
+                _apply_policy(bf["policy"], fresh, keep_higher=True)
             stale = True
         if pol:
             for k in EDITABLE_POLICY:
@@ -310,7 +329,9 @@ def _scrub(x, key=None):
 
 
 def _tool_from_step(bf: dict, st: dict, taken: set, title: str) -> dict:
-    mode = "write" if st.get("write") else "read"
+    # 이름만으로 조회라고 본 GET 이 아닌 단계는 사람이 확인하기 전까지 쓰기 도구(확인 필요)로 등록한다
+    unconfirmed = str(st.get("method") or "").upper() not in ("GET", "HEAD") and st.get("writeWhy") != "사람이 지정"
+    mode = "write" if (st.get("write") or unconfirmed) else "read"
     params = []
     for p in st["params"]:
         if p.get("source") in (analyze.PREVIOUS_STEP_OUTPUT, analyze.SESSION_CONTEXT):
