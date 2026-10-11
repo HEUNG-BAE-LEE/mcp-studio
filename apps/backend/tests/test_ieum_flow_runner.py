@@ -47,6 +47,8 @@ def site():
             self.send_response(200); self.send_header("Content-Type", ct); self.send_header("Content-Length", str(len(data))); self.end_headers()
             self.wfile.write(data)
 
+        do_POST = do_GET                             # 조회로 확정한 POST 단계 시험용(같은 응답)
+
     srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}", state
@@ -275,3 +277,80 @@ def test_행_글자는_가림_설정에_따라_가리고_match_는_원래_글자
     t["mask"] = False
     out, _ = runner.invoke(dict(SRC, base=base), t, {}, {})
     assert "010-1234-5678" in out["items"][0]["text"]
+
+
+@pytest.mark.parametrize("write,sent", [(False, True), (True, False), (None, False)])
+def test_조회로_확정한_POST_만_보낸다(site, write, sent):
+    base, st = site
+    t = _tool(base)
+    s1 = t["flow"]["steps"][0]
+    s1["method"] = "POST"
+    if write is None:
+        s1.pop("write")
+    else:
+        s1["write"] = write
+    if sent:
+        out, trace = runner.invoke(dict(SRC, base=base), t, {}, {})
+        assert out["total"] == 3 and st["hits"] == ["/list"] and trace["steps"][0]["ok"] is True
+        assert "승인했지만" not in json.dumps(trace, ensure_ascii=False)
+    else:
+        with pytest.raises(engine.ToolError) as e:
+            runner.invoke(dict(SRC, base=base), t, {}, {})
+        assert str(e.value).startswith("[write_denied]") and st["hits"] == []
+        assert "승인했지만" not in str(e.value)
+
+
+def test_로그인_정보가_없는_원본의_로그인_요구는_그대로_알린다(site):
+    base, st = site
+    st["expire_next"] = 1
+    with pytest.raises(engine.ToolError) as e:
+        runner.invoke(dict(SRC, base=base), _tool(base), {"index": 1}, {})
+    assert str(e.value).startswith("[auth_expired] 원본 시스템이 로그인을 요구합니다(로그인 정보가 없는 원본)")
+    assert st["hits"] == ["/list", "/art/101"]              # 세션 원본이 없으면 다시 실행하지 않는다
+
+
+def test_차단_주소는_blocked(site, monkeypatch):
+    base, st = site
+    monkeypatch.setenv("IEUM_RECORDER_DENY", "127.0.0.1")
+    with pytest.raises(engine.ToolError) as e:
+        runner.invoke(dict(SRC, base=base), _tool(base), {}, {})
+    assert str(e.value).startswith("[blocked]") and st["hits"] == []
+
+
+def test_다른_출처_단계에는_인증을_붙이지_않고_https_세션_쿠키는_secure(monkeypatch):
+    import asyncio
+    from app.ieum.gateway import credentials, session_auth
+    creds = {"own": {"type": "session", "username": "a", "password": "b", "recipe": {}}}
+    monkeypatch.setattr(credentials, "get", lambda sid: creds.get(sid, {}))
+    monkeypatch.setattr(session_auth, "cookie_header", lambda sid, b, c: "JSESSIONID=x")
+    src = {"id": "own", "base": "https://a.example.com", "proto": "disc"}
+    steps = [{"id": "s1", "base": "https://a.example.com", "params": [], "headers": {}},
+             {"id": "s2", "base": "https://b.example.org", "params": [], "headers": {}}]
+    out, cookies, sessions = asyncio.run(runner._auth(steps, src))
+    assert cookies == [{"name": "JSESSIONID", "value": "x", "domain": "a.example.com", "path": "/", "secure": True}]
+    assert sessions == ["own"] and out[1]["headers"] == {} and out[1]["params"] == []
+    creds["own"] = {"type": "bearer", "key": "TOKEN"}
+    out, cookies, _ = asyncio.run(runner._auth(steps, src))
+    assert out[0]["headers"]["Authorization"] == "Bearer TOKEN" and "Authorization" not in out[1]["headers"] and cookies == []
+
+
+def test_쿼리로_보내는_키는_실행_기록에서_가린다(site, monkeypatch):
+    base, st = site
+    from app.ieum.gateway import credentials
+    monkeypatch.setattr(credentials, "get", lambda sid: {"type": "key", "in": "query", "name": "serviceKey", "key": "SECRET123"})
+    out, trace = runner.invoke(dict(SRC, base=base), _tool(base), {}, {})
+    assert st["hits"] == ["/list?serviceKey=SECRET123"] and out["total"] == 3
+    assert "SECRET123" not in json.dumps(trace, ensure_ascii=False)
+    assert "serviceKey=••••••••" in trace["steps"][0]["originRequest"]["url"]
+
+
+def test_k_는_고르는_묶음의_출처만_바꾼다():
+    base = "http://127.0.0.1:1"
+    t = _tool(base)
+    other = "s1.links[/rank/{id}@ol.rank>li][0.0/1].id"
+    t["flow"]["steps"][1]["params"].append({"a": "r", "loc": "query", "from": other, "ex": ""})
+    t["flow"]["steps"][0]["outputs"][other[3:]] = other[3:]
+    out = runner._with_k(t["flow"]["steps"], t["flow"]["pick"], 2)
+    froms = [p["from"] for p in out[1]["params"]]
+    assert froms == ["s1.links[/art/{id}@ul.news>li.it][2.0/1].id", other]
+    assert set(out[0]["outputs"]) == {"links[/art/{id}@ul.news>li.it][2.0/1].id", other[3:]}

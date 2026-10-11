@@ -37,6 +37,7 @@ _MSG = {
     "error_response": "원본 시스템이 오류 화면을 돌려줬습니다.",
     "shape_mismatch": "응답 모양이 기록 때와 다릅니다. 화면이 바뀌었을 수 있습니다.",
     "auth_expired": "서비스 계정으로 다시 로그인했지만 원본 시스템이 로그인을 요구합니다. 계정 권한을 확인해 주세요.",
+    "auth_expired_no_login": "원본 시스템이 로그인을 요구합니다(로그인 정보가 없는 원본).",
     "write_denied": "조회가 아닌 단계라 보내지 않았습니다.",
     "browser_needed": "브라우저로만 보낼 수 있는 단계라 실행하지 못했습니다.",
 }
@@ -116,6 +117,8 @@ class _FlowTransport(core.HttpTransport):
                     self.items.append({"name": name, "value": m.value, "domain": domain, "path": path, "secure": bool(m["secure"])})
 
     async def send(self, step, url, headers, params, form, json_body):
+        # core.HttpTransport.send 를 그대로 옮기고 Set-Cookie 받기만 더했다. 레코더 재실행 동작을 지키려고 core 쪽은 바꾸지 않으므로
+        # (Ruling 4) 그쪽 전송 방식(인코딩·헤더·리다이렉트·읽는 길이)이 바뀌면 여기도 함께 맞춘다.
         if params:
             url = url + ("&" if "?" in url else "?") + core.encode(params, step.get("charset"))
         content = None
@@ -136,6 +139,12 @@ def _sub_k(rx, s: str, k: int) -> str:
     return rx.sub(lambda m: m.group(1) + str(k) + m.group(2), s, count=1)
 
 
+def _in_group(expr: str, group: str) -> bool:
+    """출처 식 links[틀@묶음][…].자리 가 고르는 묶음의 것인가. 다른 묶음(랭킹·메뉴 등)의 출처는 기록 순번 그대로 둔다."""
+    m = analyze.LINK_EXPR.match(expr or "")
+    return bool(m) and analyze._split_tpl(m.group(1))[1] == group
+
+
 def _with_k(steps, pick, k: int) -> list:
     """고르는 단계의 목록 출처 k 를 고른 행 순번으로 바꾼 단계 사본. 원 단계는 건드리지 않는다.
     값은 목록 단계의 outputs 에서 이름으로 찾으므로(core.value_of), 목록 단계 outputs 의 같은 이름도 k 를 바꿔 둔다."""
@@ -147,7 +156,7 @@ def _with_k(steps, pick, k: int) -> list:
             continue
         for p in st.get("params") or []:
             frm = p.get("from") or ""
-            if frm.startswith(prefix):
+            if frm.startswith(prefix) and _in_group(frm[len(pick["list"]) + 1:], pick["group"]):
                 p["from"] = _sub_k(_K, frm, k)
                 renamed[frm[len(pick["list"]) + 1:]] = p["from"][len(pick["list"]) + 1:]
     for st in out:
@@ -259,8 +268,10 @@ class _Recording:
         return got
 
 
-async def _deny_write(_st):
-    return False                                           # 업무 도구는 조회만 — 쓰기로 보이는 단계는 막는다
+async def _read_only(st):
+    """GET/HEAD 가 아닌 단계에서 core 가 묻는다. 업무 도구에는 사람이 조회로 확정한 POST 만 write: False 로 들어오므로(설계 4절)
+    그것만 보낸다. "approve" 가 아닌 값을 돌려줘 결과에 "승인했지만" 이 남지 않게 한다. write 가 없거나 참이면 막는다."""
+    return "read" if st.get("write") is False else False
 
 
 def _first_fail(res: dict) -> Tuple[str, Optional[str], Optional[str]]:
@@ -300,7 +311,8 @@ async def _auth(steps: List[dict], source: dict) -> Tuple[List[dict], List[dict]
             for part in (header or "").split(";"):
                 name, eq, value = part.strip().partition("=")
                 if eq and name:
-                    cookies.append({"name": name, "value": value, "domain": host, "path": "/"})
+                    cookies.append({"name": name, "value": value, "domain": host, "path": "/",
+                                    "secure": urlsplit(base).scheme == "https"})
             if src["id"] not in session_ids:
                 session_ids.append(src["id"])
         elif t in ("key", "bearer", "basic"):
@@ -325,7 +337,7 @@ async def _run(source: dict, tool: dict, args: dict, index: Optional[int], match
     inputs = {p["a"]: str(args[p["a"]]) for p in tool.get("params") or [] if p.get("loc") == "input" and p["a"] in args}
 
     async def run(ss, stop_after=None):
-        res = await core.run_steps(ss, default_base, inputs, {}, rec, None, _deny_write, gap, needs={}, pace=pace, stop_after=stop_after)
+        res = await core.run_steps(ss, default_base, inputs, {}, rec, None, _read_only, gap, needs={}, pace=pace, stop_after=stop_after)
         by_id = {s["id"]: s for s in res.get("steps") or []}
         for r in rec.records:                              # 이번 실행에서 보낸 단계에 판정을 붙인다
             if "ok" not in r and r["id"] in by_id:
@@ -333,7 +345,7 @@ async def _run(source: dict, tool: dict, args: dict, index: Optional[int], match
         if not res["ok"]:
             code, sid, note = _first_fail(res)
             if code == "auth_expired":
-                raise _Fail("auth_expired", _MSG["auth_expired"], sid)
+                raise _Fail("auth_expired", _MSG["auth_expired" if session_ids else "auth_expired_no_login"], sid)
             msg = _MSG.get(code, "단계를 실행하지 못했습니다.") + (f" ({note})" if note and code != "blocked" else "")
             raise _Fail(code, msg, sid)
         return res
