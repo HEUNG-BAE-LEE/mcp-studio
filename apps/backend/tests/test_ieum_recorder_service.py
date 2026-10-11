@@ -238,6 +238,7 @@ def test_기존_원본의_인증정보는_덮어쓰지_않는다(saved):
     {"inputs": "x"}, {"inputs": [{"name": "vendNm", "source": "BOGUS"}]}, {"inputs": [{"name": "vendNm", "type": "blob"}]},
     {"inputs": [{"name": "vendNm", "required": "yes"}]}, {"inputs": [{"name": "nope"}]},
     {"policy": {"risk": "SUPER"}}, {"policy": {"operation": "EXPLODE"}}, {"policy": {"approval": 3}},
+    {"steps": [{"id": "s1", "write": "yes"}]}, {"steps": [{"id": "s1", "write": 1}]},
     {"steps": [{"id": "s9"}]}, {"steps": [{"id": "s1"}, {"id": "s1"}]}, {"steps": []},
     {"promote": {"method": "GET"}}, {"promote": "x"}, {"promote": {"method": "GET", "path": "/nowhere.do"}},
 ])
@@ -300,3 +301,32 @@ def test_라우트_검증_오류는_400_모드는_400_출력은_고정문구(sav
     monkeypatch.setattr(service, "reverify", boom)
     r = c.post(base + "verify/", json={})
     assert r.status_code == 400 and "비밀" not in r.text
+
+
+def test_검토에서_write_를_바꾸면_낡음이_되고_정책을_다시_계산한다(saved):
+    out = service.update_function(saved["id"], {"policy": {"scope": "부서 데이터", "sensitivity": "일반"}})
+    assert out["policy"]["operation"] == "READ"
+    out = service.update_function(saved["id"], {"steps": [{"id": "s1", "write": True}]})
+    st = out["steps"][0]
+    assert st["write"] is True and st["writeWhy"] == "사람이 지정" and out["verification"]["status"] == "stale"
+    assert out["policy"]["operation"] == "CREATE" and out["policy"]["approval"] == "CONFIRM" and out["policy"]["envPolicy"] == "op-confirm"
+    assert out["policy"]["scope"] == "부서 데이터"                      # 사람이 채운 범위·민감도는 지우지 않는다
+    back = service.update_function(saved["id"], {"steps": [{"id": "s1", "write": False}]})
+    assert back["steps"][0]["write"] is False and back["policy"]["operation"] == "READ" and back["policy"]["approval"] == "NONE"
+
+
+def test_write_를_안_적거나_같은_값이면_근거와_검증을_건드리지_않는다(saved):
+    st = dict(STEP, writeWhy="GET")
+    store.save_function(_bf([st]))
+    out = service.update_function(saved["id"], {"steps": [{"id": "s1"}]})
+    assert out["steps"][0]["writeWhy"] == "GET"
+    out = service.update_function(saved["id"], {"steps": [{"id": "s1", "write": False}]})
+    assert out["steps"][0]["writeWhy"] == "GET"
+
+
+def test_도구_모드는_단계의_write_를_따른다(ieum_state):
+    store.save_function(_bf([dict(STEP, method="POST", write=False, writeWhy="POST — 조회 낱말(select)")]))
+    assert service.register_single("bf_00000001")["tools"][0]["mode"] == "read"
+    out = service.update_function("bf_00000001", {"steps": [{"id": "s1", "write": True}]})
+    tool = service.register_single("bf_00000001")["tools"][0]
+    assert out["steps"][0]["write"] is True and tool["mode"] == "write" and tool["confirmQ"]

@@ -475,3 +475,22 @@ def test_verify_는_예상_못한_예외도_던지지_않는다(monkeypatch):
     monkeypatch.setattr(replay, "run_once", boom)
     out = asyncio.new_event_loop().run_until_complete(replay.verify(_bf("http://h"), {"id": "r"}, [], _FakeSession([])))
     assert out["verification"]["status"] == "failed" and out["verification"]["runs"][0]["note"] == "KeyError"
+
+
+def _varied_calls(monkeypatch, write):
+    calls = []
+
+    async def fake(bf, inputs, raw, http, browser, ask, gap, kind="same-values", **kw):
+        calls.append(kind)
+        return {"kind": kind, "ok": True, "steps": [], "reason": ""}
+
+    monkeypatch.setattr(replay, "run_once", fake)
+    bf = _bf("http://h")
+    bf["steps"][0].update(method="POST", write=write)
+    asyncio.new_event_loop().run_until_complete(replay.verify(bf, {"id": "r"}, [], _FakeSession([])))
+    return calls
+
+
+def test_쓰기_단계만_같은_값으로만_재실행하고_조회로_분류된_POST_는_다른_값도_실행한다(monkeypatch):
+    assert _varied_calls(monkeypatch, True) == ["same-values"]
+    assert _varied_calls(monkeypatch, False) == ["same-values", "varied-values"]

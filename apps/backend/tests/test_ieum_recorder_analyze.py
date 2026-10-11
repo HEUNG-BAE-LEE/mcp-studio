@@ -241,11 +241,58 @@ def test_화면에_안_보이지만_뒤_단계가_쓰는_응답은_prereq():
     assert [s["role"] for s in bf2["steps"]] == ["core"] and bf2["steps"][0]["id"] == "s1"
 
 
-def test_readPost_로_지정한_POST_는_쓰기가_아니다():
-    rec = dict(REC, readPost="/po/search*")
-    spans = [span(1, {"tag": "BUTTON", "text": "검색"}, [net("POST", "/search.do", "", LIST, post="q=1")], post_aria="PO-2609-0142")]
-    bf = analyze.analyze(rec, spans)
-    assert bf["steps"][0]["write"] is False and bf["policy"]["operation"] == "READ"
+import pytest
+
+
+@pytest.mark.parametrize("method,path,rtype,write", [
+    ("GET", "/poList.do", "xhr", False),
+    ("GET", "/deleteItem.do", "xhr", True),                  # 이름이 쓰기 같은 화면 스크립트 GET
+    ("POST", "/selectList.do", "xhr", False),
+    ("POST", "/selectAndUpdate.do", "xhr", True),            # 조회 낱말이 있어도 변경 낱말이 있으면 쓰기
+    ("POST", "/getOrCreateSummary.do", "xhr", True),
+    ("POST", "/save.do", "xhr", True),
+    ("POST", "/poData.do", "xhr", True),                     # 낱말 없는 POST 는 쓰기(애매하면 쓰기)
+    ("POST", "/po/발주조회.do", "xhr", False),
+    ("POST", "/po_list_view.do", "xhr", False),
+    ("POST", "/ord-search.do", "xhr", False),
+])
+def test_조회_쓰기_판정_표(method, path, rtype, write):
+    bf = analyze.analyze(REC, [span(1, {"tag": "BUTTON", "text": "실행"}, [net(method, path, "", LIST, post="q=1" if method == "POST" else None,
+                                                                          rtype=rtype)], post_aria="PO-2609-0142 한빛상사")])
+    st = bf["steps"][0]
+    assert st["write"] is write and st["writeWhy"]
+
+
+def test_writeWhy_는_근거를_남긴다():
+    def why(method, path):
+        bf = analyze.analyze(REC, [span(1, {"tag": "BUTTON", "text": "실행"}, [net(method, path, "", LIST, post="q=1")], post_aria="PO-2609-0142")])
+        return bf["steps"][0]["writeWhy"]
+    assert why("GET", "/poList.do") == "GET"
+    assert why("GET", "/deleteItem.do") == "이름이 쓰기 같은 GET(deleteItem)"
+    assert why("POST", "/selectList.do") == "POST — 조회 낱말(select)"
+    assert why("POST", "/poSave.do") == "POST — 변경 낱말(save)"
+    assert why("POST", "/poData.do") == "POST — 기본 쓰기"
+
+
+def test_held_나_decision_은_판정에_쓰지_않는다():
+    # 3판: 기록 중 쓰기는 붙잡지 않고 보내므로 held 가 근거가 될 수 없다. 이름만 본다
+    n = net("GET", "/poList.do", "q=1", LIST, held=True, decision="approve")
+    assert analyze.analyze(REC, [span(1, {"tag": "BUTTON", "text": "조회"}, [n], post_aria="PO-2609-0142")])["steps"][0]["write"] is False
+    n = net("POST", "/selectList.do", "", LIST, post="q=1", decision="staging")
+    assert analyze.analyze(REC, [span(1, {"tag": "BUTTON", "text": "조회"}, [n], post_aria="PO-2609-0142")])["steps"][0]["write"] is False
+
+
+def test_예전_기록의_readPost_는_무시한다():
+    rec = dict(REC, readPost="/po/poData*")
+    bf = analyze.analyze(rec, [span(1, {"tag": "BUTTON", "text": "검색"}, [net("POST", "/poData.do", "", LIST, post="q=1")], post_aria="PO-2609-0142")])
+    assert bf["steps"][0]["write"] is True
+
+
+def test_정책은_단계의_write_로_정한다():
+    rd = analyze.analyze(REC, [span(1, {"tag": "BUTTON", "text": "검색"}, [net("POST", "/selectList.do", "", LIST, post="q=1")], post_aria="PO-2609-0142")])
+    assert rd["policy"]["operation"] == "READ" and rd["policy"]["approval"] == "NONE" and rd["policy"]["envPolicy"] == "op-auto"
+    wr = analyze.analyze(REC, [span(1, {"tag": "BUTTON", "text": "삭제"}, [net("POST", "/poDelete.do", "", LIST, post="q=1")], post_aria="PO-2609-0142")])
+    assert wr["policy"]["operation"] == "DELETE" and wr["policy"]["envPolicy"] == "op-confirm"
 
 
 def test_로그인_경로의_jsessionid_는_떼고_비교한다():

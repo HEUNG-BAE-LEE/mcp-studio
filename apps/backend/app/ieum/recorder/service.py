@@ -136,7 +136,7 @@ def _validate_inputs(bf: dict, items) -> Dict[str, dict]:
 
 def _validate_steps(bf: dict, items) -> List[dict]:
     if not isinstance(items, list) or not all(isinstance(i, dict) and isinstance(i.get("id"), str) for i in items):
-        _bad("steps 는 {id, skip} 목록이어야 합니다.")
+        _bad("steps 는 {id, skip, write} 목록이어야 합니다.")
     ids = [i["id"] for i in items]
     if len(set(ids)) != len(ids):
         _bad("단계 id 가 겹칩니다.")
@@ -147,6 +147,8 @@ def _validate_steps(bf: dict, items) -> List[dict]:
         _bad("모든 단계를 한 번씩 적어야 합니다(건너뛰려면 skip: true).")
     if any("skip" in i and not isinstance(i["skip"], bool) for i in items):
         _bad("skip 은 참/거짓이어야 합니다.")
+    if any("write" in i and not isinstance(i["write"], bool) for i in items):
+        _bad("write 는 참/거짓이어야 합니다.")
     skipped = {i["id"] for i in items if i.get("skip")}
     by_id = {s["id"]: s for s in bf["steps"]}
     for i in items:
@@ -171,6 +173,7 @@ def update_function(fid: str, patch: dict) -> dict:
 
     def apply(bf: dict) -> None:
         stale = False
+        write_changed = False
         for k in ("name", "desc"):
             if k in patch and not isinstance(patch[k], str):
                 _bad(f"{k} 는 글이어야 합니다.")
@@ -215,8 +218,19 @@ def update_function(fid: str, patch: dict) -> dict:
         if order is not None:
             flags = {i["id"]: bool(i.get("skip")) for i in order}
             by_id = {s["id"]: s for s in bf["steps"]}
-            bf["steps"] = [dict(by_id[i["id"]], skip=flags[i["id"]]) for i in order]
+            new_steps = []
+            for i in order:
+                st = dict(by_id[i["id"]], skip=flags[i["id"]])
+                if "write" in i and i["write"] != bool(st.get("write")):
+                    st.update(write=i["write"], writeWhy="사람이 지정")        # 근거는 사람이 정했다고 남긴다
+                    write_changed = True
+                new_steps.append(st)
+            bf["steps"] = new_steps
             stale = True
+            if write_changed:                                              # 설계 3판 6절: 단계의 write 로 정책을 다시 구한다
+                fresh = analyze.policy_for([analyze.step_op(s) for s in new_steps if not s.get("skip")])
+                for k in ("operation", "risk", "approval", "envPolicy"):
+                    bf["policy"][k] = fresh[k]
         if hit is not None:
             bf["excluded"].remove(hit)
             bf["references"] = [x for x in bf["references"] if x["path"] != hit["path"]]

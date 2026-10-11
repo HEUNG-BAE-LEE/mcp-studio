@@ -119,20 +119,49 @@ def _discriminator(n: dict) -> str:
     return ""
 
 
-def _is_write(n: dict, policy: Policy) -> bool:
-    """조회용으로 지정한 POST(readPost)는 쓰기가 아니다.
+# 설계 3판 6절: 조회·쓰기 낱말. 경로를 camelCase/_/-/./ 기준으로 나눠 낱말 단위로 비교한다.
+READ_WORDS = ("select", "search", "list", "get", "find", "query", "inquiry", "retrieve", "view", "detail", "info", "count", "autocomplete")
+WRITE_WORDS = ("save", "insert", "update", "delete", "del", "regist", "create", "modify", "mod", "edit", "apply", "approve", "confirm",
+               "cancel", "pay", "payment", "order", "send", "upload", "reset", "change", "remove", "add", "submit", "register")
+READ_KO = ("조회", "검색", "목록")
+WRITE_KO = ("저장", "등록", "수정", "삭제", "승인", "결재", "결제", "취소", "변경")
+_SPLIT = re.compile(r"[/_.\-;]+|(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
-    GET/HEAD 는 가드가 붙잡았거나(held), 스테이징에서 쓰기로 보고 보냈거나(decision=staging), 이름이 쓰기 같은 화면 스크립트
-    GET 이면 쓰기다. 스테이징은 붙잡지 않아 held 가 거짓이므로 held 만 보면 deleteItem.do 가 읽기 도구가 된다."""
-    if n["method"] in ("GET", "HEAD") and not (n.get("held") or n.get("decision") == "staging"
-                                               or capture.is_write(n["url"], n["method"], n.get("rtype") or "", policy)):
-        return False
-    try:
-        if policy.same_origin(n["url"]) and policy.is_read_post(n["url"]):
-            return False
-    except Exception:
-        logging.warning("readPost 판정 실패 — 쓰기로 본다: %s", n.get("url"), exc_info=True)
-    return True
+
+def path_words(path: str) -> List[str]:
+    return [w.lower() for w in _SPLIT.split(path or "") if w]
+
+
+def _hit(words: List[str], vocab: Tuple[str, ...]) -> Optional[str]:
+    """낱말이 어휘와 같거나(4글자 이상이면) 그 어휘로 시작하면 그 어휘를 돌려준다."""
+    for w in words:
+        for v in vocab:
+            if w == v or (len(v) >= 4 and w.startswith(v)):
+                return v
+    return None
+
+
+def classify_write(n: dict, policy: Policy) -> Tuple[bool, str]:
+    """(쓰기 여부, 근거). 붙잡힘(held)·결정(decision) 은 보지 않는다 — 기록 중 쓰기는 붙잡지 않고 보내므로 이름만 근거다."""
+    method = (n["method"] or "").upper()
+    full = urlsplit(n["url"]).path.split(";")[0]
+    if method in ("GET", "HEAD"):
+        try:
+            risky = capture.is_write(n["url"], method, n.get("rtype") or "", policy)
+        except Exception:
+            logging.warning("GET 이름 판정 실패 — 쓰기로 본다: %s", n.get("url"), exc_info=True)
+            return True, f"{method} — 판정 실패로 쓰기"
+        if risky:
+            return True, f"이름이 쓰기 같은 {method}({full.rsplit('/', 1)[-1].rsplit('.', 1)[0]})"
+        return False, method
+    words = path_words(full)
+    w = _hit(words, WRITE_WORDS) or next((k for k in WRITE_KO if k in full), None)
+    if w:
+        return True, f"{method} — 변경 낱말({w})"
+    r = _hit(words, READ_WORDS) or next((k for k in READ_KO if k in full), None)
+    if r:
+        return False, f"{method} — 조회 낱말({r})"
+    return True, f"{method} — 기본 쓰기"
 
 
 def _op_of(n: dict, label: str, write: bool = True) -> str:
@@ -143,6 +172,19 @@ def _op_of(n: dict, label: str, write: bool = True) -> str:
         if pat.search(text):
             return op
     return "CREATE"
+
+
+def policy_for(ops: List[str]) -> dict:
+    """단계별 작업 유형 중 가장 위험한 것으로 정책을 만든다(설계 3판 6절 표). 단계가 없으면 READ."""
+    op = max(ops or ["READ"], key=_ORDER.index)
+    risk, approval = _RISK[op]
+    return {"operation": op, "risk": risk, "approval": approval, "envPolicy": "op-auto" if op == "READ" else "op-confirm",
+            "sensitivity": None, "scope": None}
+
+
+def step_op(st: dict) -> str:
+    """저장된 단계(write·path·label)에서 작업 유형을 다시 구한다 — 검토 화면에서 write 를 바꾼 뒤 정책을 다시 계산할 때 쓴다."""
+    return _op_of({"path": st.get("path") or ""}, st.get("label") or "", bool(st.get("write")))
 
 
 def _shown(data, raw: str, aria: str) -> bool:
@@ -159,7 +201,7 @@ def _shown(data, raw: str, aria: str) -> bool:
 
 def analyze(rec: dict, spans: List[dict]) -> dict:
     login_path = ((rec.get("login") or {}).get("path") or "").split(";")[0]
-    policy = Policy(base=rec["sourceBase"], read_post=rec.get("readPost") or "")
+    policy = Policy(base=rec["sourceBase"], read_post="")        # 3판: 예전 기록의 readPost 는 쓰지 않는다
     items, excluded = [], []
     for sp in spans:
         for n in sp["network"]:
@@ -191,7 +233,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                 seen[key] = None
                 excluded.append({"method": n["method"], "path": path, "base": n["base"], "origin": n["origin"], "role": "code", "why": "코드표 응답 (상태코드 풀이용 참조)"})
             continue
-        write = _is_write(n, policy)
+        write, write_why = classify_write(n, policy)
         aria = (sp.get("post") or {}).get("aria") or ""
         shown = _shown(data, n.get("res") or "", aria)
         cand = not (shown or write)                       # 화면에 안 나타난 요청: 뒤 단계가 쓰면 prereq, 아니면 빠진다
@@ -207,10 +249,10 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                 seen[key]["role"] = "core"
             continue
         st = {"id": f"t{len(steps) + 1}", "role": "prereq" if cand else "core", "base": n["base"], "origin": n["origin"], "method": n["method"], "path": path,
-              "discriminator": disc, "kind": _kind(n), "charset": n.get("charset"), "exec": "http", "formPage": None, "write": write,
+              "discriminator": disc, "kind": _kind(n), "charset": n.get("charset"), "exec": "http", "formPage": None, "write": write, "writeWhy": write_why,
               "headers": {}, "outputs": {}, "params": [],
               "recordedRes": n.get("res") or "", "recordedData": copy.deepcopy(n.get("data")), "recordedStatus": n["status"],
-              "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""),
+              "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""), "label": ((sp["action"]["target"] or {}).get("text", "") or "")[:60],
               "_title": (sp.get("pre") or {}).get("title", "")}
         for hk, hv in (n.get("headers") or {}).items():
             if hk.lower().startswith("x-"):
@@ -314,10 +356,8 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
 
     # 4) 정책
     ops = [_op_of(s["_sample"][1], s["_label"], s["write"]) for s in steps] or ["READ"]
-    op = max(ops, key=_ORDER.index)
-    risk, approval = _RISK[op]
-    policy_meta = {"operation": op, "risk": risk, "approval": approval, "envPolicy": "op-auto" if op == "READ" else "op-confirm",
-                   "sensitivity": None, "scope": None}
+    policy_meta = policy_for(ops)
+    op = policy_meta["operation"]
 
     notes = []
     if not steps:
