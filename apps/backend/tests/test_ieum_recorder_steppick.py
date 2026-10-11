@@ -96,14 +96,25 @@ def test_trace_는_주_화면_문서에_main_을_남긴다():
     assert [n["main"] for n in tr.current["network"]] == [True, False]
 
 
-def test_거쳐_간_메뉴_화면은_뒤에_핵심_요청이_있으면_강제로_핵심이_아니다():
+def test_거쳐_간_메뉴_화면은_다른_화면으로_옮겨_가면_강제로_핵심이_아니다():
     menu = _net("GET", SEARCH + "/menu/news.do", ARTICLE_HTML, rtype="document", main=True)
-    xhr = _net("GET", SEARCH + "/api/list.do", json.dumps({"list": [{"title": "기사 제목 2"}]}, ensure_ascii=False))
+    page2 = _net("GET", SEARCH + "/board/view.do", "<html><body><h3>게시글 본문 내용</h3></body></html>", rtype="document", main=True)
     spans = [_span(1, "뉴스", [menu], "- text: 뉴스", SEARCH + "/menu/news.do"),
-             _span(2, "조회", [xhr], "- text: 기사 제목 2", SEARCH + "/menu/news.do")]
+             _span(2, "게시판", [page2], "- heading: 게시글 본문 내용", SEARCH + "/board/view.do")]
     bf = analyze.analyze(REC, spans)
-    assert [s["path"] for s in bf["steps"]] == ["/api/list.do"]
+    assert [s["path"] for s in bf["steps"]] == ["/board/view.do"]
     assert any(e["path"] == "/menu/news.do" and e["role"] == "page" for e in bf["excluded"])
+
+
+def test_도착한_본문에서_같은_화면_안_행동을_해도_본문은_핵심으로_남는다():
+    more = _net("GET", ARTICLE + "/api/comments?page=2", json.dumps({"list": [{"text": "두 번째 댓글 내용"}]}, ensure_ascii=False))
+    like = _net("POST", ARTICLE + "/api/like", json.dumps({"ok": "공감했습니다"}, ensure_ascii=False), post="id=1")
+    for extra, aria in ((more, "- text: 두 번째 댓글 내용"), (like, "- text: 공감했습니다")):
+        spans = _spans() + [_span(3, "더보기", [extra], aria, ARTICLE + "/v/" + IDS[1])]
+        spans[2]["pre"]["href"] = ARTICLE + "/v/" + IDS[1]
+        bf = analyze.analyze(REC, spans)
+        art = next((s for s in bf["steps"] if s["path"] == "/v/{id}"), None)
+        assert art is not None and art["role"] == "core", [s["path"] for s in bf["steps"]]
 
 
 # ── T13-3: 광고·통계 같은 부수 요청 ───────────────────────────────────────

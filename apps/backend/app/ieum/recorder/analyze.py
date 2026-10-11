@@ -459,19 +459,14 @@ def _last_main(sp: dict) -> Optional[dict]:
 
 def _landed(items: list, spans: List[dict], policy: Policy) -> set:
     """사람 행동(클릭·키·제출) 묶음에서 주 화면이 마지막으로 연 GET 문서(리디렉트면 마지막 것). 사람이 눌러 연 화면이므로 화면 표시 판정과
-    상관없이 핵심이다(본문 앞부분이 스크립트뿐이면 글자 조각 판정이 놓친다). 다만 그 뒤 사람 행동이 핵심 요청(화면에 보인 응답·쓰기)을
-    낳았으면 그 화면은 거쳐 간 메뉴 화면이라 예전 규칙(화면 표시·뒤 단계가 쓰는가)을 따른다."""
-    last_core = -1
-    for sp, n, _, data in items:
-        if sp["action"].get("type") == "open":
-            continue
-        if classify_write(n, policy)[0] or _shown(data, n.get("res") or "", (sp.get("post") or {}).get("aria") or ""):
-            last_core = max(last_core, sp["seq"])
+    상관없이 핵심이다(본문 앞부분이 스크립트뿐이면 글자 조각 판정이 놓친다). 다만 뒤의 사람 행동이 주 화면을 다른 문서로 옮겼으면
+    거쳐 간 화면이라 예전 규칙(화면 표시·뒤 단계가 쓰는가)을 따른다. 같은 화면 안의 행동(댓글 더보기·공감 등)은 내리지 않는다."""
     kept = {id(n) for _, n, _, _ in items}
+    mains = [(sp["seq"], _last_main(sp)) for sp in spans]
+    mains = [(seq, m) for seq, m in mains if m is not None]
     out = set()
-    for sp in spans:
-        m = _last_main(sp)
-        if m is not None and sp["seq"] >= last_core and id(m) in kept:
+    for i, (seq, m) in enumerate(mains):
+        if i == len(mains) - 1 and id(m) in kept:          # 뒤에 다른 화면 이동이 없는 마지막 도착 화면
             out.add(id(m))
     return out
 

@@ -1,6 +1,6 @@
 """업무 기록 전 구간: 시연용 레거시 사이트에서 사람 대신 WebSocket 으로 클릭·입력을 보낸다.
 
-- XHR 읽기 업무(조회 → 상세)가 2단계 업무 기능과 poNo 연결이 되고 검증된다
+- XHR 읽기 업무(메뉴 화면 → 조회 → 상세)가 3단계 업무 기능과 poNo 연결이 되고 검증된다
 - 서버 렌더링 업무(폼 검색 → 상세)가 HTML 표 단계 2개, 표에서 꺼낸 값 연결, 숨은 토큰 → 브라우저 실행으로 정리되고 검증된다
 - 기록 중 운영 쓰기는 묻지 않고 시연 사이트에 닿고 보낸 쓰기(sent)로 남는다(설계 3판)
 - 한글 IME 입력이 깨지지 않는다
@@ -112,7 +112,7 @@ class Driver:
         return httpx.get(self.base + f"/api/ieum/recorder/functions/{rec['functionId']}/").json()["resultData"]
 
 
-def test_XHR_읽기_업무가_두_단계_업무_기능이_되고_검증된다(ieum_server):
+def test_XHR_읽기_업무가_메뉴_화면과_두_조회_단계로_검증된다(ieum_server):
     d = Driver(ieum_server)
     d.click("text=발주 현황")
     d.click("#btnSearch")
@@ -120,10 +120,11 @@ def test_XHR_읽기_업무가_두_단계_업무_기능이_되고_검증된다(ie
     rec = d.stop_and_wait()
     assert rec["status"] == "review", rec.get("error")
     bf = d.function(rec)
-    assert [s["path"] for s in bf["steps"]] == ["/poList.do", "/poDetail.do"]
-    assert any(e["path"] == "/poListView.do" and e["role"] == "page" for e in bf["excluded"])   # 메뉴 화면 이동은 단계가 아니다
-    po = next(p for p in bf["steps"][1]["params"] if p["a"] == "poNo")
-    assert po["from"].startswith("s1.") and po["source"] == "PREVIOUS_STEP_OUTPUT"
+    # 메뉴 화면(/poListView.do)은 사람이 눌러 도착한 마지막 주 화면 문서라 핵심 단계다(T13: 같은 화면 안의 조회·상세 XHR 은 화면을 옮기지 않는다)
+    assert [s["path"] for s in bf["steps"]] == ["/poListView.do", "/poList.do", "/poDetail.do"]
+    assert bf["steps"][0]["method"] == "GET" and bf["steps"][0]["write"] is False
+    po = next(p for p in bf["steps"][2]["params"] if p["a"] == "poNo")
+    assert po["from"].startswith("s2.") and po["source"] == "PREVIOUS_STEP_OUTPUT"
     assert bf["verification"]["runs"][0]["ok"] is True and bf["desc"]
 
 
