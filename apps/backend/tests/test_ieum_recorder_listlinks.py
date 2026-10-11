@@ -133,7 +133,7 @@ def test_두번째_카드를_눌러_연_상세_주소의_자리를_앞_단계_�
 def test_카드형_출처_문법():
     bf = analyze.analyze(REC, _record(_cards(), "http://h:8080/data/15000002/fileData.do"))
     p = next(p for p in bf["steps"][1]["params"] if p["loc"] == "path")
-    assert p["from"] == "s1.links[/data/{id}/fileData.do@div.result>div.item][1.0].id"
+    assert p["from"] == "s1.links[/data/{id}/fileData.do@div.result>div.item][1.0/1].id"
 
 
 def test_다른_출처_절대주소_링크도_잇는다():
@@ -141,8 +141,8 @@ def test_다른_출처_절대주소_링크도_잇는다():
     s1, s2 = bf["steps"]
     assert s2["base"] == "https://n.news.naver.com" and s2["path"] == "/mnews/article/{id}/{id2}"
     ps = {p["a"]: p for p in s2["params"] if p["loc"] == "path"}
-    assert ps["id"]["from"] == "s1.links[/mnews/article/{id}/{id2}@div.sds-comps-base>div.kxJd][1.0].id"
-    assert ps["id2"]["from"] == "s1.links[/mnews/article/{id}/{id2}@div.sds-comps-base>div.kxJd][1.0].id2"
+    assert ps["id"]["from"] == "s1.links[/mnews/article/{id}/{id2}@div.sds-comps-base>div.kxJd][1.0/1].id"
+    assert ps["id2"]["from"] == "s1.links[/mnews/article/{id}/{id2}@div.sds-comps-base>div.kxJd][1.0/1].id2"
     assert s2["pickedIndex"] == 1 and s2["pickedRow"].startswith("둘째 기사 제목")
 
 
@@ -157,7 +157,7 @@ def test_JSON_문자열_값도_주소_후보다():
 def test_쿼리_값이_onclick_인자에만_있으면_후보_순번으로_잇는다():
     bf = analyze.analyze(REC, _record(LIS, "http://h:8080/lsInfoP.do?lsiSeq=15000002"))
     p = next(p for p in bf["steps"][1]["params"] if p["a"] == "lsiSeq")
-    assert p["source"] == "PREVIOUS_STEP_OUTPUT" and p["from"] == "s1.links[{lsiSeq:d}@ul.c-list>li][1.0].lsiSeq"
+    assert p["source"] == "PREVIOUS_STEP_OUTPUT" and p["from"] == "s1.links[{lsiSeq:d}@ul.c-list>li][1.0/1].lsiSeq"
     assert bf["steps"][1]["pickedIndex"] == 1
 
 
@@ -165,7 +165,7 @@ def test_쿼리_값은_같은_주소를_가리키는_링크의_쿼리에서_잇�
     html = "".join(f'<li><a href="/news/view.do?articleId={i}&amp;from=list">기사 {i}</a></li>' for i in (7001, 7002, 7003))
     bf = analyze.analyze(REC, _record(f"<ul>{html}</ul>", "http://h:8080/news/view.do?articleId=7002"))
     p = next(p for p in bf["steps"][1]["params"] if p["a"] == "articleId")
-    assert p["from"] == "s1.links[/news/view.do?articleId={articleId}@ul>li][1.0].articleId" and p["confidence"] == "low"   # 짧은 숫자 하나뿐
+    assert p["from"] == "s1.links[/news/view.do?articleId={articleId}@ul>li][1.0/1].articleId" and p["confidence"] == "low"   # 짧은 숫자 하나뿐
 
 
 def test_후보가_하나뿐이면_확신도_high():
@@ -298,7 +298,7 @@ def test_같은_틀의_랭킹_링크가_앞에_있어도_순번은_누른_결과
     bf = analyze.analyze(REC, _ranked_record("http://h:8080", _ranked(["0000000001", "0000000002", "0000000003"], ["0000000011", "0000000012", "0000000013"])))
     s2 = bf["steps"][1]
     p = next(p for p in s2["params"] if p["a"] == "id2")
-    assert p["from"] == "s1.links[/mnews/article/{id}/{id2}@div.list>div.item][1.0].id2"
+    assert p["from"] == "s1.links[/mnews/article/{id}/{id2}@div.list>div.item][1.0/1].id2"
     assert s2["pickedIndex"] == 1 and s2["pickedRow"].startswith("결과 0000000012")
     # 랭킹이 둘로 줄어든 새 화면에서도 결과 목록의 두 번째를 고른다
     expr = p["from"].split(".", 1)[1]
@@ -310,7 +310,7 @@ def test_값_모양_틀도_메뉴_인자는_세지_않는다():
     html = LIS.replace('<ul class="menu">', '<ul class="menu"><li><a href="javascript:;" onclick="fnMenu(\'101\')">메뉴</a></li>')
     bf = analyze.analyze(REC, _record(html, "http://h:8080/data/15000002/fileData.do"))
     p = next(p for p in bf["steps"][1]["params"] if p["loc"] == "path")
-    assert p["from"] == "s1.links[{id:d}@ul.c-list>li][1.0].id"
+    assert p["from"] == "s1.links[{id:d}@ul.c-list>li][1.0/1].id"
     fewer = htmltable.to_data(LIS)                                            # 메뉴 숫자 인자가 없는 화면
     assert analyze.get_path(fewer, p["from"].split(".", 1)[1]) == "15000002"
 
@@ -396,7 +396,7 @@ def test_결과가_40KB_뒤에_있어도_후보를_모아_k1_로_잇는다(ieum_
     spans[0]["network"] = [dict(spans[0]["network"][0], res=n["res"], data=n["data"])]
     bf = analyze.analyze(REC, spans)
     p = next(p for p in bf["steps"][1]["params"] if p["loc"] == "path")
-    assert p["from"] == "s1.links[/data/{id}/fileData.do@div.result-list>div.item][1.0].id"
+    assert p["from"] == "s1.links[/data/{id}/fileData.do@div.result-list>div.item][1.0/1].id"
 
 
 def test_묶음별_상한과_같은_행의_같은_주소는_하나로():
@@ -492,11 +492,11 @@ def test_값_모양_틀은_행_순번과_행_안_순번으로_잇는다():
     bf = analyze.analyze(REC, spans)
     s2 = bf["steps"][1]
     ps = {p["a"]: p for p in s2["params"]}
-    assert ps["lsiSeq"]["from"] == "s1.links[{lsiSeq:d}@ul.left_list>li][1.0].lsiSeq"
-    assert ps["efYd"]["from"] == "s1.links[{efYd:d}@ul.left_list>li][1.1].efYd"
+    assert ps["lsiSeq"]["from"] == "s1.links[{lsiSeq:d}@ul.left_list>li][1.0/5].lsiSeq"
+    assert ps["efYd"]["from"] == "s1.links[{efYd:d}@ul.left_list>li][1.1/5].efYd"
     assert s2["pickedIndex"] == 1 and s2["pickedRow"] == "나 법"
     # 순서가 바뀌고 두 번째 행의 인자 개수가 다른 새 목록에서도 두 번째 행의 값을 꺼낸다
-    new = htmltable.to_data(_law_rows([("라 법", ["2001", "20250101", "1", "2", "3", "4"]), ("마 법", ["2002", "20250202"]), ("가 법", ["1001", "20240101", "7"])]))
+    new = htmltable.to_data(_law_rows([("라 법", ["2001", "20250101", "1", "2", "3", "4"]), ("마 법", ["2002", "20250202", "1", "2", "3"]), ("가 법", ["1001", "20240101", "7"])]))
     assert analyze.get_path(new, ps["lsiSeq"]["from"].split(".", 1)[1]) == "2002"
     assert analyze.get_path(new, ps["efYd"]["from"].split(".", 1)[1]) == "20250202"
     assert analyze.get_path(new, "links[{efYd:d}@ul.left_list>li][1.5].efYd") is None          # 행 안 순번이 모자라면 없음
@@ -512,5 +512,37 @@ def test_한_요청의_자리들이_다른_행에서_오면_확신도를_낮춘�
     spans = _record(_law_rows(LAW), "http://h:8080/lsInfoP.do?lsiSeq=1002&efYd=20240303")
     spans[1]["action"]["target"]["text"] = "나 법"
     ps = {p["a"]: p for p in analyze.analyze(REC, spans)["steps"][1]["params"]}
-    assert "[1.0]" in ps["lsiSeq"]["from"] and "[2.1]" in ps["efYd"]["from"]
+    assert "[1.0/5]" in ps["lsiSeq"]["from"] and "[2.1/3]" in ps["efYd"]["from"]
     assert ps["lsiSeq"]["confidence"] == "low" and ps["efYd"]["confidence"] == "low"
+
+
+# ── T12 수정 1차: 행 안 순번은 같은 값도 따로 세고, 행의 후보 수가 다르면 꺼내지 않는다 ──
+def test_행_안_같은_값을_합치지_않고_세며_후보_수가_다르면_꺼내지_않는다():
+    rec_rows = [("가 법", ["11001", "20240101", "20240105", "7"]), ("나 법", ["11002", "20240202", "20240206", "8"])]
+    spans = _record(_law_rows(rec_rows), "http://h:8080/lsInfoP.do?lsiSeq=11002&ancYd=20240206")
+    spans[1]["action"]["target"]["text"] = "나 법"
+    ps = {p["a"]: p for p in analyze.analyze(REC, spans)["steps"][1]["params"]}
+    assert ps["ancYd"]["from"] == "s1.links[{ancYd:d}@ul.left_list>li][1.2/4].ancYd"
+    expr = ps["ancYd"]["from"].split(".", 1)[1]
+    same_day = htmltable.to_data(_law_rows([("다 법", ["13001", "20250101", "20250102", "1"]), ("라 법", ["13002", "20250202", "20250202", "9"])]))
+    assert analyze.get_path(same_day, expr) == "20250202"                     # 같은 값이 두 번 있어도 세 번째 자리
+    fewer = htmltable.to_data(_law_rows([("다 법", ["13001", "20250101", "20250102", "1"]), ("라 법", ["13002", "20250202", "9"])]))
+    assert analyze.get_path(fewer, expr) is None                               # 행의 후보 수가 기록 때와 다르면 짐작하지 않는다
+
+
+def _law_rows_with_view(rows):
+    lis = "".join(f'<li><a href="javascript:;" onclick="lsView(' + ", ".join(f"'{a}'" for a in args) + f')">{title}</a>'
+                  + (f'<a href="/view.do?seq={args[0]}">상세</a>' if view else "") + "</li>" for title, args, view in rows)
+    return f'<html><body><ul class="left_list">{lis}</ul></body></html>'
+
+
+def test_한_요청의_자리들은_틀이_달라도_같은_행에서_꺼낸다():
+    rows = [("가 법", ["10001", "20240101"], False), ("나 법", ["10002", "20240202"], True), ("다 법", ["10003", "20240303"], True)]
+    spans = _record(_law_rows_with_view(rows), "http://h:8080/view.do?seq=10002&lsiSeq=10002")
+    spans[1]["action"]["target"]["text"] = "나 법"
+    ps = {p["a"]: p for p in analyze.analyze(REC, spans)["steps"][1]["params"]}
+    assert ps["seq"]["confidence"] != "low" and ps["lsiSeq"]["confidence"] != "low"     # 같은 행이다(틀마다 k 가 달라도)
+    new = htmltable.to_data(_law_rows_with_view([("라 법", ["30001", "20250101"], False), ("마 법", ["30002", "20250202"], True),
+                                                 ("바 법", ["30003", "20250303"], True)]))
+    got = {a: analyze.get_path(new, ps[a]["from"].split(".", 1)[1]) for a in ("seq", "lsiSeq")}
+    assert got == {"seq": "30002", "lsiSeq": "30002"}

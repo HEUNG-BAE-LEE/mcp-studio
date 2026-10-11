@@ -64,11 +64,16 @@ def get_path(data, path: str):
     m = LINK_EXPR.match(path or "")
     if m:                                                      # 설계 4판 주소 후보 출처: links[틀][k].자리
         tpl, group = _split_tpl(m.group(1))
-        k, name = int(m.group(2)), m.group(4)
+        k, name = int(m.group(2)), m.group(6)
         if m.group(3) is not None and group is not None:
-            rows = template_rows(tpl, data, group)
+            ids = _row_ids(m.group(5) or tpl, data, group)
+            if k >= len(ids):
+                return None
+            ms = _row_matches(tpl, data, group, ids[k])
             j = int(m.group(3))
-            return rows[k][j].get(name) if k < len(rows) and j < len(rows[k]) else None
+            if m.group(4) is not None and len(ms) != int(m.group(4)):
+                return None                                    # 고른 행의 후보 수가 기록 때와 다르다: 짐작하지 않는다
+            return ms[j].get(name) if j < len(ms) else None
         rows = template_matches(tpl, data, group)
         return rows[k][0].get(name) if k < len(rows) else None
     query = None
@@ -97,10 +102,13 @@ def get_path(data, path: str):
 
 
 # ── 주소 후보와 틀 맞추기 (설계 4판) ─────────────────────────────────────────
-# 출처 문법: links[<틀>@<묶음>][<k>.<j>].<자리 이름>   (k·j 는 0부터. 단계 출처는 앞에 "s2." 를 붙인다)
-#   k = 묶음 안에서 틀에 맞는 후보를 하나 이상 가진 행들 중 몇 번째 행인가, j = 그 행 안에서 틀에 맞는 후보(자리 값이 같은 것은 하나로) 중
-#   몇 번째인가. 행마다 숫자 인자 개수가 달라도(onclick 인자 3개·5개) 순번이 엇나가지 않는다. 주소 틀은 보통 행마다 하나라 j=0.
-#   예전 꼴 links[<틀>@<묶음>][<k>] 는 묶음 안 고유 후보의 k 번째로 그대로 읽는다.
+# 출처 문법: links[<틀>@<묶음>][<k>.<j>/<n>(@<행 틀>)].<자리 이름>   (k·j 는 0부터. 단계 출처는 앞에 "s2." 를 붙인다)
+#   k = 묶음 안에서 <행 틀>(없으면 <틀>)에 맞는 후보를 하나 이상 가진 행들 중 몇 번째 행인가.
+#   j = 그 행 안에서 <틀>에 맞는 후보 중 몇 번째인가, n = 기록 때 그 행에서 <틀>에 맞은 후보 수.
+#   값 모양 틀(onclick 인자 등, "/" 로 시작하지 않는 틀)은 행 안의 같은 값도 따로 센다(합치면 같은 날짜가 두 번 있는 행에서 j 가 밀린다).
+#   주소 틀은 행 안의 같은 값(썸네일·제목 링크)을 하나로 친다. 재실행 때 고른 행의 후보 수가 n 과 다르면 값을 짐작하지 않고 없음(chain_broken).
+#   한 요청의 자리 여럿이 같은 묶음·같은 행에서 왔으면 첫 자리의 틀을 <행 틀>로 붙여 모두 같은 행에서 꺼낸다.
+#   예전 꼴 [<k>.<j>](n 없음)는 n 검사 없이, [<k>] 는 묶음 안 고유 후보의 k 번째로 그대로 읽는다.
 #   묶음 = 누른 후보의 행이 속한 반복 묶음 이름 "부모 태그.클래스>행 태그.클래스"(예: div.list>div.item, 클래스의 숫자는 뺌).
 #          k 는 그 묶음 안에서만 센다 — 같은 틀의 랭킹·메뉴 링크가 앞에 있어도, 그 개수가 바뀌어도 순번이 엇나가지 않는다.
 #          행이 없는 후보(JSON 값, 반복 조상이 없는 링크)는 "@묶음" 없이 전체 순서로 센다. 틀에 @ 가 있으면 끝에 "@" 를 붙인다.
@@ -110,7 +118,7 @@ def get_path(data, path: str):
 #        후보 전체가 틀과 같아야 한다. "?이름={자리}" 는 쿼리 어디에 있든 맞춘다.
 #   후보 = HTML 사본이면 links 의 v(문서 순서), JSON 이면 문자열 값 전부(leaves 순서).
 #   자리 값이 "."·".." 이거나 "/" 를 품으면 그 후보는 맞지 않는 것으로 본다. 자리 값이 같은 후보는 하나로 친다.
-LINK_EXPR = re.compile(r"^links\[(.*)\]\[(\d+)(?:\.(\d+))?\]\.(.+)$", re.S)
+LINK_EXPR = re.compile(r"^links\[(.*)\]\[(\d+)(?:\.(\d+)(?:/(\d+))?)?(?:@(.*))?\]\.(.+)$", re.S)
 _SLOT = re.compile(r"\{([^{}:]+)(?::([dw]))?\}")
 _ID_CLASS = infer._ID_SEG.pattern[1:-1]                     # infer 의 식별자 조각 정규식(^…$ 를 뗀 것)을 그대로 쓴다
 _SLOT_CLASS = {"d": r"\d+", "w": r"[\w\-.]+", "": "(?:" + _ID_CLASS + ")", "q": r"[^&#'\"\s]+"}
@@ -200,19 +208,13 @@ def template_matches(tpl: str, data, group: Optional[str] = None) -> List[Tuple[
     return out
 
 
-def template_rows(tpl: str, data, group: str) -> List[List[Dict[str, str]]]:
-    """묶음 안에서 틀에 맞는 후보를 가진 행들(첫 등장 순서). 행마다 자리 값 목록(같은 값은 하나로)."""
-    order: List[int] = []
-    rows: Dict[int, List[Dict[str, str]]] = {}
-    for vals, _, g, ri in _matches(tpl, data):
-        if g != group or ri is None:
-            continue
-        if ri not in rows:
-            rows[ri] = []
-            order.append(ri)
-        if vals not in rows[ri]:
-            rows[ri].append(vals)
-    return [rows[ri] for ri in order]
+def _row_matches(tpl: str, data, group: str, ri: int) -> List[Dict[str, str]]:
+    """묶음의 한 행(ri) 안에서 틀에 맞는 후보들의 자리 값(문서 순서). 주소 틀만 같은 값을 하나로 친다."""
+    out: List[Dict[str, str]] = []
+    for vals, _, g, r in _matches(tpl, data):
+        if g == group and r == ri and (not tpl.startswith("/") or vals not in out):
+            out.append(vals)
+    return out
 
 
 def _derive(c: str, name: str, v: str) -> Optional[str]:
@@ -236,10 +238,10 @@ def _derive(c: str, name: str, v: str) -> Optional[str]:
     return None
 
 
-def _template_link(tpls: List[Optional[str]], want: Dict[str, str], prev_steps: List[dict], label: str = "") -> Optional[tuple]:
-    """앞 단계들(최근 것부터)의 후보 중 틀에 맞고 기록 때 쓰인 값(want)을 모두 가진 후보를 찾아, 그 후보의 묶음 안 순번 k 를 구한다.
-    같은 값이 여러 묶음에 있으면(랭킹과 결과에 같은 기사) 누른 요소의 글자(label)가 행 글자에 든 쪽을 고른다.
-    돌려주는 것: (앞 단계, '틀@묶음' 또는 틀, k, 행 글자, 묶음 안 후보 수)"""
+def _template_link(tpls: List[Optional[str]], want: Dict[str, str], prev_steps: List[dict], label: str = "") -> Optional[dict]:
+    """앞 단계들(최근 것부터)의 후보 중 틀에 맞고 기록 때 쓰인 값(want)을 모두 가진 후보를 찾는다.
+    같은 값이 여러 행·묶음에 있으면 누른 요소의 글자(label)가 행 글자에 든 쪽을 고른다.
+    돌려주는 것: {prev, tpl, g, ri, k, j, n, row, count} — 묶음이 없으면 g="" 이고 k 는 전체 고유 후보 순번, j·n·ri 는 None."""
     for prev in reversed(prev_steps):
         data = prev["_sample"][2]
         if data is None:
@@ -252,20 +254,20 @@ def _template_link(tpls: List[Optional[str]], want: Dict[str, str], prev_steps: 
                 tpl = next((t for t in (_derive(c["v"], name, v) for c in cands if v in c["v"]) if t), None)
                 if tpl is None:
                     continue
-            hits = [(row, g, ri) for vals, row, g, ri in _matches(tpl, data) if all(vals.get(nm) == v for nm, v in want.items())]
+            fits = lambda vals: all(vals.get(nm) == v for nm, v in want.items())   # noqa: E731
+            hits = [(row, g, ri) for vals, row, g, ri in _matches(tpl, data) if fits(vals)]
             if not hits:
                 continue
             row, g, ri = next((h for h in hits if label and label in h[0]), hits[0])
-            fits = lambda vals: all(vals.get(nm) == v for nm, v in want.items())   # noqa: E731
-            if g and ri is not None:                         # 묶음 안: (행 순번 k, 행 안 순번 j)
-                order = [r for r in _row_ids(tpl, data, g)]
-                rows = template_rows(tpl, data, g)
-                k = order.index(ri)
-                j = next(i for i, vals in enumerate(rows[k]) if fits(vals))
-                return prev, f"{tpl}@{g}", f"{k}.{j}", row, len(rows), k
+            info = {"prev": prev, "tpl": tpl, "g": g or "", "ri": ri, "row": row, "j": None, "n": None}
+            if g and ri is not None:                         # 묶음 안: (행 순번 k, 행 안 순번 j, 행의 후보 수 n)
+                ids = _row_ids(tpl, data, g)
+                ms = _row_matches(tpl, data, g, ri)
+                info.update(k=ids.index(ri), j=next(i for i, vals in enumerate(ms) if fits(vals)), n=len(ms), count=len(ids))
+                return info
             rows = template_matches(tpl, data, None)
-            k = next(i for i, (vals, _, _) in enumerate(rows) if fits(vals))
-            return prev, (tpl + "@" if "@" in tpl else tpl), str(k), row, len(rows), k
+            info.update(k=next(i for i, (vals, _, _) in enumerate(rows) if fits(vals)), count=len(rows))
+            return info
     return None
 
 
@@ -537,7 +539,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                 p.update({"from": f"const:{value}", "source": CONSTANT, "confidence": "low" if p["type"] in ("date", "number") else "mid"})
             st["params"].append(p)
         _link_path(st, n, steps[:i], user_vals, inputs, contrib)
-        _same_row_check(st)
+        _same_row(st, contrib)
 
     # 2-1) 뒤 단계가 쓰지 않은 후보(화면에 안 나타난 요청)는 뺀다. 쓰인 것은 prereq 로 남는다
     used = set()
@@ -599,7 +601,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         for k in ("_sample", "_spans", "_label", "_title", "_write", "_dropped"):
             s.pop(k, None)
         for p in s["params"]:
-            p.pop("_row", None)
+            p.pop("_tl", None)
     login = rec.get("login") or {}
     return {"id": "bf_" + rec["id"][4:], "name": rec["name"], "desc": desc, "status": "draft",
             "source": {"base": rec["sourceBase"], "recordingId": rec["id"], "made": "manual-record", "env": rec["env"]},
@@ -629,31 +631,58 @@ def _use_link(p: dict, name: str, links: list, st: dict, contrib: list) -> None:
     p.update({"from": f"{prev['id']}.{out_name}", "source": PREVIOUS_STEP_OUTPUT, "confidence": "low" if weak else "high"})
 
 
-def _use_template(p: dict, tl: tuple, slot: str, st: dict, contrib: list, short: bool = False) -> None:
-    """4판: 주소 후보 틀의 k 번째 후보에서 자리 값을 꺼낸다. 후보가 하나면 high, 여럿이면 순번에 기대므로 mid,
+def _link_expr(info: dict, slot: str, row_tpl: Optional[str] = None, k: Optional[int] = None) -> str:
+    """출처 식. row_tpl 이 있으면 그 틀로 행을 고른다(한 요청의 다른 자리와 같은 행)."""
+    tpl, g = info["tpl"], info["g"]
+    if not g:
+        return f"links[{tpl + '@' if '@' in tpl else tpl}][{info['k']}].{slot}"
+    anchor = f"@{row_tpl}" if row_tpl and row_tpl != tpl else ""
+    return f"links[{tpl}@{g}][{info['k'] if k is None else k}.{info['j']}/{info['n']}{anchor}].{slot}"
+
+
+def _use_template(p: dict, tl: dict, slot: str, st: dict, contrib: list, short: bool = False) -> None:
+    """4판: 주소 후보 틀에서 자리 값을 꺼낸다. 후보(행)가 하나면 high, 여럿이면 순번에 기대므로 mid,
     쿼리·본문 값이 짧은 숫자 하나뿐이면 우연히 겹칠 수 있어 low."""
-    prev, tpl, idx, row, count, k = tl
-    expr = f"links[{tpl}][{idx}].{slot}"
-    prev["outputs"][expr] = expr
-    contrib.append((prev, expr, st["id"]))
-    p.update({"from": f"{prev['id']}.{expr}", "source": PREVIOUS_STEP_OUTPUT,
-              "confidence": "low" if short else ("high" if count == 1 else "mid")})
-    p["_row"] = (prev["id"], tpl.rpartition("@")[2] if "@" in tpl else "", k)   # 한 요청의 자리들이 같은 행에서 왔는지 보려고(분석 끝에 지운다)
-    st["pickedIndex"], st["pickedRow"] = k, row                # 검토 화면 표시용: 기록 때 고른 결과의 행 순번과 행 글자
+    expr = _link_expr(tl, slot)
+    tl["prev"]["outputs"][expr] = expr
+    contrib.append((tl["prev"], expr, st["id"]))
+    p.update({"from": f"{tl['prev']['id']}.{expr}", "source": PREVIOUS_STEP_OUTPUT,
+              "confidence": "low" if short else ("high" if tl["count"] == 1 else "mid")})
+    p["_tl"] = (tl, slot, expr)                                # 한 요청의 자리들을 같은 행으로 맞추려고(분석 끝에 지운다)
+    st["pickedIndex"], st["pickedRow"] = tl["k"], tl["row"]   # 검토 화면 표시용: 기록 때 고른 결과의 행 순번과 행 글자
 
 
-def _same_row_check(st: dict) -> None:
-    """한 요청의 자리 여럿이 같은 묶음에서 왔으면 같은 행이어야 한다. 누른 요소 글자가 든 행을 먼저 고르므로 보통 같다.
-    다른 행에서 왔으면 그대로 두되 확신도를 낮춰 검토 화면에서 묻는다(재실행 때 서로 다른 결과의 값이 섞일 수 있다)."""
-    by: Dict[tuple, set] = {}
+def _same_row(st: dict, contrib: list) -> None:
+    """한 요청의 자리 여럿이 같은 앞 단계·같은 묶음에서 왔으면 같은 행이어야 한다(실제 행 번호 ri 로 비교).
+    같은 행이면 둘째 자리부터 첫 자리의 틀로 행을 고르게 출처를 고쳐, 재실행 때도 행을 한 번만 고른다.
+    다른 행이면 그대로 두되 확신도를 낮춰 검토 화면에서 묻는다(서로 다른 결과의 값이 섞일 수 있다)."""
+    by: Dict[tuple, list] = {}
     for p in st["params"]:
-        if p.get("_row") and p["_row"][1]:
-            by.setdefault(p["_row"][:2], set()).add(p["_row"][2])
-    for key, ks in by.items():
-        if len(ks) > 1:
-            for p in st["params"]:
-                if p.get("_row") and p["_row"][:2] == key:
-                    p["confidence"] = "low"
+        if p.get("_tl") and p["_tl"][0]["g"]:
+            tl = p["_tl"][0]
+            by.setdefault((id(tl["prev"]), tl["g"]), []).append(p)
+    for ps in by.values():
+        if len({p["_tl"][0]["ri"] for p in ps}) > 1:
+            for p in ps:
+                p["confidence"] = "low"
+            continue
+        head = ps[0]["_tl"][0]
+        data = head["prev"]["_sample"][2]
+        for p in ps[1:]:
+            tl, slot, old = p["_tl"]
+            if _compile(tl["tpl"])[0].pattern == _compile(head["tpl"])[0].pattern:
+                continue                                       # 이름만 다른 같은 모양 틀({lsiSeq:d}·{efYd:d})은 행 줄이 같다
+            k = _row_ids(head["tpl"], data, head["g"]).index(tl["ri"])
+            expr = _link_expr(tl, slot, row_tpl=head["tpl"], k=k)
+            outs = tl["prev"]["outputs"]
+            if not any(q is not p and q.get("_tl") and q["_tl"][2] == old for q in st["params"]):
+                outs.pop(old, None)
+            outs[expr] = expr
+            for i, (pv, nm, cid) in enumerate(contrib):
+                if pv is tl["prev"] and nm == old and cid == st["id"]:
+                    contrib[i] = (pv, expr, cid)
+            p["from"] = f"{tl['prev']['id']}.{expr}"
+            p["_tl"] = (tl, slot, expr)
 
 
 def _link_path(st: dict, n: dict, prev_steps: List[dict], user_vals: Dict[str, str], inputs: Dict[str, dict], contrib: list) -> None:

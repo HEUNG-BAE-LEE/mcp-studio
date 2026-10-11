@@ -355,7 +355,8 @@ def to_data(html: str) -> Optional[dict]:
         if len(links) >= MAX_LINKS:
             break
         row = _row_of(node)
-        if row is not None and (id(row), v) in seen_in_row:
+        url_like = "/" in v or "?" in v                 # 같은 행의 같은 값을 합치는 것은 주소(썸네일+제목)만. 값 인자는 자리 순번이 밀린다
+        if row is not None and url_like and (id(row), v) in seen_in_row:
             continue
         g = (_sig(row.parent) + ">" + _sig(row)) if row is not None else ""
         if per_group.get(g, 0) >= MAX_LINKS_PER_GROUP:
