@@ -480,7 +480,8 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
     auto = login.get("mode") == "auto" and bool(login.get("recipe"))
     # 기록 중 로그인을 한 번도 보지 못했으면(레시피·로그인 경로·login 승인 기록 모두 없음) 공개 화면으로 보고 세션 밖에서 쿠키 없이 다시 검증한다
     anonymous = (not login.get("recipe") and not login.get("path")
-                 and not any((a or {}).get("decision") == "login" for a in rec.get("approvals") or []))
+                 and not any((a or {}).get("decision") == "login" for a in rec.get("approvals") or [])
+                 and not (rec.get("approvalsDropped") or 0) > 0)       # 승인 기록이 잘렸으면 로그인 항목이 빠졌을 수 있다
 
     def result(status, runs, reason=""):
         v = {"status": status, "at": time.time(), "runs": runs}

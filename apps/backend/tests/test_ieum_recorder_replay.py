@@ -639,3 +639,9 @@ def test_익명_재검증이_로그인_화면으로_보내지면_needs_login():
     finally:
         srv.shutdown()
     assert out["verification"]["status"] == "needs-login"
+
+
+def test_승인_기록이_잘린_기록은_익명으로_다시_검증하지_않는다():
+    rec = dict(PUBLIC_REC, approvalsDropped=3)            # 상한을 넘겨 잘린 기록에는 로그인 항목이 빠졌을 수 있다
+    out = asyncio.new_event_loop().run_until_complete(replay.verify(_public_bf("http://127.0.0.1:9"), rec, [], None))
+    assert out["verification"]["status"] == "needs-login"
