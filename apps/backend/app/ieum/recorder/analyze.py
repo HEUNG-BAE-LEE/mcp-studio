@@ -107,7 +107,7 @@ LINK_EXPR = re.compile(r"^links\[(.*)\]\[(\d+)\]\.(.+)$", re.S)
 _SLOT = re.compile(r"\{([^{}:]+)(?::([dw]))?\}")
 _ID_CLASS = infer._ID_SEG.pattern[1:-1]                     # infer 의 식별자 조각 정규식(^…$ 를 뗀 것)을 그대로 쓴다
 _SLOT_CLASS = {"d": r"\d+", "w": r"[\w\-.]+", "": "(?:" + _ID_CLASS + ")", "q": r"[^&#'\"\s]+"}
-MAX_CANDIDATES = 500
+MAX_CANDIDATES = 500                                      # JSON 문자열 값 후보 상한(HTML 사본은 htmltable 상한을 따른다)
 _TPL_CACHE: Dict[str, tuple] = {}
 
 
@@ -121,7 +121,7 @@ def link_candidates(data) -> List[dict]:
     if data is None:
         return []
     if htmltable.is_copy(data):
-        return htmltable.links_of(data)[:MAX_CANDIDATES]
+        return htmltable.links_of(data)
     return [{"v": v, "row": "", "g": ""} for _, v in leaves(data, MAX_CANDIDATES) if isinstance(v, str) and 0 < len(v) <= htmltable.MAX_LINK_LEN]
 
 

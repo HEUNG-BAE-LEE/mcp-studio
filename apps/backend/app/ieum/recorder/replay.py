@@ -158,7 +158,7 @@ class HttpTransport:
             headers["Cookie"] = ck
         async with httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT, verify=False, transport=self._transport) as c:
             r = await c.request(step["method"], url, headers=headers, content=content, json=json_body)
-            return r.status_code, r.headers.get("location"), r.headers.get("content-type", ""), r.text[:200_000]
+            return r.status_code, r.headers.get("location"), r.headers.get("content-type", ""), r.text[:htmltable.MAX_SCAN]
 
 
 class NeedsValue(Exception):
@@ -217,7 +217,7 @@ class BrowserTransport:
         finally:
             if token is not None:
                 self.guard.revoke(token)
-        return r[0], r[1], r[2], (r[3] or "")[:200_000]
+        return r[0], r[1], r[2], (r[3] or "")[:htmltable.MAX_SCAN]
 
 
 _is_masked = is_masked

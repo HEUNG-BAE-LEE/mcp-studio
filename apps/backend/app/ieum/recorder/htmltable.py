@@ -32,7 +32,10 @@ def _literals(s: str) -> List[str]:
     return out
 
 
-MAX_LINKS = 200          # 주소 후보 수 상한
+MAX_SCAN = 1_000_000     # 주소 후보를 찾으려고 읽는 응답 글자 수 상한. 결과 목록이 큰 화면의 수백 KB 뒤에 오는 사이트가 흔하다
+MAX_LINKS = 2000         # 주소 후보 전체 안전 상한
+MAX_LINKS_PER_GROUP = 300  # 묶음(행 묶음 이름)별 후보 상한. 묶음 없는 후보도 한 묶음으로 센다
+_RAW_LINKS = 20_000      # 파싱 중 모으는 원시 후보 상한(메모리 보호). 묶음별 상한은 파싱 뒤에 적용한다
 MAX_LINK_LEN = 300       # 이보다 긴 값은 주소 후보로 보지 않는다(자르면 주소가 깨진다)
 ROW_LEN = 120            # 행 글자 상한
 _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
@@ -149,7 +152,7 @@ class _Parser(HTMLParser):
         got = False
         for v in vals:
             v = _PATH_PARAM.sub("", v.strip())
-            if _usable(v) and len(self.links) < MAX_LINKS:
+            if _usable(v) and len(self.links) < _RAW_LINKS:
                 self.links.append((v, node))
                 got = True
         if got:
@@ -303,14 +306,26 @@ def to_data(html: str) -> Optional[dict]:
                 if line[i]["th"] and not line[i + 1]["th"] and line[i]["text"]:
                     fields.setdefault(line[i]["text"], line[i + 1]["text"])
     # 행 글자는 한 번만 둔다(linkRows). 링크 항목은 r 로 그 번호를 가리킨다. 묶음 이름 g 는 "부모 태그.클래스>행 태그.클래스"
+    # 같은 행의 같은 값(썸네일·제목이 같은 주소)은 하나로, 묶음별 MAX_LINKS_PER_GROUP·전체 MAX_LINKS 까지만 문서 순서로 둔다.
+    # 기록과 재실행이 같은 함수를 지나므로 줄 세우기(k)가 양쪽에서 같다.
     links, rows, index = [], [], {}
+    seen_in_row, per_group = set(), {}
     for v, node in p.links:
-        item = {"v": v}
+        if len(links) >= MAX_LINKS:
+            break
         row = _row_of(node)
+        if row is not None and (id(row), v) in seen_in_row:
+            continue
+        g = (_sig(row.parent) + ">" + _sig(row)) if row is not None else ""
+        if per_group.get(g, 0) >= MAX_LINKS_PER_GROUP:
+            continue
+        per_group[g] = per_group.get(g, 0) + 1
+        item = {"v": v}
         if row is not None:
+            seen_in_row.add((id(row), v))
             if id(row) not in index:
                 index[id(row)] = len(rows)
-                rows.append({"t": row.all_text()[:ROW_LEN], "g": _sig(row.parent) + ">" + _sig(row)})
+                rows.append({"t": row.all_text()[:ROW_LEN], "g": g})
             item["r"] = index[id(row)]
         links.append(item)
     if not tables and not fields and not p.hidden and not links:

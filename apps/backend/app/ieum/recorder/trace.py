@@ -173,6 +173,32 @@ def mask_input_lines(text: str, secrets: Optional[list]) -> str:
 _HIDDEN_JS = "() => Object.fromEntries([...document.querySelectorAll('input[type=hidden][name]')].slice(0, 50).map(i => [i.name, (i.value || '').slice(0, 300)]))"
 
 
+def _cut(text: str, limit: int) -> str:
+    """상한에서 잘린 본문: 마지막 <tr 앞(표가 없으면 마지막 태그 앞)에서 잘라 조각난 값을 버린다."""
+    if len(text) < limit:
+        return text
+    cut = text.lower().rfind("<tr")
+    if cut <= 0:
+        cut = text.rfind("<")
+    return text[:cut] if cut > 0 else ""
+
+
+def _html_copy(body: str, full: str) -> Optional[dict]:
+    """HTML 사본. 표·이름값·숨은 값은 예전처럼 저장 본문 상한(MAX_BODY)까지에서, 주소 후보(links)는 MAX_SCAN 까지에서 만든다.
+    큰 화면은 결과 목록이 수백 KB 뒤에 와서 40KB 로는 메뉴 후보만 남는다(공공데이터포털 목록 484KB, 결과는 371KB 부터)."""
+    small = _cut(body, capture.MAX_BODY)
+    data = htmltable.to_data(small) if small else None
+    if len(full) <= len(body):
+        return data
+    big = _cut(full, htmltable.MAX_SCAN)
+    wide = htmltable.to_data(big) if big else None
+    if not wide or not wide.get("links"):
+        return data
+    data = dict(data) if data else {"tables": [], "fields": {}, "hidden": {}}
+    data.update(links=wide["links"], linkRows=wide["linkRows"])
+    return data
+
+
 class Trace:
     def __init__(self, rid: str, policy: Policy, guard: Guard, notify: Callable[[dict], Awaitable[None]],
                  on_closed: Optional[Callable[[object, dict], Awaitable[None]]] = None):
@@ -447,21 +473,16 @@ class Trace:
             if not url.startswith(("http://", "https://")) or rtype in capture.STATIC_TYPES or is_asset(url) or 300 <= status < 400:
                 return
             is_file, ctype = capture.is_file_response(response.headers)
-            body = ""
+            body, full = "", ""
             if not is_file:
                 try:
-                    body = (await response.text())[:capture.MAX_BODY]
+                    full = (await response.text())[:htmltable.MAX_SCAN]   # 주소 후보용으로만 더 읽는다. 저장하는 본문은 MAX_BODY 까지
                 except Exception:
-                    body = ""
+                    full = ""
+                body = full[:capture.MAX_BODY]
             data = None
             if body and htmltable.looks_html(ctype, body):
-                src = body
-                if len(body) >= capture.MAX_BODY:          # 잘린 본문: 마지막 <tr 앞에서 잘라 조각난 값을 버린다
-                    cut = body.lower().rfind("<tr")
-                    if cut <= 0:                           # 표가 없는 화면(카드·li 나열): 잘린 마지막 태그 앞에서 자른다
-                        cut = body.rfind("<")
-                    src = body[:cut] if cut > 0 else ""
-                data = await asyncio.to_thread(htmltable.to_data, src) if src else None
+                data = await asyncio.to_thread(_html_copy, body, full)
                 data = self._mask_copy(data) if data else None
             masked = self._mask_body(body)
             if masked is None:

@@ -84,7 +84,7 @@ def test_data_속성과_form_action_도_후보이고_상한을_지킨다():
             + f'<a href="/{"y" * 400}">긴 주소</a>' + "".join(f'<p><a href="/v/{i}">{i}</a></p>' for i in range(700)))
     d = htmltable.to_data(html)
     vs = [x["v"] for x in htmltable.links_of(d)]
-    assert vs[:3] == ["/search.do", "A-77", "/v/0"] and len(vs) == htmltable.MAX_LINKS and all(len(v) <= htmltable.MAX_LINK_LEN for v in vs)
+    assert vs[:3] == ["/search.do", "A-77", "/v/0"] and len(vs) == 2 + htmltable.MAX_LINKS_PER_GROUP and all(len(v) <= htmltable.MAX_LINK_LEN for v in vs)
 
 
 def test_표도_후보도_없으면_여전히_None():
@@ -360,3 +360,91 @@ def test_행_글자는_한_번만_저장하고_링크는_번호로_가리킨다(
 def test_글자만_있는_data_속성은_후보가_아니다():
     d = htmltable.to_data('<div data-role="button" data-x="/p/q" data-n="n1">x</div>')
     assert [x["v"] for x in htmltable.links_of(d)] == ["/p/q", "n1"]
+
+
+# ── 수정 2차: 큰 화면 ──────────────────────────────────────────────────────
+def _big_page(ids, menus=250, filler=60_000, tail=0):
+    """앞에 큰 스크립트·메뉴 후보 수백 개, 뒤에 결과 카드. tail 은 카드 앞에 더 넣는 글자 수(결과를 200KB 뒤로 미는 용도)."""
+    menu = "".join(f'<li class="gnb"><a href="/menu/{i}.do">메뉴 {i}</a></li>' for i in range(menus))
+    cards = "".join(f'<div class="item"><a href="/data/{i}/fileData.do"><img src="t.png"></a>'
+                    f'<a href="/data/{i}/fileData.do">결과 {i}</a></div>' for i in ids)
+    return (f'<html><head><script>var x="{"x" * filler}";</script></head><body><ul class="gnb-list">{menu}</ul>'
+            f'<div>{"y" * tail}</div><div class="result-list">{cards}</div></body></html>')
+
+
+def test_결과가_40KB_뒤에_있어도_후보를_모아_k1_로_잇는다(ieum_state):
+    from tests.test_ieum_recorder_trace import _bare_trace
+    from app.ieum.discovery import capture
+    page = _big_page(["15000001", "15000002", "15000003"])
+    assert len(page) > capture.MAX_BODY and page.index('class="result-list"') > capture.MAX_BODY
+
+    class Req:
+        resource_type, method, headers, post_data = "document", "GET", {}, None
+
+    class Resp:
+        url, status, headers, request = "http://h:8080/list.do?q=bus", 200, {"content-type": "text/html; charset=utf-8"}, Req()
+
+        async def text(self):
+            return page
+
+    tr = _bare_trace()
+    tr.current = {"network": []}
+    asyncio.new_event_loop().run_until_complete(tr.on_response(Resp()))
+    n = tr.current["network"][0]
+    assert len(n["res"]) <= capture.MAX_BODY                                   # 저장하는 본문은 기존 상한 그대로
+    spans = _record(_cards(), "http://h:8080/data/15000002/fileData.do")
+    spans[0]["network"] = [dict(spans[0]["network"][0], res=n["res"], data=n["data"])]
+    bf = analyze.analyze(REC, spans)
+    p = next(p for p in bf["steps"][1]["params"] if p["loc"] == "path")
+    assert p["from"] == "s1.links[/data/{id}/fileData.do@div.result-list>div.item][1].id"
+
+
+def test_묶음별_상한과_같은_행의_같은_주소는_하나로():
+    d = htmltable.to_data(_big_page(["1000000%d" % i for i in range(3)], menus=htmltable.MAX_LINKS_PER_GROUP + 50, filler=10))
+    ls = htmltable.links_of(d)
+    assert sum(1 for x in ls if x["g"] == "ul.gnb-list>li.gnb") == htmltable.MAX_LINKS_PER_GROUP
+    cards = [x["v"] for x in ls if x["g"] == "div.result-list>div.item"]
+    assert cards == ["/data/10000000/fileData.do", "/data/10000001/fileData.do", "/data/10000002/fileData.do"]   # 썸네일·제목 중복은 하나
+
+
+class _BigSite(_Site):
+    def handler(self):
+        site = self
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                site.hits.append(self.path)
+                body = _big_page(site.ids, tail=250_000) if self.path.startswith("/list.do") else DETAIL
+                b = body.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+            def log_message(self, *a):
+                pass
+        return H
+
+
+def test_재실행도_200KB_뒤의_결과에서_같은_순번을_꺼내_보낸다():
+    s = _BigSite(["900", "901", "902"])
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), s.handler())
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        rec = dict(REC, sourceBase=base)
+        bf = analyze.analyze(rec, _record(_big_page(["15000001", "15000002", "15000003"]), base + "/data/15000002/fileData.do", base=base))
+        assert len(_big_page(s.ids, tail=250_000)) > 200_000
+        s.ids = ["902", "900", "901"]
+        run = _replay(bf, base)
+        assert run["ok"], run
+        assert s.hits[-1] == "/data/900/fileData.do"
+    finally:
+        srv.shutdown()
+
+
+def test_전체_후보_상한():
+    html = "".join(f'<ul class="u{chr(97 + i % 26)}{chr(97 + i // 26 % 26)}"><li><a href="/v/{i}">a</a></li><li><a href="/w/{i}">b</a></li></ul>'
+                   for i in range(3000))
+    assert len(htmltable.links_of(htmltable.to_data(html))) == htmltable.MAX_LINKS
