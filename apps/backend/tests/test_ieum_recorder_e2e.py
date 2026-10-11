@@ -24,11 +24,11 @@ pytestmark = pytest.mark.skipif(os.environ.get("IEUM_SKIP_BROWSER_TESTS") == "1"
 class Driver:
     """사람 역할. 화면 요소 위치를 세션 페이지에서 읽어 그 좌표를 WebSocket 으로 클릭한다."""
 
-    def __init__(self, base, owner="시험", read_post=""):
+    def __init__(self, base, owner="시험"):
         self.base = base
         r = httpx.post(base + "/api/ieum/recorder/recordings/", json={
             "name": "업무", "owner": owner, "base": base + "/demo-legacy/po", "start": "/login.do", "env": "op",
-            "account": DEMO_USER_ID, "password": DEMO_PASSWORD, "readPost": read_post}, timeout=90).json()["resultData"]
+            "account": DEMO_USER_ID, "password": DEMO_PASSWORD}, timeout=90).json()["resultData"]
         self.rid = r["id"]
         self.ws = connect(base.replace("http", "ws") + f"/api/ieum/recorder/ws/{self.rid}?token={r['token']}", max_size=None)
         self.msgs = []
@@ -129,7 +129,7 @@ def test_XHR_읽기_업무가_두_단계_업무_기능이_되고_검증된다(ie
 
 def test_서버_렌더링_업무가_HTML_표_단계와_브라우저_실행으로_검증된다(ieum_server):
     from app.ieum.recorder import store
-    d = Driver(ieum_server, read_post="/vendSearch.do")             # 검색 POST 는 조회라고 알려 준다
+    d = Driver(ieum_server)
     d.run(d.session.page.goto(ieum_server + "/demo-legacy/po/vendSearchView.do"))
     d.click("#vendNm")
     d.text("한빛")

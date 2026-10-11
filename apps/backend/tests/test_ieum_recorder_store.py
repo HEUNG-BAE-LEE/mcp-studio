@@ -8,7 +8,7 @@ from app.ieum.recorder import config, retention, store
 
 @pytest.fixture
 def rec(ieum_state):
-    r = store.new_recording("9월 발주 상세 조회", "홍길동", "http://h/po", "/login.do", "op", "auto", "")
+    r = store.new_recording("9월 발주 상세 조회", "홍길동", "http://h/po", "/login.do", "op", "auto")
     store.save_recording(r)
     return r
 
@@ -53,7 +53,7 @@ def test_기록을_지우면_업무_기능과_폴더도_지운다(rec):
 def test_보관_정리는_확정한_것과_오래된_미확정_스크린샷만_지운다(ieum_state, monkeypatch):
     monkeypatch.setenv("IEUM_RECORDER_SHOT_DAYS", "7")
     now = time.time()
-    done, old, fresh = (store.new_recording(n, "", "http://h/po", "", "op", "auto", "") for n in ("a", "b", "c"))
+    done, old, fresh = (store.new_recording(n, "", "http://h/po", "", "op", "auto") for n in ("a", "b", "c"))
     for r, ended in ((done, now), (old, now - 8 * 86400), (fresh, now - 1 * 86400)):
         r.update(status="review", endedAt=ended)
         store.save_recording(r)

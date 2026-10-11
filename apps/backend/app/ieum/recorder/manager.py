@@ -99,7 +99,7 @@ class Manager:
             raise RecorderError("환경은 운영(op) 또는 스테이징(stg) 이어야 합니다.")
         account, password = payload.get("account") or "", payload.get("password") or ""
         creds = {"username": account, "password": password} if account and password else None
-        rec = store.new_recording(name, owner, base, payload.get("start") or "", env, "auto" if creds else "manual", payload.get("readPost") or "")
+        rec = store.new_recording(name, owner, base, payload.get("start") or "", env, "auto" if creds else "manual")  # readPost 는 3판에서 받지 않는다(무시)
         async with self._guard():                     # 상한 확인과 자리 예약 사이에 await 가 끼지 않게 한 잠금으로 묶는다
             pw = await self._ensure()
             u = self.usage()

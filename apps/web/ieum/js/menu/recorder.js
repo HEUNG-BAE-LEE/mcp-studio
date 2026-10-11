@@ -11,7 +11,9 @@ const REC_REASON = { needs_value:'값 입력 필요', unresolved_path:'값 경�
   http_error:'HTTP 오류', shape_mismatch:'응답 모양이 다름', error_response:'오류 응답', browser_needed:'브라우저 실행 필요',
   login_failed:'로그인 실패', unexpected_error:'예상하지 못한 오류', skipped:'건너뜀', pipeline_error:'분석·검증 중 오류',
   chain_broken:'앞 단계 값을 이어받지 못함', write_denied:'쓰기 승인을 받지 못함', browser_only:'브라우저에서만 성공' };
-const REC_DECISION = { approve:'승인', deny:'거부', timeout:'시간 초과', login:'로그인 통과', staging:'스테이징', error:'승인 창 오류', 'denied-host':'차단 주소', beacon:'외부 통계 차단' };
+const REC_DECISION = { approve:'승인', deny:'거부', timeout:'시간 초과', login:'로그인', sent:'보냄', staging:'스테이징', error:'승인 창 오류', 'denied-host':'차단 주소', beacon:'외부 통계 차단' };
+const recHeldLabel = l => /^조회로 보이는 \S+ — /.test(l || '');                // 재실행이 조회로 분류했지만 GET 이 아니라 묻는 요청
+const recIsWrite = n => n.held || n.decision === 'sent' || n.decision === 'login';
 const REC_ENDED_MS = 10000;                                                   // 끝난 승인 id 를 기억하는 시간(늦게 온 같은 id 의 hold 를 무시)
 const recHoldHead = L => (L.holds || [])[0] || null;                          // 가장 오래된 대기 하나만 보인다
 const REC_SOURCES = [['USER_INPUT','사용자 입력'],['PREVIOUS_STEP_OUTPUT','앞 단계 결과'],['SESSION_CONTEXT','세션 값'],
@@ -82,11 +84,10 @@ function recNewHTML() {
     <div class="field"><label>대상 시스템 주소</label>${inp('base', 'http://10.20.4.30:8080/po', { mono:1 })}<small>기록을 시작할 기준점입니다. 업무 중 다른 시스템으로 넘어가도 막지 않고 함께 기록합니다.</small></div>
     <div class="field"><label>시작 화면 (선택)</label>${inp('start', '/login.do', { mono:1 })}</div>
     <div class="field"><label>환경</label><div class="rec-env">
-      <label><input type="radio" name="recEnv" data-chg="recEnv" value="op" ${f.env === 'op' ? 'checked' : ''}> 운영 — 쓰기 요청은 승인 후에만 보냅니다</label>
-      <label><input type="radio" name="recEnv" data-chg="recEnv" value="stg" ${f.env === 'stg' ? 'checked' : ''}> 스테이징 — 쓰기도 그대로 보냅니다</label></div></div>
+      <label><input type="radio" name="recEnv" data-chg="recEnv" value="op" ${f.env === 'op' ? 'checked' : ''}> 운영 — 기록하며 한 동작은 실제로 반영됩니다. 재실행 검증의 쓰기만 승인받습니다</label>
+      <label><input type="radio" name="recEnv" data-chg="recEnv" value="stg" ${f.env === 'stg' ? 'checked' : ''}> 스테이징 — 기록과 재실행 모두 승인 없이 보냅니다</label></div></div>
     <div class="field"><label>서비스 계정 (선택)</label><div class="two">${inp('account', '아이디')}${inp('password', '비밀번호', { type:'password' })}</div>
       <small>비우거나 자동 로그인이 실패하면 기록 화면에서 직접 로그인합니다. 직접 로그인한 비밀번호는 저장하지 않습니다.</small></div>
-    <div class="field"><label>조회용 POST 경로 (선택)</label>${inp('readPost', '/po/searchPost.do', { mono:1 })}<small>검색을 POST 로 하는 화면이면 적어 주세요. 승인 없이 보냅니다.</small></div>
     <div class="field"><label>기록하는 사람</label>${inp('owner', '홍길동')}<small>동시 기록 상한을 사람마다 셉니다.</small></div>
     <div class="rec-actions"><button class="btn" data-act="recBack">취소</button>${RECR.demo ? '<button class="btn" data-act="recDemo">시연용 값 채우기</button>' : ''}
       <button class="btn primary" data-act="recStart" ${RECR.busy ? 'disabled' : ''}>${RECR.busy ? '브라우저를 띄우는 중…' : '기록 시작'}</button></div></div>`;
@@ -104,20 +105,20 @@ function recTopHTML(L) {
 const recMsgHTML = L => L.msg ? `<div class="rec-msg">${esc(L.msg)}</div>` : '';
 function recOverlayHTML(L) {
   const H = recHoldHead(L), more = (L.holds || []).length - 1;
-  return (H ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>${svg('lock', 16)} 쓰기 요청 승인</b>
+  return (H ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>${svg('lock', 16)} 쓰기 요청 승인</b>${recHeldLabel(H.label) ? ' <span class="pill rec-warn">조회로 보이는 POST</span>' : ''}
         <p>"${esc(H.label || '알 수 없는 버튼')}" → <code>${esc(H.method)} ${esc(H.path)}</code></p>
         ${more > 0 ? `<p class="muted">대기 ${more}건 더</p>` : ''}
-        <p>운영 데이터가 바뀝니다. 2분 안에 답하지 않으면 보내지 않습니다.</p>
+        <p>재실행 검증이 보내려는 요청입니다. 운영 데이터가 바뀝니다. 2분 안에 답하지 않으면 보내지 않습니다.</p>
         <button class="btn danger-fill" data-act="recApprove" data-ok="1">승인하고 보내기</button> <button class="btn" data-act="recApprove" data-ok="0">보내지 않기</button></div>` : '')
     + (L.dialog ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>대상 사이트의 확인 창</b><p>${esc(L.dialog.message)}</p>
         <button class="btn primary" data-act="recDialog" data-ok="1">확인</button> ${L.dialog.type !== 'alert' ? '<button class="btn" data-act="recDialog" data-ok="0">취소</button>' : ''}</div>` : '');
 }
 function recSideHTML(L) {
   const tl = L.spans.slice(-60).map(s => `<li><b>${+s.seq}</b> ${esc(((s.action.target || {}).text || s.action.type || '').slice(0, 24))}
-      ${s.network.map(n => `<div class="${n.held ? 'w' : ''}">${esc(n.method)} ${esc(n.path)} ${n.status == null ? '' : esc(n.status)}${n.kind === 'html' ? ' · HTML' : ''}${n.decision ? ` · ${esc(recDecision(n.decision))}` : ''}</div>`).join('')}</li>`).join('');
+      ${s.network.map(n => `<div class="${recIsWrite(n) ? 'w' : ''}">${esc(n.method)} ${esc(n.path)} ${n.status == null ? '' : esc(n.status)}${n.kind === 'html' ? ' · HTML' : ''}${n.decision ? ` · ${esc(recDecision(n.decision))}` : ''}</div>`).join('')}</li>`).join('');
   const blocked = L.blocked.slice(-5).map(b => `<li class="b">차단(서버 보호) ${esc(b.why)} — ${esc(b.url)}</li>`).join('');
   return `<div class="label">타임라인</div><ol class="rec-tl">${tl || '<li class="mute">화면을 클릭하면 여기에 쌓입니다</li>'}${blocked}</ol>
-      <div class="rec-count">요청 ${L.spans.reduce((a, s) => a + s.network.length, 0)} · 쓰기 ${L.spans.reduce((a, s) => a + s.network.filter(n => n.held).length, 0)} · 차단 ${L.blocked.length}</div>`;
+      <div class="rec-count">요청 ${L.spans.reduce((a, s) => a + s.network.length, 0)} · 쓰기 ${L.spans.reduce((a, s) => a + s.network.filter(recIsWrite).length, 0)} · 차단 ${L.blocked.length}</div>`;
 }
 function recLiveHTML() {
   const L = RECR.live;
@@ -139,12 +140,17 @@ function recReviewHTML() {
       ${i.confidence === 'low' ? '<span class="pill rec-warn">확인 필요</span>' : ''}</td>
       <td class="mono">${i.needsValue ? `<input class="inp sm" type="password" autocomplete="off" data-inp="recVal" data-n="${esc(i.name)}" placeholder="${esc(i.ex || '검증할 값')}" aria-label="${esc(i.name)} 검증할 값"><small>값 다시 입력 필요 · 저장하지 않습니다</small>` : esc(i.ex)}</td></tr>`).join('');
   const ev = (seq, w) => seq ? `<img class="rec-shot" alt="행동 ${seq} ${w}" src="/api/ieum/recorder/recordings/${esc(rid)}/shots/${seq}-${w}.jpg" data-rid="${esc(rid)}" data-seq="${+seq}">` : '';
+  const nameOnly = s => !s.write && !['GET', 'HEAD'].includes(String(s.method).toUpperCase()) && s.writeWhy !== '사람이 지정';
   const steps = f.steps.map((s, i) => { const seq = (f.evidence[s.id] || [])[0];
     return `<div class="rec-step ${s.skip ? 'skip' : ''}"><b>${esc(s.id)} · ${s.role === 'core' ? '핵심' : '선행'}</b>${s.skip ? ' <span class="pill rec-mute">건너뜀</span>' : ''}
+      <span class="pill ${s.write ? 'rec-warn' : 'rec-mute'}">${s.write ? '쓰기' : '조회'}</span>
       <span class="pill rec-mute">${s.kind === 'html' ? 'HTML 표' : s.kind === 'json' ? 'JSON' : '기타'}</span> <span class="pill rec-mute">${s.exec === 'browser' ? '브라우저 실행' : 'HTTP'}</span>
       <div class="rec-step-ctl"><button class="btn sm" data-act="recStepMove" data-i="${i}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="${esc(s.id)} 앞으로">↑</button>
         <button class="btn sm" data-act="recStepMove" data-i="${i}" data-d="1" ${i === f.steps.length - 1 ? 'disabled' : ''} aria-label="${esc(s.id)} 뒤로">↓</button>
+        <button class="btn sm" data-act="recStepWrite" data-i="${i}" aria-label="${esc(s.id)} ${s.write ? '조회로 바꾸기' : '쓰기로 바꾸기'}">${s.write ? '조회로 바꾸기' : '쓰기로 바꾸기'}</button>
         <button class="btn sm" data-act="recStepSkip" data-i="${i}">${s.skip ? '다시 쓰기' : '건너뛰기'}</button></div>
+      ${nameOnly(s) ? `<button class="btn sm" data-act="recStepConfirmRead" data-i="${i}" aria-label="${esc(s.id)} 조회로 확정">조회로 확정</button><br><small class="rec-why">이름으로만 조회로 판정됨 — 확정하기 전에는 확인을 받는 도구로 등록됩니다</small><br>` : ''}
+      ${s.writeWhy ? `<small class="rec-why">${s.write ? '쓰기' : '조회'}로 본 이유: ${esc(s.writeWhy)}</small><br>` : ''}
       <div class="mono">${esc(s.method)} ${esc(s.path)}${s.discriminator ? ` (${esc(s.discriminator)})` : ''}</div>
       ${s.base !== f.source.base ? `<small>다른 시스템: ${esc(s.base)}</small><br>` : ''}
       ${s.params.map(p => `<small>${esc(p.a)} ← ${esc(p.from)}${p.confidence === 'low' ? ' ⚠' : ''}</small>`).join('<br>')}
@@ -158,7 +164,10 @@ function recReviewHTML() {
       ${r.reason ? `<small>${esc(recReason(r.reason))}</small>` : ''}${r.note ? `<small>${esc(recReason(r.note))}</small>` : ''}
       ${bad.map(s => `<div class="rec-run-step"><small>${esc(s.id)}: ${esc(recReason(s.reason || 'error_response'))}${s.note ? ` — ${esc(s.note)}` : ''}</small></div>`).join('')}</li>`; }).join('');
   const apAll = (RECR.rec || {}).approvals || [], apBeacon = apAll.filter(a => a.decision === 'beacon').length;
-  const aps = apAll.filter(a => a.decision !== 'beacon').map(a => `<li><code>${esc(a.method)} ${esc(a.path)}</code> · ${esc(recDecision(a.decision))}${a.decision === 'deny' && a.label === '기록 종료 중' ? ` (${esc(a.label)})` : ''}</li>`).join('')
+  const sentAll = apAll.filter(a => a.decision === 'sent'), pend = +((RECR.rec || {}).pendingWrites) || 0, dropped = +((RECR.rec || {}).approvalsDropped) || 0;
+  const at = a => a.at ? new Date(a.at * 1000).toLocaleTimeString('ko-KR') : '';
+  const sentList = sentAll.map(a => `<li><code>${esc(a.method)} ${esc(a.url || a.path)}</code> · ${esc(a.label || '동작 이름 없음')} <small>${esc(at(a))}</small></li>`).join('');
+  const aps = apAll.filter(a => !['beacon', 'sent', 'login'].includes(a.decision)).map(a => `<li><code>${esc(a.method)} ${esc(a.path)}</code> · ${esc(recDecision(a.decision))}${a.decision === 'deny' && a.label === '기록 종료 중' ? ` (${esc(a.label)})` : ''}</li>`).join('')
     + (apBeacon ? `<li class="muted">외부 통계 ${apBeacon}종 차단 (횟수가 아니라 주소 종류 수)</li>` : '');
   const sel = (k, opts) => `<select class="inp sm" data-chg="recPol" data-k="${k}" aria-label="${k}"><option value="">선택</option>${opts.map(o => `<option ${f.policy[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
   const regSingle = active.length === 1;
@@ -174,7 +183,10 @@ function recReviewHTML() {
       <details ${f.steps.length ? '' : 'open'}><summary class="label">단계에 넣지 않은 요청 (${f.excluded.length})</summary><ul class="rec-excl">${excl}</ul></details>
     </div><aside>
       <div class="card"><div class="label">검증 ${recPill(REC_VERIFY, v.status)}${v.reason ? ` <small>${esc(recReason(v.reason))}</small>` : ''}</div><ul class="rec-runs">${runs}</ul></div>
-      ${aps ? `<div class="card"><div class="label">쓰기 승인 기록</div><ul class="rec-runs">${aps}</ul></div>` : ''}
+      <div class="card"><div class="label">기록 중 실제로 보낸 쓰기</div>
+        ${pend ? `<div class="rec-msg">응답을 받지 못한 쓰기 ${pend}건이 있습니다. 서버에는 이미 나갔을 수 있으니 반영 여부를 확인해 주세요.</div>` : ''}
+        ${sentList ? `<ul class="rec-runs">${sentList}</ul>${dropped ? `<small class="mute">이 밖에 ${dropped}건은 개수만 셌습니다.</small>` : ''}` : '<small class="mute">기록 중 보낸 쓰기가 없습니다.</small>'}</div>
+      ${aps ? `<div class="card"><div class="label">재실행 쓰기 승인 기록</div><ul class="rec-runs">${aps}</ul></div>` : ''}
       <div class="card"><div class="label">정책 (자동 추정 · 고칠 수 있음)</div>
         <div class="rec-pol"><span>작업 유형</span>${sel('operation', ['READ','CREATE','UPDATE','DELETE','APPROVE'])}</div>
         <div class="rec-pol"><span>위험도</span>${sel('risk', ['LOW','MEDIUM','HIGH','CRITICAL'])}</div>
@@ -299,7 +311,7 @@ async function recSaveFn(patch) {
   catch (e) { recErr(e); recRender(); }                          // 거절되면 화면의 선택을 서버 값으로 되돌린다
 }
 
-/* 단계 순서·건너뛰기는 현재 단계 전체를 {id, skip} 으로 보낸다(빠뜨린 단계가 있으면 서버가 400 으로 거절한다) */
+/* 단계 순서·건너뛰기는 현재 단계 전체를 {id, skip} 으로. write 는 사람이 바꾼 그 단계에만 싣는다(실으면 서버가 "사람이 지정"으로 남기므로 나머지에는 싣지 않는다) — 보낸다(빠뜨린 단계가 있으면 서버가 400 으로 거절한다) */
 const recStepsBody = list => list.map(s => ({ id:s.id, skip:!!s.skip }));
 
 const recNewLive = (id, name, env, token) => ({ id, name, env, token, status:'recording', spans:[], blocked:[], tabs:[], active:0, holds:[], ended:{}, dialog:null, paused:false, msg:'' });
@@ -315,7 +327,7 @@ Object.assign(CHG, {
   recDesc: el => recSaveFn({ desc:el.value }),
 });
 Object.assign(ACT, {
-  recNew: () => { RECR.form = { name:'', base:'', start:'', env:'op', account:'', password:'', readPost:'', owner:WS.user || '' }; RECR.page = 'new'; render(); },
+  recNew: () => { RECR.form = { name:'', base:'', start:'', env:'op', account:'', password:'', owner:WS.user || '' }; RECR.page = 'new'; render(); },
   recBack: () => { recWs.close(); RECR.page = 'list'; RECR.live = null; RECR.fn = null; RECR.rec = null; RECR.form = null; RECR.values = {}; render(); recRefresh(); },
   recDemo: () => { Object.assign(RECR.form, RECR.demo); render(); },
   recStart: async () => {
@@ -334,7 +346,9 @@ Object.assign(ACT, {
       RECR.live = recNewLive(r.id, r.name, r.env, tok); RECR.page = 'live'; render(); recBind(); recWs.open(r.id, tok); return; }
     recOpenFn(r.id); },
   recPause: () => { RECR.live.paused = !RECR.live.paused; recWs.send({ t:'pause', on:RECR.live.paused }); recPatch(); },
-  recStop: async () => { try { await api.post(`/recorder/recordings/${RECR.live.id}/stop/`); RECR.live.status = 'analyzing'; RECR.live.msg = '기록을 마쳤습니다. 분석하고 다시 실행해 검증하는 중입니다…'; recPatch(); } catch (e) { recErr(e); } },
+  recStop: async () => {                                         // 종료 대기 안내("저장 요청 N건…")가 중계로 먼저 오므로 안내를 먼저 깔고 응답 뒤에 덮지 않는다
+    const L = RECR.live, first = '기록을 마무리하는 중입니다. 보낸 저장 요청이 끝나기를 기다릴 수 있습니다…'; L.msg = first; recPatch();
+    try { await api.post(`/recorder/recordings/${L.id}/stop/`); if (L.status === 'recording') L.status = 'analyzing'; if (L.msg === first || !L.msg) L.msg = '기록을 마쳤습니다. 분석하고 다시 실행해 검증하는 중입니다…'; recPatch(); } catch (e) { recErr(e); } },
   recApprove: a => { const H = recHoldHead(RECR.live); if (!H) return;
     if (!recWs.send({ t:'approve', id:H.id, ok:a.dataset.ok === '1' })) { toast('연결이 끊겨 승인을 보내지 못했습니다. 연결되면 다시 눌러 주세요.', 'warn'); return; }   // 못 보냈으면 창을 닫지 않는다
     RECR.live.holds.shift(); RECR.live.ended[H.id] = Date.now(); recPatch(); },
@@ -350,6 +364,8 @@ Object.assign(ACT, {
     if (j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]]; recSaveFn({ steps:list });
   },
+  recStepWrite: a => { const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i; list[i].write = !RECR.fn.steps[i].write; recSaveFn({ steps:list }); },
+  recStepConfirmRead: a => { const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i; list[i].write = false; recSaveFn({ steps:list }); },
   recStepSkip: a => { const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i; list[i].skip = !list[i].skip; recSaveFn({ steps:list }); },
   recVerify: async () => {
     if (RECR.busy) return;

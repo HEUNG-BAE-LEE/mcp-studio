@@ -127,7 +127,7 @@ def test_기록_브라우저_문맥은_서비스_워커를_막는다(monkeypatch
     async def launch(pw):
         return FakeBrowser(), None
     monkeypatch.setattr(session_mod.browser_mod, "launch_async", launch)
-    rec = store.new_recording("t", "홍길동", "http://h:8080/po", "", "op", "manual", "")
+    rec = store.new_recording("t", "홍길동", "http://h:8080/po", "", "op", "manual")
     s = session_mod.RecorderSession(rec, None)
     with pytest.raises(RuntimeError):
         run(s.start(None))

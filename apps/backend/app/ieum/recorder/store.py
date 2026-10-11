@@ -31,9 +31,9 @@ def rec_dir(rid: str) -> Path:
     return state_dir() / "recorder" / rid
 
 
-def new_recording(name: str, owner: str, base: str, start: str, env: str, login_mode: str, read_post: str) -> dict:
+def new_recording(name: str, owner: str, base: str, start: str, env: str, login_mode: str, read_post: str = "") -> dict:   # read_post 는 3판에서 쓰지 않는다(예전 호출 호환)
     return {"id": "rec_" + uuid.uuid4().hex[:8], "name": name, "owner": owner, "sourceBase": base.rstrip("/"), "start": start or "",
-            "env": env, "readPost": read_post or "", "login": {"mode": login_mode, "recipe": None, "path": ""},
+            "env": env, "login": {"mode": login_mode, "recipe": None, "path": ""},
             "status": "recording", "startedAt": time.time(), "endedAt": None, "spanCount": 0, "approvals": [],
             "functionId": None, "error": None}
 

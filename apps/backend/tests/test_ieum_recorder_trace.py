@@ -33,7 +33,7 @@ SSR = ('<table><tr><th>거래처코드</th><th>거래처명</th></tr><tr><td><a 
 
 
 def _record(ieum_state, steps):
-    rec = store.new_recording("t", "홍길동", "http://rec.test/po", "", "op", "manual", "")
+    rec = store.new_recording("t", "홍길동", "http://rec.test/po", "", "op", "manual")
     store.save_recording(rec)
     sent = []
 
@@ -120,7 +120,7 @@ def test_서버가_그린_화면_응답도_기록하고_표를_바꾼다(ieum_st
 
 
 def test_일시정지_중에는_묶음을_만들지_않는다(ieum_state):
-    rec = store.new_recording("t", "", "http://rec.test/po", "", "op", "manual", "")
+    rec = store.new_recording("t", "", "http://rec.test/po", "", "op", "manual")
     store.save_recording(rec)
 
     async def notify(msg):
