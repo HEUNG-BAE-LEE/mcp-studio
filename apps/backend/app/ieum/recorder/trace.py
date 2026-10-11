@@ -458,6 +458,8 @@ class Trace:
                 src = body
                 if len(body) >= capture.MAX_BODY:          # 잘린 본문: 마지막 <tr 앞에서 잘라 조각난 값을 버린다
                     cut = body.lower().rfind("<tr")
+                    if cut <= 0:                           # 표가 없는 화면(카드·li 나열): 잘린 마지막 태그 앞에서 자른다
+                        cut = body.rfind("<")
                     src = body[:cut] if cut > 0 else ""
                 data = await asyncio.to_thread(htmltable.to_data, src) if src else None
                 data = self.masker.value(data) if data else None

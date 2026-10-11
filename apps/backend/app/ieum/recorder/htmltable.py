@@ -7,11 +7,16 @@ JSP 같은 레거시는 조회 버튼이 폼을 제출하면 서버가 결과 �
   (레거시에서 다음 화면으로 넘어가는 값이 주로 여기 있다).
 - fields: <th>이름</th><td>값</td> 짝으로 된 상세 화면.
 - hidden: 폼의 숨은 입력. 매번 바뀌는 토큰을 찾는 데 쓴다.
-머리글 없는 표는 화면 배치용으로 보고 버린다. 표가 아닌 화면(div 나열)은 다루지 않는다.
+- links: 주소 후보(설계 4판). 화면 모양과 무관하게 href, form action, onclick 안 문자열 인자, data-* 값을 문서 순서로
+  모은다. 항목은 {v: 값, row: 행 글자}. 행은 그 요소에서 위로 올라가며 같은 태그·클래스의 형제(후보를 가진 것)가 2개 이상
+  반복되는 첫 조상의 글자다 — 화면 전체를 훑어 "목록"을 추측하지 않는다(필터·메뉴를 결과로 오인한다).
+머리글 없는 표는 화면 배치용으로 보고 버린다. 표가 아닌 화면(카드·li 나열)은 links 로만 다룬다(열 이름은 꺼내지 않는다).
 """
 import re
 from html.parser import HTMLParser
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+
+from app.ieum.discovery.masking import is_secret_key
 
 # onclick 안의 문자열 인자. 작은따옴표와 큰따옴표를 각자 짝지어 읽는다 (인자 사이 빈 문자열 '' 가 짝을 흩트리지 않게).
 _JS_STR = re.compile(r"'([^'\\]{0,99})'|\"([^\"\\]{0,99})\"")
@@ -27,6 +32,70 @@ def _literals(s: str) -> List[str]:
     return out
 
 
+MAX_LINKS = 500          # 주소 후보 수 상한
+MAX_LINK_LEN = 300       # 이보다 긴 값은 주소 후보로 보지 않는다(자르면 주소가 깨진다)
+ROW_LEN = 120            # 행 글자 상한
+_VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+_INLINE = {"a", "span", "b", "strong", "em", "i", "u", "font", "label", "img", "small", "button", "abbr", "mark", "sup", "sub",
+           "td", "th"}                                        # 행이 될 수 없는 요소(글자 꾸밈과 표의 칸). 칸이 아니라 행(tr)을 찾는다
+# 닫는 태그 없이 같은 종류가 또 열리면 앞의 것을 닫는다: 태그 → (닫을 태그, 여기서 멈출 경계)
+_SELF_CLOSE = {"li": ({"li"}, {"ul", "ol"}), "option": ({"option"}, {"select", "optgroup", "datalist"}),
+               "dt": ({"dt", "dd"}, {"dl"}), "dd": ({"dt", "dd"}, {"dl"}),
+               "p": ({"p"}, {"div", "table", "ul", "ol", "li", "td", "th", "section", "article", "form"}),
+               "tr": ({"tr"}, {"table", "thead", "tbody", "tfoot"}), "td": ({"td", "th"}, {"tr", "table"}),
+               "th": ({"td", "th"}, {"tr", "table"})}
+_SKIP_TEXT = {"script", "style", "noscript", "template"}
+
+
+class _Node:
+    __slots__ = ("tag", "cls", "parent", "kids", "text", "has", "_txt")
+
+    def __init__(self, tag: str, cls: str, parent: Optional["_Node"]) -> None:
+        self.tag, self.cls, self.parent = tag, cls, parent
+        self.kids: List["_Node"] = []
+        self.text: List[object] = []          # 글자 조각과 자식 노드를 문서 순서로
+        self.has = False                      # 자기나 자손에 주소 후보가 있는가
+        self._txt: Optional[str] = None
+
+    def all_text(self) -> str:
+        if self._txt is None:
+            parts: List[str] = []
+            stack = [self]
+            while stack:                       # 재귀 대신 스택: 깊은 레거시 HTML 에서 재귀 한도를 넘지 않게
+                n = stack.pop()
+                if isinstance(n, str):
+                    parts.append(n)
+                elif n.tag not in _SKIP_TEXT:
+                    stack.extend(reversed(n.text))
+            self._txt = " ".join(" ".join(parts).split())
+        return self._txt
+
+
+def _row_of(node: "_Node") -> str:
+    """주소 후보를 가진 요소에서 위로 올라가며, 같은 태그·클래스의 형제 중 후보를 가진 것이 2개 이상인 첫 조상의 글자."""
+    n = node
+    while n is not None and n.parent is not None:
+        if n.tag not in _INLINE:
+            same = sum(1 for k in n.parent.kids if k.tag == n.tag and k.cls == n.cls and k.has)
+            if same >= 2:
+                return n.all_text()[:ROW_LEN]
+        n = n.parent
+    return ""
+
+
+_TOKEN_ATTR = re.compile(r"csrf|xsrf|token|nonce|viewstate|session|secret", re.I)
+
+
+def _secret_attr(name: str) -> bool:
+    """비밀·토큰 이름의 data-* 값은 주소 후보로 남기지 않는다(마스킹기는 키 이름 v 로는 가리지 못한다)."""
+    return is_secret_key(name) or bool(_TOKEN_ATTR.search(name))
+
+
+def _usable(v: str) -> bool:
+    v = v.strip()
+    return bool(v) and len(v) <= MAX_LINK_LEN and not v.startswith(("#", "javascript:", "mailto:", "tel:"))
+
+
 def looks_html(ctype: str, body: str) -> bool:
     return "html" in (ctype or "").lower() or (body or "").lstrip()[:1] == "<"
 
@@ -37,9 +106,57 @@ class _Parser(HTMLParser):
         self.stack: List[dict] = []          # 열린 표들. {rows, row, cell}
         self.done: List[List[dict]] = []     # 닫힌 표의 행들
         self.hidden: Dict[str, str] = {}
+        self.root = _Node("#root", "", None)
+        self.open: List[_Node] = [self.root]          # 열린 요소들(주소 후보의 행 찾기용)
+        self.links: List[Tuple[str, _Node]] = []      # (값, 그 값을 가진 요소) 문서 순서
+
+    def _push(self, tag: str, a: Dict[str, str]) -> _Node:
+        rule = _SELF_CLOSE.get(tag)
+        if rule:
+            closes, stops = rule
+            for i in range(len(self.open) - 1, 0, -1):    # 경계(표·목록) 안쪽에서만 닫는다
+                t = self.open[i].tag
+                if t in closes:
+                    del self.open[i:]
+                    break
+                if t in stops:
+                    break
+        parent = self.open[-1]
+        node = _Node(tag, " ".join(a.get("class", "").split()), parent)
+        parent.kids.append(node)
+        parent.text.append(node)
+        if tag not in _VOID:
+            self.open.append(node)
+        return node
+
+    def _collect(self, tag: str, a: Dict[str, str], node: _Node) -> None:
+        vals: List[str] = []
+        href = a.get("href", "") if tag in ("a", "area") else ""
+        if tag == "form":
+            vals.append(a.get("action", ""))
+        vals.append(href)
+        js = a.get("onclick", "") + " " + (href if href.strip().lower().startswith("javascript:") else "")
+        vals += _literals(js)
+        vals += [v for k, v in a.items() if k.startswith("data-") and not _secret_attr(k[5:])]
+        got = False
+        for v in vals:
+            if _usable(v) and len(self.links) < MAX_LINKS:
+                self.links.append((v.strip(), node))
+                got = True
+        if got:
+            n: Optional[_Node] = node
+            while n is not None and not n.has:
+                n.has = True
+                n = n.parent
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag not in _VOID:
+            self.handle_endtag(tag)
 
     def handle_starttag(self, tag, attrs):
         a = {k: (v or "") for k, v in attrs}
+        self._collect(tag, a, self._push(tag, a))
         t = self.stack[-1] if self.stack else None
         # 닫는 태그를 생략한 레거시 HTML: 새 칸·새 행이 시작되면 열린 것을 먼저 닫는다.
         if t is not None and tag in ("td", "th", "tr"):
@@ -62,6 +179,10 @@ class _Parser(HTMLParser):
             t["cell"]["links"] += _literals(a.get("onclick", "") + " " + (href if href.startswith("javascript:") else ""))
 
     def handle_endtag(self, tag):
+        for i in range(len(self.open) - 1, 0, -1):         # 짝이 맞는 열린 요소까지 닫는다. 짝이 없으면 무시한다
+            if self.open[i].tag == tag:
+                del self.open[i:]
+                break
         t = self.stack[-1] if self.stack else None
         if t is None:
             return
@@ -74,6 +195,7 @@ class _Parser(HTMLParser):
             self.done.append(self.stack.pop()["rows"])
 
     def handle_data(self, data):
+        self.open[-1].text.append(data)
         if self.stack and self.stack[-1]["cell"] is not None:
             self.stack[-1]["cell"]["text"].append(data)
 
@@ -171,9 +293,15 @@ def to_data(html: str) -> Optional[dict]:
             for i in range(0, len(line) - 1):
                 if line[i]["th"] and not line[i + 1]["th"] and line[i]["text"]:
                     fields.setdefault(line[i]["text"], line[i + 1]["text"])
-    if not tables and not fields and not p.hidden:
+    links = [{"v": v, "row": _row_of(node)} for v, node in p.links]
+    if not tables and not fields and not p.hidden and not links:
         return None
-    return {"tables": tables, "fields": fields, "hidden": p.hidden}
+    return {"tables": tables, "fields": fields, "hidden": p.hidden, "links": links}
+
+
+def is_copy(data) -> bool:
+    """HTML 을 바꾼 사본인가(JSON 응답과 구별). 주소 후보는 사본이면 links 에서, JSON 이면 문자열 값 전부에서 꺼낸다."""
+    return isinstance(data, dict) and isinstance(data.get("tables"), list) and isinstance(data.get("hidden"), dict) and "fields" in data
 
 
 def shape(data: dict) -> set:

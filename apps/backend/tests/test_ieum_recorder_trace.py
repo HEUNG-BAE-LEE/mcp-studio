@@ -262,6 +262,29 @@ def test_잘린_표_본문은_조각난_값을_남기지_않는다():
     assert tels and all(re.match(r"^\*\*\*-\*\*\*\*-5678$", v) for v in tels), tels[-3:]
 
 
+
+def test_잘린_표_아닌_본문도_주소_후보를_남기고_잘린_태그는_버린다():
+    """설계 4판: 표가 없는 카드 화면도 본문 상한까지 읽어 주소 후보를 만든다. 잘린 마지막 태그의 주소는 남기지 않는다."""
+    from app.ieum.discovery import capture
+    card = '<div class="item"><a href="/data/1234567/fileData.do">카드</a></div>'
+    body = "<html><body>" + card * 2000
+    assert len(body) > capture.MAX_BODY
+
+    class Req:
+        resource_type, method, headers, post_data = "document", "GET", {}, None
+
+    class Resp:
+        url, status, headers, request = "http://rec.test/po/cards.do", 200, {"content-type": "text/html; charset=utf-8"}, Req()
+
+        async def text(self):
+            return body
+
+    tr = _bare_trace()
+    tr.current = {"network": []}
+    asyncio.new_event_loop().run_until_complete(tr.on_response(Resp()))
+    links = tr.current["network"][0]["data"]["links"]
+    assert links and all(x["v"] == "/data/1234567/fileData.do" for x in links)
+
 def _fake_trace():
     tr = _bare_trace()
     stored = []

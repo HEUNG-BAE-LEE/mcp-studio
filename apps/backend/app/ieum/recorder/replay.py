@@ -322,6 +322,12 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
                 body = dict(body or {}, **{p["a"]: v})
             elif p["loc"] == "header":
                 headers[p["a"]] = v
+            elif p["loc"] == "path":                         # 설계 4판: 경로 {자리}. 앞 단계 주소 후보 등에서 꺼낸 값을 한 조각으로 넣는다
+                url = url.replace("{" + p["a"] + "}", quote(unquote(str(v)), safe=""))
+        if any(p.get("loc") == "path" for p in st["params"]):
+            why_blocked = scope.blocked(url, origin, config.deny_entries())     # 채운 경로로 다시 본다(차단 목록이 경로 단위일 수 있다)
+            if why_blocked:
+                return fail(st, "http_error", note="차단: " + str(why_blocked))
         # 보내기 직전 마지막 점검: 경로·헤더·화면 주소에 가린 값이 남았는가, 채우지 못한 {자리}가 있는가
         if any(_is_masked(unquote(x)) for x in [url, st.get("formPage") or ""] + [str(h) for h in headers.values()]):
             return fail(st, "needs_value", note="경로·헤더에 가린 값이 남음")
@@ -420,6 +426,8 @@ def _alternative(name: str, value: str, spans: list) -> Optional[str]:
         for n in sp.get("network", []):
             data = n.get("data") or infer.parse_json(n.get("res") or "")
             for path, v in leaves(data) if data is not None else []:
+                if path.startswith("$.links"):
+                    continue                                # 주소 후보는 다른 값 찾기에 쓰지 않는다
                 key = path.rsplit(".", 1)[-1].split("[")[0].lower().replace("_", "")
                 if key == want and str(v) and str(v) != value and "*" not in str(v):
                     return str(v)
