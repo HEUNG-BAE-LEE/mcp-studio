@@ -164,8 +164,11 @@ class RecorderSession:
         page = await self.ctx.new_page()
         await self._activate(page)
         self.ctx.on("page", lambda p: self._lane_event("_page", p))   # 첫 페이지를 만든 뒤에 건다. 입력과 같은 줄에서 순서대로
-        await page.goto(self.policy.base + (self.rec.get("start") or ""), wait_until="domcontentloaded", timeout=30_000)
+        start_url = self.policy.base + (self.rec.get("start") or "")
+        await self.trace.begin_open(page, start_url)         # 시작 화면 응답도 묶음에 담는다(목록에서 시작해 항목을 누르는 업무)
+        await page.goto(start_url, wait_until="domcontentloaded", timeout=30_000)
         if await login.on_login_page(page):
+            await self.trace.discard_open()                  # 로그인 화면은 묶음으로 남기지 않는다(로그인 흐름은 지금 그대로)
             if self.creds and await login.auto_login(page, self.creds):
                 await self.broadcast({"t": "login", "state": "done", "msg": "서비스 계정으로 로그인했습니다."})
             else:

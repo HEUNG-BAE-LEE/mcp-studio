@@ -114,7 +114,7 @@ function recOverlayHTML(L) {
         <button class="btn primary" data-act="recDialog" data-ok="1">확인</button> ${L.dialog.type !== 'alert' ? '<button class="btn" data-act="recDialog" data-ok="0">취소</button>' : ''}</div>` : '');
 }
 function recSideHTML(L) {
-  const tl = L.spans.slice(-60).map(s => `<li><b>${+s.seq}</b> ${esc(((s.action.target || {}).text || s.action.type || '').slice(0, 24))}
+  const tl = L.spans.slice(-60).map(s => `<li><b>${+s.seq}</b> ${esc(((s.action.target || {}).text || s.action.label || s.action.type || '').slice(0, 24))}
       ${s.network.map(n => `<div class="${recIsWrite(n) ? 'w' : ''}">${esc(n.method)} ${esc(n.path)} ${n.status == null ? '' : esc(n.status)}${n.kind === 'html' ? ' · HTML' : ''}${n.decision ? ` · ${esc(recDecision(n.decision))}` : ''}</div>`).join('')}</li>`).join('');
   const blocked = L.blocked.slice(-5).map(b => `<li class="b">차단(서버 보호) ${esc(b.why)} — ${esc(b.url)}</li>`).join('');
   return `<div class="label">타임라인</div><ol class="rec-tl">${tl || '<li class="mute">화면을 클릭하면 여기에 쌓입니다</li>'}${blocked}</ol>

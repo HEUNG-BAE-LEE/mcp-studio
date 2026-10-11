@@ -389,8 +389,10 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
             full = urlsplit(n["url"]).path.split(";")[0]        # ;jsessionid= 같은 경로 파라미터는 뗀다
             if full == login_path:
                 excluded.append(dict(row, role="auth", why="로그인 요청 (인증 방법으로 따로 보관)"))
-            elif sp["action"]["target"] is None and sp["action"].get("type") != "key":   # 키(Enter) 묶음은 DOM 이 대상을 못 채워도 사람 입력이 낳은 요청이다
+            elif sp["action"]["target"] is None and sp["action"].get("type") not in ("key", "open"):   # 키(Enter) 묶음은 DOM 이 대상을 못 채워도 사람 입력이 낳은 요청이다
                 excluded.append(dict(row, role="noise", why="행동 없이 화면이 스스로 부른 요청"))
+            elif sp["action"].get("type") == "open" and classify_write(n, policy)[0]:
+                excluded.append(dict(row, role="noise", why="시작 화면이 열리며 스스로 보낸 쓰기"))     # 사람이 보낸 쓰기가 아니다
             elif n.get("decision") in ("deny", "timeout"):
                 excluded.append(dict(row, role="denied", why="승인하지 않아 보내지 않은 쓰기"))
             else:
@@ -432,7 +434,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
               "discriminator": disc, "kind": _kind(n), "charset": n.get("charset"), "exec": "http", "formPage": None, "write": write, "writeWhy": write_why,
               "headers": {}, "outputs": {}, "params": [],
               "recordedRes": n.get("res") or "", "recordedErrSeen": n.get("errSeen"), "recordedData": copy.deepcopy(htmltable.without_links(n.get("data"))), "recordedStatus": n["status"],
-              "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""), "label": ((sp["action"]["target"] or {}).get("text", "") or "")[:60],
+              "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""), "label": (((sp["action"]["target"] or {}).get("text", "") or sp["action"].get("label") or ""))[:60],
               "_title": (sp.get("pre") or {}).get("title", "")}
         for hk, hv in (n.get("headers") or {}).items():
             if hk.lower().startswith("x-"):

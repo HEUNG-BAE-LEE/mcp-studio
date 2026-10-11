@@ -395,6 +395,30 @@ class Trace:
                             "fills": [], "pre": pre, "network": [], "post": None}
             return self.seq
 
+    async def begin_open(self, page, url: str) -> Optional[int]:
+        """기록 시작 화면을 여는 묶음(설계: 시작 화면도 단계가 될 수 있다). 시작 주소로 이동하기 직전에 연다.
+        목록 화면에서 시작해 항목을 누르는 업무는 이 응답의 주소 후보가 다음 단계 값의 출처다. 첫 사람 입력이나 종료 때 보통처럼 닫힌다.
+        이동 전 화면은 빈 화면이라 직전 스냅샷을 뜨지 않는다."""
+        async with self._close_lock:
+            if self.paused or self.ended or self.current is not None or self.seq >= MAX_SPANS:
+                return None
+            self.seq += 1
+            self.current = {"seq": self.seq, "action": {"type": "open", "url": self._url(url), "label": "시작 화면 열기", "target": None,
+                                                        "isTrusted": None, "t": time.time()},
+                            "fills": [], "pre": {"url": "", "href": "", "title": "", "aria": "", "hidden": {}, "shot": None},
+                            "network": [], "post": None}
+            return self.seq
+
+    async def discard_open(self) -> None:
+        """시작 화면이 로그인 화면이면 연 묶음을 저장하지 않고 버린다(로그인 화면·로그인 요청은 지금처럼 어느 묶음에도 담지 않는다)."""
+        async with self._close_lock:
+            span = self.current
+            if span is not None and span["action"].get("type") == "open":
+                self.current = None
+                self._seen_fills.clear()
+                if self.seq == span["seq"]:
+                    self.seq -= 1
+
     async def set_paused(self, on: bool, page) -> None:
         """일시정지를 켜면 열린 묶음을 닫는다. 그대로 두면 일시정지 중의 입력·응답이 그 묶음에 쌓인다."""
         async with self._close_lock:
