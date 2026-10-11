@@ -243,3 +243,26 @@ def test_실행_기록의_단계_id_는_이스케이프된다(console_url):
         finally:
             browser.close()
     assert "<b>x</b>" not in html and "&lt;b&gt;x&lt;/b&gt;" in html and "<i>r</i>" not in html
+
+
+def test_등록한_뒤_고치면_등록_카드를_다시_보인다(console_url):
+    """등록 뒤 단계를 고치면 서버가 status 를 draft 로 돌린다(registered 기록은 남는다). 그때 '등록 완료' 로 보이면 안 된다."""
+    from playwright.sync_api import sync_playwright
+    fn = dict(FN, status="draft", registered={"at": 1, "mode": "flow", "tools": ["news_t"]}, flowBlockers=[])
+    with sync_playwright() as pw:
+        browser, _ = launch(pw)
+        try:
+            page = browser.new_page()
+            _open(page, console_url, fn)
+            text = page.inner_text("body")
+            flow_label = page.inner_text("[data-act=recRegister][data-m=flow]")
+            steps_label = page.inner_text("[data-act=recRegister][data-m=steps]")
+        finally:
+            browser.close()
+    assert "등록 완료" not in text and "다시 등록해야" in text
+    assert flow_label == "다시 등록" and steps_label == "단계별로 다시 등록"
+
+
+def test_기록_목록의_도구_수_열_이름은_등록이다():
+    js = open(os.path.join(os.path.dirname(__file__), "..", "..", "web", "ieum", "js", "menu", "recorder.js"), encoding="utf-8").read()
+    assert "<th>작업 유형</th>" not in js and "<th>등록</th>" in js

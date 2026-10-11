@@ -70,7 +70,7 @@ function recListHTML() {
     ${u ? `<span class="rec-hint">지금 기록 중 ${+u.total}/${+u.max}개${who ? ` (${who})` : ''} · 사람당 ${+u.perOwner}개</span>` : ''}</div>
     ${RECR.load === 'loading' ? '<div class="md-empty">기록 목록을 불러오는 중입니다…</div>'
       : RECR.load === 'error' ? `<div class="md-empty">기록 목록을 불러오지 못했습니다. ${esc(RECR.loadErr)}<br><button class="btn sm" data-act="recRetry">다시 불러오기</button></div>`
-      : RECR.list.length ? `<table class="tbl rec-list"><thead><tr><th>업무</th><th>상태</th><th>작업 유형</th><th>단계</th><th>응답</th><th>기록</th></tr></thead><tbody>${rows}</tbody></table>`
+      : RECR.list.length ? `<table class="tbl rec-list"><thead><tr><th>업무</th><th>상태</th><th>등록</th><th>단계</th><th>응답</th><th>기록</th></tr></thead><tbody>${rows}</tbody></table>`
       : '<div class="md-empty">아직 기록한 업무가 없습니다. <b>새 기록</b>을 눌러 업무 하나를 기록해 보세요.</div>'}`;
 }
 
@@ -171,14 +171,18 @@ function recReviewHTML() {
     + (apBeacon ? `<li class="muted">외부 통계 ${apBeacon}종 차단 (횟수가 아니라 주소 종류 수)</li>` : '');
   const reg = f.registered, blockers = f.flowBlockers || [];
   const regSid = (reg ? Object.keys(TOOLS).find(sid => TOOLS[sid].some(t => (reg.tools || []).includes(t.id))) : null);   // 항상 등록된 도구 id 로 원본을 찾는다(낡은 값을 들고 있지 않는다)
-  const regCard = reg
+  const goSrc = cls => `<button class="btn ${cls}" data-act="goSrc" data-id="${esc(regSid || '')}" ${regSid && SRC[regSid] ? '' : 'disabled'}>변환 스튜디오 열기</button>`;
+  // 등록 뒤 고치면 서버가 status 를 draft 로 돌린다(registered 기록은 남는다) — 그때는 등록 카드를 다시 보이고 "다시 등록" 으로 부른다
+  const regCard = reg && f.status === 'registered'
     ? `<div class="label">도구 후보로 등록</div><div>등록 완료 · 도구 ${(reg.tools || []).length}개</div>
-       <button class="btn primary" data-act="goSrc" data-id="${esc(regSid || '')}" ${regSid && SRC[regSid] ? '' : 'disabled'}>변환 스튜디오 열기</button>
+       ${goSrc('primary')}
        <button class="btn sm" data-act="recRegister" data-m="${esc(reg.mode || 'flow')}" ${RECR.busy ? 'disabled' : ''}>다시 등록</button>`
     : `<div class="label">도구 후보로 등록</div>
-       <button class="btn primary" data-act="recRegister" data-m="flow" ${blockers.length || RECR.busy ? 'disabled' : ''}>도구 후보로 등록</button>
+       ${reg ? `<div class="rec-msg">등록한 뒤 고쳤습니다. 다시 등록해야 도구에 반영됩니다.</div>` : ''}
+       <button class="btn primary" data-act="recRegister" data-m="flow" ${blockers.length || RECR.busy ? 'disabled' : ''}>${reg ? '다시 등록' : '도구 후보로 등록'}</button>
        ${blockers.map(b => `<br><small>${esc(b)}</small>`).join('')}
-       <br><button class="btn sm" data-act="recRegister" data-m="steps" ${active.length && !RECR.busy ? '' : 'disabled'}>단계별로 등록</button>`;
+       <br><button class="btn sm" data-act="recRegister" data-m="steps" ${active.length && !RECR.busy ? '' : 'disabled'}>${reg ? '단계별로 다시 등록' : '단계별로 등록'}</button>
+       ${reg ? `<br>${goSrc('sm')}` : ''}`;
   return `<div class="rec-rv-head"><div><h3>${esc(f.name)}</h3>${recPill(REC_VERIFY, v.status)}</div>
     <div><button class="btn" data-act="recBack">목록</button> <button class="btn" data-act="recVerify" ${RECR.busy ? 'disabled' : ''}>${RECR.busy ? '검증하는 중…' : '다시 검증'}</button></div></div>
     ${(f.notes || []).map(n => `<div class="rec-msg">${esc(n)}</div>`).join('')}
