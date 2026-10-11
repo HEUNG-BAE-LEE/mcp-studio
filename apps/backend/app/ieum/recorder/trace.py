@@ -462,7 +462,7 @@ class Trace:
                         cut = body.rfind("<")
                     src = body[:cut] if cut > 0 else ""
                 data = await asyncio.to_thread(htmltable.to_data, src) if src else None
-                data = self.masker.value(data) if data else None
+                data = self._mask_copy(data) if data else None
             masked = self._mask_body(body)
             if masked is None:
                 return                                   # 마스킹하지 못하면 저장하지 않는다
@@ -481,6 +481,23 @@ class Trace:
                 "decision": decision, "primary": primary, "t": time.time()})
         except Exception:
             pass
+
+    _LINK_SECRET = re.compile(r"sid|sess|auth|key|sig|token|secret|pass|pwd|csrf|xsrf|nonce|ticket", re.I)
+
+    def _mask_link(self, v: str) -> str:
+        """주소 후보 하나를 요청 주소와 같은 규칙(mask_url, 토큰 이름 포함)으로 가리고, 세션·서명 같은 이름의 쿼리 값도 숨긴다."""
+        u = mask_url(self.masker, v, hide_tokens=True)
+        parts = urlsplit(u)
+        if not parts.query:
+            return u
+        pairs = [(k, HIDDEN if x and self._LINK_SECRET.search(k) else x) for k, x in parse_qsl(parts.query, keep_blank_values=True)]
+        return parts._replace(query=urlencode(pairs, safe="*•")).geturl()
+
+    def _mask_copy(self, data: dict) -> dict:
+        """HTML 사본을 저장 전에 가린다. 주소 후보 v 는 주소 규칙으로 먼저 가린 뒤 사본 전체를 마스킹기에 통과시킨다."""
+        if data.get("links"):
+            data = dict(data, links=[dict(x, v=self._mask_link(x["v"])) for x in data["links"]])
+        return self.masker.value(data)
 
     def _mask_body(self, body: str) -> Optional[str]:
         try:

@@ -32,7 +32,7 @@ def _literals(s: str) -> List[str]:
     return out
 
 
-MAX_LINKS = 500          # 주소 후보 수 상한
+MAX_LINKS = 200          # 주소 후보 수 상한
 MAX_LINK_LEN = 300       # 이보다 긴 값은 주소 후보로 보지 않는다(자르면 주소가 깨진다)
 ROW_LEN = 120            # 행 글자 상한
 _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
@@ -71,19 +71,26 @@ class _Node:
         return self._txt
 
 
-def _row_of(node: "_Node") -> str:
-    """주소 후보를 가진 요소에서 위로 올라가며, 같은 태그·클래스의 형제 중 후보를 가진 것이 2개 이상인 첫 조상의 글자."""
+def _sig(n: "_Node") -> str:
+    """묶음 이름 조각: 태그.클래스. 클래스의 숫자는 뺀다(무작위 클래스의 숫자가 마스킹기에 걸려 기록·재실행이 달라지지 않게)."""
+    cls = [re.sub(r"[\d@\[\]>]", "", c) for c in n.cls.split()]
+    return ".".join([n.tag] + [c for c in cls if c])
+
+
+def _row_of(node: "_Node") -> Optional["_Node"]:
+    """주소 후보를 가진 요소에서 위로 올라가며, 같은 태그·클래스의 형제 중 후보를 가진 것이 2개 이상인 첫 조상(행)."""
     n = node
     while n is not None and n.parent is not None:
         if n.tag not in _INLINE:
             same = sum(1 for k in n.parent.kids if k.tag == n.tag and k.cls == n.cls and k.has)
             if same >= 2:
-                return n.all_text()[:ROW_LEN]
+                return n
         n = n.parent
-    return ""
+    return None
 
 
-_TOKEN_ATTR = re.compile(r"csrf|xsrf|token|nonce|viewstate|session|secret", re.I)
+_TOKEN_ATTR = re.compile(r"csrf|xsrf|token|nonce|viewstate|session|secret|auth|key|sig", re.I)
+_PATH_PARAM = re.compile(r";[A-Za-z_][\w.-]*=[^?#/;'\"\s]*")      # ;jsessionid=… 같은 경로 파라미터(세션 값)는 후보에서 뗀다
 
 
 def _secret_attr(name: str) -> bool:
@@ -137,11 +144,13 @@ class _Parser(HTMLParser):
         vals.append(href)
         js = a.get("onclick", "") + " " + (href if href.strip().lower().startswith("javascript:") else "")
         vals += _literals(js)
-        vals += [v for k, v in a.items() if k.startswith("data-") and not _secret_attr(k[5:])]
+        # data-* 는 숫자나 / 가 든 값만(식별자·주소). role="button" 같은 글자 값은 다음 단계 값이 아니다
+        vals += [v for k, v in a.items() if k.startswith("data-") and not _secret_attr(k[5:]) and re.search(r"[\d/]", v)]
         got = False
         for v in vals:
+            v = _PATH_PARAM.sub("", v.strip())
             if _usable(v) and len(self.links) < MAX_LINKS:
-                self.links.append((v.strip(), node))
+                self.links.append((v, node))
                 got = True
         if got:
             n: Optional[_Node] = node
@@ -293,10 +302,43 @@ def to_data(html: str) -> Optional[dict]:
             for i in range(0, len(line) - 1):
                 if line[i]["th"] and not line[i + 1]["th"] and line[i]["text"]:
                     fields.setdefault(line[i]["text"], line[i + 1]["text"])
-    links = [{"v": v, "row": _row_of(node)} for v, node in p.links]
+    # 행 글자는 한 번만 둔다(linkRows). 링크 항목은 r 로 그 번호를 가리킨다. 묶음 이름 g 는 "부모 태그.클래스>행 태그.클래스"
+    links, rows, index = [], [], {}
+    for v, node in p.links:
+        item = {"v": v}
+        row = _row_of(node)
+        if row is not None:
+            if id(row) not in index:
+                index[id(row)] = len(rows)
+                rows.append({"t": row.all_text()[:ROW_LEN], "g": _sig(row.parent) + ">" + _sig(row)})
+            item["r"] = index[id(row)]
+        links.append(item)
     if not tables and not fields and not p.hidden and not links:
         return None
-    return {"tables": tables, "fields": fields, "hidden": p.hidden, "links": links}
+    out = {"tables": tables, "fields": fields, "hidden": p.hidden}
+    if links:
+        out.update(links=links, linkRows=rows)
+    return out
+
+
+def links_of(data) -> List[dict]:
+    """사본의 주소 후보를 [{v, row, g}] 로 펼친다(행이 없으면 row·g 는 "")."""
+    rows = (data or {}).get("linkRows") or []
+    out = []
+    for x in (data or {}).get("links") or []:
+        if not isinstance(x, dict) or not isinstance(x.get("v"), str):
+            continue
+        r = x.get("r")
+        row = rows[r] if isinstance(r, int) and 0 <= r < len(rows) and isinstance(rows[r], dict) else {}
+        out.append({"v": x["v"], "row": str(row.get("t") or ""), "g": str(row.get("g") or "")})
+    return out
+
+
+def without_links(data):
+    """단계의 기록 사본(recordedData)용: 주소 후보를 뺀다. 재실행은 새 응답의 후보를 읽고, 기록 사본은 구조 비교에만 쓴다."""
+    if not is_copy(data):
+        return data
+    return {k: v for k, v in data.items() if k not in ("links", "linkRows")}
 
 
 def is_copy(data) -> bool:

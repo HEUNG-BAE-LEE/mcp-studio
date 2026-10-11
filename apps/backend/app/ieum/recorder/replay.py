@@ -224,6 +224,24 @@ _is_masked = is_masked
 _PLACEHOLDER = re.compile(r"\{[^{}/]+\}")
 
 
+def _normalize_path(url: str) -> str:
+    """주소 경로의 . 과 .. 조각을 푼다(%2e 포함). 차단 목록 검사와 전송이 같은 최종 경로를 보게 한다."""
+    parts = urlsplit(url)
+    out: list = []
+    segs = parts.path.split("/")
+    for seg in segs[1:]:
+        low = unquote(seg)
+        if low == ".":
+            continue
+        if low == "..":
+            if out:
+                out.pop()
+            continue
+        out.append(seg)
+    trail = "/" if segs[-1:] and unquote(segs[-1]) in (".", "..") else ""
+    return parts._replace(path="/" + "/".join(out) + trail).geturl()
+
+
 def _recovered(v: str, p: dict, raw: Dict[str, Optional[str]]) -> Optional[str]:
     """가린 값이면 원값 지도에서 되살린다. 모호한(None) 항목은 되살리지 않는다."""
     for key in (v, p.get("ex") or ""):
@@ -323,9 +341,13 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
             elif p["loc"] == "header":
                 headers[p["a"]] = v
             elif p["loc"] == "path":                         # 설계 4판: 경로 {자리}. 앞 단계 주소 후보 등에서 꺼낸 값을 한 조각으로 넣는다
-                url = url.replace("{" + p["a"] + "}", quote(unquote(str(v)), safe=""))
+                raw_v = unquote(str(v))
+                if raw_v in (".", "..") or "/" in raw_v or "\\" in raw_v:
+                    return fail(st, "chain_broken", note="경로 자리 값이 경로 조각이 아님")     # 다른 경로로 새지 않게 보내지 않는다
+                url = url.replace("{" + p["a"] + "}", quote(raw_v, safe=""))
         if any(p.get("loc") == "path" for p in st["params"]):
-            why_blocked = scope.blocked(url, origin, config.deny_entries())     # 채운 경로로 다시 본다(차단 목록이 경로 단위일 수 있다)
+            url = _normalize_path(url)
+            why_blocked = scope.blocked(url, origin, config.deny_entries())     # 정규화한 최종 경로로 다시 본다(차단 목록이 경로 단위일 수 있다)
             if why_blocked:
                 return fail(st, "http_error", note="차단: " + str(why_blocked))
         # 보내기 직전 마지막 점검: 경로·헤더·화면 주소에 가린 값이 남았는가, 채우지 못한 {자리}가 있는가
@@ -426,7 +448,7 @@ def _alternative(name: str, value: str, spans: list) -> Optional[str]:
         for n in sp.get("network", []):
             data = n.get("data") or infer.parse_json(n.get("res") or "")
             for path, v in leaves(data) if data is not None else []:
-                if path.startswith("$.links"):
+                if path.startswith("$.link") and htmltable.is_copy(data):
                     continue                                # 주소 후보는 다른 값 찾기에 쓰지 않는다
                 key = path.rsplit(".", 1)[-1].split("[")[0].lower().replace("_", "")
                 if key == want and str(v) and str(v) != value and "*" not in str(v):

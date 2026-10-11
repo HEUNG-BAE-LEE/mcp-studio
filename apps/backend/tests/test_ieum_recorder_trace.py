@@ -8,7 +8,7 @@ import pytest
 
 from app.ieum.discovery.browser import capabilities
 from app.ieum.discovery.policy import Policy
-from app.ieum.recorder import relay, store
+from app.ieum.recorder import htmltable, relay, store
 from app.ieum.recorder.guard import Guard
 from app.ieum.recorder.trace import INIT_JS, Trace
 
@@ -282,7 +282,7 @@ def test_잘린_표_아닌_본문도_주소_후보를_남기고_잘린_태그는
     tr = _bare_trace()
     tr.current = {"network": []}
     asyncio.new_event_loop().run_until_complete(tr.on_response(Resp()))
-    links = tr.current["network"][0]["data"]["links"]
+    links = htmltable.links_of(tr.current["network"][0]["data"])
     assert links and all(x["v"] == "/data/1234567/fileData.do" for x in links)
 
 def _fake_trace():

@@ -63,7 +63,8 @@ def leaves(data, limit: int = 400) -> List[Tuple[str, Any]]:
 def get_path(data, path: str):
     m = LINK_EXPR.match(path or "")
     if m:                                                      # 설계 4판 주소 후보 출처: links[틀][k].자리
-        rows = template_matches(m.group(1), data)
+        tpl, group = _split_tpl(m.group(1))
+        rows = template_matches(tpl, data, group)
         k = int(m.group(2))
         return rows[k][0].get(m.group(3)) if k < len(rows) else None
     query = None
@@ -92,26 +93,36 @@ def get_path(data, path: str):
 
 
 # ── 주소 후보와 틀 맞추기 (설계 4판) ─────────────────────────────────────────
-# 출처 문법: links[<틀>][<k>].<자리 이름>  (k 는 0부터. 단계 출처는 앞에 "s2." 를 붙인다)
-#   틀 = 주소 모양. {이름} 은 값 자리(기본: / ? # & 따옴표 공백이 없는 글자), {이름:d} 는 숫자만, {이름:w} 는 낱말 글자(영숫자·_·-·.)만,
-#        {*} 는 이름 없는 아무 자리. "/" 로 시작하면 후보 문자열 안 어디서든(절대주소·다른 출처 포함) 경로 끝까지 맞추고,
-#        그 밖(onclick 인자 하나 같은 것)은 후보 전체가 틀과 같아야 한다. "?이름={자리}" 는 쿼리 어디에 있든 맞춘다.
+# 출처 문법: links[<틀>@<묶음>][<k>].<자리 이름>   (k 는 0부터. 단계 출처는 앞에 "s2." 를 붙인다)
+#   묶음 = 누른 후보의 행이 속한 반복 묶음 이름 "부모 태그.클래스>행 태그.클래스"(예: div.list>div.item, 클래스의 숫자는 뺌).
+#          k 는 그 묶음 안에서만 센다 — 같은 틀의 랭킹·메뉴 링크가 앞에 있어도, 그 개수가 바뀌어도 순번이 엇나가지 않는다.
+#          행이 없는 후보(JSON 값, 반복 조상이 없는 링크)는 "@묶음" 없이 전체 순서로 센다. 틀에 @ 가 있으면 끝에 "@" 를 붙인다.
+#   틀 = 주소 모양. 경로의 {이름} 은 infer 가 {id} 로 바꾸는 식별자 모양(숫자·UUID·숫자 섞인 20자 이상)만, 쿼리의 {이름} 은
+#        & # 따옴표 공백이 없는 글자, {이름:d} 는 숫자만, {이름:w} 는 낱말 글자(영숫자·_·-·.)만, {*} 는 이름 없는 식별자 자리.
+#        "/" 로 시작하면 후보 문자열 안 어디서든(절대주소·다른 출처 포함) 경로 끝까지 맞추고, 그 밖(onclick 인자 하나 같은 것)은
+#        후보 전체가 틀과 같아야 한다. "?이름={자리}" 는 쿼리 어디에 있든 맞춘다.
 #   후보 = HTML 사본이면 links 의 v(문서 순서), JSON 이면 문자열 값 전부(leaves 순서).
-#   틀에 맞는 후보를 문서 순서로 줄 세우되, 자리 값이 같은 후보는 하나로 친다. k 번째 후보의 자리 값이 출처 값이다.
+#   자리 값이 "."·".." 이거나 "/" 를 품으면 그 후보는 맞지 않는 것으로 본다. 자리 값이 같은 후보는 하나로 친다.
 LINK_EXPR = re.compile(r"^links\[(.*)\]\[(\d+)\]\.(.+)$", re.S)
 _SLOT = re.compile(r"\{([^{}:]+)(?::([dw]))?\}")
-_SLOT_CLASS = {"d": r"\d+", "w": r"[\w\-.]+", "": r"[^/?#&'\"\s]+"}
+_ID_CLASS = infer._ID_SEG.pattern[1:-1]                     # infer 의 식별자 조각 정규식(^…$ 를 뗀 것)을 그대로 쓴다
+_SLOT_CLASS = {"d": r"\d+", "w": r"[\w\-.]+", "": "(?:" + _ID_CLASS + ")", "q": r"[^&#'\"\s]+"}
 MAX_CANDIDATES = 500
 _TPL_CACHE: Dict[str, tuple] = {}
 
 
+def _is_link_path(data, p: str) -> bool:
+    """HTML 사본의 주소 후보(links·linkRows) 잎인가. 화면 표시 판정·출력·직접 값 연결에는 쓰지 않는다(JSON 의 links 키는 해당 없음)."""
+    return p.startswith("$.link") and htmltable.is_copy(data)
+
+
 def link_candidates(data) -> List[dict]:
-    """주소 후보 [{v, row}]. HTML 사본이면 links, JSON 이면 문자열 값 전부(행 글자 없음)."""
+    """주소 후보 [{v, row, g}]. HTML 사본이면 links, JSON 이면 문자열 값 전부(행·묶음 없음)."""
     if data is None:
         return []
     if htmltable.is_copy(data):
-        return [x for x in (data.get("links") or []) if isinstance(x, dict) and isinstance(x.get("v"), str)][:MAX_CANDIDATES]
-    return [{"v": v, "row": ""} for _, v in leaves(data, MAX_CANDIDATES) if isinstance(v, str) and 0 < len(v) <= htmltable.MAX_LINK_LEN]
+        return htmltable.links_of(data)[:MAX_CANDIDATES]
+    return [{"v": v, "row": "", "g": ""} for _, v in leaves(data, MAX_CANDIDATES) if isinstance(v, str) and 0 < len(v) <= htmltable.MAX_LINK_LEN]
 
 
 def _compile(tpl: str) -> tuple:
@@ -120,20 +131,20 @@ def _compile(tpl: str) -> tuple:
         return got
     names: List[str] = []
 
-    def piece(text: str) -> str:
+    def piece(text: str, query: bool) -> str:
         out, pos = "", 0
         for m in _SLOT.finditer(text):
             out += re.escape(text[pos:m.start()])
             names.append(m.group(1))
-            out += f"(?P<g{len(names) - 1}>{_SLOT_CLASS[m.group(2) or '']})"
+            out += f"(?P<g{len(names) - 1}>{_SLOT_CLASS[m.group(2) or ('q' if query else '')]})"
             pos = m.end()
         return out + re.escape(text[pos:])
 
     path, sep, query = tpl.partition("?")
-    rx = piece(path)
+    rx = piece(path, not tpl.startswith("/"))           # 값 하나짜리 틀({x})은 식별자 모양으로 좁히지 않는다
     if sep:
-        looks = "".join(r"(?=(?:[^#'\"\s]*&)?" + piece(pair.partition("=")[0]) + "=" + piece(pair.partition("=")[2]) + r"(?:[&#'\"\s]|$))"
-                        for pair in query.split("&") if pair)
+        looks = "".join(r"(?=(?:[^#'\"\s]*&)?" + piece(pair.partition("=")[0], True) + "=" + piece(pair.partition("=")[2], True)
+                        + r"(?:[&#'\"\s]|$))" for pair in query.split("&") if pair)
         rx += r"\?" + looks + r"[^#'\"\s]*"
     else:
         rx += r"(?:[?#][^'\"\s]*)?"
@@ -143,20 +154,42 @@ def _compile(tpl: str) -> tuple:
     return got
 
 
-def template_matches(tpl: str, data) -> List[Tuple[Dict[str, str], str]]:
-    """틀에 맞는 후보를 문서 순서로, 자리 값이 같은 것은 하나로. [(자리 값들, 행 글자)]"""
+def _bad_slot(v: str) -> bool:
+    return v in (".", "..") or "/" in v
+
+
+def _split_tpl(spec: str) -> Tuple[str, Optional[str]]:
+    """'틀@묶음' → (틀, 묶음). 묶음이 없으면 None(전체 순서)."""
+    if "@" not in spec:
+        return spec, None
+    tpl, _, group = spec.rpartition("@")
+    return tpl, (group or None)
+
+
+def _matches(tpl: str, data):
+    """틀에 맞는 후보를 문서 순서로(합치지 않고). (자리 값들, 행 글자, 묶음)"""
     rx, names, anywhere = _compile(tpl)
-    out, seen = [], set()
     for c in link_candidates(data):
         m = rx.search(c["v"]) if anywhere else rx.fullmatch(c["v"])
         if not m:
             continue
-        vals = {nm: unquote(m.group(f"g{i}")) for i, nm in enumerate(names) if nm != "*" and m.group(f"g{i}") is not None}
+        vals = {nm: unquote(m.group(f"g{i}")) for i, nm in enumerate(names) if m.group(f"g{i}") is not None}
+        if any(_bad_slot(v) for v in vals.values()):
+            continue
+        yield {nm: v for nm, v in vals.items() if nm != "*"}, c["row"], c["g"]
+
+
+def template_matches(tpl: str, data, group: Optional[str] = None) -> List[Tuple[Dict[str, str], str, str]]:
+    """틀에 맞는 후보 줄. group 이 있으면 그 묶음 안에서만. 자리 값이 같은 것은 하나로. [(자리 값들, 행 글자, 묶음)]"""
+    out, seen = [], set()
+    for vals, row, g in _matches(tpl, data):
+        if group is not None and g != group:
+            continue
         key = tuple(sorted(vals.items()))
         if key in seen:
             continue
         seen.add(key)
-        out.append((vals, str(c.get("row") or "")))
+        out.append((vals, row, g))
     return out
 
 
@@ -167,23 +200,24 @@ def _derive(c: str, name: str, v: str) -> Optional[str]:
             return "{%s:d}" % name
         return "{%s:w}" % name if re.fullmatch(r"[\w\-.]+", v) else "{%s}" % name
     parts = urlsplit(c)
-    if not parts.path or re.search(r"[\s'\"(){}]", parts.path):
+    if not parts.path or re.search(r"[\s'\"(){}@]", parts.path):
         return None
     segs = ["{*}" if seg and infer._ID_SEG.match(seg) else seg for seg in parts.path.split("/")]
     for k, x in parse_qsl(parts.query, keep_blank_values=True):
-        if x == v and re.fullmatch(r"[^&=#{}]+", k):
+        if x == v and re.fullmatch(r"[^&=#{}@]+", k):
             return "/".join(segs) + "?" + k + "={" + name + "}"
     raw = parts.path.split("/")
     hit = [i for i, seg in enumerate(raw) if unquote(seg) == v]
-    if len(hit) == 1:
-        segs[hit[0]] = "{" + name + "}"
+    if len(hit) == 1 and not _bad_slot(v):
+        segs[hit[0]] = "{" + name + "}" if infer._ID_SEG.match(v) else "{" + name + ":w}"
         return "/".join(segs)
     return None
 
 
-def _template_link(tpls: List[str], want: Dict[str, str], prev_steps: List[dict]) -> Optional[tuple]:
-    """앞 단계들(최근 것부터)의 후보 중 틀에 맞는 줄에서, 기록 때 쓰인 값(want)을 모두 가진 후보의 순번 k.
-    돌려주는 것: (앞 단계, 틀, k, 행 글자, 틀에 맞는 후보 수)"""
+def _template_link(tpls: List[Optional[str]], want: Dict[str, str], prev_steps: List[dict], label: str = "") -> Optional[tuple]:
+    """앞 단계들(최근 것부터)의 후보 중 틀에 맞고 기록 때 쓰인 값(want)을 모두 가진 후보를 찾아, 그 후보의 묶음 안 순번 k 를 구한다.
+    같은 값이 여러 묶음에 있으면(랭킹과 결과에 같은 기사) 누른 요소의 글자(label)가 행 글자에 든 쪽을 고른다.
+    돌려주는 것: (앞 단계, '틀@묶음' 또는 틀, k, 행 글자, 묶음 안 후보 수)"""
     for prev in reversed(prev_steps):
         data = prev["_sample"][2]
         if data is None:
@@ -196,10 +230,14 @@ def _template_link(tpls: List[str], want: Dict[str, str], prev_steps: List[dict]
                 tpl = next((t for t in (_derive(c["v"], name, v) for c in cands if v in c["v"]) if t), None)
                 if tpl is None:
                     continue
-            rows = template_matches(tpl, data)
-            for k, (vals, row) in enumerate(rows):
-                if all(vals.get(nm) == v for nm, v in want.items()):
-                    return prev, tpl, k, row, len(rows)
+            hits = [(row, g) for vals, row, g in _matches(tpl, data) if all(vals.get(nm) == v for nm, v in want.items())]
+            if not hits:
+                continue
+            row, g = next((h for h in hits if label and label in h[0]), hits[0])
+            rows = template_matches(tpl, data, g or None)
+            k = next(i for i, (vals, _, _) in enumerate(rows) if all(vals.get(nm) == v for nm, v in want.items()))
+            spec = f"{tpl}@{g}" if g else (tpl + "@" if "@" in tpl else tpl)
+            return prev, spec, k, row, len(rows)
     return None
 
 
@@ -333,7 +371,7 @@ def _shown(data, raw: str, aria: str) -> bool:
     if data is not None:
         if any(len(str(v)) >= MIN_VALUE_LEN and str(v) != HIDDEN and str(v) in aria
                for p, v in leaves(data)[:300]
-               if "_links" not in p and ".hidden." not in p and not p.startswith("$.links") and not (p.startswith("$.tables[") and ".columns[" in p)):   # 표 머리글은 화면 틀이다
+               if "_links" not in p and ".hidden." not in p and not _is_link_path(data, p) and not (p.startswith("$.tables[") and ".columns[" in p)):   # 표 머리글은 화면 틀이다
             return True
         if not (htmltable.is_copy(data) and not data.get("tables") and not data.get("fields")):
             return False                                  # 표도 이름값도 없는 HTML 사본(주소 후보만)은 아래 글자 조각으로 본다
@@ -393,7 +431,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         st = {"id": f"t{len(steps) + 1}", "role": "prereq" if cand else "core", "base": n["base"], "origin": n["origin"], "method": n["method"], "path": path,
               "discriminator": disc, "kind": _kind(n), "charset": n.get("charset"), "exec": "http", "formPage": None, "write": write, "writeWhy": write_why,
               "headers": {}, "outputs": {}, "params": [],
-              "recordedRes": n.get("res") or "", "recordedData": copy.deepcopy(n.get("data")), "recordedStatus": n["status"],
+              "recordedRes": n.get("res") or "", "recordedData": copy.deepcopy(htmltable.without_links(n.get("data"))), "recordedStatus": n["status"],
               "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""), "label": ((sp["action"]["target"] or {}).get("text", "") or "")[:60],
               "_title": (sp.get("pre") or {}).get("title", "")}
         for hk, hv in (n.get("headers") or {}).items():
@@ -430,7 +468,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
             if (not links and len(value) >= MIN_VALUE_LEN and HIDDEN not in value and not _MASKED.search(value)
                     and re.search(r"\d", value) and name not in DISCRIMINATORS):
                 q_tpl = st["path"] + "?" + name + "={" + name + "}" if loc == "query" and re.fullmatch(r"[^&=#{}?]+", name) else None
-                tl = _template_link([t for t in (q_tpl,) if t] + [None], {name: value}, steps[:i])   # 4판: 주소 후보의 틀 맞추기
+                tl = _template_link([t for t in (q_tpl,) if t] + [None], {name: value}, steps[:i], st["_label"] or "")   # 4판: 주소 후보의 틀 맞추기
             if links:
                 _use_link(p, name, links, st, contrib)
             elif tl:
@@ -469,7 +507,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     kept = []
     for st in steps:
         if st["role"] == "prereq" and st["id"] not in used:
-            excluded.append({"method": st["method"], "path": st["path"], "base": st["base"], "origin": st["origin"], "role": "page" if st["recordedData"] and st["kind"] == "html" else "noise",
+            excluded.append({"method": st["method"], "path": st["path"], "base": st["base"], "origin": st["origin"], "role": _page_or_noise(st),
                              "why": "응답 값이 화면에 나타나지 않음"})
         else:
             kept.append(st)
@@ -499,7 +537,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         if data is not None:
             output = {"from": last["id"], "fields": [p for p, v in leaves(data)[:300]
                                                      if len(str(v)) >= 2 and str(v) != HIDDEN and str(v) in aria and "_links" not in p and ".hidden." not in p
-                                                     and not p.startswith("$.links")][:20]}
+                                                     and not _is_link_path(data, p)][:20]}
 
     # 4) 정책
     ops = [_op_of(s["_sample"][1], s["_label"], s["write"]) for s in steps] or ["READ"]
@@ -527,6 +565,14 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                      "droppedHeaders": sorted(dropped_headers)},
             "executionMode": None, "policy": policy_meta, "policyIncomplete": True,
             "verification": {"status": "pending", "at": None, "runs": []}, "evidence": evidence, "notes": notes}
+
+
+def _page_or_noise(st: dict) -> str:
+    """빠진 후보의 역할. 표·이름값·숨은 값이 있는 HTML 사본이면 page, 주소 후보만 있는 사본은 4판 전처럼 요청 종류로 가른다."""
+    d = st.get("recordedData")
+    if st["kind"] == "html" and d and (d.get("tables") or d.get("fields") or d.get("hidden")):
+        return "page"
+    return "page" if st["_sample"][1].get("rtype") == "document" else "noise"
 
 
 def _use_link(p: dict, name: str, links: list, st: dict, contrib: list) -> None:
@@ -570,7 +616,7 @@ def _link_path(st: dict, n: dict, prev_steps: List[dict], user_vals: Dict[str, s
             rest[a] = v
     if rest:
         full = [ln for ln in (st["path"],) if all(nm in dict(slots) for nm in re.findall(r"\{([^{}]+)\}", ln))]
-        tl = _template_link(full + ([None] if len(rest) == 1 else []), rest, prev_steps)
+        tl = _template_link(full + ([None] if len(rest) == 1 else []), rest, prev_steps, st.get("_label") or "")
         if tl:
             for a in rest:
                 _use_template(params[a], tl, a, st, contrib)
@@ -657,7 +703,7 @@ def _find_link(value: str, prev_steps: List[dict]) -> List[Tuple[dict, str]]:
         data = st["_sample"][2]
         if data is None:
             continue
-        direct = [(st, p) for p, v in leaves(data) if str(v) == value and ".hidden." not in p and "_links" not in p and not p.startswith("$.links")]
+        direct = [(st, p) for p, v in leaves(data) if str(v) == value and ".hidden." not in p and "_links" not in p and not _is_link_path(data, p)]
         if direct:
             hits += direct
             continue
