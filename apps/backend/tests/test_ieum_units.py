@@ -108,9 +108,17 @@ def test_build_request_fills_path_query_and_injected_values():
         {"o": "_type", "loc": "query", "rule": "inject", "v": "json"},
         {"o": "uid", "loc": "query", "rule": "ctx", "ctxKey": "user_id"}]}
     source = {"id": "s", "base": "http://h/api/", "proto": "rest"}
-    req = engine.build_request(source, tool, {"emp_no": "a/b", "base_ymd": "2026-10-01"}, {"user_id": "u1"})
-    assert req["url"] == "http://h/api/vacation/a%2Fb"  # 경로에 들어가는 값은 인코딩한다
+    req = engine.build_request(source, tool, {"emp_no": "홍 1", "base_ymd": "2026-10-01"}, {"user_id": "u1"})
+    assert req["url"] == "http://h/api/vacation/%ED%99%8D%201"  # 경로에 들어가는 값은 인코딩한다
     assert req["params"] == {"BASE_YMD": "20261001", "_type": "json", "uid": "u1"}
+
+
+@pytest.mark.parametrize("bad", ["a/b", "..", ".", "a\\b"])
+def test_build_request_rejects_path_values_that_leave_the_segment(bad):
+    """경로 자리는 AI 가 채우는 값이다. 다른 경로로 새는 값(. .. / \\)은 보내지 않는다."""
+    tool = {"method": "GET", "path": "/vacation/{EMP_NO}", "params": [{"o": "EMP_NO", "a": "emp_no", "loc": "path", "rule": "name"}]}
+    with pytest.raises(engine.ToolError, match="경로"):
+        engine.build_request({"id": "s", "base": "http://h/api/", "proto": "rest"}, tool, {"emp_no": bad}, {})
 
 
 def test_check_args_names_the_missing_ones():

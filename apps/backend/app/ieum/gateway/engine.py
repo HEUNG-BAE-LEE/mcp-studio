@@ -233,7 +233,11 @@ def build_request(source, tool, args, ctx):
         if v is None:
             continue
         if loc == "path":
-            path = path.replace("{%s}" % p["o"], quote(str(v), safe=""))
+            sv = str(v)
+            if sv in (".", "..") or "/" in sv or "\\" in sv:
+                # 경로 자리는 AI 가 채우는 값이다. 한 조각을 벗어나는 값은 다른 경로로 새므로 보내지 않는다
+                raise ToolError("%s 값은 경로 한 조각이어야 합니다(. .. / \\ 는 쓸 수 없습니다)." % (p.get("a") or p["o"]))
+            path = path.replace("{%s}" % p["o"], quote(sv, safe=""))
         elif loc == "query":
             query[p["o"]] = v
         elif loc == "header":
