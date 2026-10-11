@@ -21,7 +21,7 @@ from typing import Awaitable, Callable, Dict, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from app.ieum.discovery import capture
-from app.ieum.discovery.masking import HIDDEN, Masker, is_secret_key
+from app.ieum.discovery.masking import _SECRET_PAIRS, _SECRET_WORDS, HIDDEN, Masker, is_secret_key
 from app.ieum.discovery.policy import Policy, is_asset
 from app.ieum.recorder import htmltable, store
 from app.ieum.recorder.guard import Guard, mask_url
@@ -67,15 +67,64 @@ INIT_JS = """
   document.addEventListener('keydown', (e) => { if (e.key !== 'Enter') return;
       const t = document.activeElement; if (!t || t === document.body || t === document.documentElement) return;
       const o = { type: 'key', key: 'Enter', isTrusted: e.isTrusted, el: Object.assign(desc(t), { label: label(t) }), page: location.pathname };
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') && t.type !== 'password') o.value = (t.value + '').slice(0, 200);
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') && t.type !== 'password' && t.type !== 'file') o.value = (t.value + '').slice(0, 200);
       send(o); }, true);
   document.addEventListener('change', (e) => { const t = e.target; if (!t || t.type === 'password') return;
       send({ type: 'change', isTrusted: e.isTrusted, el: Object.assign(desc(t), { label: label(t) }), value: (t.value + '').slice(0, 200), page: location.pathname }); }, true);
 })();
 """
 
-# ARIA 스냅샷은 입력칸의 현재 값을 그대로 싣는다. 비밀번호 칸은 값이 있는 것만 모아 스냅샷에서 지운다
-_PW_JS = "() => [...document.querySelectorAll('input[type=password]')].map(i => i.value || '').filter(v => v).slice(0, 10)"
+# ARIA 스냅샷은 입력칸의 현재 값을 그대로 싣는다. 비밀 입력칸(비밀번호·비밀 이름·일회용 코드)의 접근 가능한 이름과 값을 모아(열린 shadow root 포함)
+# 스냅샷의 입력 줄에서 지운다. 비밀 이름 규칙은 서버의 is_secret_key 와 같은 낱말 목록을 인자로 받는다
+_SECRET_JS = """(cfg) => {
+  const words = new Set(cfg.words), pairs = cfg.pairs, out = [];
+  const secretName = (n) => { const ws = ((n || '') + '').match(/[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\\d+/g) || [];
+      const lw = ws.map(w => w.toLowerCase()); if (lw.some(w => words.has(w))) return true;
+      const c = lw.join(''); return pairs.some(p => c.includes(p)); };
+  const names = (el, root) => { const r = []; const add = (t) => { t = ((t || '') + '').trim(); if (t) r.push(t); };
+      add(el.getAttribute('aria-label'));
+      const lb = el.getAttribute('aria-labelledby'); if (lb) lb.split(/\\s+/).forEach(id => { const e = root.getElementById ? root.getElementById(id) : null; if (e) add(e.innerText || e.textContent); });
+      if (el.labels) [...el.labels].forEach(l => add(l.innerText || l.textContent));
+      add(el.getAttribute('placeholder')); add(el.getAttribute('title')); return r; };
+  const walk = (root) => {
+    root.querySelectorAll('input,textarea,select').forEach(el => {
+      const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+      const secret = el.type === 'password' || secretName(el.name) || secretName(el.id) || /current-password|new-password|one-time-code/.test(ac);
+      if (secret) out.push({ names: names(el, root), value: (el.value || '') + '' });
+    });
+    root.querySelectorAll('*').forEach(el => { if (el.shadowRoot) walk(el.shadowRoot); });
+  };
+  walk(document); return out.slice(0, 50); }"""
+
+_INPUT_LINE = re.compile(r'^(\s*- (?:textbox|searchbox|combobox|spinbutton))((?: "(?:[^"\\]|\\.)*")?)((?: \[[^\]]*\])*)(?::(.*))?$')
+
+
+def _yaml_text(v: str) -> str:
+    v = v.strip()
+    if len(v) >= 2 and v[0] == v[-1] == '"':
+        try:
+            return json.loads(v)
+        except ValueError:
+            return v[1:-1]
+    if len(v) >= 2 and v[0] == v[-1] == "'":
+        return v[1:-1].replace("''", "'")
+    return v
+
+
+def mask_input_lines(text: str, secrets: Optional[list]) -> str:
+    """ARIA 의 입력 줄(textbox 등)에서 값 부분을 가린다. secrets 가 None 이면 모든 입력 줄을, 아니면 비밀 입력칸의 이름이나 값과 맞는 줄만 가린다."""
+    names = {n.strip() for s in secrets or [] for n in s.get("names", []) if n and n.strip()}
+    vals = {str(s.get("value") or "").strip() for s in secrets or []} - {""}
+    out = []
+    for line in text.split("\n"):
+        m = _INPUT_LINE.match(line)
+        if m and m.group(4) is not None and m.group(4).strip():
+            name = _yaml_text(m.group(2)) if m.group(2) else ""
+            if secrets is None or (name.strip() and name.strip() in names) or _yaml_text(m.group(4)) in vals:
+                line = f"{m.group(1)}{m.group(2)}{m.group(3)}: {HIDDEN}"
+        out.append(line)
+    return "\n".join(out)
+
 
 _HIDDEN_JS = "() => Object.fromEntries([...document.querySelectorAll('input[type=hidden][name]')].slice(0, 50).map(i => [i.name, (i.value || '').slice(0, 300)]))"
 
@@ -91,6 +140,7 @@ class Trace:
         self.current: Optional[dict] = None
         self._inflight = 0
         self._limit_sent = False
+        self._seen_fills: set = set()
         self._close_lock = asyncio.Lock()
         self.ended = False
         self.dialog_open: Callable[[object], bool] = lambda page: False     # 대상 페이지에 확인 창이 열려 있는지(세션이 알려 준다)
@@ -197,16 +247,14 @@ class Trace:
         return self.masker.text("\n".join(parts))[:ARIA_MAX]
 
     async def _strip_passwords(self, frame, text: str) -> str:
-        """비밀번호 칸의 값이 ARIA 에 실려 있으면 지운다. 값을 읽지 못하면 그대로 둔다."""
+        """비밀 입력칸의 값을 ARIA 의 입력 줄에서 지운다(줄 단위). 판정 정보를 얻지 못하면 모든 입력 줄의 값을 가린다(실패 시 닫힘)."""
         try:
-            pws = await asyncio.wait_for(frame.evaluate(_PW_JS), 1.5)
+            secrets = await asyncio.wait_for(frame.evaluate(_SECRET_JS, {"words": sorted(_SECRET_WORDS), "pairs": list(_SECRET_PAIRS)}), 1.5)
+            if not isinstance(secrets, list):
+                raise ValueError("bad")
         except Exception:
-            return text
-        for v in sorted({str(p) for p in pws or []}, key=len, reverse=True):
-            text = re.sub(r"(:\s*)" + re.escape(v) + r"$", lambda m: m.group(1) + HIDDEN, text, flags=re.M)
-            if len(v) >= 6:
-                text = text.replace(v, HIDDEN)
-        return text
+            return mask_input_lines(text, None)
+        return mask_input_lines(text, secrets)
 
     async def _snapshot(self, page, seq: int, when: str) -> dict:
         out = {"url": "", "href": "", "title": "", "aria": "", "hidden": {}, "shot": None}
@@ -297,6 +345,7 @@ class Trace:
             span["post"] = await self._snapshot(page, span["seq"], "post")
         finally:
             self.current = None
+            self._seen_fills.clear()
         await asyncio.to_thread(store.append_span, self.rid, span)
         await self.notify({"t": "span", "seq": span["seq"], "action": span["action"],
                            "network": [{"method": n["method"], "path": n["path"], "status": n["status"], "held": n["held"],
@@ -332,14 +381,15 @@ class Trace:
                 self._add_fill(span, el, ev["value"])
 
     def _add_fill(self, span: dict, el: dict, value: str) -> None:
-        """입력값을 fills 에 넣는다. 같은 묶음에서 같은 요소의 같은 값은 한 번만 넣는다(Enter 와 change 가 둘 다 올 수 있다)."""
-        v = self._fill_value(el, value)
-        ident = (el.get("id") or "", el.get("name") or "")
-        for f in span["fills"]:
-            t = f.get("target") or {}
-            if (t.get("id") or "", t.get("name") or "") == ident and f.get("value") == v:
-                return
-        span["fills"].append({"target": el, "value": v})
+        """입력값을 fills 에 넣는다. 같은 묶음에서 같은 요소의 같은 값은 한 번만 넣는다(Enter 와 change 가 둘 다 올 수 있다).
+        id·name 이 둘 다 없으면 태그·라벨·역할로 요소를 가른다. 중복 확인 뒤에야 값을 가린다(원값 지도를 불필요하게 건드리지 않는다)."""
+        def ident(t: dict) -> tuple:
+            return (t.get("id") or "", t.get("name") or "") if (t.get("id") or t.get("name")) else (t.get("tag") or "", t.get("label") or "", t.get("role") or "")
+        key = (id(span), ident(el), value)                 # 원값은 파일에 남기지 않으려 메모리 집합에만 둔다
+        if key in self._seen_fills:
+            return
+        self._seen_fills.add(key)
+        span["fills"].append({"target": el, "value": self._fill_value(el, value)})
 
     # ── 응답 ───────────────────────────────────────────────────────────────
     async def on_response(self, response) -> None:

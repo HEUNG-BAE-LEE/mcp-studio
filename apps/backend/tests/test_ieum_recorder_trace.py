@@ -30,6 +30,11 @@ document.getElementById('btnSearch').onclick = async () => {
 </script>"""
 ENTER_PAGE = """<title>검색</title><form action="vendSearch.do" method="get"><input id="vendNm" name="vendNm" aria-label="거래처명">
 <input id="pwd" name="pwd" type="password" aria-label="비밀번호"><input id="note" name="note" type="text"><button type="submit">검색</button></form>"""
+SECRETS_PAGE = """<title>비밀</title><input id="a" type="password" aria-label="암호A"><input id="b" type="password" aria-label="암호B">
+<input id="c" type="text" name="pin" aria-label="핀"><input id="d" type="text" name="otp" aria-label="일회용"><input id="e" type="text" autocomplete="one-time-code" aria-label="코드">
+<input id="n" type="text" aria-label="이름"><div id="host"></div>
+<script>const r = document.getElementById('host').attachShadow({mode: 'open'});
+r.innerHTML = '<input id="sh" type="password" aria-label="섀도암호">';</script>"""
 RES = '{"resultList":[{"PO_NO":"PO-2609-0142","TEL":"010-4821-5678"}]}'
 SSR = ('<table><tr><th>거래처코드</th><th>거래처명</th></tr><tr><td><a href="vendDetail.do?vendCd=V0012">V0012</a></td>'
        '<td>한빛상사</td></tr></table>')
@@ -67,6 +72,8 @@ def _record(ieum_state, steps, start="list.html"):
                 elif "/po/slowList.do" in u:
                     await asyncio.sleep(0.3)
                     await route.fulfill(status=200, content_type="application/json", body='{"ok":1}')
+                elif "/po/secrets.html" in u:
+                    await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=SECRETS_PAGE)
                 elif "/po/enter.html" in u:
                     await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=ENTER_PAGE)
                 elif "/po/vendSearch.do" in u:
@@ -346,3 +353,61 @@ def test_key_이벤트는_대상이_비었을_때만_채우고_같은_값은_한
     sec = {"tag": "INPUT", "id": "accessToken", "name": "accessToken", "text": "", "label": ""}
     tr.on_dom_event(None, {"type": "key", "key": "Enter", "el": sec, "value": "abc123"})
     assert tr.current["fills"][-1]["value"] == "••••••••" and "abc123" not in tr.raw.values()
+
+
+def _secrets_steps(page_values):
+    async def steps(page, cdp, tr):
+        for sel, v in page_values:
+            await page.fill(sel, v)
+        await tr.begin(page, "click")
+        await page.click("#n")
+        await page.wait_for_timeout(300)
+    return steps
+
+
+def _all_saved(rec, tr):
+    blob = json.dumps(tr.raw, ensure_ascii=False)
+    for f in store.rec_dir(rec["id"]).iterdir():
+        if f.suffix != ".jpg":
+            blob += f.read_text(encoding="utf-8", errors="ignore")
+    return blob
+
+
+def test_비밀_입력칸의_값은_화면_구조_기록_어디에도_남지_않는다(ieum_state):
+    vals = [("#a", "1234"), ("#b", "  ab  "), ("#c", "7788"), ("#d", "p9o9t9"), ("#e", "Q8w8e8"), ("#n", "홍길동")]
+    async def steps(page, cdp, tr):
+        await _secrets_steps(vals)(page, cdp, tr)
+        await page.locator("#host").evaluate("h => { h.shadowRoot.getElementById('sh').value = 'shadowPw77'; }")
+        await tr.begin(page, "click")
+        await page.click("#n")
+        await page.wait_for_timeout(300)
+    rec, sent, tr = _record(ieum_state, steps, "secrets.html")
+    blob = _all_saved(rec, tr)
+    for v in ("1234", "7788", "p9o9t9", "Q8w8e8", "shadowPw77"):
+        assert v not in blob, v
+    assert '"ab"' not in blob and ": ab" not in blob
+    assert "홍길동" in blob                                            # 비밀이 아닌 입력값은 남는다
+
+
+def test_비밀_판정을_못_하면_모든_입력_줄의_값을_가린다(ieum_state, monkeypatch):
+    async def boom(self, *a, **k):
+        raise RuntimeError("evaluate 실패")
+    from playwright.async_api import Frame
+    orig = Frame.evaluate
+
+    async def evaluate(self, expr, *a, **k):
+        if "secretName" in expr:
+            raise RuntimeError("evaluate 실패")
+        return await orig(self, expr, *a, **k)
+    monkeypatch.setattr(Frame, "evaluate", evaluate)
+    rec, sent, tr = _record(ieum_state, _secrets_steps([("#a", "1234"), ("#n", "홍길동")]), "secrets.html")
+    blob = _all_saved(rec, tr)
+    assert "1234" not in blob and "홍길동" not in json.dumps([s["pre"]["aria"] + s["post"]["aria"] for s in store.read_spans(rec["id"])], ensure_ascii=False)
+
+
+def test_입력_줄_가리기는_따옴표_값과_짧은_값도_다룬다():
+    from app.ieum.recorder.trace import mask_input_lines
+    text = '- textbox "암호": "1234"\n- textbox "기타": ab\n- textbox "이름": 홍길동\n- button "확인"'
+    out = mask_input_lines(text, [{"names": ["암호"], "value": "1234"}, {"names": [], "value": "  ab "}])
+    assert "1234" not in out and ": ab" not in out and "홍길동" in out and '- button "확인"' in out
+    assert "홍길동" not in mask_input_lines(text, None) and '- button "확인"' in mask_input_lines(text, None)
