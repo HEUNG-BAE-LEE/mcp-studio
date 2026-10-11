@@ -399,3 +399,21 @@ def test_입력_파라미터는_원래_이름으로_단계에_넣는다(site):
     t["params"].append({"o": "secNo", "a": "sec_no", "at": "string", "loc": "input", "rule": "name", "req": True})
     runner.invoke(dict(SRC, base=base), t, {"sec_no": "7"}, {})
     assert st["hits"] == ["/list?q=7"]
+
+
+def test_배포한_MCP_서버에서_업무_도구를_부른다(site, ieum_server):
+    """배포는 별도 프로세스다 — 스냅샷에 얼어 든 단계 흐름으로 목록과 상세를 끝까지 돌려준다(회귀 고정 시험)."""
+    from tests.conftest import Console
+    from app.ieum.repositories import sources as src_repo, studio as tool_repo
+    base, st = site
+    src_repo.upsert_source({"id": "t-src", "name": "시험", "proto": "disc", "base": base, "authType": "none", "spec": "업무 기록으로 추론"})
+    tool_repo.replace_source_tools("t-src", [dict(tool_repo.with_defaults(_tool(base), {"proto": "disc"}), src="t-src", status="done")])
+    c = Console(ieum_server)
+    _, key = c.publish(["news_t"])
+    secret = key["secret"]
+    names = [t["name"] for t in c.mcp(secret, "tools/list")[1]["result"]["tools"]]
+    assert names == ["news_t"]
+    listed = c.mcp(secret, "tools/call", {"name": "news_t", "arguments": {}})[1]["result"]
+    assert listed["structuredContent"]["total"] == 3
+    got = c.mcp(secret, "tools/call", {"name": "news_t", "arguments": {"index": 2}})[1]["result"]
+    assert got["structuredContent"]["picked"]["index"] == 2 and st["hits"][-1] == "/art/202"
