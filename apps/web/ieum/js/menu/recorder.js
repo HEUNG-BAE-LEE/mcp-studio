@@ -106,7 +106,7 @@ function recOverlayHTML(L) {
   const H = recHoldHead(L), more = (L.holds || []).length - 1;
   return (H ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>${svg('lock', 16)} 쓰기 요청 승인</b>
         <p>"${esc(H.label || '알 수 없는 버튼')}" → <code>${esc(H.method)} ${esc(H.path)}</code></p>
-        ${more > 0 ? `<p class="mute">대기 ${more}건 더</p>` : ''}
+        ${more > 0 ? `<p class="muted">대기 ${more}건 더</p>` : ''}
         <p>운영 데이터가 바뀝니다. 2분 안에 답하지 않으면 보내지 않습니다.</p>
         <button class="btn danger-fill" data-act="recApprove" data-ok="1">승인하고 보내기</button> <button class="btn" data-act="recApprove" data-ok="0">보내지 않기</button></div>` : '')
     + (L.dialog ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>대상 사이트의 확인 창</b><p>${esc(L.dialog.message)}</p>
@@ -159,7 +159,7 @@ function recReviewHTML() {
       ${bad.map(s => `<div class="rec-run-step"><small>${esc(s.id)}: ${esc(recReason(s.reason || 'error_response'))}${s.note ? ` — ${esc(s.note)}` : ''}</small></div>`).join('')}</li>`; }).join('');
   const apAll = (RECR.rec || {}).approvals || [], apBeacon = apAll.filter(a => a.decision === 'beacon').length;
   const aps = apAll.filter(a => a.decision !== 'beacon').map(a => `<li><code>${esc(a.method)} ${esc(a.path)}</code> · ${esc(recDecision(a.decision))}${a.decision === 'deny' && a.label === '기록 종료 중' ? ` (${esc(a.label)})` : ''}</li>`).join('')
-    + (apBeacon ? `<li class="mute">외부 통계 ${apBeacon}종 차단 (횟수가 아니라 주소 종류 수)</li>` : '');
+    + (apBeacon ? `<li class="muted">외부 통계 ${apBeacon}종 차단 (횟수가 아니라 주소 종류 수)</li>` : '');
   const sel = (k, opts) => `<select class="inp sm" data-chg="recPol" data-k="${k}" aria-label="${k}"><option value="">선택</option>${opts.map(o => `<option ${f.policy[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
   const regSingle = active.length === 1;
   return `<div class="rec-rv-head"><div><h3>${esc(f.name)}</h3><small>${esc(f.policy.operation)} · 위험 ${esc(f.policy.risk)} · 승인 ${esc(f.policy.approval)} · 실행 ${esc(f.executionMode || '-')}</small></div>
