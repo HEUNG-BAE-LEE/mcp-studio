@@ -146,14 +146,15 @@ def _in_group(expr: str, group: str) -> bool:
 
 
 def _with_k(steps, pick, k: int) -> list:
-    """고르는 단계의 목록 출처 k 를 고른 행 순번으로 바꾼 단계 사본. 원 단계는 건드리지 않는다.
+    """고르는 묶음의 목록 출처 k 를 고른 행 순번으로 바꾼 단계 사본(그 출처를 쓰는 모든 단계). 원 단계는 건드리지 않는다.
     값은 목록 단계의 outputs 에서 이름으로 찾으므로(core.value_of), 목록 단계 outputs 의 같은 이름도 k 를 바꿔 둔다."""
     out = copy.deepcopy(steps)
     prefix = pick["list"] + ".links["
     renamed: Dict[str, str] = {}                           # 목록 단계 outputs 이름: 예전 → 새
     for st in out:
-        if st["id"] != pick["step"]:
+        if st["id"] == pick["list"]:
             continue
+        # 고르는 단계뿐 아니라 뒤 단계가 같은 묶음 출력을 다시 써도 같은 행을 가리키게 한다(출력 이름이 함께 바뀌므로)
         for p in st.get("params") or []:
             frm = p.get("from") or ""
             if frm.startswith(prefix) and _in_group(frm[len(pick["list"]) + 1:], pick["group"]):
@@ -181,19 +182,59 @@ def _without_link_outputs(steps, pick) -> list:
     return out
 
 
+def _pick_names(tool: dict) -> Dict[str, str]:
+    """고르기 인자의 지금 이름. pick.args 는 등록 때 이름(o)이고, 스튜디오가 AI 이름(a)을 바꿀 수 있으므로 loc == "pick" 파라미터에서 찾는다."""
+    orig = ((tool.get("flow") or {}).get("pick") or {}).get("args") or {}
+    out = {}
+    for key in ("index", "match"):
+        o = orig.get(key, key)
+        p = next((q for q in tool.get("params") or [] if q.get("loc") == "pick" and q.get("o") == o and q.get("a")), None)
+        out[key] = p["a"] if p else o
+    return out
+
+
+def _inputs(tool: dict, args: dict, ctx: dict) -> Dict[str, str]:
+    """AI 인자 → 단계 입력(input.<원래 이름>(o)). 단일 도구(engine.build_request)와 같은 규칙을 따른다:
+    숨긴 규칙은 인자를 보지 않고(inject 는 고정값, ctx 는 호출 맥락, page·calc 는 기록 값 그대로), 그 밖에는 _to_origin 으로 바꾼다
+    (날짜 2026-01-01 → 20260101, 코드 이름 → 코드 값). AI 이름(a)은 spec._param 이 snake 로 바꾼 것이다(secNo → sec_no)."""
+    out: Dict[str, str] = {}
+    for p in tool.get("params") or []:
+        if p.get("loc") != "input":
+            continue
+        rule = p.get("rule")
+        if rule == "inject":
+            v = p.get("v", p.get("ex"))
+        elif rule == "ctx":
+            v = ctx.get(p.get("ctxKey", "user_id"))
+        elif rule in ("page", "calc"):
+            continue
+        else:
+            if not p.get("a") or args.get(p["a"]) is None:
+                continue
+            try:
+                v = engine._to_origin(p, args[p["a"]])
+            except engine.ToolError as exc:
+                raise _Fail("bad_input", str(exc))
+            except ValueError:
+                raise _Fail("bad_input", "%s 값 \"%s\" 을(를) 원본 형식으로 바꾸지 못했습니다." % (p["a"], args[p["a"]]))
+        if v is not None:
+            out[p.get("o") or p["a"]] = str(v)
+    return out
+
+
 def _check(tool: dict, args: dict) -> Tuple[Optional[int], Optional[str]]:
     """입력 확인. (index, match) 를 돌려준다."""
     if not isinstance(args, dict):
         raise _Fail("missing_input", "arguments 는 객체여야 합니다.")
     missing = [p["a"] for p in tool.get("params") or []
-               if p.get("loc") == "input" and p.get("req") and args.get(p["a"]) in (None, "")]
+               if p.get("loc") == "input" and p.get("req") and p.get("rule") not in engine.HIDDEN and args.get(p["a"]) in (None, "")]
     if missing:
         raise _Fail("missing_input", "필수 값이 없습니다: " + ", ".join(missing))
     pick = (tool.get("flow") or {}).get("pick")
     if not pick:
         return None, None
-    names = pick.get("args") or {}
-    raw_i, raw_m = args.get(names.get("index", "index")), args.get(names.get("match", "match"))
+    names = _pick_names(tool)
+    raw_i, raw_m = args.get(names["index"]), args.get(names["match"])
     index = None
     if raw_i not in (None, ""):
         if isinstance(raw_i, bool):
@@ -323,7 +364,7 @@ async def _auth(steps: List[dict], source: dict) -> Tuple[List[dict], List[dict]
     return out, cookies, session_ids
 
 
-async def _run(source: dict, tool: dict, args: dict, index: Optional[int], match: Optional[str], trace: dict,
+async def _run(source: dict, tool: dict, inputs: Dict[str, str], index: Optional[int], match: Optional[str], trace: dict,
                pace: list) -> Tuple[Any, Optional[dict], bool]:
     """한 번 실행한다. 세션이 끊기면 _Fail("auth_expired") 를 일으킨다. (마지막 단계 data 또는 목록, 고른 항목, 목록인가)"""
     flow = tool.get("flow") or {}
@@ -334,8 +375,6 @@ async def _run(source: dict, tool: dict, args: dict, index: Optional[int], match
     gap = 0.0 if all((urlsplit((st.get("base") or default_base)).hostname or "").lower() in _LOCAL for st in steps) else GAP
     rec = _Recording(_FlowTransport(cookies), pace)
     trace["_rec"] = rec
-    # AI 는 a(snake 이름)로 넘기고 단계는 input.<원래 이름>(o) 을 쓴다(spec._param 이 secNo 를 sec_no 로 바꾼다)
-    inputs = {(p.get("o") or p["a"]): str(args[p["a"]]) for p in tool.get("params") or [] if p.get("loc") == "input" and p["a"] in args}
 
     async def run(ss, stop_after=None):
         res = await core.run_steps(ss, default_base, inputs, {}, rec, None, _read_only, gap, needs={}, pace=pace, stop_after=stop_after)
@@ -404,12 +443,13 @@ async def _invoke(source: dict, tool: dict, args: dict, ctx: dict) -> Tuple[Any,
         if len(steps) > MAX_STEPS:
             raise _Fail("too_many_steps", f"단계가 {len(steps)}개로 상한 {MAX_STEPS}개를 넘습니다.")
         index, match = _check(tool, args)
+        inputs = _inputs(tool, args, ctx)
         trace["convertMs"] = int((time.time() - t0) * 1000)
         pace = [0.0]
 
         async def attempt():
             try:
-                return await _run(source, tool, args, index, match, trace, pace)
+                return await _run(source, tool, inputs, index, match, trace, pace)
             except _Fail as f:
                 sessions = trace.get("_sessions") or []
                 if f.code != "auth_expired" or not sessions:
@@ -417,7 +457,7 @@ async def _invoke(source: dict, tool: dict, args: dict, ctx: dict) -> Tuple[Any,
                 for sid in sessions:                       # 세션이 끊겼다: 다시 로그인해 처음 단계부터 한 번 더(조회뿐이라 안전하다)
                     await asyncio.to_thread(session_auth.invalidate, sid)
                 prev = trace["_rec"].records
-                out = await _run(source, tool, args, index, match, trace, pace)
+                out = await _run(source, tool, inputs, index, match, trace, pace)
                 trace["_rec"].records[:0] = prev
                 return out
 

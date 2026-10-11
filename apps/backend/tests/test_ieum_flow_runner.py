@@ -417,3 +417,61 @@ def test_배포한_MCP_서버에서_업무_도구를_부른다(site, ieum_server
     assert listed["structuredContent"]["total"] == 3
     got = c.mcp(secret, "tools/call", {"name": "news_t", "arguments": {"index": 2}})[1]["result"]
     assert got["structuredContent"]["picked"]["index"] == 2 and st["hits"][-1] == "/art/202"
+
+
+def test_날짜_입력은_변환_규칙대로_원본_형식으로_보낸다(site):
+    """spec._param 이 regDate(8자리 예시)에 rule date·ot YYYYMMDD 를 단다. AI 는 2026-01-01 로 보내므로 단일 도구처럼 바꿔 보낸다."""
+    from app.ieum.gateway import spec
+    base, st = site
+    t = _tool(base)
+    t["flow"]["steps"][0]["params"] = [{"a": "d", "loc": "query", "from": "input.regDate", "ex": ""}]
+    q = spec._param("regDate", "input", {"type": "string", "example": "20250101"}, True)
+    q["loc"] = "input"
+    assert q["rule"] == "date"
+    t["params"].append(q)
+    runner.invoke(dict(SRC, base=base), t, {q["a"]: "2026-01-01"}, {})
+    assert st["hits"] == ["/list?d=20260101"]
+
+
+def test_스튜디오의_고정값_규칙은_인자보다_앞선다(site):
+    base, st = site
+    t = _tool(base)
+    t["flow"]["steps"][0]["params"] = [{"a": "q", "loc": "query", "from": "input.secNo", "ex": ""}]
+    t["params"].append({"o": "secNo", "a": "sec_no", "at": "string", "loc": "input", "rule": "inject", "v": "99", "req": True})
+    runner.invoke(dict(SRC, base=base), t, {"sec_no": "7"}, {})
+    runner.invoke(dict(SRC, base=base), t, {}, {})          # 숨긴 값은 필수라도 AI 에게 묻지 않는다
+    assert st["hits"] == ["/list?q=99", "/list?q=99"]
+
+
+def test_코드_규칙에_없는_값은_bad_input(site):
+    base, st = site
+    t = _tool(base)
+    t["flow"]["steps"][0]["params"] = [{"a": "q", "loc": "query", "from": "input.kind", "ex": ""}]
+    t["params"].append({"o": "kind", "a": "kind", "at": "string", "loc": "input", "rule": "code", "codes": [["01", "뉴스"]]})
+    runner.invoke(dict(SRC, base=base), t, {"kind": "뉴스"}, {})
+    assert st["hits"] == ["/list?q=01"]
+    with pytest.raises(engine.ToolError) as e:
+        runner.invoke(dict(SRC, base=base), t, {"kind": "없음"}, {})
+    assert str(e.value).startswith("[bad_input]") and len(st["hits"]) == 1
+
+
+def test_뒤_단계도_같은_묶음_출력을_쓰면_고른_행으로_바꾼다(site):
+    """s3 도 s1 의 같은 묶음 출력을 쓴다. k 를 바꾸며 출력 이름이 바뀌어도 s3 가 같은 행 값을 받는다."""
+    base, st = site
+    t = _tool(base)
+    src = t["flow"]["steps"][1]["params"][0]["from"]
+    t["flow"]["steps"].append({"id": "s3", "base": base, "method": "GET", "path": "/api/art/{id}", "headers": {}, "kind": "json",
+                               "outputs": {}, "params": [{"a": "id", "loc": "path", "from": src, "ex": "202"}],
+                               "recordedErrSeen": [], "write": False})
+    out, _ = runner.invoke(dict(SRC, base=base), t, {"index": 3}, {})
+    assert st["hits"] == ["/list", "/art/303", "/api/art/303"] and out["id"] == "303"
+
+
+def test_스튜디오에서_고른_인자_이름을_바꿔도_고른다(site):
+    base, st = site
+    t = _tool(base)
+    t["params"][0]["a"], t["params"][1]["a"] = "row_no", "keyword"
+    out, _ = runner.invoke(dict(SRC, base=base), t, {"row_no": 2}, {})
+    assert out["picked"]["index"] == 2 and st["hits"][-1] == "/art/202"
+    out, _ = runner.invoke(dict(SRC, base=base), t, {"keyword": "korea"}, {})
+    assert st["hits"][-1] == "/art/303"
