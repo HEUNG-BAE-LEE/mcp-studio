@@ -530,6 +530,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
 
     # 1) 핵심 후보
     steps: List[dict] = []
+    made = 0                                              # 단계 id 번호(표본을 바꿔 끼우면 단계가 빠졌다 들어오므로 개수로 매기지 않는다)
     dropped_headers: set = set()
     seen: Dict[tuple, Optional[dict]] = {}
     for sp, n, path, data in items:
@@ -556,16 +557,25 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                 excluded.append({"method": n["method"], "path": path, "base": n["base"], "origin": n["origin"], "role": "page" if n["rtype"] == "document" else "noise",
                                  "why": side.get(id(n)) or "응답 값이 화면에 나타나지 않음"})
             continue
+        earlier: List[int] = []
         if seen.get(key) is not None:
-            seen[key]["_spans"].append(sp["seq"])
-            if not cand and seen[key]["role"] == "prereq":
-                seen[key]["role"] = "core"
-            continue
-        st = {"id": f"t{len(steps) + 1}", "role": "prereq" if cand else "core", "base": n["base"], "origin": n["origin"], "method": n["method"], "path": path,
+            old = seen[key]
+            if old["_open"] and sp["action"].get("type") != "open":
+                # 시작 화면과 같은 요청을 사람이 다시 했다(검색어를 넣어 같은 목록 주소로 다시 조회 등). 사람 쪽을 표본으로 삼는다 —
+                # 시작 화면 표본은 파라미터·주소 후보가 사람이 본 목록이 아니다. 근거 묶음은 이어 받고, 단계 위치는 사람 쪽 자리다.
+                steps.remove(old)
+                earlier = old["_spans"]
+            else:
+                old["_spans"].append(sp["seq"])
+                if not cand and old["role"] == "prereq":
+                    old["role"] = "core"
+                continue
+        made += 1
+        st = {"id": f"t{made}", "role": "prereq" if cand else "core", "base": n["base"], "origin": n["origin"], "method": n["method"], "path": path,
               "discriminator": disc, "kind": _kind(n), "charset": n.get("charset"), "exec": "http", "formPage": None, "write": write, "writeWhy": write_why,
               "headers": {}, "outputs": {}, "params": [],
               "recordedRes": n.get("res") or "", "recordedErrSeen": n.get("errSeen"), "recordedData": copy.deepcopy(htmltable.without_links(n.get("data"))), "recordedStatus": n["status"],
-              "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""), "label": (((sp["action"]["target"] or {}).get("text", "") or sp["action"].get("label") or ""))[:60],
+              "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": earlier + [sp["seq"]], "_open": sp["action"].get("type") == "open", "_label": (sp["action"]["target"] or {}).get("text", ""), "label": (((sp["action"]["target"] or {}).get("text", "") or sp["action"].get("label") or ""))[:60],
               "_title": (sp.get("pre") or {}).get("title", ""), "_why": side.get(id(n))}
         for hk, hv in (n.get("headers") or {}).items():
             if hk.lower().startswith("x-"):
@@ -687,7 +697,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     desc = _describe(rec, steps, list(inputs.values()), output, op)
     evidence = {s["id"]: s["_spans"] for s in steps}
     for s in steps:
-        for k in ("_sample", "_spans", "_label", "_title", "_write", "_dropped", "_why"):
+        for k in ("_sample", "_spans", "_label", "_title", "_write", "_dropped", "_why", "_open"):
             s.pop(k, None)
         for p in s["params"]:
             p.pop("_tl", None)

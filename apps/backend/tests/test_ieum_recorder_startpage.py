@@ -211,3 +211,88 @@ def test_시작_화면_경로의_자리는_기록_값을_예로_둔_입력이고
         bf, {i["name"]: i["ex"] for i in bf["inputs"]}, {}, replay.HttpTransport([], host="127.0.0.1"), None, no, 0))
     assert run["ok"], run
     assert "/section/101" in news_site["hits"] and "/mnews/article/052/0000000008" in news_site["hits"]
+
+
+# ── T13 수정 1차: 시작 화면과 같은 요청을 사람이 다시 하면 사람 쪽이 단계다 ──
+def _cards_page(ids):
+    cards = "".join(f'<div class="apply-result-item"><a href="/data/{i}/fileData.do">데이터 {i}</a></div>' for i in ids)
+    return f'<html><body><div class="apply-result">{cards}</div></body></html>'
+
+
+@pytest.fixture
+def portal_site():
+    st = {"hits": []}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            st["hits"].append(self.path)
+            if self.path.startswith("/tcs/dss/selectDataSetList.do"):
+                body = _cards_page(["15000101", "15000102", "15000103"] if "keyword=" in self.path else ["15000001", "15000002"])
+            elif self.path.startswith("/data/"):
+                body = "<html><body><h2>상세 " + self.path + "</h2></body></html>"
+            else:
+                self.send_response(404)
+                self.end_headers()
+                return
+            data = body.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    st["base"] = f"http://127.0.0.1:{srv.server_address[1]}"
+    yield st
+    srv.shutdown()
+
+
+def test_시작_화면과_같은_요청을_검색으로_다시_하면_검색_쪽이_단계다(portal_site):
+    base = portal_site["base"]
+    start, found = _cards_page(["15000001", "15000002"]), _cards_page(["15000101", "15000102", "15000103"])
+    q = "keyword=%EB%AF%B8%EC%84%B8%EB%A8%BC%EC%A7%80"
+    spans = [
+        dict(_open_span(base, [_net(base + "/tcs/dss/selectDataSetList.do", start, htmltable.to_data(start))], "- link: 데이터 15000001"),
+             post={"url": "/x", "href": base + "/tcs/dss/selectDataSetList.do", "title": "목록", "aria": "- link: 데이터 15000001", "hidden": {}, "shot": None}),
+        {"seq": 2, "action": {"type": "key", "target": None, "isTrusted": True, "t": 2},
+         "fills": [{"target": {"id": "keyword", "label": "검색어"}, "value": "미세먼지"}],
+         "pre": {"url": "/x", "href": base + "/tcs/dss/selectDataSetList.do", "title": "목록", "aria": "", "hidden": {}, "shot": None},
+         "network": [dict(_net(base + "/tcs/dss/selectDataSetList.do?" + q, found, htmltable.to_data(found)), main=True)],
+         "post": {"url": "/x", "href": base + "/tcs/dss/selectDataSetList.do?" + q, "title": "목록", "aria": "- link: 데이터 15000101\n- link: 데이터 15000102", "hidden": {}, "shot": None}},
+        {"seq": 3, "action": {"type": "click", "target": {"tag": "A", "text": "데이터 15000102"}, "isTrusted": True, "t": 3}, "fills": [],
+         "pre": {"url": "/x", "href": base + "/x", "title": "목록", "aria": "", "hidden": {}, "shot": None},
+         "network": [dict(_net(base + "/data/15000102/fileData.do", "<html><body><h2>상세 /data/15000102/fileData.do</h2></body></html>"), main=True)],
+         "post": {"url": "/x", "href": base + "/data/15000102/fileData.do", "title": "상세", "aria": "- heading: 상세 /data/15000102/fileData.do", "hidden": {}, "shot": None}},
+    ]
+    bf = analyze.analyze({"id": "rec_00000023", "name": "데이터 상세", "sourceBase": base, "env": "op", "login": {}, "approvals": []}, spans)
+    assert [s["path"] for s in bf["steps"]] == ["/tcs/dss/selectDataSetList.do", "/data/{id}/fileData.do"]
+    s1, s2 = bf["steps"]
+    kw = next(p for p in s1["params"] if p["a"] == "keyword")
+    assert kw["source"] == "USER_INPUT" and kw["ex"] == "미세먼지" and bf["evidence"]["s1"] == [1, 2]
+    pid = next(p for p in s2["params"] if p["loc"] == "path")
+    assert pid["from"] == "s1.links[/data/{id}/fileData.do@div.apply-result>div.apply-result-item][1.0/1].id"
+    from app.ieum.recorder import replay
+
+    async def no(step):
+        return False
+    run = asyncio.new_event_loop().run_until_complete(replay.run_once(
+        bf, {i["name"]: i["ex"] for i in bf["inputs"]}, {}, replay.HttpTransport([], host="127.0.0.1"), None, no, 0))
+    assert run["ok"], run
+    assert portal_site["hits"][-1] == "/data/15000102/fileData.do"
+
+
+def test_시작_묶음에만_있는_요청은_여전히_쓰일_때만_남는다():
+    base = "http://h:8080"
+    start = _cards_page(["15000001", "15000002"])
+    spans = [_open_span(base, [_net(base + "/tcs/dss/selectDataSetList.do", start, htmltable.to_data(start))], "- link: 데이터 15000001"),
+             {"seq": 2, "action": {"type": "click", "target": {"tag": "A", "text": "공지"}, "isTrusted": True, "t": 2}, "fills": [],
+              "pre": {"url": "/x", "href": base + "/x", "title": "목록", "aria": "", "hidden": {}, "shot": None},
+              "network": [_net(base + "/notice.do", json.dumps({"n": "공지 내용입니다"}, ensure_ascii=False))],
+              "post": {"url": "/x", "href": base + "/x", "title": "공지", "aria": "- text: 공지 내용입니다", "hidden": {}, "shot": None}}]
+    spans[1]["network"][0]["data"] = None
+    bf = analyze.analyze({"id": "rec_00000024", "name": "공지", "sourceBase": base, "env": "op", "login": {}, "approvals": []}, spans)
+    assert [s["path"] for s in bf["steps"]] == ["/notice.do"]
+    assert any(e["path"] == "/tcs/dss/selectDataSetList.do" for e in bf["excluded"])
