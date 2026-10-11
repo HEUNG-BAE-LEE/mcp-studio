@@ -2,7 +2,7 @@
    화면 ① 목록 → ② 새 기록 → ③ 기록 중(화면 중계) → ④ 검토. 승인 창은 화면 안 요소다(브라우저 기본 대화상자를 쓰지 않는다).
    입력 원값(값 다시 입력 필요)은 서버로 보내 검증에만 쓰고 저장하지 않는다(요청이 끝나면 메모리에서도 지운다).
    전역 REC 는 discovery.js 가 쓰고 있어서, 이 파일의 상태 객체는 RECR 이다. */
-const RECR = { page:'list', list:[], fns:[], usage:null, demo:null, form:null, live:null, fn:null, rec:null, busy:false, values:{}, load:'loading', loadErr:'', wheel:0, wheelQ:null };
+const RECR = { page:'list', list:[], fns:[], usage:null, demo:null, form:null, live:null, fn:null, rec:null, busy:false, values:{}, load:'loading', loadErr:'', wheel:0, wheelQ:null, saveQ:null };
 const REC_STATUS = { recording:['기록 중','info'], analyzing:['분석 중','info'], verifying:['검증 중','info'], review:['검토 대기','warn'],
   confirmed:['확정','ok'], failed:['실패','danger'], interrupted:['중단됨','mute'] };
 const REC_VERIFY = { verified:['검증됨','ok'], partial:['부분 검증','warn'], failed:['검증 실패','danger'], pending:['검증 전','mute'],
@@ -307,10 +307,28 @@ async function recOpenFn(rid) {
   } catch (e) { recErr(e); }
 }
 
-async function recSaveFn(patch) {
-  try { RECR.fn = await api.put(`/recorder/functions/${RECR.fn.id}/`, patch); recRender(); }
-  catch (e) { recErr(e); recRender(); }                          // 거절되면 화면의 선택을 서버 값으로 되돌린다
+/* 저장은 한 줄로 세운다. patch 가 함수면 보낼 차례가 왔을 때의 최신 업무 기능으로 몸통을 만든다 —
+   앞 저장의 응답이 오기 전에 누른 단계 편집이 낡은 단계 목록을 보내 앞 변경을 덮어쓰던 것을 막는다 */
+function recSaveFn(patch) {
+  const fid = RECR.fn.id;
+  RECR.saveQ = (RECR.saveQ || Promise.resolve()).then(async () => {
+    if (!RECR.fn || RECR.fn.id !== fid) return;                  // 다른 업무로 옮겨 갔으면 낡은 편집을 보내지 않는다
+    const body = typeof patch === 'function' ? patch(RECR.fn) : patch;
+    if (!body) return;
+    try { const fn = await api.put(`/recorder/functions/${fid}/`, body); if (RECR.fn && RECR.fn.id === fid) RECR.fn = fn; recRender(); }
+    catch (e) { recErr(e); recRender(); }                        // 거절되면 화면의 선택을 서버 값으로 되돌린다
+  });
+  return RECR.saveQ;
 }
+
+/* 단계 편집: 누른 순간의 순번이 아니라 단계 id 로 찾아, 차례가 왔을 때의 목록에 적용한다. edit 가 false 를 돌려주면 보내지 않는다 */
+const recStepEdit = (i, edit) => {
+  const id = RECR.fn.steps[i].id;
+  return recSaveFn(fn => {
+    const list = recStepsBody(fn.steps), k = fn.steps.findIndex(s => s.id === id);
+    return k < 0 || edit(list, k, fn) === false ? null : { steps:list };
+  });
+};
 
 /* 단계 순서·건너뛰기는 현재 단계 전체를 {id, skip} 으로. write 는 사람이 바꾼 그 단계에만 싣는다(실으면 서버가 "사람이 지정"으로 남기므로 나머지에는 싣지 않는다) — 보낸다(빠뜨린 단계가 있으면 서버가 400 으로 거절한다) */
 const recStepsBody = list => list.map(s => ({ id:s.id, skip:!!s.skip }));
@@ -360,16 +378,18 @@ Object.assign(ACT, {
   recRetry: () => { RECR.load = 'loading'; render(); recRefresh(); },
   recAriaOpen: a => recAria(a.dataset.rid, +a.dataset.seq),
   recPromote: a => recSaveFn({ promote:{ method:a.dataset.m, path:a.dataset.p } }),
-  recStepMove: a => {
-    const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i, j = i + +a.dataset.d;
-    if (j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]]; recSaveFn({ steps:list });
-  },
-  recStepWrite: a => { const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i; list[i].write = !RECR.fn.steps[i].write; recSaveFn({ steps:list }); },
-  recStepConfirmRead: a => { const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i; list[i].write = false; recSaveFn({ steps:list }); },
-  recStepSkip: a => { const list = recStepsBody(RECR.fn.steps), i = +a.dataset.i; list[i].skip = !list[i].skip; recSaveFn({ steps:list }); },
+  recStepMove: a => recStepEdit(+a.dataset.i, (list, k) => {
+    const j = k + +a.dataset.d;
+    if (j < 0 || j >= list.length) return false;
+    [list[k], list[j]] = [list[j], list[k]];
+  }),
+  recStepWrite: a => recStepEdit(+a.dataset.i, (list, k, fn) => { list[k].write = !fn.steps[k].write; }),
+  recStepConfirmRead: a => recStepEdit(+a.dataset.i, (list, k) => { list[k].write = false; }),
+  recStepSkip: a => recStepEdit(+a.dataset.i, (list, k) => { list[k].skip = !list[k].skip; }),
   recVerify: async () => {
     if (RECR.busy) return;
+    await RECR.saveQ;                                             // 아직 나가는 중인 편집이 반영된 단계로 검증한다
+    if (RECR.busy || !RECR.fn) return;
     const need = RECR.fn.inputs.filter(i => i.needsValue && !RECR.values[i.name]);
     if (need.length) { toast(`값을 먼저 입력해 주세요: ${esc(need.map(i => i.name).join(', '))}`, 'warn'); return; }
     const values = Object.assign({}, RECR.values);                // 이름으로 묶어 보낸다
@@ -378,8 +398,9 @@ Object.assign(ACT, {
     catch (e) { recErr(e); }                                      // 409(진행 중)도 문구만 보이고 자동으로 다시 시도하지 않는다
     finally { RECR.busy = false; RECR.values = {}; for (const k in values) values[k] = ''; recRender(); }   // 입력 원값은 요청이 끝나면 지운다
   },
-  recConfirm: async () => { try { RECR.fn = await api.post(`/recorder/functions/${RECR.fn.id}/confirm/`); recRender(); toast(RECR.fn.policyIncomplete ? '확정했습니다. 권한 범위·민감도가 비어 "정책 미완"으로 표시됩니다.' : '확정했습니다.', 'ok'); } catch (e) { recErr(e); } },
+  recConfirm: async () => { await RECR.saveQ; try { RECR.fn = await api.post(`/recorder/functions/${RECR.fn.id}/confirm/`); recRender(); toast(RECR.fn.policyIncomplete ? '확정했습니다. 권한 범위·민감도가 비어 "정책 미완"으로 표시됩니다.' : '확정했습니다.', 'ok'); } catch (e) { recErr(e); } },
   recRegister: async a => {
+    await RECR.saveQ;                                             // 저장 중인 편집이 끝난 뒤 등록한다
     try {
       const out = await api.post(`/recorder/functions/${RECR.fn.id}/register/`, { mode:a.dataset.m });
       const unknown = Object.values(out.loginKnown || {}).some(v => !v);        // 원본 시스템별 {id: bool}. 객체는 항상 참이라 값을 본다
