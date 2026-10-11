@@ -594,3 +594,83 @@ def test_보내자마자_처리_중_알림이_열린_채_멈춰도_그_쓰기를
         assert not rec.get("pendingWrites") and any(a["decision"] == "sent" for a in rec["approvals"])
     finally:
         call(manager.MANAGER.close(rid))
+
+
+# ── 수정 2차 ─────────────────────────────────────────────────────────────
+class _ExpiredHttp:
+    """HTTP 전송 흉내: 처음은 로그인 화면으로 보낸다(세션 만료), 다시 로그인한 뒤에는 성공한다."""
+    mode = "session"
+
+    def __init__(self):
+        self.sent, self.cookies = 0, {}
+
+    async def send(self, step, url, headers, params, form, json_body):
+        import json
+        self.sent += 1
+        if self.sent == 1:
+            return 302, "/po/login.do", "", ""
+        return 200, None, "application/json", json.dumps({"RSLT": "0000", "totalCnt": 1, "resultList": [{"PO_NO": "x"}]})
+
+
+def test_재로그인_뒤_조회로_분류된_POST_는_다시_보내지_않는다():
+    from app.ieum.recorder import replay
+    from tests.test_ieum_recorder_replay import _bf
+    bf = _bf("http://h")
+    bf["steps"] = [dict(bf["steps"][0], method="POST", path="/poSearch.do", write=False, params=[], outputs={})]
+    asks, relogins = [], []
+
+    async def ask(st):
+        asks.append(st["path"])
+        return "approve"
+
+    async def relogin():
+        relogins.append(1)
+        return {"JSESSIONID": "new"}
+    t = _ExpiredHttp()
+    out = _run(replay.run_once(bf, {}, {}, t, None, ask, 0, relogin=relogin))
+    assert t.sent == 1 and asks == ["/poSearch.do"] and relogins == []      # 승인 한 번에 전송 한 번
+    assert not out["ok"] and out["steps"][0]["reason"] == "auth_expired"
+    assert out["steps"][0]["note"] == "GET 이 아닌 단계라 다시 로그인해 재전송하지 않음"
+    assert out["wrote"] is True                                            # 나간 비GET 은 브라우저로 다시 보내지 않는다
+
+
+def test_승인받아_나간_조회_POST_가_실패하면_브라우저로_다시_보내지_않는다(monkeypatch):
+    from app.ieum.recorder import replay
+    from tests.test_ieum_recorder_replay import _bf
+    import types
+    bf = _bf("http://h")
+    bf["steps"] = [dict(bf["steps"][0], method="POST", path="/poSearch.do", write=False, params=[], outputs={})]
+    calls = []
+
+    async def fake(bf2, inputs, raw, http, browser, ask, gap, kind="same-values", **kw):
+        calls.append([s.get("exec") for s in bf2["steps"]])
+        st = bf2["steps"][0]
+        said = await ask(st)
+        return {"kind": kind, "ok": False, "steps": [{"id": st["id"], "ok": False, "reason": "http_error"}],
+                "reason": "http_error", "wrote": bool(said)}
+    monkeypatch.setattr(replay, "run_once", fake)
+
+    class G:
+        env = "op"
+
+        async def ask(self, method, url, label):
+            return True
+
+    async def cookies():
+        return []
+    sess = types.SimpleNamespace(closed=False, guard=G(), page=None, trace=types.SimpleNamespace(raw={}),
+                                 ctx=types.SimpleNamespace(cookies=cookies))
+    out = _run(replay.verify(bf, {"id": "rec_x", "login": {"mode": "manual"}}, [], sess))
+    assert len(calls) == 1 and out["verification"]["runs"][0].get("note") == "쓰기가 이미 나가 다시 실행하지 않음"
+
+
+def test_재지정된_쓰기도_응답을_받은_것으로_본다():
+    async def go():
+        s = _bare_session()
+        w = Req("http://h:8080/po/poSave.do", "POST", post="a=1")
+        await s.guard.route(Route(), w)
+        nxt = Req("http://h:8080/po/poList.do")
+        nxt.redirected_from = w
+        s.guard.on_response(type("R", (), {"request": nxt})())
+        return s.guard.has_response(w)
+    assert _run(go())

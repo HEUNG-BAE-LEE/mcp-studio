@@ -326,8 +326,8 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
         note = None
         while True:
             await pause()
-            if st.get("write"):
-                state["wrote"] = True
+            if needs_ask:
+                state["wrote"] = True                         # 승인받아 나간 비GET(조회 분류 포함)은 실패해도 브라우저로 다시 보내지 않는다
             try:
                 pace[0] = time.monotonic()
                 status, loc, ctype, text = await transport.send(st, url_noq, headers, params, form, body)
@@ -336,7 +336,7 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
             except Exception as exc:
                 return fail(st, "http_error", note=(approved.replace("보내지 않음", "보내지 못함") if approved else "") + type(exc).__name__)
             ok, why, data = await asyncio.to_thread(judge, status, loc, ctype, text, st, headers)
-            if why == "auth_expired" and relogin and not state["relogged"] and transport is http and not st.get("write"):
+            if why == "auth_expired" and relogin and not state["relogged"] and transport is http and not needs_ask:
                 state["relogged"] = True                      # 실행당 한 번만 다시 로그인하고 이 단계부터 이어 간다
                 await pause()
                 cookies = await relogin()
@@ -348,6 +348,8 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
             elif why == "auth_expired":
                 if st.get("write"):
                     note = "쓰기 단계라 다시 로그인해 재전송하지 않음"
+                elif needs_ask:
+                    note = "GET 이 아닌 단계라 다시 로그인해 재전송하지 않음"     # 승인 한 번에 한 번만 보낸다
                 elif transport is not http:
                     note = "브라우저 단계라 다시 로그인하지 않음"
                 elif state["relogged"]:

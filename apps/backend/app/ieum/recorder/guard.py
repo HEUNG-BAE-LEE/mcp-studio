@@ -167,11 +167,15 @@ class Guard:
     def on_response(self, response) -> None:
         """진행 중 쓰기가 응답을 받았다. 응답 뒤 확인 창이 열리면 완료 알림이 창을 닫을 때까지 오지 않으므로 따로 표시한다."""
         try:
-            key = id(response.request)
+            r = response.request
         except Exception:
             return
-        if key in self._writes:
-            self._responded.add(key)
+        seen = 0
+        while r is not None and seen < 20:                 # 재지정된 쓰기는 원래 요청까지 거슬러 표시한다
+            if id(r) in self._writes:
+                self._responded.add(id(r))
+            r = getattr(r, "redirected_from", None)
+            seen += 1
 
     def has_response(self, request) -> bool:
         return id(request) in self._responded
