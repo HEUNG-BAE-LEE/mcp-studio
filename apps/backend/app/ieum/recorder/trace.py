@@ -62,10 +62,20 @@ INIT_JS = """
       return (el.getAttribute && el.getAttribute('aria-label')) || ''; };
   const send = (o) => { try { window.__ieumRec(o); } catch (e) {} };
   document.addEventListener('click', (e) => send({ type: 'click', isTrusted: e.isTrusted, el: desc(pick(e.target)), page: location.pathname }), true);
+  // Enter 로 제출하면 blur 가 없어 change 가 나지 않는다. 키를 누른 순간의 포커스 요소를 대상으로, 입력란이면 그 값을 함께 보낸다.
+  // 비밀번호 칸의 값은 보내지 않는다(대상 설명만). contenteditable 은 값을 보내지 않는다(값 노출 방지)
+  document.addEventListener('keydown', (e) => { if (e.key !== 'Enter') return;
+      const t = document.activeElement; if (!t || t === document.body || t === document.documentElement) return;
+      const o = { type: 'key', key: 'Enter', isTrusted: e.isTrusted, el: Object.assign(desc(t), { label: label(t) }), page: location.pathname };
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') && t.type !== 'password') o.value = (t.value + '').slice(0, 200);
+      send(o); }, true);
   document.addEventListener('change', (e) => { const t = e.target; if (!t || t.type === 'password') return;
       send({ type: 'change', isTrusted: e.isTrusted, el: Object.assign(desc(t), { label: label(t) }), value: (t.value + '').slice(0, 200), page: location.pathname }); }, true);
 })();
 """
+
+# ARIA 스냅샷은 입력칸의 현재 값을 그대로 싣는다. 비밀번호 칸은 값이 있는 것만 모아 스냅샷에서 지운다
+_PW_JS = "() => [...document.querySelectorAll('input[type=password]')].map(i => i.value || '').filter(v => v).slice(0, 10)"
 
 _HIDDEN_JS = "() => Object.fromEntries([...document.querySelectorAll('input[type=hidden][name]')].slice(0, 50).map(i => [i.name, (i.value || '').slice(0, 300)]))"
 
@@ -169,6 +179,7 @@ class Trace:
             except Exception:
                 return
             if text:
+                text = await self._strip_passwords(frame, text)
                 parts.append(text if frame == main else f"- frame {self.policy.display(frame.url)}:\n{text}")
 
         async def rest():
@@ -184,6 +195,18 @@ class Trace:
         except Exception:
             timeouts.append("aria-frames")
         return self.masker.text("\n".join(parts))[:ARIA_MAX]
+
+    async def _strip_passwords(self, frame, text: str) -> str:
+        """비밀번호 칸의 값이 ARIA 에 실려 있으면 지운다. 값을 읽지 못하면 그대로 둔다."""
+        try:
+            pws = await asyncio.wait_for(frame.evaluate(_PW_JS), 1.5)
+        except Exception:
+            return text
+        for v in sorted({str(p) for p in pws or []}, key=len, reverse=True):
+            text = re.sub(r"(:\s*)" + re.escape(v) + r"$", lambda m: m.group(1) + HIDDEN, text, flags=re.M)
+            if len(v) >= 6:
+                text = text.replace(v, HIDDEN)
+        return text
 
     async def _snapshot(self, page, seq: int, when: str) -> dict:
         out = {"url": "", "href": "", "title": "", "aria": "", "hidden": {}, "shot": None}
@@ -297,7 +320,26 @@ class Trace:
             span["action"]["isTrusted"] = ev.get("isTrusted")
             self.guard.label = el.get("text") or el.get("id") or ""
         elif ev.get("type") == "change":
-            span["fills"].append({"target": el, "value": self._fill_value(el, str(ev.get("value") or ""))})
+            self._add_fill(span, el, str(ev.get("value") or ""))
+        elif ev.get("type") == "key":
+            # Enter 로 제출한 동작: 대상이 비었으면 포커스 요소로 채우고(클릭과 같은 마스킹), 입력란 값은 fills 에 넣는다
+            if span["action"]["target"] is None and isinstance(el, dict) and el:
+                tgt = dict(el, text=self.masker.text(el["text"])) if isinstance(el.get("text"), str) else el
+                span["action"]["target"] = tgt
+                span["action"]["isTrusted"] = ev.get("isTrusted")
+                self.guard.label = tgt.get("text") or tgt.get("id") or ""
+            if isinstance(el, dict) and el and isinstance(ev.get("value"), str):
+                self._add_fill(span, el, ev["value"])
+
+    def _add_fill(self, span: dict, el: dict, value: str) -> None:
+        """입력값을 fills 에 넣는다. 같은 묶음에서 같은 요소의 같은 값은 한 번만 넣는다(Enter 와 change 가 둘 다 올 수 있다)."""
+        v = self._fill_value(el, value)
+        ident = (el.get("id") or "", el.get("name") or "")
+        for f in span["fills"]:
+            t = f.get("target") or {}
+            if (t.get("id") or "", t.get("name") or "") == ident and f.get("value") == v:
+                return
+        span["fills"].append({"target": el, "value": v})
 
     # ── 응답 ───────────────────────────────────────────────────────────────
     async def on_response(self, response) -> None:

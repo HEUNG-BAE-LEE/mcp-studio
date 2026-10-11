@@ -185,3 +185,22 @@ def test_한글_입력이_깨지지_않는다(ieum_server):
         assert d.run(d.session.page.input_value("#vendNm")) == "한빛"
     finally:
         d.close()
+
+
+def test_검색어를_넣고_Enter로_제출해도_단계와_입력값과_연결이_잡힌다(ieum_server):
+    d = Driver(ieum_server)
+    d.run(d.session.page.goto(ieum_server + "/demo-legacy/po/vendSearchView.do"))
+    d.click("#vendNm")
+    d.text("한빛")
+    d.key("Enter")                                                   # 검색 버튼을 누르지 않고 Enter 로 제출한다
+    time.sleep(1.2)
+    d.click("#vendResult a >> nth=0")
+    rec = d.stop_and_wait(approve=True)
+    assert rec["status"] == "review", rec.get("error")
+    bf = d.function(rec)
+    s1, s2 = bf["steps"]
+    assert s1["path"] == "/vendSearch.do" and s2["path"] == "/vendDetail.do"
+    q = next(p for p in s1["params"] if p["a"] == "vendNm")
+    assert q["source"] == "USER_INPUT"
+    v = next(p for p in s2["params"] if p["a"] == "vendCd")
+    assert v["source"] == "PREVIOUS_STEP_OUTPUT" and v["from"].startswith("s1.")

@@ -1,6 +1,7 @@
 # apps/backend/tests/test_ieum_recorder_trace.py
 """행동 묶음 기록: 실제 화면 없는 브라우저로 작은 페이지를 열어 클릭 → 요청 → 화면 변화를 묶는다."""
 import asyncio
+import json
 import os
 
 import pytest
@@ -27,12 +28,14 @@ document.getElementById('btnSearch').onclick = async () => {
   document.getElementById('t').innerHTML = d.resultList.map(x => '<tr><td>' + x.PO_NO + '</td><td>' + x.TEL + '</td></tr>').join('');
 };
 </script>"""
+ENTER_PAGE = """<title>검색</title><form action="vendSearch.do" method="get"><input id="vendNm" name="vendNm" aria-label="거래처명">
+<input id="pwd" name="pwd" type="password" aria-label="비밀번호"><input id="note" name="note" type="text"><button type="submit">검색</button></form>"""
 RES = '{"resultList":[{"PO_NO":"PO-2609-0142","TEL":"010-4821-5678"}]}'
 SSR = ('<table><tr><th>거래처코드</th><th>거래처명</th></tr><tr><td><a href="vendDetail.do?vendCd=V0012">V0012</a></td>'
        '<td>한빛상사</td></tr></table>')
 
 
-def _record(ieum_state, steps):
+def _record(ieum_state, steps, start="list.html"):
     rec = store.new_recording("t", "홍길동", "http://rec.test/po", "", "op", "manual")
     store.save_recording(rec)
     sent = []
@@ -64,13 +67,15 @@ def _record(ieum_state, steps):
                 elif "/po/slowList.do" in u:
                     await asyncio.sleep(0.3)
                     await route.fulfill(status=200, content_type="application/json", body='{"ok":1}')
+                elif "/po/enter.html" in u:
+                    await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=ENTER_PAGE)
                 elif "/po/vendSearch.do" in u:
                     await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=SSR)
                 else:
                     await route.fulfill(status=200, content_type="application/json", body=RES)
             await ctx.route("http://rec.test/**", fake)
             page = await ctx.new_page()
-            await page.goto("http://rec.test/po/list.html")
+            await page.goto("http://rec.test/po/" + start)
             cdp = await ctx.new_cdp_session(page)
             await steps(page, cdp, tr)
             await tr.finish(page)
@@ -296,3 +301,48 @@ def test_cdata와_속성의_비밀도_가린다():
     assert "s3cret" not in out and "kim" in out
     out = tr._post('<a auth_token="s3cret" name="kim"/>', "text/xml")
     assert "s3cret" not in out and "kim" in out
+
+
+def test_Enter로_제출하면_묶음의_대상과_입력값이_기록된다(ieum_state):
+    async def steps(page, cdp, tr):
+        await page.fill("#vendNm", "한빛상사")
+        await tr.begin(page, "key")
+        await relay.key(cdp, "Enter")
+        await page.wait_for_timeout(600)
+    rec, sent, tr = _record(ieum_state, steps, "enter.html")
+    span = store.read_spans(rec["id"])[0]
+    assert span["action"]["type"] == "key" and (span["action"]["target"] or {}).get("id") == "vendNm"
+    assert "한빛상사" not in str(span["action"])                      # 대상 글자는 입력값이 아니라 라벨이다
+    vals = [f["value"] for f in span["fills"] if (f["target"] or {}).get("id") == "vendNm"]
+    assert vals == ["한빛상사"]                                         # change 가 늦게 와도 중복되지 않는다
+    assert span["network"] and span["network"][0]["path"] == "/vendSearch.do"
+
+
+def test_비밀번호_칸에서_Enter를_눌러도_비밀번호는_어디에도_남지_않는다(ieum_state):
+    async def steps(page, cdp, tr):
+        await page.fill("#pwd", "Zx9-secret-pw")
+        await tr.begin(page, "key")
+        await relay.key(cdp, "Enter")
+        await page.wait_for_timeout(600)
+    rec, sent, tr = _record(ieum_state, steps, "enter.html")
+    span = store.read_spans(rec["id"])[0]
+    assert (span["action"]["target"] or {}).get("id") == "pwd"
+    assert not [f for f in span["fills"] if (f["target"] or {}).get("id") == "pwd" and f["value"] not in ("", "••••••••")]
+    blob = json.dumps(span, ensure_ascii=False) + json.dumps(tr.raw, ensure_ascii=False)
+    for f in store.rec_dir(rec["id"]).iterdir():
+        if f.suffix != ".jpg":
+            blob += f.read_text(encoding="utf-8", errors="ignore")
+    assert "Zx9-secret-pw" not in blob and "Zx9" not in blob
+
+
+def test_key_이벤트는_대상이_비었을_때만_채우고_같은_값은_한_번만_넣는다():
+    tr = _bare_trace()
+    tr.current = {"seq": 1, "action": {"type": "key", "target": None, "isTrusted": None, "t": 0}, "fills": [], "network": []}
+    el = {"tag": "INPUT", "id": "q", "name": "q", "role": "", "text": "검색어", "label": "검색어"}
+    tr.on_dom_event(None, {"type": "key", "key": "Enter", "el": el, "value": "한빛", "isTrusted": True})
+    tr.on_dom_event(None, {"type": "change", "el": el, "value": "한빛"})
+    assert tr.current["action"]["target"]["id"] == "q" and tr.current["action"]["isTrusted"] is True
+    assert [f["value"] for f in tr.current["fills"]] == ["한빛"]
+    sec = {"tag": "INPUT", "id": "accessToken", "name": "accessToken", "text": "", "label": ""}
+    tr.on_dom_event(None, {"type": "key", "key": "Enter", "el": sec, "value": "abc123"})
+    assert tr.current["fills"][-1]["value"] == "••••••••" and "abc123" not in tr.raw.values()

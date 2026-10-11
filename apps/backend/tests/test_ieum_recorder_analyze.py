@@ -373,3 +373,28 @@ def test_JSON_rows_의_같은_값도_화면에_보이면_핵심_단계():
     res = {"rows": [{"a": "x1x1x1", "b": "x1x1x1"}]}
     spans = [span(1, {"tag": "BUTTON", "text": "조회"}, [net("GET", "/jFind.do", "", res)], post_aria="- row: x1x1x1")]
     assert [s["path"] for s in analyze.analyze(REC, spans)["steps"]] == ["/jFind.do"]
+
+
+def test_Enter_묶음은_대상이_비어도_잡음으로_버리지_않는다():
+    list_html = ('<table><tr><th>거래처코드</th><th>거래처명</th></tr><tr><td><a href="vendDetail.do?vendCd=V0012">V0012</a></td>'
+                 '<td>한빛상사</td></tr></table>')
+    detail_html = "<table><tr><th>거래처명</th><td>한빛상사</td><th>대표자</th><td>홍길동</td></tr></table>"
+    s1 = span(1, None, [net("GET", "/vendSearch.do", "vendNm=%ED%95%9C%EB%B9%9B", list_html, rtype="document", data=htmltable.to_data(list_html))],
+              post_aria="- table: V0012 한빛상사", fills=[{"target": {"id": "vendNm", "label": "거래처명"}, "value": "한빛"}], href=f"{BASE}/vendSearchView.do")
+    s1["action"]["type"] = "key"
+    s2 = span(2, {"tag": "A", "text": "V0012"}, [net("GET", "/vendDetail.do", "vendCd=V0012", detail_html, rtype="document",
+                                                      data=htmltable.to_data(detail_html))], post_aria="- text: 한빛상사 홍길동")
+    bf = analyze.analyze(REC, [s1, s2])
+    assert [s["path"] for s in bf["steps"]] == ["/vendSearch.do", "/vendDetail.do"]
+    assert not [e for e in bf["excluded"] if e["path"] == "/vendSearch.do" and e["role"] == "noise"]
+    q = next(p for p in bf["steps"][0]["params"] if p["a"] == "vendNm")
+    assert q["source"] == "USER_INPUT"
+    assert any(i["name"] == "vendNm" and i["screenLabel"] == "거래처명" for i in bf["inputs"])
+    v = next(p for p in bf["steps"][1]["params"] if p["a"] == "vendCd")
+    assert v["source"] == "PREVIOUS_STEP_OUTPUT"
+
+
+def test_click_묶음인데_대상이_없으면_여전히_잡음이다():
+    s = span(1, None, [net("GET", "/poList.do", "q=1", LIST)], post_aria="PO-2609-0142")
+    bf = analyze.analyze(REC, [s])
+    assert any(e["role"] == "noise" for e in bf["excluded"])

@@ -217,7 +217,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
             full = urlsplit(n["url"]).path.split(";")[0]        # ;jsessionid= 같은 경로 파라미터는 뗀다
             if full == login_path:
                 excluded.append(dict(row, role="auth", why="로그인 요청 (인증 방법으로 따로 보관)"))
-            elif sp["action"]["target"] is None:
+            elif sp["action"]["target"] is None and sp["action"].get("type") != "key":   # 키(Enter) 묶음은 DOM 이 대상을 못 채워도 사람 입력이 낳은 요청이다
                 excluded.append(dict(row, role="noise", why="행동 없이 화면이 스스로 부른 요청"))
             elif n.get("decision") in ("deny", "timeout"):
                 excluded.append(dict(row, role="denied", why="승인하지 않아 보내지 않은 쓰기"))
