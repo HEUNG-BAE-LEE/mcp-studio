@@ -30,7 +30,7 @@ STEP = {"id": "s1", "role": "core", "base": "http://h/po", "origin": "http://h",
 
 @pytest.fixture
 def saved(ieum_state):
-    rec = store.new_recording("거래처 검색", "홍길동", "http://h/po", "", "op", "auto", "")
+    rec = store.new_recording("거래처 검색", "홍길동", "http://h/po", "", "op", "auto")
     rec["id"] = "rec_00000001"
     store.save_recording(rec)
     store.append_span(rec["id"], {"seq": 1})
