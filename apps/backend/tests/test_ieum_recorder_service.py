@@ -384,3 +384,37 @@ def test_모든_단계를_건너뛰면_거부한다(ieum_state):
     _three(ieum_state)
     with pytest.raises(ValueError, match="모든 단계"):
         service.update_function("bf_00000001", {"steps": [{"id": "s1", "skip": True}, {"id": "s2", "skip": True}, {"id": "s3", "skip": True}]})
+
+
+# ── 최종 검토 반영 ─────────────────────────────────────────────────────────
+def test_이름이_겹친_경로_자리_입력은_자기_단계_파라미터만_바꾼다(ieum_state):
+    a = dict(STEP, id="s1", path="/a/{id}", params=[{"a": "id", "loc": "path", "from": "input.id", "ex": "101", "source": "USER_INPUT",
+                                                     "confidence": "low", "type": "number", "required": True}])
+    b = dict(STEP, id="s2", path="/b/{id}", params=[{"a": "id", "loc": "path", "from": "input.id_", "ex": "202", "source": "USER_INPUT",
+                                                     "confidence": "low", "type": "number", "required": True}])
+    bf = _bf([a, b])
+    bf["inputs"] = [{"name": "id", "type": "number", "source": "USER_INPUT", "ex": "101", "screenLabel": "", "confidence": "low", "required": True, "needsValue": False},
+                    {"name": "id_", "type": "number", "source": "USER_INPUT", "ex": "202", "screenLabel": "", "confidence": "low", "required": True, "needsValue": False}]
+    store.save_function(bf)
+    out = service.update_function("bf_00000001", {"inputs": [dict(bf["inputs"][0], source="CONSTANT")]})
+    pa, pb = out["steps"][0]["params"][0], out["steps"][1]["params"][0]
+    assert pa["from"] == "const:101" and pb["from"] == "input.id_" and pb["source"] == "USER_INPUT"
+    out = service.update_function("bf_00000001", {"inputs": [dict(bf["inputs"][1], source="CONSTANT")]})
+    assert out["steps"][1]["params"][0]["from"] == "const:202"
+    out = service.update_function("bf_00000001", {"inputs": [dict(bf["inputs"][0], source="USER_INPUT")]})
+    assert out["steps"][0]["params"][0]["from"] == "input.id" and out["steps"][1]["params"][0]["from"] == "const:202"
+
+
+def test_앞_단계에서_잇는_경로_자리도_도구의_필수_입력이고_게이트웨이가_채운다(ieum_state):
+    from app.ieum.gateway import engine
+    from app.ieum.recorder import analyze
+    from tests.test_ieum_recorder_listlinks import NAVER, REC, _record
+    bf = analyze.analyze(REC, _record(NAVER, "https://n.news.naver.com/mnews/article/052/0002416855", base="https://search.naver.com"))
+    store.save_function(bf)
+    out = service.register_steps(bf["id"])
+    tool = next(t for t in out["tools"] if t["path"] == "/mnews/article/{id}/{id2}")
+    ps = {p["o"]: p for p in tool["params"] if p["loc"] == "path"}
+    assert set(ps) == {"id", "id2"} and all(p.get("req") == 1 for p in ps.values()) and ps["id2"]["ex"] == "0002416855"
+    src = next(s for s in out["sources"] if s["base"] == "https://n.news.naver.com")
+    req = engine.build_request(src, tool, {ps["id"]["a"]: "021", ps["id2"]["a"]: "0000101010"}, {})
+    assert req["url"] == "https://n.news.naver.com/mnews/article/021/0000101010"

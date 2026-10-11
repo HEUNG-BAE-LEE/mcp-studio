@@ -136,6 +136,15 @@ def _validate_inputs(bf: dict, items) -> Dict[str, dict]:
     return by
 
 
+def _input_of(p: dict) -> str:
+    """파라미터가 짝지어진 입력 이름. 출처(input.<이름>)가 기준이다 — 이름이 겹친 경로 자리는 입력이 id_ 처럼 바뀌어 p["a"] 와 다르다.
+    고정값으로 바꾼 뒤에는 남겨 둔 input, 예전 기록은 p["a"]."""
+    src = p.get("from") or ""
+    if src.startswith("input."):
+        return src[6:]
+    return p.get("input") or p["a"]
+
+
 def _validate_steps(bf: dict, items) -> List[dict]:
     if not isinstance(items, list) or not all(isinstance(i, dict) and isinstance(i.get("id"), str) for i in items):
         _bad("steps 는 {id, skip, write} 목록이어야 합니다.")
@@ -252,9 +261,10 @@ def update_function(fid: str, patch: dict) -> dict:
                 inp["confidence"] = "high"
                 for st in bf["steps"]:
                     for p in st["params"]:
-                        if p["a"] == inp["name"] and (p.get("from") or "").startswith(("input.", "const:", "config.")):
+                        if _input_of(p) == inp["name"] and (p.get("from") or "").startswith(("input.", "const:", "config.")):
+                            p["input"] = inp["name"]                 # 고정값으로 바꿔도 어느 입력의 파라미터인지 남긴다
                             p["source"] = inp["source"]
-                            p["from"] = f"input.{p['a']}" if inp["source"] == analyze.USER_INPUT else f"const:{p.get('ex', '')}"
+                            p["from"] = f"input.{inp['name']}" if inp["source"] == analyze.USER_INPUT else f"const:{p.get('ex', '')}"
                 stale = True
         if order is not None:
             flags = {i["id"]: bool(i.get("skip")) for i in order}
@@ -363,15 +373,16 @@ def _tool_from_step(bf: dict, st: dict, taken: set, title: str) -> dict:
     mode = "write" if (st.get("write") or unconfirmed) else "read"
     params = []
     for p in st["params"]:
-        if p.get("source") in (analyze.PREVIOUS_STEP_OUTPUT, analyze.SESSION_CONTEXT):
+        # 앞 단계 출력·세션 값은 도구 하나로는 채울 수 없어 뺀다. 다만 경로 자리는 빼면 {id} 가 그대로 나가므로 출처와 상관없이 필수 입력이다
+        if p.get("source") in (analyze.PREVIOUS_STEP_OUTPUT, analyze.SESSION_CONTEXT) and p.get("loc") != "path":
             continue
         ex = p.get("ex") or ""
         masked = is_masked(ex)                           # 가린 값은 고정값·기본값·예시로 굳히지 않는다
         sch = {"type": {"number": "integer"}.get(p.get("type"), "string")}
         if ex and not masked:
             sch["example"] = ex
-        label = next((i.get("screenLabel") for i in bf["inputs"] if i["name"] == p["a"]), None)
-        required = bool(p.get("required")) or masked
+        label = next((i.get("screenLabel") for i in bf["inputs"] if i["name"] == _input_of(p)), None)
+        required = bool(p.get("required")) or masked or p.get("loc") == "path"
         q = spec._param(p["a"], p["loc"], sch, required, label)
         if p.get("source") in (analyze.CONSTANT, analyze.SYSTEM_CONFIG) and not masked:
             q.update(rule="inject", v=ex)
