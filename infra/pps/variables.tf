@@ -56,6 +56,30 @@ variable "vm_auto_shutdown_time" {
   default     = "2200"
 }
 
+variable "environment" {
+  description = "환경 이름. 태그 · CI/CD 앱 이름에 쓴다. 같은 모듈로 prod 를 올릴 때는 name_prefix · 상태 키와 함께 바꾼다"
+  type        = string
+  default     = "staging"
+}
+
+variable "github_repo" {
+  description = "이 환경으로 자동 배포하는 GitHub 저장소(<owner>/<repo>)"
+  type        = string
+  default     = "HEUNG-BAE-LEE/mcp-studio"
+}
+
+variable "github_oidc_subject_prefix" {
+  description = "GitHub OIDC 토큰 subject 의 저장소 부분. 이 저장소는 ID 고정 형식이다(gh api repos/<repo>/actions/oidc/customization/sub)"
+  type        = string
+  default     = "repo:HEUNG-BAE-LEE@23379622/mcp-studio@1312471061"
+}
+
+variable "deploy_branches" {
+  description = "이 환경으로 자동 배포하는 브랜치. staging 은 dev 머지마다 올라간다"
+  type        = list(string)
+  default     = ["dev"]
+}
+
 variable "extra_tags" {
   type    = map(string)
   default = {}

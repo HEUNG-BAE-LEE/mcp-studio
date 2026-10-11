@@ -14,3 +14,10 @@ output "pg_reader_password" {
   value     = random_password.reader.result
   sensitive = true
 }
+
+output "environment" { value = var.environment }
+output "cicd_client_id" {
+  description = "deploy-aca.yml 의 azure/login client-id (비밀 아님 — 식별자)"
+  value       = module.cicd.client_id
+}
+output "cicd_tenant_id" { value = data.azurerm_client_config.me.tenant_id }
