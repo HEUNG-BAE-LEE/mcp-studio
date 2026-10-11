@@ -11,7 +11,9 @@ const REC_REASON = { needs_value:'값 입력 필요', unresolved_path:'값 경�
   http_error:'HTTP 오류', shape_mismatch:'응답 모양이 다름', error_response:'오류 응답', browser_needed:'브라우저 실행 필요',
   login_failed:'로그인 실패', unexpected_error:'예상하지 못한 오류', skipped:'건너뜀', pipeline_error:'분석·검증 중 오류',
   chain_broken:'앞 단계 값을 이어받지 못함', write_denied:'쓰기 승인을 받지 못함', browser_only:'브라우저에서만 성공' };
-const REC_DECISION = { approve:'승인', deny:'거부', timeout:'시간 초과', login:'로그인 통과', staging:'스테이징', error:'승인 창 오류', 'denied-host':'차단 주소' };
+const REC_DECISION = { approve:'승인', deny:'거부', timeout:'시간 초과', login:'로그인 통과', staging:'스테이징', error:'승인 창 오류', 'denied-host':'차단 주소', beacon:'외부 통계 차단' };
+const REC_ENDED_MS = 10000;                                                   // 끝난 승인 id 를 기억하는 시간(늦게 온 같은 id 의 hold 를 무시)
+const recHoldHead = L => (L.holds || [])[0] || null;                          // 가장 오래된 대기 하나만 보인다
 const REC_SOURCES = [['USER_INPUT','사용자 입력'],['PREVIOUS_STEP_OUTPUT','앞 단계 결과'],['SESSION_CONTEXT','세션 값'],
   ['SYSTEM_CONFIG','설정값'],['DERIVED','계산 값'],['CONSTANT','고정값']];
 const recPill = (map, k) => { const v = map[k] || [k || '-', 'mute']; return `<span class="pill rec-${v[1]}">${esc(v[0])}</span>`; };
@@ -101,8 +103,10 @@ function recTopHTML(L) {
 }
 const recMsgHTML = L => L.msg ? `<div class="rec-msg">${esc(L.msg)}</div>` : '';
 function recOverlayHTML(L) {
-  return (L.hold ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>${svg('lock', 16)} 쓰기 요청 승인</b>
-        <p>"${esc(L.hold.label || '알 수 없는 버튼')}" → <code>${esc(L.hold.method)} ${esc(L.hold.path)}</code></p>
+  const H = recHoldHead(L), more = (L.holds || []).length - 1;
+  return (H ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>${svg('lock', 16)} 쓰기 요청 승인</b>
+        <p>"${esc(H.label || '알 수 없는 버튼')}" → <code>${esc(H.method)} ${esc(H.path)}</code></p>
+        ${more > 0 ? `<p class="mute">대기 ${more}건 더</p>` : ''}
         <p>운영 데이터가 바뀝니다. 2분 안에 답하지 않으면 보내지 않습니다.</p>
         <button class="btn danger-fill" data-act="recApprove" data-ok="1">승인하고 보내기</button> <button class="btn" data-act="recApprove" data-ok="0">보내지 않기</button></div>` : '')
     + (L.dialog ? `<div class="rec-hold" role="dialog" aria-modal="true"><b>대상 사이트의 확인 창</b><p>${esc(L.dialog.message)}</p>
@@ -153,7 +157,9 @@ function recReviewHTML() {
     return `<li>${r.ok === true ? '✅' : r.ok === false ? '❌' : '⏭'} ${r.kind === 'same-values' ? '같은 값' : '다른 값'}
       ${r.reason ? `<small>${esc(recReason(r.reason))}</small>` : ''}${r.note ? `<small>${esc(recReason(r.note))}</small>` : ''}
       ${bad.map(s => `<div class="rec-run-step"><small>${esc(s.id)}: ${esc(recReason(s.reason || 'error_response'))}${s.note ? ` — ${esc(s.note)}` : ''}</small></div>`).join('')}</li>`; }).join('');
-  const aps = ((RECR.rec || {}).approvals || []).map(a => `<li><code>${esc(a.method)} ${esc(a.path)}</code> · ${esc(recDecision(a.decision))}</li>`).join('');
+  const apAll = (RECR.rec || {}).approvals || [], apBeacon = apAll.filter(a => a.decision === 'beacon').length;
+  const aps = apAll.filter(a => a.decision !== 'beacon').map(a => `<li><code>${esc(a.method)} ${esc(a.path)}</code> · ${esc(recDecision(a.decision))}${a.decision === 'deny' && a.label === '기록 종료 중' ? ` (${esc(a.label)})` : ''}</li>`).join('')
+    + (apBeacon ? `<li class="mute">외부 통계 ${apBeacon}종 차단 (횟수가 아니라 주소 종류 수)</li>` : '');
   const sel = (k, opts) => `<select class="inp sm" data-chg="recPol" data-k="${k}" aria-label="${k}"><option value="">선택</option>${opts.map(o => `<option ${f.policy[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
   const regSingle = active.length === 1;
   return `<div class="rec-rv-head"><div><h3>${esc(f.name)}</h3><small>${esc(f.policy.operation)} · 위험 ${esc(f.policy.risk)} · 승인 ${esc(f.policy.approval)} · 실행 ${esc(f.executionMode || '-')}</small></div>
@@ -232,8 +238,11 @@ function recOnMsg(m) {
   if (m.t === 'frame') { const img = new Image(); img.onload = () => { const cv = $('#recCv'); if (cv) cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); }; img.src = 'data:image/jpeg;base64,' + m.data; return; }
   if (L.msg && L.msg.startsWith('연결이 끊겼습니다')) L.msg = '';
   if (m.t === 'span') L.spans.push(m);
-  else if (m.t === 'hold') L.hold = m;
-  else if (m.t === 'hold-end') { if (L.hold && L.hold.id === m.id) L.hold = null; if (m.decision === 'timeout') toast('응답이 없어 쓰기 요청을 보내지 않았습니다.', 'warn'); }
+  else if (m.t === 'hold') {
+    const now = Date.now(); for (const k of Object.keys(L.ended)) if (now - L.ended[k] > REC_ENDED_MS) delete L.ended[k];
+    if (!(m.id in L.ended) && !L.holds.some(h => h.id === m.id)) L.holds.push(m);       // 이미 끝난 id 의 늦은 재전송은 무시
+  }
+  else if (m.t === 'hold-end') { L.holds = L.holds.filter(h => h.id !== m.id); L.ended[m.id] = Date.now(); if (m.decision === 'timeout') toast('응답이 없어 쓰기 요청을 보내지 않았습니다.', 'warn'); }
   else if (m.t === 'blocked') L.blocked.push(m);
   else if (m.t === 'dialog') L.dialog = m;
   else if (m.t === 'tabs') { L.tabs = m.tabs; L.active = m.active; }
@@ -256,13 +265,13 @@ function recPatch() {
   const side = $('#recSide'), keep = side ? side.scrollTop : 0;
   set('#recSide', recSideHTML(L)); if (side) side.scrollTop = keep;
   const ime = $('#recIme');                                   // 승인 창이 닫혔으면 입력 칸으로 돌아온다(조합 중이거나 다른 입력에 있으면 건드리지 않는다)
-  if (ime && !L.hold && !L.dialog && (document.activeElement === document.body || !document.activeElement)) ime.focus();
+  if (ime && !recHoldHead(L) && !L.dialog && (document.activeElement === document.body || !document.activeElement)) ime.focus();
 }
 
 function recBind() {
   const cv = $('#recCv'), ime = $('#recIme'); if (!cv || !ime) return;
   const box = () => cv.getBoundingClientRect();
-  cv.onmousedown = e => { if (RECR.live.hold || RECR.live.dialog) return; const r = box(); recWs.send({ t:'click', x:e.clientX - r.left, y:e.clientY - r.top, w:r.width, h:r.height }); setTimeout(() => ime.focus(), 0); };
+  cv.onmousedown = e => { if (recHoldHead(RECR.live) || RECR.live.dialog) return; const r = box(); recWs.send({ t:'click', x:e.clientX - r.left, y:e.clientY - r.top, w:r.width, h:r.height }); setTimeout(() => ime.focus(), 0); };
   cv.onwheel = e => {                                          // 한 프레임에 받은 휠은 모아서 한 번만 보낸다
     e.preventDefault(); const r = box();
     RECR.wheel += e.deltaY; RECR.wheelQ = { x:e.clientX - r.left, y:e.clientY - r.top, w:r.width, h:r.height };
@@ -272,7 +281,7 @@ function recBind() {
   ime.oncompositionend = e => { if (e.data) recWs.send({ t:'text', data:e.data }); ime.value = ''; };
   ime.oninput = e => { if (!e.isComposing && e.inputType === 'insertText' && e.data) { recWs.send({ t:'text', data:e.data }); ime.value = ''; } };
   ime.onkeydown = e => { if (e.isComposing) return; if (['Enter','Backspace','Tab','Escape','Delete','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(e.key)) { e.preventDefault(); recWs.send({ t:'key', key:e.key }); } };
-  if (!RECR.live.hold && !RECR.live.dialog) ime.focus();
+  if (!recHoldHead(RECR.live) && !RECR.live.dialog) ime.focus();
 }
 
 async function recOpenFn(rid) {
@@ -293,7 +302,7 @@ async function recSaveFn(patch) {
 /* 단계 순서·건너뛰기는 현재 단계 전체를 {id, skip} 으로 보낸다(빠뜨린 단계가 있으면 서버가 400 으로 거절한다) */
 const recStepsBody = list => list.map(s => ({ id:s.id, skip:!!s.skip }));
 
-const recNewLive = (id, name, env, token) => ({ id, name, env, token, status:'recording', spans:[], blocked:[], tabs:[], active:0, hold:null, dialog:null, paused:false, msg:'' });
+const recNewLive = (id, name, env, token) => ({ id, name, env, token, status:'recording', spans:[], blocked:[], tabs:[], active:0, holds:[], ended:{}, dialog:null, paused:false, msg:'' });
 
 Object.assign(INP, {
   recF: el => { RECR.form[el.dataset.k] = el.value; },
@@ -326,9 +335,9 @@ Object.assign(ACT, {
     recOpenFn(r.id); },
   recPause: () => { RECR.live.paused = !RECR.live.paused; recWs.send({ t:'pause', on:RECR.live.paused }); recPatch(); },
   recStop: async () => { try { await api.post(`/recorder/recordings/${RECR.live.id}/stop/`); RECR.live.status = 'analyzing'; RECR.live.msg = '기록을 마쳤습니다. 분석하고 다시 실행해 검증하는 중입니다…'; recPatch(); } catch (e) { recErr(e); } },
-  recApprove: a => { if (!RECR.live.hold) return;
-    if (!recWs.send({ t:'approve', id:RECR.live.hold.id, ok:a.dataset.ok === '1' })) { toast('연결이 끊겨 승인을 보내지 못했습니다. 연결되면 다시 눌러 주세요.', 'warn'); return; }   // 못 보냈으면 창을 닫지 않는다
-    RECR.live.hold = null; recPatch(); },
+  recApprove: a => { const H = recHoldHead(RECR.live); if (!H) return;
+    if (!recWs.send({ t:'approve', id:H.id, ok:a.dataset.ok === '1' })) { toast('연결이 끊겨 승인을 보내지 못했습니다. 연결되면 다시 눌러 주세요.', 'warn'); return; }   // 못 보냈으면 창을 닫지 않는다
+    RECR.live.holds.shift(); RECR.live.ended[H.id] = Date.now(); recPatch(); },
   recDialog: a => {
     if (!recWs.send({ t:'dialog', ok:a.dataset.ok === '1' })) { toast('연결이 끊겨 답을 보내지 못했습니다. 연결되면 다시 눌러 주세요.', 'warn'); return; }
     RECR.live.dialog = null; recPatch(); },
