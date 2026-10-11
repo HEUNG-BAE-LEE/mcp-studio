@@ -229,3 +229,17 @@ def test_기록_보기는_업무_기록_메뉴에서_그_기록을_연다(consol
             page.wait_for_function("S.view === 'rec' && RECR.page === 'review' && RECR.fn && RECR.fn.id === '%s'" % FID)
         finally:
             browser.close()
+
+
+def test_실행_기록의_단계_id_는_이스케이프된다(console_url):
+    from playwright.sync_api import sync_playwright
+    trace = {"steps": [{"id": "<b>x</b>", "originRequest": {"method": "GET", "url": "http://x/a"}, "originResponse": {"status": 500, "body": "e"}, "ok": False, "reason": "<i>r</i>"}]}
+    with sync_playwright() as pw:
+        browser, _ = launch(pw)
+        try:
+            page = browser.new_page()
+            _open_studio(page, console_url, FLOW_TOOL)
+            html = page.evaluate("""trace => { const st = buildRealTrace('news_t', 'mcp', {ok:false, error:'x', trace}, false); return traceHTML(st, st.length, true, false); }""", trace)
+        finally:
+            browser.close()
+    assert "<b>x</b>" not in html and "&lt;b&gt;x&lt;/b&gt;" in html and "<i>r</i>" not in html

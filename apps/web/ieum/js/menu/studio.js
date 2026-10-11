@@ -76,7 +76,7 @@ function flowVerifiedText(f) {
   return `검증됨(${d.getMonth() + 1}월 ${d.getDate()}일)`;
 }
 function recNoticeHTML(t) {
-  const btns = `<button class="btn sm" data-act="recOpenFn" data-id="${esc(t.rec.recording)}">기록 보기</button><button class="btn sm primary" data-act="reviewDone">검토 완료</button>`;
+  const btns = `${t.rec.recording ? `<button class="btn sm" data-act="recOpenFn" data-id="${esc(t.rec.recording)}">기록 보기</button>` : ''}<button class="btn sm primary" data-act="reviewDone">검토 완료</button>`;
   if (t.kind === 'flow') return `<div class="notice td-notice">${svg('info', 18)}<div class="nt"><b>업무 기록으로 만든 도구입니다</b> · ${esc(flowVerifiedText(t.flow))} · 단계 ${t.flow.steps.length}개</div>${btns}</div>`;
   const need = (t.params || []).filter(p => p.loc === 'path' && !p.ex && !p.example).map(p => p.a);
   return `<div class="notice td-notice">${svg('info', 18)}<div class="nt"><b>업무 기록의 한 단계로 만든 도구입니다.</b>${need.length ? ` 앞 단계 값이 필요한 입력: ${esc(need.join(', '))}` : ''}</div>${btns}</div>`;
@@ -85,7 +85,7 @@ function noticeHTML(t) {
   if (t.status === 'drift') { const r = t.res.find(x => x.drift && !x.fixed);
     if (!r) return `<div class="notice warn td-notice">${svg('alert', 18)}<div class="nt"><b>원본 명세가 바뀌었습니다.</b> ${esc(t.driftMsg || '')}</div><button class="btn sm" data-act="include">확인했고 계속 공개</button></div>`;
     return `<div class="notice warn td-notice">${svg('alert', 18)}<div class="nt"><b>원본 명세가 바뀌었습니다.</b> 응답 필드 <span class="inline-code">${r.o}</span> → <span class="inline-code">${r.newO}</span>. 이 때문에 지금은 <span class="inline-code">${r.a}</span> 값이 비어서 전달됩니다. 오늘 새벽 명세를 다시 읽으면서 감지했습니다.</div><button class="btn sm primary" data-act="fixDrift">새 필드로 매핑</button></div>`; }
-  if (t.status === 'review' && t.mode === 'write') return `<div class="notice warn td-notice">${svg('shield', 18)}<div class="nt"><b>데이터를 만들거나 바꾸는 쓰기 작업입니다.</b> 실행 방식이 사용자 확인 후 실행인지, 설명이 AI가 오해하지 않게 쓰였는지 확인한 뒤 검토를 마쳐 주세요.</div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`;
+  if (t.status === 'review' && t.mode === 'write') return `<div class="notice warn td-notice">${svg('shield', 18)}<div class="nt"><b>데이터를 만들거나 바꾸는 쓰기 작업입니다.</b> 실행 방식이 사용자 확인 후 실행인지, 설명이 AI가 오해하지 않게 쓰였는지 확인한 뒤 검토를 마쳐 주세요. ${t.rec && t.rec.recording ? `<button class="link" data-act="recOpenFn" data-id="${esc(t.rec.recording)}">기록 보기</button>` : ''}</div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`;
   if (t.status === 'review' && t.disc) { const ev = t.disc.ev, v = dVerify({ verify:t.disc.verify });
     return `<div class="notice ${ev === 'both' ? '' : 'warn'} td-notice">${svg('search', 18)}<div class="nt"><b>자동 탐색으로 찾은 API입니다.</b> 근거는 ${ev === 'both' ? '소스와 운영 트래픽 모두' : ev === 'src' ? 'Git 소스뿐' : '운영 트래픽뿐'}이고, 검증 결과는 ${v[0]}입니다.${ev === 'tr' ? ' 소스가 없어 타입은 관찰한 값으로 추정했습니다.' : ''}${t.disc.recNote ? ` ${esc(t.disc.recNote)}` : ''} <button class="link" data-act="discEv" data-job="${t.disc.job}" data-id="${t.disc.id}">탐색 근거 보기</button></div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`; }
   if (t.status === 'review' && t.rec) return recNoticeHTML(t);

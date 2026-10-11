@@ -177,10 +177,10 @@ function buildRealTrace(toolId, model, out, hold) {
   }
   if (Array.isArray(tr.steps) && tr.steps.length) {
     tr.steps.forEach(st => {
-      if (st.originRequest) steps.push({ k:'ieum', title:`단계 ${st.id} 요청`, who:t ? PDESC[SRC[t.src].proto] : '', ms:'', body:code(httpReq(st.originRequest), 'http') });
-      if (st.originResponse) steps.push({ k:'src', title:`단계 ${st.id} 응답${st.ok === false ? ' (실패)' : ''}`, who:t ? SRC[t.src].name : '', ms:`${st.sourceMs ?? 0}ms`,
+      if (st.originRequest) steps.push({ k:'ieum', title:`단계 ${esc(st.id)} 요청`, who:t ? PDESC[SRC[t.src].proto] : '', ms:'', body:code(httpReq(st.originRequest), 'http') });
+      if (st.originResponse) steps.push({ k:'src', title:`단계 ${esc(st.id)} 응답${st.ok === false ? ' (실패)' : ''}`, who:t ? SRC[t.src].name : '', ms:`${st.sourceMs ?? 0}ms`,
         body:code(httpResp(st.originResponse), 'http') + (st.ok === false && st.reason ? `<p class="pv-note">${esc(st.reason)}</p>` : '') });
-      else if (st.ok === false) steps.push({ k:'src', title:`단계 ${st.id} 실패`, who:'', ms:'', body:`<p class="pv-note">${esc(st.reason || '')}</p>` });
+      else if (st.ok === false) steps.push({ k:'src', title:`단계 ${esc(st.id)} 실패`, who:'', ms:'', body:`<p class="pv-note">${esc(st.reason || '')}</p>` });
     });
   } else if (tr.originRequest) steps.push({ k:'ieum', title:'이음이 원본 요청으로 바꿨습니다', who:t ? PDESC[SRC[t.src].proto] : '', ms:`${tr.convertMs ?? 0}ms`,
     body:`<div class="rules">${ruleChips(tr.rulesReq)}<span class="rl ij" title="원본 시스템 인증 정보를 이음 보관소에서 꺼내 넣습니다">인증 정보 주입</span></div>${code(httpReq(tr.originRequest), 'http')}` });
