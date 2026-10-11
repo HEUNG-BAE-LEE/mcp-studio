@@ -32,7 +32,7 @@ from app.ieum.recorder.analyze import get_path, leaves
 TIMEOUT = 15
 UA = "Mozilla/5.0 (compatible; IeumRecorder/1.0)"
 _ERR_KEY = re.compile(r"^(rslt|result_?code|code|status)$", re.I)
-_ERR_TEXT = ("권한이 없습니다", "오류가 발생", "처리 중 오류")
+_ERR_TEXT = htmltable.ERR_TEXT
 
 
 def encode(pairs: Dict[str, str], charset: Optional[str]) -> str:
@@ -48,27 +48,32 @@ def _keys(d) -> set:
     return {re.sub(r"\[\d+\]", "[]", p) for p, _ in leaves(d, 200)}
 
 
-_HTML_HINT = re.compile(r"<\s*(html|body|head|div|p|table|script)\b", re.I)
-_HIDDEN_BLOCK = re.compile(r"<(script|style|noscript|template)\b.*?</\1\s*>|<!--.*?-->", re.I | re.S)
+_HTML_HINT = htmltable.HTML_HINT
+_visible_text = htmltable.visible_text
+_TITLE = re.compile(r"<title\b[^>]*>(.*?)</title\s*>", re.I | re.S)
+ERR_PAGE_TEXT = 5000            # 화면 글자가 이보다 짧아야 오류 화면으로 본다(긴 정상 화면의 오류 코드표·안내를 오류로 보지 않게)
 
 
-def _visible_text(text: str) -> str:
-    """HTML 이면 스크립트·스타일·주석을 빼고 화면에 보이는 글자만 남긴다. HTML 이 아니면 그대로 둔다."""
-    text = text or ""
-    if not _HTML_HINT.search(text):
-        return text
-    return re.sub(r"<[^>]+>", " ", _HIDDEN_BLOCK.sub(" ", text))
-
-
-def _looks_error(data, text: str, recorded: str = "") -> bool:
+def _looks_error(data, text: str, recorded: str = "", seen_before=None) -> bool:
     if isinstance(data, dict):
         for k, v in data.items():
             if _ERR_KEY.match(str(k)) and isinstance(v, str) and (v.upper().startswith("E") or v.upper() in ("FAIL", "ERROR")):
                 return True
     # 오류 문구는 화면에 보이는 글자에서만 찾는다(정상 화면의 스크립트에 alert('오류가 발생했습니다') 가 흔하다).
-    # 기록 때 정상 응답에도 보이던 문구(바닥글 안내 등)는 오류 표시로 보지 않는다.
-    seen, before = _visible_text(text), _visible_text(recorded)
-    return any(t in seen and t not in before for t in _ERR_TEXT)
+    # 기록 때 정상 응답에도 보이던 문구는 오류 표시로 보지 않는다: 기록 때 전체 화면에서 찾은 목록(seen_before)이 있으면 그것,
+    # 없으면(예전 기록) 저장된 앞부분 본문(recorded)과 비교한다.
+    text = text or ""
+    seen = _visible_text(text)
+    ignore = set(seen_before or ()) | {t for t in _ERR_TEXT if t in _visible_text(recorded)}
+    hits = [t for t in _ERR_TEXT if t in seen and t not in ignore]
+    if not hits:
+        return False
+    if not _HTML_HINT.search(text):
+        return True
+    # HTML 은 오류 화면처럼 보일 때만: 보이는 글자가 짧거나 제목에 문구가 있다
+    m = _TITLE.search(text)
+    title = m.group(1) if m else ""
+    return len(" ".join(seen.split())) < ERR_PAGE_TEXT or any(t in title for t in hits)
 
 
 def judge(status: int, location: Optional[str], ctype: str, text: str, step: dict, headers_sent: dict) -> Tuple[bool, str, Any]:
@@ -82,13 +87,13 @@ def judge(status: int, location: Optional[str], ctype: str, text: str, step: dic
     if step.get("kind") == "html":
         data = htmltable.to_data(text or "")
         before = htmltable.shape(step.get("recordedData") or {})
-        if _looks_error(None, text, step.get("recordedRes") or ""):
+        if _looks_error(None, text, step.get("recordedRes") or "", step.get("recordedErrSeen")):
             return False, "error_response", data
         if before and (data is None or len(before & htmltable.shape(data)) / len(before) < 0.6):
             return False, "shape_mismatch", data
         return True, "", data
     data, before = infer.parse_json(text or ""), infer.parse_json(step.get("recordedRes") or "")
-    if _looks_error(data, text, step.get("recordedRes") or ""):
+    if _looks_error(data, text, step.get("recordedRes") or "", step.get("recordedErrSeen")):
         return False, "error_response", data
     if before is not None:
         kb = _keys(before)

@@ -431,7 +431,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         st = {"id": f"t{len(steps) + 1}", "role": "prereq" if cand else "core", "base": n["base"], "origin": n["origin"], "method": n["method"], "path": path,
               "discriminator": disc, "kind": _kind(n), "charset": n.get("charset"), "exec": "http", "formPage": None, "write": write, "writeWhy": write_why,
               "headers": {}, "outputs": {}, "params": [],
-              "recordedRes": n.get("res") or "", "recordedData": copy.deepcopy(htmltable.without_links(n.get("data"))), "recordedStatus": n["status"],
+              "recordedRes": n.get("res") or "", "recordedErrSeen": n.get("errSeen"), "recordedData": copy.deepcopy(htmltable.without_links(n.get("data"))), "recordedStatus": n["status"],
               "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""), "label": ((sp["action"]["target"] or {}).get("text", "") or "")[:60],
               "_title": (sp.get("pre") or {}).get("title", "")}
         for hk, hv in (n.get("headers") or {}).items():

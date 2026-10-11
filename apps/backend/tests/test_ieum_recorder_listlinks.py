@@ -448,3 +448,29 @@ def test_전체_후보_상한():
     html = "".join(f'<ul class="u{chr(97 + i % 26)}{chr(97 + i // 26 % 26)}"><li><a href="/v/{i}">a</a></li><li><a href="/w/{i}">b</a></li></ul>'
                    for i in range(3000))
     assert len(htmltable.links_of(htmltable.to_data(html))) == htmltable.MAX_LINKS
+
+
+# ── 수정 3차: 행 찾기 성능 ──
+MIXED = ('<ul class="gnb"><li><a href="/m/1">메뉴1</a></li><li><a href="/m/2">메뉴2</a></li><li>빈칸</li></ul>'
+         '<div class="list"><div class="item"><p class="t"><a href="/d/101/v.do">가</a></p><p class="d">설명</p></div>'
+         '<div class="item"><p class="t"><a href="/d/102/v.do">나</a><a href="/d/102/v.do">나2</a></p></div>'
+         '<div class="item other"><a href="javascript:;" onclick="go(\'103\')">다</a></div><div class="item">링크 없음</div></div>'
+         '<table><tr><th>A</th><th>B</th></tr><tr><td><a href="/t/1">1</a></td><td>x</td></tr><tr><td><a href="/t/2">2</a></td><td>y</td></tr></table>'
+         '<span data-id="Z-9">z</span><a href="/solo/1">혼자</a>')
+
+
+def test_행_찾기를_줄여도_출력은_그대로다():
+    d = htmltable.to_data(MIXED)
+    assert {"links": d["links"], "linkRows": d["linkRows"]} == {
+        "links": [{"v": "/m/1", "r": 0}, {"v": "/m/2", "r": 1}, {"v": "/d/101/v.do", "r": 2}, {"v": "/d/102/v.do", "r": 3}, {"v": "103"},
+                  {"v": "/t/1", "r": 4}, {"v": "/t/2", "r": 5}, {"v": "Z-9"}, {"v": "/solo/1"}],
+        "linkRows": [{"t": "메뉴1", "g": "ul.gnb>li"}, {"t": "메뉴2", "g": "ul.gnb>li"}, {"t": "가 설명", "g": "div.list>div.item"},
+                     {"t": "나 나2", "g": "div.list>div.item"}, {"t": "1 x", "g": "table>tr"}, {"t": "2 y", "g": "table>tr"}]}
+
+
+def test_형제_카드_8000개도_빨리_끝난다():
+    import time
+    page = "".join(f'<div class="item"><a href="/data/{i}/f.do">카드 {i} {"가" * 80}</a></div>' for i in range(8000))
+    t = time.monotonic()
+    d = htmltable.to_data(page)
+    assert time.monotonic() - t < 1.5 and len(d["links"]) == htmltable.MAX_LINKS_PER_GROUP

@@ -50,8 +50,11 @@ _SELF_CLOSE = {"li": ({"li"}, {"ul", "ol"}), "option": ({"option"}, {"select", "
 _SKIP_TEXT = {"script", "style", "noscript", "template"}
 
 
+_UNSET = object()
+
+
 class _Node:
-    __slots__ = ("tag", "cls", "parent", "kids", "text", "has", "_txt")
+    __slots__ = ("tag", "cls", "parent", "kids", "text", "has", "_txt", "_cnt", "_row")
 
     def __init__(self, tag: str, cls: str, parent: Optional["_Node"]) -> None:
         self.tag, self.cls, self.parent = tag, cls, parent
@@ -59,6 +62,8 @@ class _Node:
         self.text: List[object] = []          # 글자 조각과 자식 노드를 문서 순서로
         self.has = False                      # 자기나 자손에 주소 후보가 있는가
         self._txt: Optional[str] = None
+        self._cnt: Optional[Dict[Tuple[str, str], int]] = None   # 자식 (태그, 클래스) → 후보를 가진 자식 수. 한 번만 센다
+        self._row: object = _UNSET                                # _row_of 결과 기억
 
     def all_text(self) -> str:
         if self._txt is None:
@@ -82,14 +87,31 @@ def _sig(n: "_Node") -> str:
 
 def _row_of(node: "_Node") -> Optional["_Node"]:
     """주소 후보를 가진 요소에서 위로 올라가며, 같은 태그·클래스의 형제 중 후보를 가진 것이 2개 이상인 첫 조상(행)."""
+    # 부모마다 (태그, 클래스)별 개수를 한 번만 세고, 노드마다 결과를 기억한다 — 형제 수천 개인 화면에서 링크마다 형제를
+    # 다시 세면 제곱으로 느려진다(카드 8000개 1MB 화면 10초). 파싱이 끝난 뒤에만 부르므로 has 는 바뀌지 않는다.
+    path: List[_Node] = []
     n = node
+    found: Optional[_Node] = None
     while n is not None and n.parent is not None:
+        if n._row is not _UNSET:
+            found = n._row                                         # type: ignore[assignment]
+            break
+        path.append(n)
         if n.tag not in _INLINE:
-            same = sum(1 for k in n.parent.kids if k.tag == n.tag and k.cls == n.cls and k.has)
-            if same >= 2:
-                return n
+            par = n.parent
+            if par._cnt is None:
+                cnt: Dict[Tuple[str, str], int] = {}
+                for k in par.kids:
+                    if k.has:
+                        cnt[(k.tag, k.cls)] = cnt.get((k.tag, k.cls), 0) + 1
+                par._cnt = cnt
+            if par._cnt.get((n.tag, n.cls), 0) >= 2:
+                found = n
+                break
         n = n.parent
-    return None
+    for x in path:
+        x._row = found
+    return found
 
 
 _TOKEN_ATTR = re.compile(r"csrf|xsrf|token|nonce|viewstate|session|secret|auth|key|sig", re.I)
@@ -104,6 +126,25 @@ def _secret_attr(name: str) -> bool:
 def _usable(v: str) -> bool:
     v = v.strip()
     return bool(v) and len(v) <= MAX_LINK_LEN and not v.startswith(("#", "javascript:", "mailto:", "tel:"))
+
+
+ERR_TEXT = ("권한이 없습니다", "오류가 발생", "처리 중 오류")     # 재실행이 오류 화면으로 볼 문구
+HTML_HINT = re.compile(r"<\s*(html|body|head|div|p|table|script)\b", re.I)
+_HIDDEN_BLOCK = re.compile(r"<(script|style|noscript|template)\b.*?</\1\s*>|<!--.*?-->", re.I | re.S)
+
+
+def visible_text(text: str) -> str:
+    """HTML 이면 스크립트·스타일·주석을 빼고 화면에 보이는 글자만 남긴다. HTML 이 아니면 그대로 둔다."""
+    text = text or ""
+    if not HTML_HINT.search(text):
+        return text
+    return re.sub(r"<[^>]+>", " ", _HIDDEN_BLOCK.sub(" ", text))
+
+
+def error_phrases(html: str) -> List[str]:
+    """화면에 보이는 글자에 든 오류 문구들. 기록 때 정상 화면에 이미 있던 문구를 재실행이 오류로 보지 않게 남긴다(원문은 남기지 않는다)."""
+    seen = visible_text(html)
+    return [t for t in ERR_TEXT if t in seen]
 
 
 def looks_html(ctype: str, body: str) -> bool:

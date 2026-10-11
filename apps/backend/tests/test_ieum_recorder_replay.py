@@ -520,3 +520,55 @@ def _varied_calls(monkeypatch, write):
 def test_쓰기_단계만_같은_값으로만_재실행하고_조회로_분류된_POST_는_다른_값도_실행한다(monkeypatch):
     assert _varied_calls(monkeypatch, True) == ["same-values"]
     assert _varied_calls(monkeypatch, False) == ["same-values", "varied-values"]
+
+
+# 수정 3차: 긴 정상 화면 속 오류 안내 문구
+ERR_TABLE = ("<table><tr><th>코드</th><th>설명</th></tr>" + "".join(f"<tr><td>E{i:03d}</td><td>항목 {i} 설명 글자 {'가' * 40}</td></tr>" for i in range(120))
+             + "<tr><td>E999</td><td>GW 내부 처리 중 오류가 발생했습니다</td></tr></table>")
+
+
+def _long_page(extra=""):
+    return f"<html><head><title>상세 정보</title></head><body><h1>데이터 상세</h1>{extra}{ERR_TABLE}</body></html>"
+
+
+def test_긴_정상_화면_속_오류_코드표는_오류_응답이_아니다():
+    page = _long_page()
+    step = {"kind": "other", "recordedRes": page[:4000], "recordedData": None}
+    assert replay.judge(200, None, "text/html", page, step, {})[1] != "error_response"
+
+
+def test_짧은_오류_화면은_오류_응답이다():
+    page = "<html><head><title>안내</title></head><body><p>처리 중 오류가 발생했습니다.</p></body></html>"
+    step = {"kind": "other", "recordedRes": "<html><body><h1>목록</h1></body></html>", "recordedData": None}
+    assert replay.judge(200, None, "text/html", page, step, {})[1] == "error_response"
+
+
+def test_기록_때_화면에_있던_문구는_errSeen_으로_무시한다():
+    page = "<html><body><p>처리 중 오류가 발생하면 고객센터로 문의하세요</p></body></html>"
+    step = {"kind": "other", "recordedRes": "<html><body>앞부분만</body></html>", "recordedData": None, "recordedErrSeen": ["오류가 발생", "처리 중 오류"]}
+    assert replay.judge(200, None, "text/html", page, step, {})[1] != "error_response"
+
+
+def test_제목에_오류_문구가_있으면_긴_화면이라도_오류_응답이다():
+    page = _long_page().replace("<title>상세 정보</title>", "<title>처리 중 오류</title>")
+    step = {"kind": "other", "recordedRes": "<html><body>x</body></html>", "recordedData": None}
+    assert replay.judge(200, None, "text/html", page, step, {})[1] == "error_response"
+
+
+def test_기록_때_전체_화면의_오류_문구를_errSeen_으로_남긴다():
+    from tests.test_ieum_recorder_trace import _bare_trace
+    page = _long_page("<div>" + "나" * 50_000 + "</div>")
+
+    class Req:
+        resource_type, method, headers, post_data = "document", "GET", {}, None
+
+    class Resp:
+        url, status, headers, request = "http://rec.test/po/detail.do", 200, {"content-type": "text/html; charset=utf-8"}, Req()
+
+        async def text(self):
+            return page
+
+    tr = _bare_trace()
+    tr.current = {"network": []}
+    asyncio.new_event_loop().run_until_complete(tr.on_response(Resp()))
+    assert tr.current["network"][0]["errSeen"] == ["오류가 발생", "처리 중 오류"]   # 40KB 뒤 코드표의 문구까지
