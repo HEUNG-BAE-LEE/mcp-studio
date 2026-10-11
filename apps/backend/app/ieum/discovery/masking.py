@@ -18,7 +18,7 @@ _PATTERNS = (
 
 # 값을 통째로 가리는 이름. 비밀번호와 세션은 개수 세기와 상관없이 절대 저장하지 않는다.
 # userPw, user_pw, passwd, accessToken 처럼 줄임말과 대소문자가 섞여 오므로 낱말로 쪼개 본다.
-_SECRET_WORDS = frozenset("pw pwd pass passwd password secret token authorization cookie jsessionid sessionid apikey pin otp".split())
+_SECRET_WORDS = frozenset("pw pwd pass passwd password secret token authorization cookie jsessionid sessionid apikey".split())
 _SECRET_PAIRS = ("apikey", "sessionid", "accesskey", "secretkey")
 _WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
 HIDDEN = "••••••••"

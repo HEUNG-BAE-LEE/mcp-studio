@@ -35,6 +35,10 @@ SECRETS_PAGE = """<title>비밀</title><input id="a" type="password" aria-label=
 <input id="n" type="text" aria-label="이름"><div id="host"></div>
 <script>const r = document.getElementById('host').attachShadow({mode: 'open'});
 r.innerHTML = '<input id="sh" type="password" aria-label="섀도암호">';</script>"""
+TABLEPW_PAGE = """<title>표</title><table><tr><th><label for="u">아이디</label></th><td><input id="u" type="text"></td></tr>
+<tr><th><label for="pw">비밀번호</label></th><td><input id="pw" type="password"></td></tr>
+<tr><th>인증</th><td><input id="lab" type="text" aria-label="인증번호 입력"></td></tr></table>
+<div role="row" id="rr"><div role="cell"><input id="rc" type="password" aria-label="셀암호"></div></div><input id="n" aria-label="이름">"""
 RES = '{"resultList":[{"PO_NO":"PO-2609-0142","TEL":"010-4821-5678"}]}'
 SSR = ('<table><tr><th>거래처코드</th><th>거래처명</th></tr><tr><td><a href="vendDetail.do?vendCd=V0012">V0012</a></td>'
        '<td>한빛상사</td></tr></table>')
@@ -72,6 +76,8 @@ def _record(ieum_state, steps, start="list.html"):
                 elif "/po/slowList.do" in u:
                     await asyncio.sleep(0.3)
                     await route.fulfill(status=200, content_type="application/json", body='{"ok":1}')
+                elif "/po/tablepw.html" in u:
+                    await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=TABLEPW_PAGE)
                 elif "/po/secrets.html" in u:
                     await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=SECRETS_PAGE)
                 elif "/po/enter.html" in u:
@@ -411,3 +417,74 @@ def test_입력_줄_가리기는_따옴표_값과_짧은_값도_다룬다():
     out = mask_input_lines(text, [{"names": ["암호"], "value": "1234"}, {"names": [], "value": "  ab "}])
     assert "1234" not in out and ": ab" not in out and "홍길동" in out and '- button "확인"' in out
     assert "홍길동" not in mask_input_lines(text, None) and '- button "확인"' in mask_input_lines(text, None)
+
+
+def _demo_login_html():
+    from app.ieum.demo_legacy.pages import login_page
+    return login_page("op")
+
+
+def test_표_행과_칸_이름에_실린_비밀번호도_가린다(ieum_state):
+    vals = [("#u", "kim"), ("#pw", "ab12"), ("#lab", "993311"), ("#rc", "zz")]
+    async def steps(page, cdp, tr):
+        for sel, v in vals:
+            await page.fill(sel, v)
+        await tr.begin(page, "click")
+        await page.click("#n")
+        await page.wait_for_timeout(300)
+    rec, sent, tr = _record(ieum_state, steps, "tablepw.html")
+    spans = store.read_spans(rec["id"])
+    aria = " ".join(s["pre"]["aria"] + s["post"]["aria"] for s in spans)
+    blob = _all_saved(rec, tr)
+    assert "ab12" not in blob and "993311" not in blob and '"zz' not in aria and "zz\"" not in aria and ": zz" not in aria
+    assert "kim" in aria                                               # 비밀이 아닌 값은 남는다
+
+
+def test_시연_로그인_화면에서_비밀번호가_화면_구조_어디에도_남지_않는다(ieum_state):
+    html = _demo_login_html()
+    async def steps(page, cdp, tr):
+        await page.set_content(html)
+        await page.fill("#userPw", "Demo!2026")
+        await tr.begin(page, "click")
+        await page.click("#userId")
+        await page.wait_for_timeout(300)
+    rec, sent, tr = _record(ieum_state, steps)
+    assert "Demo!2026" not in _all_saved(rec, tr)
+
+
+def test_판정을_못_하면_행과_칸_이름도_가린다(ieum_state, monkeypatch):
+    from playwright.async_api import Frame
+    orig = Frame.evaluate
+
+    async def evaluate(self, expr, *a, **k):
+        if "secretName" in expr:
+            raise RuntimeError("실패")
+        return await orig(self, expr, *a, **k)
+    monkeypatch.setattr(Frame, "evaluate", evaluate)
+    async def steps(page, cdp, tr):
+        await page.fill("#pw", "ab12")
+        await tr.begin(page, "click")
+        await page.click("#n")
+        await page.wait_for_timeout(300)
+    rec, sent, tr = _record(ieum_state, steps, "tablepw.html")
+    assert "ab12" not in _all_saved(rec, tr)
+
+
+def test_pin_otp는_레코더_안에서만_좁게_비밀로_본다():
+    from app.ieum.discovery.masking import is_secret_key
+    from app.ieum.recorder.trace import recorder_secret_name
+    for n in ("pin", "pinNo", "otpCode", "userPin"):
+        assert recorder_secret_name(n), n
+    for n in ("otpYn", "pinYn", "mapPin", "vendNm"):
+        assert not recorder_secret_name(n), n
+    assert not is_secret_key("pin") and not is_secret_key("otpCode")      # 공용 규칙은 그대로다
+
+
+def test_접근_이름에_비밀_낱말이_있으면_이름이_무엇이든_비밀이다(ieum_state):
+    async def steps(page, cdp, tr):
+        await page.fill("#lab", "55667788")
+        await tr.begin(page, "click")
+        await page.click("#n")
+        await page.wait_for_timeout(300)
+    rec, sent, tr = _record(ieum_state, steps, "tablepw.html")
+    assert "55667788" not in _all_saved(rec, tr)

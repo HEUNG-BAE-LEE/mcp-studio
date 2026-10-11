@@ -21,7 +21,7 @@ from typing import Awaitable, Callable, Dict, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from app.ieum.discovery import capture
-from app.ieum.discovery.masking import _SECRET_PAIRS, _SECRET_WORDS, HIDDEN, Masker, is_secret_key
+from app.ieum.discovery.masking import _SECRET_PAIRS, _SECRET_WORDS, _WORD, HIDDEN, Masker, is_secret_key
 from app.ieum.discovery.policy import Policy, is_asset
 from app.ieum.recorder import htmltable, store
 from app.ieum.recorder.guard import Guard, mask_url
@@ -69,10 +69,23 @@ INIT_JS = """
       const o = { type: 'key', key: 'Enter', isTrusted: e.isTrusted, el: Object.assign(desc(t), { label: label(t) }), page: location.pathname };
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') && t.type !== 'password' && t.type !== 'file') o.value = (t.value + '').slice(0, 200);
       send(o); }, true);
-  document.addEventListener('change', (e) => { const t = e.target; if (!t || t.type === 'password') return;
+  document.addEventListener('change', (e) => { const t = e.target; if (!t || t.type === 'password' || t.type === 'file') return;
       send({ type: 'change', isTrusted: e.isTrusted, el: Object.assign(desc(t), { label: label(t) }), value: (t.value + '').slice(0, 200), page: location.pathname }); }, true);
 })();
 """
+
+# 레코더 안에서만 pin·otp 를 비밀 낱말로 본다(공용 목록에 넣으면 otpYn·mapPin 같은 이름까지 탐색·본문·예시에서 가려진다)
+_PIN_WORDS = ("pin", "otp")
+_PIN_NOT = ("yn", "use", "flag", "type", "order", "lat", "lng", "top", "map", "send", "cnt", "count")
+_LABEL_SECRET = ("비밀번호", "암호", "패스워드", "password", "passwd", "pin", "otp", "인증번호", "보안코드")
+
+
+def recorder_secret_name(name: str) -> bool:
+    if is_secret_key(name or ""):
+        return True
+    ws = [w.lower() for w in _WORD.findall(str(name or ""))]
+    return any(w in _PIN_WORDS for w in ws) and not any(w in _PIN_NOT for w in ws)
+
 
 # ARIA 스냅샷은 입력칸의 현재 값을 그대로 싣는다. 비밀 입력칸(비밀번호·비밀 이름·일회용 코드)의 접근 가능한 이름과 값을 모아(열린 shadow root 포함)
 # 스냅샷의 입력 줄에서 지운다. 비밀 이름 규칙은 서버의 is_secret_key 와 같은 낱말 목록을 인자로 받는다
@@ -80,7 +93,9 @@ _SECRET_JS = """(cfg) => {
   const words = new Set(cfg.words), pairs = cfg.pairs, out = [];
   const secretName = (n) => { const ws = ((n || '') + '').match(/[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\\d+/g) || [];
       const lw = ws.map(w => w.toLowerCase()); if (lw.some(w => words.has(w))) return true;
-      const c = lw.join(''); return pairs.some(p => c.includes(p)); };
+      const c = lw.join(''); if (pairs.some(p => c.includes(p))) return true;
+      return lw.some(w => cfg.pin.includes(w)) && !lw.some(w => cfg.not.includes(w)); };
+  const secretLabel = (ns) => ns.some(n => cfg.labels.some(k => n.toLowerCase().includes(k)));
   const names = (el, root) => { const r = []; const add = (t) => { t = ((t || '') + '').trim(); if (t) r.push(t); };
       add(el.getAttribute('aria-label'));
       const lb = el.getAttribute('aria-labelledby'); if (lb) lb.split(/\\s+/).forEach(id => { const e = root.getElementById ? root.getElementById(id) : null; if (e) add(e.innerText || e.textContent); });
@@ -89,8 +104,9 @@ _SECRET_JS = """(cfg) => {
   const walk = (root) => {
     root.querySelectorAll('input,textarea,select').forEach(el => {
       const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
-      const secret = el.type === 'password' || secretName(el.name) || secretName(el.id) || /current-password|new-password|one-time-code/.test(ac);
-      if (secret) out.push({ names: names(el, root), value: (el.value || '') + '' });
+      const nm = names(el, root);
+      const secret = el.type === 'password' || secretName(el.name) || secretName(el.id) || secretLabel(nm) || /current-password|new-password|one-time-code/.test(ac);
+      if (secret) out.push({ names: nm, value: (el.value || '') + '' });
     });
     root.querySelectorAll('*').forEach(el => { if (el.shadowRoot) walk(el.shadowRoot); });
   };
@@ -111,17 +127,36 @@ def _yaml_text(v: str) -> str:
     return v
 
 
+_CELL_LINE = re.compile(r'^(\s*- (?:row|cell|gridcell|columnheader|rowheader))( "(?:[^"\\]|\\.)*")(.*)$')
+
+
 def mask_input_lines(text: str, secrets: Optional[list]) -> str:
-    """ARIA 의 입력 줄(textbox 등)에서 값 부분을 가린다. secrets 가 None 이면 모든 입력 줄을, 아니면 비밀 입력칸의 이름이나 값과 맞는 줄만 가린다."""
+    """ARIA 에서 비밀 입력칸의 값을 지운다.
+    - 입력 줄(textbox 등): 이름이나 값이 비밀 입력칸과 맞으면 값 부분 전체를 가린다.
+    - 표의 행·칸 줄: 입력칸의 현재 값이 접근 가능한 이름에 실리므로(`row "비밀번호 값"`) 그 안의 비밀 값을 가린다.
+    - 3글자 이상 값은 어디에 있든 가린다. 더 짧은 값은 입력 줄과 행·칸 이름 안에서만 가린다(아무 데나 바꾸면 화면이 무너진다).
+    secrets 가 None(판정 실패)이면 모든 입력 줄의 값과 모든 행·칸 이름을 가린다."""
     names = {n.strip() for s in secrets or [] for n in s.get("names", []) if n and n.strip()}
-    vals = {str(s.get("value") or "").strip() for s in secrets or []} - {""}
+    vals = sorted({str(s.get("value") or "").strip() for s in secrets or []} - {""}, key=len, reverse=True)
     out = []
     for line in text.split("\n"):
         m = _INPUT_LINE.match(line)
+        c = _CELL_LINE.match(line)
         if m and m.group(4) is not None and m.group(4).strip():
             name = _yaml_text(m.group(2)) if m.group(2) else ""
             if secrets is None or (name.strip() and name.strip() in names) or _yaml_text(m.group(4)) in vals:
                 line = f"{m.group(1)}{m.group(2)}{m.group(3)}: {HIDDEN}"
+        elif c:
+            if secrets is None:
+                line = f'{c.group(1)} "{HIDDEN}"{c.group(3)}'
+            else:
+                nm = c.group(2)
+                for v in vals:
+                    nm = nm.replace(v, HIDDEN)
+                line = c.group(1) + nm + c.group(3)
+        for v in vals:
+            if len(v) >= 3:
+                line = line.replace(v, HIDDEN)
         out.append(line)
     return "\n".join(out)
 
@@ -152,7 +187,8 @@ class Trace:
     def _fill_value(self, el: dict, v: str) -> str:
         """입력칸 값을 가린다. 이름이 비밀 같으면 통째로 숨기고 지도에 두지 않는다.
         같은 가린 값에 원값이 둘 이상이면 None 으로 모호함을 표시한다(나중 작업이 값을 되묻는다)."""
-        if is_secret_key(el.get("name") or "") or is_secret_key(el.get("id") or ""):
+        labels = " ".join(str(el.get(k) or "") for k in ("label", "text")).lower()
+        if recorder_secret_name(el.get("name") or "") or recorder_secret_name(el.get("id") or "") or any(k in labels for k in _LABEL_SECRET):
             return HIDDEN
         m = self.masker.text(v)
         if m != v and v:
@@ -249,7 +285,7 @@ class Trace:
     async def _strip_passwords(self, frame, text: str) -> str:
         """비밀 입력칸의 값을 ARIA 의 입력 줄에서 지운다(줄 단위). 판정 정보를 얻지 못하면 모든 입력 줄의 값을 가린다(실패 시 닫힘)."""
         try:
-            secrets = await asyncio.wait_for(frame.evaluate(_SECRET_JS, {"words": sorted(_SECRET_WORDS), "pairs": list(_SECRET_PAIRS)}), 1.5)
+            secrets = await asyncio.wait_for(frame.evaluate(_SECRET_JS, {"words": sorted(_SECRET_WORDS), "pairs": list(_SECRET_PAIRS), "pin": list(_PIN_WORDS), "not": list(_PIN_NOT), "labels": list(_LABEL_SECRET)}), 1.5)
             if not isinstance(secrets, list):
                 raise ValueError("bad")
         except Exception:
