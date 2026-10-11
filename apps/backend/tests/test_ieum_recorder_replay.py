@@ -34,6 +34,32 @@ def test_구조가_다르거나_오류_표시면_실패():
     assert replay.judge(200, None, "application/json", body, JSTEP, {})[1] == "error_response"
 
 
+PAGE = ("<html><head><script>function f(){{ alert('오류가 발생했습니다. 다시 시도해 주십시오.'); }}</script>"
+        "<style>.e:after{{content:'처리 중 오류'}}</style></head><body><!-- 권한이 없습니다 -->{body}</body></html>")
+
+
+def test_스크립트_속_오류_문구는_오류_응답이_아니다():
+    """정상 화면의 스크립트·스타일·주석에 든 오류 문구로 실패 판정하지 않는다(data.go.kr 검색 결과에서 실측)."""
+    ok_page = PAGE.format(body="<h1>데이터 목록</h1><p>현재 902건</p>")
+    for kind in ("other", "html", "json"):
+        step = {"kind": kind, "recordedRes": ok_page, "recordedData": None}
+        assert replay.judge(200, None, "text/html", ok_page, step, {})[1] != "error_response"
+
+
+def test_화면에_보이는_오류_문구는_오류_응답이다():
+    rec_page = PAGE.format(body="<h1>데이터 목록</h1>")
+    err_page = PAGE.format(body="<p>오류가 발생했습니다.</p>")
+    step = {"kind": "other", "recordedRes": rec_page, "recordedData": None}
+    assert replay.judge(200, None, "text/html", err_page, step, {})[1] == "error_response"
+
+
+def test_기록_때도_보이던_문구는_오류_표시로_보지_않는다():
+    """바닥글의 "오류가 발생하면 고객센터로" 같은 상시 안내는 오류가 아니다."""
+    page = PAGE.format(body="<h1>목록</h1><footer>처리 중 오류가 발생하면 고객센터로 연락하세요</footer>")
+    step = {"kind": "other", "recordedRes": page, "recordedData": None}
+    assert replay.judge(200, None, "text/html", page, step, {})[1] != "error_response"
+
+
 def test_HTML_은_표_열_이름으로_비교한다():
     rec_html = "<table><tr><th>거래처코드</th><th>거래처명</th></tr><tr><td>V1</td><td>가</td></tr></table>"
     from app.ieum.recorder import htmltable

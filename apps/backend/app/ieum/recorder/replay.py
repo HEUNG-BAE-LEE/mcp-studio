@@ -48,12 +48,27 @@ def _keys(d) -> set:
     return {re.sub(r"\[\d+\]", "[]", p) for p, _ in leaves(d, 200)}
 
 
-def _looks_error(data, text: str) -> bool:
+_HTML_HINT = re.compile(r"<\s*(html|body|head|div|p|table|script)\b", re.I)
+_HIDDEN_BLOCK = re.compile(r"<(script|style|noscript|template)\b.*?</\1\s*>|<!--.*?-->", re.I | re.S)
+
+
+def _visible_text(text: str) -> str:
+    """HTML 이면 스크립트·스타일·주석을 빼고 화면에 보이는 글자만 남긴다. HTML 이 아니면 그대로 둔다."""
+    text = text or ""
+    if not _HTML_HINT.search(text):
+        return text
+    return re.sub(r"<[^>]+>", " ", _HIDDEN_BLOCK.sub(" ", text))
+
+
+def _looks_error(data, text: str, recorded: str = "") -> bool:
     if isinstance(data, dict):
         for k, v in data.items():
             if _ERR_KEY.match(str(k)) and isinstance(v, str) and (v.upper().startswith("E") or v.upper() in ("FAIL", "ERROR")):
                 return True
-    return any(t in (text or "") for t in _ERR_TEXT)
+    # 오류 문구는 화면에 보이는 글자에서만 찾는다(정상 화면의 스크립트에 alert('오류가 발생했습니다') 가 흔하다).
+    # 기록 때 정상 응답에도 보이던 문구(바닥글 안내 등)는 오류 표시로 보지 않는다.
+    seen, before = _visible_text(text), _visible_text(recorded)
+    return any(t in seen and t not in before for t in _ERR_TEXT)
 
 
 def judge(status: int, location: Optional[str], ctype: str, text: str, step: dict, headers_sent: dict) -> Tuple[bool, str, Any]:
@@ -67,13 +82,13 @@ def judge(status: int, location: Optional[str], ctype: str, text: str, step: dic
     if step.get("kind") == "html":
         data = htmltable.to_data(text or "")
         before = htmltable.shape(step.get("recordedData") or {})
-        if _looks_error(None, text):
+        if _looks_error(None, text, step.get("recordedRes") or ""):
             return False, "error_response", data
         if before and (data is None or len(before & htmltable.shape(data)) / len(before) < 0.6):
             return False, "shape_mismatch", data
         return True, "", data
     data, before = infer.parse_json(text or ""), infer.parse_json(step.get("recordedRes") or "")
-    if _looks_error(data, text):
+    if _looks_error(data, text, step.get("recordedRes") or ""):
         return False, "error_response", data
     if before is not None:
         kb = _keys(before)
