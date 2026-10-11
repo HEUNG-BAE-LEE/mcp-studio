@@ -2,7 +2,7 @@
    화면 ① 목록 → ② 새 기록 → ③ 기록 중(화면 중계) → ④ 검토. 승인 창은 화면 안 요소다(브라우저 기본 대화상자를 쓰지 않는다).
    입력 원값(값 다시 입력 필요)은 서버로 보내 검증에만 쓰고 저장하지 않는다(요청이 끝나면 메모리에서도 지운다).
    전역 REC 는 discovery.js 가 쓰고 있어서, 이 파일의 상태 객체는 RECR 이다. */
-const RECR = { page:'list', list:[], fns:[], usage:null, demo:null, form:null, live:null, fn:null, rec:null, busy:false, values:{}, load:'loading', loadErr:'', wheel:0, wheelQ:null, saveQ:null, regSrc:null };
+const RECR = { page:'list', list:[], fns:[], usage:null, demo:null, form:null, live:null, fn:null, rec:null, busy:false, values:{}, load:'loading', loadErr:'', wheel:0, wheelQ:null, saveQ:null };
 const REC_STATUS = { recording:['기록 중','info'], analyzing:['분석 중','info'], verifying:['검증 중','info'], review:['검토 대기','warn'],
   confirmed:['확정','ok'], registered:['등록 완료','ok'], failed:['실패','danger'], interrupted:['중단됨','mute'] };
 const REC_VERIFY = { verified:['검증됨','ok'], partial:['부분 검증','warn'], failed:['검증 실패','danger'], pending:['검증 전','mute'],
@@ -63,8 +63,7 @@ function recListHTML() {
     const f = r.functionId ? fnBy[r.functionId] : null;
     const kinds = f ? [...new Set(f.steps.map(s => s.kind === 'html' ? 'HTML' : 'JSON'))].join('·') : '';
     return `<tr data-act="recOpen" data-id="${esc(r.id)}" tabindex="0"><td><b>${esc(r.name)}</b><small>${esc(r.owner || '')} · ${r.env === 'op' ? '운영' : '스테이징'}</small></td>
-      <td>${recPill(REC_STATUS, f && ['confirmed', 'registered'].includes(f.status) ? f.status : r.status)} ${f ? recPill(REC_VERIFY, f.verification.status) : ''}
-</td>
+      <td>${recPill(REC_STATUS, f && ['confirmed', 'registered'].includes(f.status) ? f.status : r.status)} ${f ? recPill(REC_VERIFY, f.verification.status) : ''}</td>
       <td>${f && f.status === 'registered' ? `도구 ${((f.registered || {}).tools || []).length}개` : ''}</td><td>${f ? `${recSteps(f).length}단계` : ''}</td><td>${esc(kinds)}</td><td>${+r.spanCount || 0}개 행동</td></tr>`;
   }).join('');
   return `<div class="rec-bar"><button class="btn primary" data-act="recNew">${svg('plus', 16)}새 기록</button>
@@ -171,15 +170,15 @@ function recReviewHTML() {
   const aps = apAll.filter(a => !['beacon', 'sent', 'login'].includes(a.decision)).map(a => `<li><code>${esc(a.method)} ${esc(a.path)}</code> · ${esc(recDecision(a.decision))}${a.decision === 'deny' && a.label === '기록 종료 중' ? ` (${esc(a.label)})` : ''}</li>`).join('')
     + (apBeacon ? `<li class="muted">외부 통계 ${apBeacon}종 차단 (횟수가 아니라 주소 종류 수)</li>` : '');
   const reg = f.registered, blockers = f.flowBlockers || [];
-  const regSid = RECR.regSrc || (reg ? Object.keys(TOOLS).find(sid => TOOLS[sid].some(t => (reg.tools || []).includes(t.id))) : null);   // 다시 연 기능은 도구 id 로 원본을 찾는다
+  const regSid = (reg ? Object.keys(TOOLS).find(sid => TOOLS[sid].some(t => (reg.tools || []).includes(t.id))) : null);   // 항상 등록된 도구 id 로 원본을 찾는다(낡은 값을 들고 있지 않는다)
   const regCard = reg
     ? `<div class="label">도구 후보로 등록</div><div>등록 완료 · 도구 ${(reg.tools || []).length}개</div>
        <button class="btn primary" data-act="goSrc" data-id="${esc(regSid || '')}" ${regSid && SRC[regSid] ? '' : 'disabled'}>변환 스튜디오 열기</button>
-       <button class="btn sm" data-act="recRegister" data-m="${esc(reg.mode || 'flow')}">다시 등록</button>`
+       <button class="btn sm" data-act="recRegister" data-m="${esc(reg.mode || 'flow')}" ${RECR.busy ? 'disabled' : ''}>다시 등록</button>`
     : `<div class="label">도구 후보로 등록</div>
-       <button class="btn primary" data-act="recRegister" data-m="flow" ${blockers.length ? 'disabled' : ''}>도구 후보로 등록</button>
+       <button class="btn primary" data-act="recRegister" data-m="flow" ${blockers.length || RECR.busy ? 'disabled' : ''}>도구 후보로 등록</button>
        ${blockers.map(b => `<br><small>${esc(b)}</small>`).join('')}
-       <br><button class="btn sm" data-act="recRegister" data-m="steps" ${active.length ? '' : 'disabled'}>단계별로 등록</button>`;
+       <br><button class="btn sm" data-act="recRegister" data-m="steps" ${active.length && !RECR.busy ? '' : 'disabled'}>단계별로 등록</button>`;
   return `<div class="rec-rv-head"><div><h3>${esc(f.name)}</h3>${recPill(REC_VERIFY, v.status)}</div>
     <div><button class="btn" data-act="recBack">목록</button> <button class="btn" data-act="recVerify" ${RECR.busy ? 'disabled' : ''}>${RECR.busy ? '검증하는 중…' : '다시 검증'}</button></div></div>
     ${(f.notes || []).map(n => `<div class="rec-msg">${esc(n)}</div>`).join('')}
@@ -397,15 +396,17 @@ Object.assign(ACT, {
     finally { RECR.busy = false; RECR.values = {}; for (const k in values) values[k] = ''; recRender(); }   // 입력 원값은 요청이 끝나면 지운다
   },
   recRegister: async a => {
+    if (RECR.busy) return;
     await RECR.saveQ;                                             // 저장 중인 편집이 끝난 뒤 등록한다
+    RECR.busy = true; recRender();
     try {
       const out = await api.post(`/recorder/functions/${RECR.fn.id}/register/`, { mode:a.dataset.m });
       RECR.fn = out.function;
-      RECR.regSrc = ((out.tools || [])[0] || {}).src || ((out.sources || [])[0] || {}).id || null;
       await loadAll().catch(() => {});                            // 새 원본·도구를 스튜디오가 읽는 전역(SRC·TOOLS)에 반영한다
       recRender();
       const unknown = Object.values(out.loginKnown || {}).some(v => !v);        // 원본 시스템별 {id: bool}. 객체는 항상 참이라 값을 본다
       toast(`도구 후보 ${out.tools.length}개를 등록했습니다. 변환 스튜디오에서 설명과 매핑을 검토한 뒤 공개하세요.` + (unknown ? ' 로그인 정보를 알 수 없는 원본 시스템이 있어, 원본 시스템 메뉴에서 인증 정보를 등록해야 실행됩니다.' : ''), unknown ? 'warn' : 'ok');
     } catch (e) { recErr(e); }
+    finally { RECR.busy = false; recRender(); }
   },
 });

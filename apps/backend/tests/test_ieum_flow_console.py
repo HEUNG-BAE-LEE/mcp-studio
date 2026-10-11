@@ -85,3 +85,56 @@ def test_등록하면_등록_완료와_스튜디오_열기(console_url):
             browser.close()
     assert calls == [{"mode": "flow"}]
     assert "등록 완료" in text and "변환 스튜디오 열기" in text and "다시 등록" in text
+
+
+def test_이미_등록된_다른_기능을_열면_그_기능의_원본으로_스튜디오가_열린다(console_url):
+    """A 를 등록한 뒤 목록을 거쳐 등록된 B 를 열었을 때 낡은 A 원본으로 가지 않는다."""
+    from playwright.sync_api import sync_playwright
+    state = {"done": False}
+    reg_a = dict(FN, status="registered", registered={"at": 1, "mode": "flow", "tools": ["a_t"]})
+    fn_b = dict(FN, id="bf_b", name="B 업무", status="registered", registered={"at": 2, "mode": "flow", "tools": ["b_t"]})
+
+    def ok(route, data, code=200):
+        route.fulfill(status=code, content_type="application/json", body=_env(data, code))
+
+    def on_register(route):
+        state["done"] = True
+        ok(route, {"sources": [{"id": "a-src"}], "tools": [{"id": "a_t", "src": "a-src"}], "loginKnown": {"a-src": True}, "function": reg_a}, 201)
+
+    def on_sources(route):
+        data = json.loads(route.fetch().text())["resultData"]
+        for sid in ("b-src", "a-src") if state["done"] else ("b-src",):
+            data["sources"].append({"id": sid, "name": sid, "proto": "disc", "base": "https://example.test", "authType": "none"})
+        ok(route, data)
+
+    def on_studio(route):
+        data = json.loads(route.fetch().text())["resultData"]
+        mk = lambda i: [{"id": i, "name": i, "desc": "d", "mode": "read", "status": "review", "method": "GET", "path": "/x", "params": [], "res": {}}]
+        data["b-src"] = mk("b_t")
+        if state["done"]:
+            data["a-src"] = mk("a_t")
+        ok(route, data)
+
+    with sync_playwright() as pw:
+        browser, _ = launch(pw)
+        try:
+            page = browser.new_page()
+            page.route("**/api/ieum/recorder/functions/%s/register/" % FID, on_register)
+            page.route("**/api/ieum/recorder/recordings/rec_b/", lambda r: ok(r, {"id": "rec_b", "functionId": "bf_b", "approvals": []}))
+            page.route("**/api/ieum/recorder/functions/bf_b/", lambda r: ok(r, fn_b))
+            page.route("**/api/ieum/sources/", on_sources)
+            page.route("**/api/ieum/studio/", on_studio)
+            _open(page, console_url, FN)
+            page.click("[data-act=recRegister][data-m=flow]")
+            page.wait_for_selector("[data-act=goSrc]")
+            page.evaluate("RECR.page = 'list'; recRender()")
+            page.evaluate("recOpenFn('rec_b')")
+            page.wait_for_function("RECR.fn && RECR.fn.id === 'bf_b'")
+            page.wait_for_selector("[data-act=goSrc]")
+            sid = page.get_attribute("[data-act=goSrc]", "data-id")
+            page.click("[data-act=goSrc]")
+            page.wait_for_function("S.view === 'studio'")
+            src = page.evaluate("S.src")
+        finally:
+            browser.close()
+    assert sid == "b-src" and src == "b-src"
