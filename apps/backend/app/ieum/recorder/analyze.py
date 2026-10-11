@@ -677,9 +677,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         sp, n, data = last["_sample"]
         aria = (sp.get("post") or {}).get("aria") or ""
         if data is not None:
-            output = {"from": last["id"], "fields": [p for p, v in leaves(data)[:300]
-                                                     if len(str(v)) >= 2 and str(v) != HIDDEN and str(v) in aria and "_links" not in p and ".hidden." not in p
-                                                     and not _is_link_path(data, p)][:20]}
+            output = {"from": last["id"], "fields": output_fields(data, aria)}
 
     # 4) 정책
     ops = [_op_of(s["_sample"][1], s["_label"], s["write"]) for s in steps] or ["READ"]
@@ -825,6 +823,13 @@ def _link_path(st: dict, n: dict, prev_steps: List[dict], user_vals: Dict[str, s
         inp["needsValue"] = inp["needsValue"] or masked
         inputs.setdefault(name, inp)
     st["params"] += list(params.values())
+
+
+def output_fields(data, aria: str) -> List[str]:
+    """출력 필드: 응답(또는 HTML 사본) 잎 중 그 행동 직후 화면(ARIA)에 보인 것, 20개까지. 검토 화면에서 결과 단계를 바꿀 때도 쓴다."""
+    return [p for p, v in leaves(data)[:300]
+            if len(str(v)) >= 2 and str(v) != HIDDEN and str(v) in (aria or "") and "_links" not in p and ".hidden." not in p
+            and not _is_link_path(data, p)][:20]
 
 
 def _input(name, typ, source, ex, label, confidence, required) -> dict:

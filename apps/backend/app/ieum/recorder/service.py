@@ -8,6 +8,7 @@
 단계마다 출처가 다를 수 있어(결재 시스템 등) 출처별 원본 시스템 아래에 등록한다.
 """
 import asyncio
+import copy
 import json
 import logging
 import re
@@ -158,9 +159,30 @@ def _validate_steps(bf: dict, items) -> List[dict]:
         for p in by_id[i["id"]]["params"]:
             if p.get("source") == analyze.PREVIOUS_STEP_OUTPUT and (p.get("from") or "").split(".", 1)[0] in skipped:
                 _bad(f"건너뛴 단계의 결과를 {i['id']} 단계가 쓰고 있어 건너뛸 수 없습니다.")
-    if (bf.get("output") or {}).get("from") in skipped:
-        _bad("업무 결과를 내는 단계는 건너뛸 수 없습니다.")
+    if len(skipped) == len(items):
+        _bad("모든 단계를 건너뛸 수는 없습니다. 적어도 한 단계는 남겨 주세요.")
     return items
+
+
+def _reoutput(bf: dict, spans: List[dict]) -> None:
+    """결과(output)를 남은 단계로 다시 정한다: 건너뛰지 않은 마지막 핵심 단계(없으면 마지막 단계). 늘 지금 단계로 다시 구하므로
+    건너뛰기를 되돌리면 분석이 정한 결과가 그대로 돌아온다(처음 분석 결과는 outputAnalyzed 에 둔다).
+    필드는 분석과 같은 규칙(그 단계 응답 잎 중 그 행동 직후 화면에 보인 것)으로, 화면 기록이 없으면 비운다."""
+    active = [s for s in bf["steps"] if not s.get("skip")]
+    if not active:
+        return
+    last = ([s for s in active if s.get("role") == "core"] or active)[-1]
+    orig = bf.setdefault("outputAnalyzed", copy.deepcopy(bf.get("output") or {"from": None, "fields": []}))
+    if orig.get("from") == last["id"]:
+        bf["output"] = copy.deepcopy(orig)
+        return
+    data = last.get("recordedData") or infer.parse_json(last.get("recordedRes") or "")
+    by_seq = {sp.get("seq"): sp for sp in spans}
+    seqs = [q for q in (bf.get("evidence") or {}).get(last["id"]) or [] if q in by_seq]
+    human = [q for q in seqs if ((by_seq[q].get("action") or {}).get("type")) != "open"]
+    sp = by_seq[(human or seqs)[0]] if seqs else {}
+    aria = (sp.get("post") or {}).get("aria") or ""
+    bf["output"] = {"from": last["id"], "fields": analyze.output_fields(data, aria) if data is not None and aria else []}
 
 
 def _next_step_id(bf: dict) -> str:
@@ -183,6 +205,12 @@ def _apply_policy(cur: dict, fresh: dict, keep_higher: bool) -> None:
 def update_function(fid: str, patch: dict) -> dict:
     if not isinstance(patch, dict):
         _bad("본문은 객체여야 합니다.")
+    spans: List[dict] = []
+    if "steps" in patch:                                   # 결과 단계를 다시 정할 때 쓸 화면 기록. 잠금(store.LOCK) 밖에서 미리 읽는다
+        try:
+            spans = store.read_spans(store.get_function(fid)["source"]["recordingId"])
+        except Exception:
+            spans = []
 
     def apply(bf: dict) -> None:
         stale = False
@@ -240,6 +268,7 @@ def update_function(fid: str, patch: dict) -> dict:
                     st.update(write=i["write"], writeWhy="사람이 지정")      # 명시한 값은 같아도 사람이 확인한 것으로 남긴다
                 new_steps.append(st)
             bf["steps"] = new_steps
+            _reoutput(bf, spans)
             stale = True
             if write_changed:                                              # 설계 3판 6절: 단계의 write 로 정책을 다시 구한다
                 fresh = analyze.policy_for([analyze.step_op(s) for s in new_steps if not s.get("skip")])

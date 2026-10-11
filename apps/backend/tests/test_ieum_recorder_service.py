@@ -352,3 +352,35 @@ def test_도구_모드는_단계의_write_를_따른다(ieum_state):
     out = service.update_function("bf_00000001", {"steps": [{"id": "s1", "write": True}]})
     tool = service.register_single("bf_00000001")["tools"][0]
     assert out["steps"][0]["write"] is True and tool["mode"] == "write" and tool["confirmQ"]
+
+
+# ── T14: 결과 단계를 건너뛰면 남은 마지막 핵심 단계로 결과를 옮긴다 ─────────
+def _three(ieum_state):
+    rec = store.new_recording("데이터 상세", "홍길동", "http://h/po", "", "op", "auto")
+    rec["id"] = "rec_00000001"
+    store.save_recording(rec)
+    for seq, aria in ((1, "- text: 한빛상사 V0012"), (2, "- heading: 상세 한빛상사\n- text: 서울 강남구"), (3, "- text: 기록 완료")):
+        store.append_span(rec["id"], {"seq": seq, "action": {"type": "click"}, "network": [], "post": {"aria": aria}})
+    detail = dict(STEP, id="s2", path="/vendDetail.do", params=[],
+                  recordedRes=json.dumps({"RSLT": "0000", "vend": {"VEND_NM": "한빛상사", "ADDR": "서울 강남구"}}, ensure_ascii=False))
+    hist = dict(STEP, id="s3", method="POST", path="/selectHistAndCsvData.do", params=[],
+                recordedRes=json.dumps({"RSLT": "0000", "msg": "기록 완료"}, ensure_ascii=False))
+    bf = _bf([STEP, detail, hist])
+    bf["output"] = {"from": "s3", "fields": ["$.msg"]}
+    bf["evidence"] = {"s1": [1], "s2": [2], "s3": [3]}
+    store.save_function(bf)
+    return bf
+
+
+def test_결과_단계를_건너뛰면_앞_핵심_단계로_결과가_옮겨지고_되돌리면_돌아온다(ieum_state):
+    _three(ieum_state)
+    out = service.update_function("bf_00000001", {"steps": [{"id": "s1"}, {"id": "s2"}, {"id": "s3", "skip": True}]})
+    assert out["output"]["from"] == "s2" and set(out["output"]["fields"]) == {"$.vend.VEND_NM", "$.vend.ADDR"}
+    out = service.update_function("bf_00000001", {"steps": [{"id": "s1"}, {"id": "s2"}, {"id": "s3"}]})
+    assert out["output"] == {"from": "s3", "fields": ["$.msg"]}
+
+
+def test_모든_단계를_건너뛰면_거부한다(ieum_state):
+    _three(ieum_state)
+    with pytest.raises(ValueError, match="모든 단계"):
+        service.update_function("bf_00000001", {"steps": [{"id": "s1", "skip": True}, {"id": "s2", "skip": True}, {"id": "s3", "skip": True}]})
