@@ -104,3 +104,47 @@ def test_거쳐_간_메뉴_화면은_뒤에_핵심_요청이_있으면_강제로
     bf = analyze.analyze(REC, spans)
     assert [s["path"] for s in bf["steps"]] == ["/api/list.do"]
     assert any(e["path"] == "/menu/news.do" and e["role"] == "page" for e in bf["excluded"])
+
+
+# ── T13-3: 광고·통계 같은 부수 요청 ───────────────────────────────────────
+def test_다음형_기록은_목록과_본문만_단계다():
+    ads_json = json.dumps({"ads": [{"title": "광고 상품 할인", "url": "https://shop.example.com/p/1"}]}, ensure_ascii=False)
+    extra = [
+        _net("GET", ARTICLE + "/ad/frame.html", ARTICLE_HTML, rtype="document", main=False),                       # 안쪽 틀 광고 문서
+        _net("GET", "https://securepubads.g.doubleclick.net/gampad/ads?iu=x", ads_json),                            # 다른 사이트, 화면에 보임
+        _net("POST", "https://stat.tiara.daum.net/track", "", post="d=26abc&url=x"),                              # 같은 사이트 다른 출처 통계 쓰기
+        _net("POST", "https://ads-api.daum.net/api/v2/ads", ads_json, post='{"slot":"a"}'),
+        _net("POST", "https://ads-api.daum.net/api/v1/events", "", post='{"e":"imp"}'),
+    ]
+    spans = _spans(extra)
+    spans[0]["action"] = {"type": "open", "url": SEARCH + "/search?w=news&q=x", "label": "시작 화면 열기", "target": None, "isTrusted": None, "t": 1}
+    bf = analyze.analyze(REC, spans)
+    assert [(s["base"], s["path"], s["role"]) for s in bf["steps"]] == [(SEARCH, "/search", "prereq"), (ARTICLE, "/v/{id}", "core")]
+    why = {e["path"]: e["why"] for e in bf["excluded"]}
+    assert why["/gampad/ads"] == "다른 사이트로 간 부수 요청"
+    assert why["/track"] == why["/api/v2/ads"] == why["/api/v1/events"] == "사람 입력이 없는 다른 출처 쓰기(통계·광고로 보임)"
+    assert bf["policy"]["operation"] == "READ"
+
+
+def test_사람_입력이_실린_다른_사이트_요청과_같은_출처_쓰기는_그대로다():
+    spans = _spans([_net("GET", "https://api.partner.co.kr/find?q=%ED%95%9C%EB%B9%9B", json.dumps({"r": "한빛상사 결과"}, ensure_ascii=False)),
+                    _net("POST", ARTICLE + "/v/save.do", json.dumps({"ok": "저장했습니다"}, ensure_ascii=False), post="memo=x")])
+    spans[1]["fills"] = [{"target": {"id": "q", "label": "검색어"}, "value": "한빛"}]
+    spans[1]["post"]["aria"] += "\n- text: 한빛상사 결과"
+    bf = analyze.analyze(REC, spans)
+    paths = [s["path"] for s in bf["steps"]]
+    assert "/find" in paths and "/v/save.do" in paths
+
+
+def test_등록_도메인_어림():
+    assert analyze._site("stat.tiara.daum.net") == analyze._site("v.daum.net") == "daum.net"
+    assert analyze._site("www.data.go.kr") == "data.go.kr" and analyze._site("a.b.co.uk") == "b.co.uk"
+    assert analyze._site("securepubads.g.doubleclick.net") == "doubleclick.net" and analyze._site("127.0.0.1") == "127.0.0.1"
+
+
+def test_화면_이동_없이_버튼이_보낸_다른_출처_쓰기는_단계로_남는다():
+    """결재 시스템처럼 다른 출처로 바로 보내는 사람의 쓰기(입력값 없이 앞 화면 값만)는 통계·광고가 아니다."""
+    spans = [_span(1, "승인", [_net("POST", "http://appr.corp:9090/appr/approve.do", json.dumps({"ok": "승인했습니다"}, ensure_ascii=False),
+                                     post="docNo=D-77")], "- text: 승인했습니다", SEARCH + "/x")]
+    bf = analyze.analyze(REC, spans)
+    assert [s["path"] for s in bf["steps"]] == ["/appr/approve.do"] and bf["steps"][0]["write"] is True

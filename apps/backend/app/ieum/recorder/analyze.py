@@ -403,6 +403,60 @@ def step_op(st: dict) -> str:
     return _op_of({"path": st.get("path") or ""}, st.get("label") or "", bool(st.get("write")))
 
 
+def _origin(url: str) -> str:
+    p = urlsplit(url or "")
+    return f"{p.scheme}://{p.netloc}".lower() if p.netloc else ""
+
+
+def _site(host: str) -> str:
+    """등록 도메인 어림값(새 의존성 없이). 마지막 두 마디, 단 최상위가 두 글자이고 둘째 마디가 세 글자 이하면(co.kr, go.kr, or.kr,
+    ac.kr, co.uk …) 마지막 세 마디. 공개 접미사 목록이 아니라 어림이라 드문 접미사(예: 세 마디 공공 도메인)는 틀릴 수 있다. IP·점 없는 이름은 그대로."""
+    host = (host or "").lower().rstrip(".")
+    if not host or "." not in host or re.fullmatch(r"[\d.]+|\[?[0-9a-f:]+\]?", host):
+        return host
+    labels = host.split(".")
+    if len(labels) >= 3 and len(labels[-1]) == 2 and len(labels[-2]) <= 3:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:])
+
+
+def _page_origins(sp: dict) -> set:
+    return {_origin((sp.get(k) or {}).get("href") or "") for k in ("pre", "post")} - {""}
+
+
+def _has_input(n: dict, user_vals: Dict[str, str]) -> bool:
+    """요청에 사람이 넣은 값이 실렸는가."""
+    try:
+        return any(v and v in user_vals for _, v, _ in _pairs(n))
+    except Exception:
+        return False
+
+
+def _side_write(sp: dict, n: dict, base_origin: str, user_vals: Dict[str, str], policy: Policy) -> bool:
+    """사람 입력이 없는 다른 출처 쓰기(통계·광고로 보임). 출처가 기록 대상과도, 그 묶음의 화면(직전·직후)과도 다르다.
+    화면 이동(시작 화면·사람이 눌러 연 화면)과 함께 나간 것만 부른다 — 버튼이 다른 출처로 바로 보낸 쓰기(결재 시스템 승인 등)는 사람의 쓰기다.
+    기록 중에는 예전처럼 보내고 승인 기록에도 남는다 — 단계에서만 뺀다. 같은 출처의 화면 쓰기는 그대로다."""
+    origin = (n.get("origin") or _origin(n["url"])).lower()
+    if origin == base_origin or origin in _page_origins(sp) or _has_input(n, user_vals):
+        return False
+    return classify_write(n, policy)[0]
+
+
+def _third_party(sp: dict, n: dict, base: str, user_vals: Dict[str, str]) -> bool:
+    """등록 도메인이 기록 대상과도, 묶음의 화면과도 다른 요청(광고·통계 서버)이고 사람 입력이 실리지 않았다."""
+    host = urlsplit(n["url"]).hostname or ""
+    sites = {_site(urlsplit(base).hostname or "")} | {_site(urlsplit(o).hostname or "") for o in _page_origins(sp)}
+    return _site(host) not in sites and not _has_input(n, user_vals)
+
+
+def _last_main(sp: dict) -> Optional[dict]:
+    """사람 행동(클릭·키·제출) 묶음에서 주 화면이 마지막으로 연 GET 문서(리디렉트면 마지막 것)."""
+    if sp["action"].get("type") not in ("click", "key", "submit"):
+        return None
+    mains = [n for n in sp["network"] if n.get("main") and n.get("rtype") == "document" and (n.get("method") or "").upper() == "GET"]
+    return mains[-1] if mains else None
+
+
 def _landed(items: list, spans: List[dict], policy: Policy) -> set:
     """사람 행동(클릭·키·제출) 묶음에서 주 화면이 마지막으로 연 GET 문서(리디렉트면 마지막 것). 사람이 눌러 연 화면이므로 화면 표시 판정과
     상관없이 핵심이다(본문 앞부분이 스크립트뿐이면 글자 조각 판정이 놓친다). 다만 그 뒤 사람 행동이 핵심 요청(화면에 보인 응답·쓰기)을
@@ -416,10 +470,9 @@ def _landed(items: list, spans: List[dict], policy: Policy) -> set:
     kept = {id(n) for _, n, _, _ in items}
     out = set()
     for sp in spans:
-        if sp["action"].get("type") in ("click", "key", "submit") and sp["seq"] >= last_core:
-            mains = [n for n in sp["network"] if n.get("main") and n.get("rtype") == "document" and (n.get("method") or "").upper() == "GET"]
-            if mains and id(mains[-1]) in kept:
-                out.add(id(mains[-1]))
+        m = _last_main(sp)
+        if m is not None and sp["seq"] >= last_core and id(m) in kept:
+            out.add(id(m))
     return out
 
 
@@ -442,6 +495,10 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     login_path = ((rec.get("login") or {}).get("path") or "").split(";")[0]
     policy = Policy(base=rec["sourceBase"], read_post="")        # 3판: 예전 기록의 readPost 는 쓰지 않는다
     items, excluded = [], []
+    user_vals = _user_values(spans)
+    base_origin = _origin(rec["sourceBase"])
+    side: Dict[int, str] = {}                                   # 다른 사이트로 간 부수 요청: 뒤 단계가 쓸 때만 남긴다
+    nav = {sp["seq"]: _last_main(sp) for sp in spans}           # 묶음마다 주 화면이 마지막으로 연 문서(없으면 None)
     for sp in spans:
         for n in sp["network"]:
             row = {"method": n["method"], "path": infer.templatize(n["path"]), "base": n["base"], "origin": n["origin"]}
@@ -454,7 +511,14 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                 excluded.append(dict(row, role="noise", why="시작 화면이 열리며 스스로 보낸 쓰기"))     # 사람이 보낸 쓰기가 아니다
             elif n.get("decision") in ("deny", "timeout"):
                 excluded.append(dict(row, role="denied", why="승인하지 않아 보내지 않은 쓰기"))
+            elif (sp["action"].get("type") == "open" or nav.get(sp["seq"]) is not None) and _side_write(sp, n, base_origin, user_vals, policy):
+                excluded.append(dict(row, role="noise", why="사람 입력이 없는 다른 출처 쓰기(통계·광고로 보임)"))
             else:
+                # 화면 이동(시작 화면·사람이 눌러 연 화면)과 함께 딸려 온 다른 사이트 요청만 부수 요청으로 본다. 버튼이 직접 부른
+                # 다른 사이트 요청(결재 시스템 목록 등)은 예전처럼 화면 표시로 가른다. 주 화면 문서 자체는 부수 요청이 아니다.
+                loading = sp["action"].get("type") == "open" or nav.get(sp["seq"]) is not None
+                if loading and nav.get(sp["seq"]) is not n and _third_party(sp, n, rec["sourceBase"], user_vals):
+                    side[id(n)] = "다른 사이트로 간 부수 요청"
                 items.append((sp, n, row["path"], _data(n)))
 
     tables = infer.detect_code_tables([SimpleNamespace(url=n["url"], body=n.get("res") or "", status=n["status"], blocked=False, file=n.get("file"),
@@ -462,7 +526,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                                        for _, n, _, _ in items])
     code_paths = {p for _, n, p, _ in items if tables and n["method"] == "GET" and re.search(r"code|cmmn", p, re.I)}
 
-    landed = _landed(items, spans, policy)
+    landed = _landed([it for it in items if id(it[1]) not in side], spans, policy)
 
     # 1) 핵심 후보
     steps: List[dict] = []
@@ -484,11 +548,13 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
             cand = True                                   # 시작 묶음은 첫 사람 입력까지 열려 있어 폴링 등이 쌓인다: 뒤 단계가 쓸 때만 남긴다
         elif id(n) in landed:
             cand = False                                  # 사람이 눌러 연 주 화면 문서
+        elif id(n) in side:
+            cand = True                                   # 다른 사이트로 간 부수 요청(광고 등): 화면에 보여도 뒤 단계가 쓸 때만 남긴다
         if cand and data is None:
             if key not in seen:
                 seen[key] = None
                 excluded.append({"method": n["method"], "path": path, "base": n["base"], "origin": n["origin"], "role": "page" if n["rtype"] == "document" else "noise",
-                                 "why": "응답 값이 화면에 나타나지 않음"})
+                                 "why": side.get(id(n)) or "응답 값이 화면에 나타나지 않음"})
             continue
         if seen.get(key) is not None:
             seen[key]["_spans"].append(sp["seq"])
@@ -500,7 +566,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
               "headers": {}, "outputs": {}, "params": [],
               "recordedRes": n.get("res") or "", "recordedErrSeen": n.get("errSeen"), "recordedData": copy.deepcopy(htmltable.without_links(n.get("data"))), "recordedStatus": n["status"],
               "_sample": (sp, n, data), "_write": write, "_dropped": set(), "_spans": [sp["seq"]], "_label": (sp["action"]["target"] or {}).get("text", ""), "label": (((sp["action"]["target"] or {}).get("text", "") or sp["action"].get("label") or ""))[:60],
-              "_title": (sp.get("pre") or {}).get("title", "")}
+              "_title": (sp.get("pre") or {}).get("title", ""), "_why": side.get(id(n))}
         for hk, hv in (n.get("headers") or {}).items():
             if hk.lower().startswith("x-"):
                 if HIDDEN in str(hv) or _MASKED.search(str(hv)):
@@ -511,7 +577,6 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         steps.append(st)
 
     # 2) 파라미터와 값 연결
-    user_vals = _user_values(spans)
     fill_labels = _fill_labels(spans)
     common = _common_values(steps)
     inputs: Dict[str, dict] = {}
@@ -576,7 +641,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     for st in steps:
         if st["role"] == "prereq" and st["id"] not in used:
             excluded.append({"method": st["method"], "path": st["path"], "base": st["base"], "origin": st["origin"], "role": _page_or_noise(st),
-                             "why": "응답 값이 화면에 나타나지 않음"})
+                             "why": st.get("_why") or "응답 값이 화면에 나타나지 않음"})
         else:
             kept.append(st)
     kept_ids = {st["id"] for st in kept}
@@ -622,7 +687,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     desc = _describe(rec, steps, list(inputs.values()), output, op)
     evidence = {s["id"]: s["_spans"] for s in steps}
     for s in steps:
-        for k in ("_sample", "_spans", "_label", "_title", "_write", "_dropped"):
+        for k in ("_sample", "_spans", "_label", "_title", "_write", "_dropped", "_why"):
             s.pop(k, None)
         for p in s["params"]:
             p.pop("_tl", None)
