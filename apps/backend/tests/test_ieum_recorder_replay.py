@@ -403,7 +403,10 @@ def test_숨은_토큰을_못_찾아_가린_값이_남으면_보내지_않는다
     bf["steps"][0].update(exec="browser", method="POST", formPage="http://h/po/form.do",
                           params=[{"a": "tk", "loc": "form", "from": "session.hidden.tk", "ex": "ab****cd"}])
     page = Page()
-    run = asyncio.new_event_loop().run_until_complete(replay.run_once(bf, {}, {}, None, replay.BrowserTransport(page), _no, 0))
+
+    async def yes(step):                                       # 설계 3판: GET 이 아닌 단계는 조회로 분류돼도 승인받는다
+        return "approve"
+    run = asyncio.new_event_loop().run_until_complete(replay.run_once(bf, {}, {}, None, replay.BrowserTransport(page), yes, 0))
     assert run["reason"] == "needs_value" and page.calls == 1     # 토큰 조회 한 번뿐, 전송 없음
 
 

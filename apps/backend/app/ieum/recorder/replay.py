@@ -194,8 +194,7 @@ class BrowserTransport:
             headers["content-type"] = f"application/x-www-form-urlencoded; charset={step.get('charset') or 'UTF-8'}"
         # 승인받은 쓰기는 기록 가드를 다시 지난다. 바로 이 요청(메서드·최종 주소·본문)만, 보내는 동안만 통과시킨다.
         # 표시 헤더를 붙이는 방식은 쓰지 않는다(다른 출처면 CORS 사전 요청이 생겨 그것이 붙잡힌다).
-        # 조회로 분류된 비GET 단계(2판 readPost)도 같다: 3판 가드는 readPost 를 보지 않으므로 여기서 그 요청 하나만 통과시킨다
-        # (예전 가드의 readPost 통과와 같은 범위). 운영 비GET 의 재실행 승인은 T6 에서 모든 단계로 넓힌다.
+        # 조회로 분류된 비GET 단계도 같다: run_once 가 보내기 직전에 승인을 받았다(설계 3판 7절).
         exact = step.get("write") or str(step.get("method") or "").upper() not in ("GET", "HEAD")
         token = self.guard.allow_exact(step["method"], url, body) if (self.guard is not None and exact) else None
         try:
@@ -315,12 +314,15 @@ async def run_once(bf: dict, inputs: Dict[str, str], raw: Dict[str, Optional[str
             return fail(st, "needs_value", note="쿼리·본문에 가린 값이 남음")
         if _PLACEHOLDER.search(url):
             return fail(st, "unresolved_path", note="경로의 {자리}를 채우지 못함")
-        said = await ask_write(st) if st.get("write") else None     # 보내지 않을 요청에는 승인을 묻지 않도록 점검 뒤에 묻는다
-        if st.get("write") and not said:
+        # 설계 3판 7절: GET/HEAD 가 아니면 조회로 분류됐어도 보내기 직전에 묻는다(운영은 사람 승인, 스테이징은 묻지 않고 "staging",
+        # 세션 밖 운영은 물을 창이 없어 거절). 보내지 않을 요청에는 묻지 않도록 점검 뒤에 묻는다
+        needs_ask = bool(st.get("write")) or str(st.get("method") or "").upper() not in ("GET", "HEAD")
+        said = await ask_write(st) if needs_ask else None
+        if needs_ask and not said:
             return fail(st, "write_denied")
         url_noq = url.split("?")[0]
         # 쓰기를 보내기 전에 멈추면 결과에 남긴다. 사람이 승인한 것("approve")만 "승인했지만" 이라 적는다(스테이징·세션 밖은 승인이 없었다)
-        approved = ("승인했지만 보내지 않음: " if said == "approve" else "보내지 않음: ") if st.get("write") else ""
+        approved = ("승인했지만 보내지 않음: " if said == "approve" else "보내지 않음: ") if needs_ask else ""
         note = None
         while True:
             await pause()
@@ -456,7 +458,10 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
             http, browser, raw = HttpTransport(cookies, host=host), BrowserTransport(session.page, session.guard), dict(session.trace.raw)
 
             async def ask(st):
-                ok = await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], f"Replay 검증: {st['path']}")
+                label = f"Replay 검증: {st['path']}"
+                if not st.get("write"):
+                    label = f"조회로 보이는 {str(st.get('method') or '').upper()} — " + label     # 조회로 분류됐지만 GET 이 아니라 묻는다
+                ok = await session.guard.ask(st["method"], (st.get("base") or bf["source"]["base"]) + st["path"], label)
                 return ("approve" if session.guard.env == "op" else "staging") if ok else False     # 사람 승인인지 결과 문구가 가린다
         else:
             if not auto:

@@ -31,7 +31,8 @@ from app.ieum.recorder import config, scope
 _PW_ENDS = ("pw", "pwd", "passwd", "password")
 _ID_PARTS = ("user", "login", "account", "email", "usr")
 _LOGIN_CTYPES = ("application/x-www-form-urlencoded",)   # multipart 는 parse_form 이 못 읽으므로 뺐다
-SENT_LOG_MAX = 500             # 기록 중 보낸 쓰기·종료 뒤 거절 이력의 기록당 상한. 넘으면 개수만 센다(sent_dropped)
+SENT_LOG_MAX = 500             # 기록 중 보낸 쓰기·로그인·종료 뒤 거절 이력의 기록당 상한. 넘으면 개수만 센다(sent_dropped)
+POST_STOP_MAX = 3              # 종료를 시작한 뒤 보내 주는 쓰기 수. 넘거나 같은 쓰기가 되풀이되면 바로 닫는다(실패 → 알림 → 재시도 루프)
 
 
 def _compact(name: str) -> str:
@@ -148,12 +149,32 @@ class Guard:
         self.sent_dropped = 0                         # 상한을 넘어 개수만 센 것
         self._writes: Dict[int, object] = {}          # 보내고 아직 끝나지 않은 기록 중 쓰기(id(request) → request)
         self.last_write_at = time.monotonic()         # 쓰기가 마지막으로 나가거나 끝난 시각(종료의 조용한 시간 기준)
+        self._responded: set = set()                  # 진행 중 쓰기 중 응답을 받은 것(id(request))
+        self.stop_started = False                     # 기록 종료를 시작했다(입력은 막혔고 쓰기는 아직 보낸다)
+        self.post_stop_writes = 0                     # 종료 시작 뒤 나가려 한 쓰기 수
+        self._post_stop_keys: set = set()             # 종료 시작 뒤 보낸 (메서드, 가린 경로)
         self.beacon_count = 0                         # 자동으로 막은 외부 통계 요청 수(주소별 첫 1건만 decisions 에 남는다)
         self._beacon_seen: set = set()
 
     def closing_now(self) -> None:
         """기록 종료 마무리(마지막 묶음을 닫은 뒤). 이후 페이지가 보낸 쓰기는 즉시 거절한다(Replay 의 ask 는 영향받지 않는다)."""
         self.closing = True
+
+    def begin_stop(self) -> None:
+        """기록 종료 시작. 이 뒤의 쓰기는 마지막 동작의 것으로 보고 POST_STOP_MAX 건까지만 보낸다."""
+        self.stop_started = True
+
+    def on_response(self, response) -> None:
+        """진행 중 쓰기가 응답을 받았다. 응답 뒤 확인 창이 열리면 완료 알림이 창을 닫을 때까지 오지 않으므로 따로 표시한다."""
+        try:
+            key = id(response.request)
+        except Exception:
+            return
+        if key in self._writes:
+            self._responded.add(key)
+
+    def has_response(self, request) -> bool:
+        return id(request) in self._responded
 
     @property
     def writes_in_flight(self) -> int:
@@ -168,6 +189,7 @@ class Guard:
         while r is not None and seen < 20:
             if self._writes.pop(id(r), None) is not None:
                 self.last_write_at = time.monotonic()
+            self._responded.discard(id(r))
             r = getattr(r, "redirected_from", None)
             seen += 1
 
@@ -264,6 +286,18 @@ class Guard:
             self.decided_requests[id(request)] = "deny"
             await route.abort("blockedbyclient")
             return
+        if self.stop_started:
+            # 종료 시작 뒤의 쓰기는 마지막 동작의 것(클릭 뒤 늦은 저장)으로 보고 보내되, 셋을 넘거나 같은 쓰기가 되풀이되면
+            # 실패 → 알림 → 재시도 루프다. 바로 닫고(이 뒤 쓰기는 거절) 이미 나간 것만 기다린다
+            key = (method, urlsplit(self.safe_url(url)).path)
+            self.post_stop_writes += 1
+            if self.post_stop_writes > POST_STOP_MAX or key in self._post_stop_keys:
+                self.closing_now()
+                self._log(method, url, "deny", label="기록 종료 중", capped=True)
+                self.decided_requests[id(request)] = "deny"
+                await route.abort("blockedbyclient")
+                return
+            self._post_stop_keys.add(key)
         # 사람의 동작으로 나간 쓰기다. 묻지 않고 보내고 이력에 남긴다(운영·스테이징 같음, 어느 출처든)
         is_login = self._is_login(request, url)
         decision = "login" if is_login else "sent"
@@ -276,7 +310,7 @@ class Guard:
             self._writes.pop(id(request), None)
             raise
         if is_login:
-            self._log(method, url, "login")
+            self._log(method, url, "login", capped=True)
             self._remember_login(request, url, method)
         else:
             self._log(method, url, "sent", capped=True)

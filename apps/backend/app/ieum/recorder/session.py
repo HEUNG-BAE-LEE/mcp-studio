@@ -158,6 +158,7 @@ class RecorderSession:
         self.ctx.on("requestfailed", self.trace.on_request_done)
         self.ctx.on("requestfinished", self.guard.on_request_done)     # 보낸 쓰기의 끝(종료가 기다린다)
         self.ctx.on("requestfailed", self.guard.on_request_done)
+        self.ctx.on("response", self.guard.on_response)                # 응답을 받은 쓰기(확인 창이 완료 알림을 막을 때 구분)
         self.ctx.on("requestfailed", lambda r: asyncio.ensure_future(self._on_request_failed(r)))
         self.ctx.on("response", self.trace.on_response)
         page = await self.ctx.new_page()
@@ -414,17 +415,43 @@ class RecorderSession:
         kept = [m for m in self._inputs if m.get("t") in CONTROL_KINDS]
         self._inputs.clear()                             # 줄에 남은 입력은 멈춤 뒤에 처리하지 않는다(탭 열림·닫힘 같은 제어는 남긴다)
         self._inputs.extend(kept)
+        self.guard.begin_stop()
+
+    @staticmethod
+    def _page_of(req):
+        try:
+            return req.frame.page
+        except Exception:
+            return None
+
+    @staticmethod
+    def _page_closed(page) -> bool:
+        try:
+            return bool(page.is_closed())
+        except Exception:
+            return False
+
+    async def _dismiss_dialog(self) -> None:
+        """열려 있는 확인 창을 닫는다(사람 입력은 이미 막았다). 닫는 사이 새로 뜬 창은 지우지 않는다."""
+        d = self._dialog
+        if d is None:
+            return
+        try:
+            await asyncio.wait_for(self._close_dialog_for_stop(d), 5)
+            if self._dialog is d:
+                self._dialog = None
+        except Exception:
+            pass                                         # 닫지 못해도 멈춤은 계속한다. _dialog 를 남겨 두어 스냅샷이 그 페이지를 계속 건너뛴다
 
     def _waitable_writes(self) -> int:
-        """기다릴 수 있는 진행 중 쓰기 수. 확인 창이 열린 페이지의 쓰기는 뺀다: 창이 열려 있으면 그 페이지의 요청 완료 알림이
-        창을 닫을 때까지 오지 않는다(응답을 받고 alert 를 띄운 경우 실측). 창은 마무리에서 닫는다. 쓰기는 이미 서버로 갔다."""
+        """기다릴 수 있는 진행 중 쓰기 수. 응답을 받은 뒤 확인 창이 열린 페이지의 쓰기는 뺀다: 창이 열려 있으면 그 페이지의
+        요청 완료 알림이 창을 닫을 때까지 오지 않는다(실측). 응답은 이미 왔고 창은 마무리에서 닫는다. 닫힌 페이지의 쓰기도 뺀다."""
         n = 0
         for req in self.guard.inflight_writes():
-            try:
-                page = req.frame.page
-            except Exception:
-                page = None
-            if page is not None and self.dialog_open(page):
+            page = self._page_of(req)
+            if page is not None and self._page_closed(page):
+                continue                                 # 닫힌 페이지의 요청은 끝을 알릴 곳이 없다
+            if page is not None and self.guard.has_response(req) and self.dialog_open(page):
                 continue
             n += 1
         return n
@@ -433,6 +460,9 @@ class RecorderSession:
         """이미 나간 쓰기가 모두 끝나고 마지막 쓰기 뒤 STOP_QUIET_SEC 동안 새 쓰기가 없을 때까지 기다린다(상한 STOP_WRITE_WAIT_SEC).
         클릭 뒤 스크립트가 늦게 보내는 저장이 있어 쓰기가 없어도 조용한 시간만큼은 기다린다. 조회 요청은 세지 않는다.
         상한을 넘기면 끊지 않고(이미 서버로 갔다) 남은 개수를 돌려준다. 기다리는 동안 새로 뜬 확인 창은 _on_dialog 가 닫는다."""
+        if self._dialog is not None and any(
+                not self.guard.has_response(r) and self.dialog_open(self._page_of(r)) for r in self.guard.inflight_writes()):
+            await self._dismiss_dialog()                 # 응답 전 쓰기가 있는 페이지의 창은 지금 닫는다. 열려 있으면 그 쓰기의 끝을 알 수 없다
         start = time.monotonic()
         deadline = start + config.STOP_WRITE_WAIT_SEC
         shown = 0
@@ -456,17 +486,12 @@ class RecorderSession:
     async def wind_down(self) -> int:
         """멈춤의 마무리(정상 멈춤·유휴 멈춤 공통, begin_stopping 뒤): 마지막 쓰기를 기다리고 → 마지막 묶음을 닫고
         → 그때부터 쓰기를 막고 → 열려 있는 확인 창을 닫는다. 응답을 받지 못한 쓰기 수를 돌려준다."""
-        pending = await self._wait_writes()
-        await self.trace.finish(self.page)
-        self.guard.closing_now()
-        if self._dialog is not None:
-            d = self._dialog
-            try:
-                await asyncio.wait_for(self._close_dialog_for_stop(d), 5)
-                if self._dialog is d:
-                    self._dialog = None                  # 닫는 사이 새로 뜬 창은 지우지 않는다
-            except Exception:
-                pass                                     # 닫지 못해도 멈춤은 계속한다. _dialog 를 남겨 두어 스냅샷이 그 페이지를 계속 건너뛴다
+        try:
+            pending = await self._wait_writes()
+            await self.trace.finish(self.page)
+        finally:
+            self.guard.closing_now()                     # 묶음 닫기가 실패해도(취소돼도) 이 뒤 쓰기는 막는다
+        await self._dismiss_dialog()
         return pending
 
     async def stop(self) -> None:

@@ -152,8 +152,8 @@ def test_종료_시작만으로는_열린_확인_창을_닫지_않고_마무리�
     assert _run(go()) == (True, [True], None)                       # 닫는 것은 쓰기를 막은 뒤다
 
 
-def test_확인_창이_열린_페이지의_쓰기는_기다리지_않는다(monkeypatch):
-    # 창이 열려 있으면 그 페이지의 요청 완료 알림이 창을 닫을 때까지 오지 않는다(실측). 창은 마무리에서 닫는다
+def test_응답을_받은_뒤_확인_창이_열린_페이지의_쓰기는_기다리지_않는다(monkeypatch):
+    # 창이 열려 있으면 그 페이지의 요청 완료 알림이 창을 닫을 때까지 오지 않는다(실측). 응답은 이미 왔고 창은 마무리에서 닫는다
     monkeypatch.setattr(config, "STOP_QUIET_SEC", 0.1)
     monkeypatch.setattr(config, "STOP_WRITE_WAIT_SEC", 5.0)
 
@@ -164,6 +164,7 @@ def test_확인_창이_열린_페이지의_쓰기는_기다리지_않는다(monk
         w = Req("http://h:8080/po/poSave.do", "POST", post="a=1")
         w.frame = type("F", (), {"url": "", "page": page})()
         await s.guard.route(Route(), w)
+        s.guard.on_response(type("R", (), {"request": w})())
 
         class D:
             pass
@@ -314,4 +315,282 @@ def test_응답이_오지_않는_쓰기는_상한_뒤_끊지_않고_남겨_두�
         assert [h for h in site.hits if h[0] == "/hang"]   # 서버가 끝까지 받아 응답했다
     finally:
         site.release.set()
+        call(manager.MANAGER.close(rid))
+
+
+# ── 수정 1차 ─────────────────────────────────────────────────────────────
+def test_운영_재실행은_조회로_분류된_POST_도_한_번_묻고_거절하면_보내지_않는다():
+    # 설계 3판 7절: 운영에서는 GET/HEAD 가 아닌 요청을 보내기 직전에 모두 승인받는다(단계의 write 와 무관)
+    from app.ieum.recorder import replay
+    from tests.test_ieum_recorder_replay import _bf, _CountTransport
+    bf = _bf("http://h")
+    bf["steps"] = [dict(bf["steps"][0], method="POST", path="/poSearch.do", write=False, params=[], outputs={})]
+    asked = []
+
+    async def deny(st):
+        asked.append(st["path"])
+        return False
+
+    async def approve(st):
+        asked.append(st["path"])
+        return "approve"
+    t = _CountTransport()
+    out = _run(replay.run_once(bf, {}, {}, t, None, deny, 0))
+    assert asked == ["/poSearch.do"] and not out["ok"] and out["steps"][0]["reason"] == "write_denied" and t.sent == 0
+    asked.clear()
+    out = _run(replay.run_once(bf, {}, {}, t, None, approve, 0))
+    assert asked == ["/poSearch.do"] and out["ok"] and t.sent == 1
+
+
+def test_조회로_분류된_POST_의_승인_창은_조회로_보인다고_알린다(monkeypatch):
+    from app.ieum.recorder import replay
+    from tests.test_ieum_recorder_replay import _bf
+    import types
+    labels = []
+
+    class G:
+        env = "op"
+
+        async def ask(self, method, url, label):
+            labels.append(label)
+            return False
+    bf = _bf("http://h")
+    bf["steps"] = [dict(bf["steps"][0], method="POST", path="/poSearch.do", write=False, params=[], outputs={})]
+
+    async def cookies():
+        return []
+    sess = types.SimpleNamespace(closed=False, guard=G(), page=None, trace=types.SimpleNamespace(raw={}),
+                                 ctx=types.SimpleNamespace(cookies=cookies))
+    out = _run(replay.verify(bf, {"id": "rec_x", "login": {"mode": "manual"}}, [], sess))
+    assert labels and labels[0].startswith("조회로 보이는 POST — ")
+    assert out["verification"]["runs"][0]["steps"][0]["reason"] == "write_denied"
+
+
+def test_종료_뒤_쓰기가_셋을_넘거나_같은_쓰기가_반복되면_바로_닫는다():
+    async def go():
+        s = _bare_session()
+        _capture(s)
+        await s.begin_stopping()
+        out = []
+        for path in ("/a.do", "/b.do", "/a.do", "/c.do"):
+            r = Route()
+            await s.guard.route(r, Req("http://h:8080/po" + path, "POST", post="x=1"))
+            out.append(r.done)
+        s2 = _bare_session()
+        _capture(s2)
+        await s2.begin_stopping()
+        out2 = []
+        for path in ("/a.do", "/b.do", "/c.do", "/d.do"):
+            r = Route()
+            await s2.guard.route(r, Req("http://h:8080/po" + path, "POST", post="x=1"))
+            out2.append(r.done)
+        return out, s.guard.closing, out2, s2.guard.closing, [d["label"] for d in s2.guard.decisions if d["decision"] == "deny"]
+    out, closing, out2, closing2, labels = _run(go())
+    assert out == ["continue", "continue", "abort", "abort"] and closing
+    assert out2 == ["continue", "continue", "continue", "abort"] and closing2 and labels == ["기록 종료 중"]
+
+
+def test_마무리는_묶음_닫기가_실패해도_쓰기를_막는다(monkeypatch):
+    monkeypatch.setattr(config, "STOP_QUIET_SEC", 0.05)
+
+    async def go():
+        s = _bare_session()
+        _capture(s)
+
+        async def boom(page):
+            raise RuntimeError("묶음 닫기 실패")
+        s.trace.finish = boom
+        await s.begin_stopping()
+        try:
+            await s.wind_down()
+        except RuntimeError:
+            pass
+        return s.guard.closing
+    assert _run(go())
+
+
+def test_로그인_이력도_상한에_센다(monkeypatch):
+    from app.ieum.recorder import guard as guard_mod
+    monkeypatch.setattr(guard_mod, "SENT_LOG_MAX", 2)
+
+    async def go():
+        s = _bare_session()
+        for _ in range(3):
+            await s.guard.route(Route(), Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
+        return [d["decision"] for d in s.guard.decisions], s.guard.sent_dropped, s.guard.login_req is not None
+    assert _run(go()) == (["login", "login"], 1, True)
+
+
+def test_닫힌_페이지의_쓰기는_기다리지_않는다(monkeypatch):
+    monkeypatch.setattr(config, "STOP_QUIET_SEC", 0.05)
+    monkeypatch.setattr(config, "STOP_WRITE_WAIT_SEC", 3.0)
+
+    async def go():
+        s = _bare_session()
+        _capture(s)
+        page = type("P", (), {"is_closed": lambda self: True})()
+        w = Req("http://h:8080/po/poSave.do", "POST", post="a=1")
+        w.frame = type("F", (), {"url": "", "page": page})()
+        await s.guard.route(Route(), w)
+        await s.begin_stopping()
+        t0 = time.monotonic()
+        pending = await s.wind_down()
+        return time.monotonic() - t0, pending
+    took, pending = _run(go())
+    assert took < 1.5 and pending == 0
+
+
+def test_응답을_못_받은_쓰기의_페이지에_확인_창이_열려_있으면_대기_시작에_닫고_기다린다(monkeypatch):
+    monkeypatch.setattr(config, "STOP_QUIET_SEC", 0.05)
+    monkeypatch.setattr(config, "STOP_WRITE_WAIT_SEC", 1.0)
+
+    async def go():
+        s = _bare_session()
+        _capture(s)
+        page = type("P", (), {"is_closed": lambda self: False})()
+        w = Req("http://h:8080/po/poSave.do", "POST", post="a=1")
+        w.frame = type("F", (), {"url": "", "page": page})()
+        await s.guard.route(Route(), w)
+        dismissed = []
+
+        class D:
+            pass
+        d = D()
+        d.page = page
+
+        async def dismiss():
+            dismissed.append(time.monotonic())
+            asyncio.get_running_loop().call_later(0.2, s.guard.on_request_done, w)    # 창을 닫으면 완료 알림이 온다
+        d.dismiss = dismiss
+        s._dialog = d
+        at_finish = []
+
+        async def finish(pg):
+            at_finish.append(s.guard.writes_in_flight)
+        s.trace.finish = finish
+        await s.begin_stopping()
+        pending = await s.wind_down()
+        return dismissed, pending, s._dialog, at_finish
+    dismissed, pending, dialog, at_finish = _run(go())
+    assert len(dismissed) == 1 and pending == 0 and dialog is None
+    assert at_finish == [0]                                 # 응답 전 쓰기는 빼지 않고 끝날 때까지 기다린 뒤 묶음을 닫았다
+
+
+LOOP_PAGE = """<html><head><title>loop</title></head><body>
+<button id="go" style="position:absolute;left:20px;top:20px;width:200px;height:60px" onclick="tryWrite()">저장</button>
+<script>
+function tryWrite(){ fetch('/fail', {method:'POST', body:'a=1'}).then(r => { if(!r.ok) throw 0; })
+  .catch(() => { alert('에러가 발생했습니다.'); setTimeout(tryWrite, 50); }); }
+</script>
+<button id="ok" style="position:absolute;left:20px;top:120px;width:200px;height:60px"
+  onclick="fetch('/save', {method:'POST', body:'a=1'}).then(() => alert('저장되었습니다'))">확인</button>
+<button id="busy" style="position:absolute;left:20px;top:220px;width:200px;height:60px"
+  onclick="fetch('/slow', {method:'POST', body:'a=1'}).catch(() => 0); alert('처리 중')">처리</button>
+</body></html>"""
+
+
+def _loop_handler(site):
+    class H(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self):
+            body = LOOP_PAGE.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            n = int(self.headers.get("Content-Length") or 0)
+            self.rfile.read(n)
+            got = time.time()
+            time.sleep(0.5 if self.path.startswith("/fail") else 6.0 if self.path.startswith("/slow") else 1.0)
+            code = 500 if self.path.startswith("/fail") else 200
+            body = b'{"ok":false}' if code == 500 else b'{"ok":true}'
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            self.wfile.flush()
+            site.hits.append((self.path, got, time.time()))
+
+        def log_message(self, *a):
+            pass
+    return H
+
+
+@pytest.fixture
+def loop_site():
+    st = _Site()
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _loop_handler(st))
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    st.base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        yield st
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+@_browser_mark
+def test_실패하면_알리고_다시_보내는_사이트도_종료가_상한보다_훨씬_빨리_끝나고_종료_뒤_쓰기는_셋_이하(live, loop_site, monkeypatch):
+    from app.ieum.recorder import manager
+    rid = _start_on(loop_site)
+    s = manager.MANAGER.get(rid)
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)
+    try:
+        _click(s, "#go")                                     # POST(0.5초 뒤 500) → alert → 재시도 루프
+        t0 = time.time()
+        call(manager.MANAGER.stop(rid), timeout=90)
+        took = time.time() - t0
+        time.sleep(1.0)
+        after = [h for h in loop_site.hits if h[1] >= t0]
+        assert took < 20, took
+        assert len(after) <= 3, after
+        assert s.guard.closing and any(d["decision"] == "deny" and d["label"] == "기록 종료 중" for d in s.guard.decisions)
+    finally:
+        call(manager.MANAGER.close(rid))
+
+
+@_browser_mark
+def test_저장_뒤_완료_알림을_띄우는_사이트에서_곧바로_멈춰도_저장을_기다리고_남긴다(live, loop_site, monkeypatch):
+    from app.ieum.recorder import manager, store
+    rid = _start_on(loop_site)
+    s = manager.MANAGER.get(rid)
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)
+    try:
+        _click(s, "#ok")                                     # POST(1초) → 응답 → "저장되었습니다" alert
+        call(manager.MANAGER.stop(rid), timeout=60)
+        stopped = time.time()
+        saves = [h for h in loop_site.hits if h[0] == "/save"]
+        assert len(saves) == 1 and saves[0][2] <= stopped
+        rec = store.get_recording(rid)
+        assert any(a["decision"] == "sent" and a["path"] == "/save" for a in rec["approvals"]) and not rec.get("pendingWrites")
+    finally:
+        call(manager.MANAGER.close(rid))
+
+
+@_browser_mark
+def test_보내자마자_처리_중_알림이_열린_채_멈춰도_그_쓰기를_기다린다(live, loop_site, monkeypatch):
+    from app.ieum.recorder import manager, store
+    rid = _start_on(loop_site)
+    s = manager.MANAGER.get(rid)
+    monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)
+    try:
+        # POST(6초) 를 보내고 곧바로 "처리 중" alert. 마우스 입력은 창이 닫힐 때까지 돌아오지 않으므로 페이지 안에서 누른다
+        call(s.page.evaluate("setTimeout(() => document.getElementById('busy').click(), 0)"))
+        end = time.time() + 10
+        while time.time() < end and s._dialog is None:
+            time.sleep(0.05)
+        assert s._dialog is not None
+        call(manager.MANAGER.stop(rid), timeout=60)
+        stopped = time.time()
+        saves = [h for h in loop_site.hits if h[0] == "/slow"]
+        assert len(saves) == 1 and saves[0][2] <= stopped    # 창을 닫고 응답(6초)까지 기다렸다
+        rec = store.get_recording(rid)
+        assert not rec.get("pendingWrites") and any(a["decision"] == "sent" for a in rec["approvals"])
+    finally:
         call(manager.MANAGER.close(rid))

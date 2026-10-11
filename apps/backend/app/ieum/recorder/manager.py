@@ -241,6 +241,7 @@ class Manager:
                 await asyncio.to_thread(retention.sweep, now)
             except Exception:
                 log.exception("보관 정리에 실패했습니다")
+        idle: list = []
         for rid, s in list(self.sessions.items()):
             try:
                 try:
@@ -254,19 +255,32 @@ class Manager:
                 if status != "recording" or s.stopping or rid in self._stops:
                     continue                     # 분석·검증 중인 세션은 service.finish 가 닫는다
                 if now - s.last_input > config.idle_sec():
-                    try:
-                        await s.begin_stopping()          # 멈춤과 같은 순서: 입력을 끊고, 마지막 쓰기를 기다리고, 묶음을 닫고, 쓰기를 막는다
-                        pending = await s.wind_down()
-                        approvals = list(s.guard.decisions)
-                        await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(
-                            status="interrupted", endedAt=now, error="입력이 오래 없어 기록을 멈췄습니다.", approvals=approvals,
-                            pendingWrites=pending))
-                    finally:
-                        await self.close(rid)
+                    await s.begin_stopping()              # 입력을 바로 끊는다. 마무리(쓰기 대기)는 세션마다 따로 돌린다
+                    idle.append(asyncio.ensure_future(self._idle_stop(rid, s, now)))
                 elif now - s.started > config.max_sec():
                     self._begin_stop(rid, s)          # 기다리지 않는다. 멈춤이 오래 걸려도 리퍼(안전망)는 계속 돌아야 한다
             except Exception:
                 log.exception("기록 %s 회수 단계에 실패했습니다", rid)
+        if idle:
+            # 유휴 세션 여럿의 쓰기 대기(세션마다 상한이 있다)를 한 줄로 세우지 않고 함께 기다린다
+            for res in await asyncio.gather(*idle, return_exceptions=True):
+                if isinstance(res, Exception):
+                    log.warning("유휴 기록 멈춤이 실패했습니다: %s", res)
+
+    async def _idle_stop(self, rid: str, s: RecorderSession, now: float) -> None:
+        """유휴 멈춤의 마무리. 정상 멈춤과 같은 순서(wind_down)를 쓰고 같은 항목을 남긴다."""
+        try:
+            pending = await s.wind_down()
+            approvals, dropped = list(s.guard.decisions), s.guard.sent_dropped
+
+            def mark(r):
+                r.update(status="interrupted", endedAt=now, error="입력이 오래 없어 기록을 멈췄습니다.", approvals=approvals,
+                         pendingWrites=pending)
+                if dropped:
+                    r["approvalsDropped"] = dropped
+            await asyncio.to_thread(store.update_recording, rid, mark)
+        finally:
+            await self.close(rid)
 
 
     async def _reap_stuck_stop(self, rid: str, s: RecorderSession) -> None:

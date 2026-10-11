@@ -79,11 +79,18 @@ class Driver:
             return {c["name"]: c["value"] for c in await self.session.ctx.cookies()}
         return self.run(get())
 
-    def stop_and_wait(self):
+    def stop_and_wait(self, approve=False):
         # 마지막 행동의 묶음은 기록을 끝낼 때 닫힌다 — 클릭 직후에 기다리지 않는다
-        httpx.post(self.base + f"/api/ieum/recorder/recordings/{self.rid}/stop/", timeout=60)
+        # approve: 운영 재실행 검증이 GET 이 아닌 단계마다 묻는 승인 창에 사람 대신 승인한다(설계 3판 7절)
+        httpx.post(self.base + f"/api/ieum/recorder/recordings/{self.rid}/stop/", timeout=90)
         end = time.time() + 120
+        answered = set()
         while time.time() < end:
+            if approve:
+                for m in list(self.msgs):
+                    if m["t"] == "hold" and m["id"] not in answered:
+                        answered.add(m["id"])
+                        self.ws.send(json.dumps({"t": "approve", "id": m["id"], "ok": True}))
             rec = httpx.get(self.base + f"/api/ieum/recorder/recordings/{self.rid}/").json()["resultData"]
             if rec["status"] in ("review", "failed"):
                 return rec
@@ -128,7 +135,7 @@ def test_서버_렌더링_업무가_HTML_표_단계와_브라우저_실행으로
     d.text("한빛")
     d.click("#btnSsrSearch")
     d.click("#vendResult a >> nth=0")
-    rec = d.stop_and_wait()
+    rec = d.stop_and_wait(approve=True)                              # 운영: 검색 POST 는 조회여도 재실행 전에 승인받는다
     assert rec["status"] == "review", rec.get("error")
     bf = d.function(rec)
     s1, s2 = bf["steps"]
@@ -137,6 +144,8 @@ def test_서버_렌더링_업무가_HTML_표_단계와_브라우저_실행으로
     v = next(p for p in s2["params"] if p["a"] == "vendCd")
     assert v["source"] == "PREVIOUS_STEP_OUTPUT" and v["from"].startswith("s1.")
     assert bf["verification"]["runs"][0]["ok"] is True and bf["executionMode"] == "browser"
+    asked = [m for m in d.msgs if m["t"] == "hold"]
+    assert asked and all(m["method"] == "POST" and "조회로 보이는 POST" in m["label"] for m in asked)
     spans = store.read_spans(rec["id"])
     saved = " ".join(s["post"]["aria"] + json.dumps(s["network"], ensure_ascii=False) for s in spans)
     assert "010-4821-5678" not in saved                              # 상세 화면의 휴대전화는 ARIA·응답 사본 어디에도 원값으로 남지 않는다
