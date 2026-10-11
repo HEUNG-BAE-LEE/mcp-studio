@@ -278,13 +278,16 @@ class Manager:
                 self._stuck.add(rid)
                 task.cancel()                         # 작업이 취소를 받으면 실패로 적고 스스로 빼고 닫는다
                 await asyncio.wait({task}, timeout=_STOP_CANCEL_WAIT_SEC)
-            if task.done() and not task.cancelled() and task.exception() is None:
-                return                                # 막 정상으로 끝난 멈춤이다. 회수하지 않는다
-            if task.done():
-                if self.sessions.get(rid) is s:       # 작업이 실패로 끝나며 이미 정리했다. 남았으면 치운다
-                    self.sessions.pop(rid, None)
-                    await s.close()
+            if not task.done():
+                # 취소를 받고도 아직 돈다. 지금 실패로 적으면 늦게 정상으로 끝난 작업이 덮어쓸 수 있다. 다음 회수 때 다시 본다
+                log.warning("기록 %s 의 멈춤 작업이 취소 뒤에도 끝나지 않았습니다. 다음 회수 때 다시 확인합니다", rid)
                 return
+            if not task.cancelled() and task.exception() is None:
+                return                                # 막 정상으로 끝난 멈춤이다. 회수하지 않는다
+            if self.sessions.get(rid) is s:           # 작업이 실패로 끝나며 이미 정리했다. 남았으면 치운다
+                self.sessions.pop(rid, None)
+                await s.close()
+            return
         log.warning("기록 %s 이(가) %d초 넘게 멈추는 중이라 실패로 회수합니다", rid, _STOP_STUCK_SEC)
         try:
             await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(status="failed", error=_STUCK_MSG, endedAt=time.time()))
@@ -293,5 +296,6 @@ class Manager:
         if self.sessions.get(rid) is s:
             self.sessions.pop(rid, None)
         await s.close()
+
 
 MANAGER = Manager()

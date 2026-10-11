@@ -151,8 +151,8 @@ def test_닫기를_시작하면_입력을_더_받지_않고_소비_작업이_남
         s._stop_inputs()
         await s.dispatch({"t": "click", "x": 1, "y": 1, "w": 1, "h": 1})
         await s.dispatch({"t": "pause", "on": True})
-        return s._input_task, s._ctl_task, len(s._inputs)
-    assert _run(go()) == (None, None, 0)
+        return s._input_task, len(s._inputs)
+    assert _run(go()) == (None, 0)
 
 
 def test_확인_창_응답이_실패하면_확인_창을_되돌린다(monkeypatch):
@@ -381,5 +381,102 @@ def test_일시정지_해제_뒤의_클릭은_기록된다(live, monkeypatch):
             ws.send(json.dumps({"t": "click", "x": 10, "y": 10, "w": relay.VIEW_W, "h": relay.VIEW_H}))
             assert _wait(lambda: len(got) == 1, 15)
         assert got[0] is not None                         # 일시정지 중으로 보고 버리지 않았다
+    finally:
+        call(manager.MANAGER.close(out["id"]))
+
+
+@needs_browser
+def test_일시정지보다_먼저_온_클릭은_기록된다(live, monkeypatch):
+    from app.ieum.recorder import manager, relay
+    out = start(live)
+    s = manager.MANAGER.get(out["id"])
+    orig_begin = s.trace.begin
+    got = []
+
+    async def begin(page, kind):
+        got.append(await orig_begin(page, kind))
+    monkeypatch.setattr(s.trace, "begin", begin)
+    try:
+        with connect(_ws_url(live, out), max_size=None) as ws:
+            ws.send(json.dumps({"t": "click", "x": 10, "y": 10, "w": relay.VIEW_W, "h": relay.VIEW_H}))
+            ws.send(json.dumps({"t": "pause", "on": True}))
+            assert _wait(lambda: len(got) == 1 and s.trace.paused, 15)
+        assert got[0] is not None                         # 일시정지 전에 누른 클릭은 일시정지로 버려지지 않는다
+    finally:
+        call(manager.MANAGER.close(out["id"]))
+
+
+@needs_browser
+def test_탭_전환보다_먼저_온_클릭은_이전_탭으로_가고_뒤의_클릭은_새_탭으로_간다(live, monkeypatch):
+    from app.ieum.recorder import manager, relay
+    out = start(live)
+    s = manager.MANAGER.get(out["id"])
+    first = s.page
+    call(s.ctx.new_page())
+    assert _wait(lambda: len(s.pages) == 2 and s.page is not first)
+    old_cdp = s.cdp
+    clicked = []
+
+    async def begin(page, kind):
+        await asyncio.sleep(0.3)                          # 첫 클릭 처리가 걸리는 사이 탭 전환이 도착한다
+
+    async def click(cdp, x, y):
+        clicked.append(cdp)
+    monkeypatch.setattr(s.trace, "begin", begin)
+    monkeypatch.setattr(relay, "click", click)
+    pt = {"x": 10, "y": 10, "w": relay.VIEW_W, "h": relay.VIEW_H}
+    try:
+        with connect(_ws_url(live, out), max_size=None) as ws:
+            ws.send(json.dumps(dict(t="click", **pt)))
+            ws.send(json.dumps({"t": "tab", "index": 0}))
+            ws.send(json.dumps(dict(t="click", **pt)))
+            assert _wait(lambda: len(clicked) == 2, 10)
+        assert s.page is first
+        assert clicked[0] is old_cdp and clicked[1] is s.cdp and s.cdp is not old_cdp
+    finally:
+        call(manager.MANAGER.close(out["id"]))
+
+
+@needs_browser
+def test_입력_중_사이트가_새_탭을_열면_입력이_끝난_뒤에_전환한다(live, monkeypatch):
+    from app.ieum.recorder import manager, relay
+    out = start(live)
+    s = manager.MANAGER.get(out["id"])
+    first = s.page
+    events = []
+    active = {"n": 0, "max": 0}
+    orig_start, orig_stop = relay.start_screencast, relay.stop_screencast
+
+    async def begin(page, kind):
+        events.append("begin")
+        await asyncio.sleep(1.0)
+        events.append("begin-end")
+
+    async def click(cdp, x, y):
+        events.append("click")
+
+    async def start_sc(cdp, cb):
+        active["n"] += 1
+        active["max"] = max(active["max"], active["n"])
+        events.append("start")
+        await orig_start(cdp, cb)
+
+    async def stop_sc(cdp):
+        active["n"] -= 1
+        events.append("stop")
+        await orig_stop(cdp)
+    monkeypatch.setattr(s.trace, "begin", begin)
+    monkeypatch.setattr(relay, "click", click)
+    monkeypatch.setattr(relay, "start_screencast", start_sc)
+    monkeypatch.setattr(relay, "stop_screencast", stop_sc)
+    try:
+        with connect(_ws_url(live, out), max_size=None) as ws:
+            ws.send(json.dumps({"t": "click", "x": 10, "y": 10, "w": relay.VIEW_W, "h": relay.VIEW_H}))
+            assert _wait(lambda: "begin" in events, 5)
+            call(first.evaluate("window.open(location.href)"))       # 클릭 처리 도중 사이트가 새 탭을 연다
+            assert _wait(lambda: len(s.pages) == 2 and s.page is not first and "start" in events, 15)
+        assert events.index("stop") > events.index("click")          # 새 탭 전환은 진행 중인 입력이 끝난 뒤
+        assert events.count("start") == 1 and events.count("stop") == 1
+        assert active["n"] == 0 and active["max"] <= 0                # 중계가 겹친 적이 없다(멈춘 뒤 시작)
     finally:
         call(manager.MANAGER.close(out["id"]))
