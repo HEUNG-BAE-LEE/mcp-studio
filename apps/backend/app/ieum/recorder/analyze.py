@@ -456,6 +456,8 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         aria = (sp.get("post") or {}).get("aria") or ""
         shown = _shown(data, n.get("res") or "", aria)
         cand = not (shown or write)                       # 화면에 안 나타난 요청: 뒤 단계가 쓰면 prereq, 아니면 빠진다
+        if sp["action"].get("type") == "open":
+            cand = True                                   # 시작 묶음은 첫 사람 입력까지 열려 있어 폴링 등이 쌓인다: 뒤 단계가 쓸 때만 남긴다
         if cand and data is None:
             if key not in seen:
                 seen[key] = None

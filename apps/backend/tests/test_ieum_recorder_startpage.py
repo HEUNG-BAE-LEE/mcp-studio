@@ -161,3 +161,25 @@ def test_목록에서_시작해_두번째_기사를_누른_기록이_두_단계�
         except Exception:
             pass
         ws.close()
+
+
+def _open_span(base, network, aria):
+    return {"seq": 1, "action": {"type": "open", "url": base + "/list.do", "label": "시작 화면 열기", "target": None, "isTrusted": None, "t": 1},
+            "fills": [], "pre": {"url": "", "href": "", "title": "", "aria": "", "hidden": {}, "shot": None},
+            "network": network, "post": {"url": "/list.do", "href": base + "/list.do", "title": "목록", "aria": aria, "hidden": {}, "shot": None}}
+
+
+def test_시작_묶음의_요청은_화면에_보여도_뒤_단계가_쓰지_않으면_단계가_아니다():
+    """시작 묶음은 첫 사람 입력까지(몇 분) 열려 있어 폴링·대시보드 GET 이 쌓인다. 화면에 보인다고 핵심 단계로 두면 운영에 다시 보낸다."""
+    base = "http://h:8080"
+    poll = dict(_net(base + "/api/notice/poll.do", json.dumps({"notice": "오늘의 공지사항 안내"}, ensure_ascii=False)), rtype="xhr", data=None)
+    lst = LIST.format(a="0000000001", b="0000000002", c="0000000003")
+    spans = [_open_span(base, [_net(base + "/list.do", lst, htmltable.to_data(lst)), poll], "- text: 오늘의 공지사항 안내\n- link: 첫 기사 제목"),
+             {"seq": 2, "action": {"type": "click", "target": {"tag": "A", "text": "둘째 기사 제목"}, "isTrusted": True, "t": 2}, "fills": [],
+              "pre": {"url": "/list.do", "href": base + "/list.do", "title": "목록", "aria": "", "hidden": {}, "shot": None},
+              "network": [_net(base + "/mnews/article/052/0000000002", DETAIL.format(id="0000000002"))],
+              "post": {"url": "/x", "href": base + "/x", "title": "기사", "aria": "- heading: 기사 본문 0000000002", "hidden": {}, "shot": None}}]
+    bf = analyze.analyze({"id": "rec_00000021", "name": "기사", "sourceBase": base, "env": "op", "login": {}, "approvals": []}, spans)
+    assert [s["path"] for s in bf["steps"]] == ["/list.do", "/mnews/article/{id}/{id2}"]
+    assert bf["steps"][0]["role"] == "prereq"
+    assert any(e["path"] == "/api/notice/poll.do" for e in bf["excluded"])
