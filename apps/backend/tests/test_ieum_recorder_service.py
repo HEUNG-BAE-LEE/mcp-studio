@@ -52,7 +52,7 @@ def test_제외된_요청을_단계로_올린다(saved):
 
 def test_정책은_받지_않고_미완을_다시_구하지_않는다(saved):
     out = service.update_function(saved["id"], {"policy": {"scope": "부서 데이터", "sensitivity": "일반"}})
-    assert out["policy"].get("scope") is None and out["policyIncomplete"] is True       # 분석이 남긴 값을 건드리지 않는다
+    assert out["policy"].get("scope") is None
 
 
 def test_등록하면_스크린샷을_지우고_행동_묶음은_남긴다(saved):

@@ -190,3 +190,16 @@ def test_라우트는_기본이_업무_도구이고_막는_이유를_싣고_확�
     r = c.post(base + "register/")
     assert r.status_code == 201 and r.json()["resultData"]["tools"][0]["kind"] == "flow"
     assert c.post(base + "register/", json={"mode": "all"}).status_code == 400
+
+
+def test_영문_이름의_업무가_두_주소를_쓰면_원본이_따로_남고_업무_도구는_시작_주소_원본에_있다(fn):
+    from app.ieum.repositories import sources as src_repo
+    bf = _bf(name="news read")
+    bf["steps"][1]["base"] = "http://127.0.0.2:9"
+    store.save_function(bf)
+    out = service.register_flow(fn)
+    ids = [x["id"] for x in out["sources"]]
+    assert len(set(ids)) == 2
+    saved = {x["base"]: x["id"] for x in src_repo.list_sources() if x["id"] in ids}
+    assert set(saved) == {"http://127.0.0.1:9", "http://127.0.0.2:9"}
+    assert out["tools"][0]["id"] in {t["id"] for t in tool_repo.all_tools()[saved["http://127.0.0.1:9"]]}

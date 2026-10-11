@@ -596,14 +596,17 @@ def _register_flow(bf: dict) -> dict:
     out_sources, login_known = [], {}
     with store.LOCK:         # _register 와 같은 이유. 재진입 가능
         main_src = None
-        for base in bases:                       # 다른 주소 단계의 원본도 만든다(실행기가 단계 base 로 인증을 찾는다)
+        # 다른 주소 단계의 원본도 만든다(실행기가 단계 base 로 인증을 찾는다). 시작 주소의 원본부터 하나씩 바로 저장한다 —
+        # 저장하기 전에 다음 원본의 id 를 정하면 _slug 가 같은 이름에서 같은 id 를 내어 서로 덮어쓴다
+        for base in bases:
             src, known = _source_for_base(bf, base, src_repo.list_sources(), cred, recipe)
             login_known[src["id"]] = known
+            src["desc"] = f"도구 {len(tool_repo.all_tools().get(src['id'], []))}개"
+            saved_src = src_repo.upsert_source(src)
             if base == primary:
                 main_src = src
-                continue
-            src["desc"] = f"도구 {len(tool_repo.all_tools().get(src['id'], []))}개"
-            out_sources.append(src_repo.upsert_source(src))
+            else:
+                out_sources.append(saved_src)
         sid = main_src["id"]
         current = list(tool_repo.all_tools().get(sid, []))
         taken = {t["id"] for t in tool_repo.flat_tools()}
