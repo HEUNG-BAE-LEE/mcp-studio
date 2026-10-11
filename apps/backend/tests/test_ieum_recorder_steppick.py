@@ -159,3 +159,20 @@ def test_화면_이동_없이_버튼이_보낸_다른_출처_쓰기는_단계로
                                      post="docNo=D-77")], "- text: 승인했습니다", SEARCH + "/x")]
     bf = analyze.analyze(REC, spans)
     assert [s["path"] for s in bf["steps"]] == ["/appr/approve.do"] and bf["steps"][0]["write"] is True
+
+
+def test_쓰기_단계의_출처_없는_경로_자리는_예_없이_값이_필요한_입력이다():
+    spans = [_span(1, "삭제", [_net("DELETE", SEARCH + "/api/items/15000002", json.dumps({"ok": "삭제했습니다"}, ensure_ascii=False))],
+                   "- text: 삭제했습니다", SEARCH + "/x")]
+    bf = analyze.analyze(REC, spans)
+    p = next(p for p in bf["steps"][0]["params"] if p["loc"] == "path")
+    assert p["from"] == "input.id" and p["ex"] == ""
+    inp = next(i for i in bf["inputs"] if i["name"] == "id")
+    assert inp["needsValue"] is True and inp["ex"] == ""
+
+
+def test_등록_도메인_어림_둘째_마디_목록():
+    same = analyze._site
+    assert same("www.abc.de") == same("abc.de") == "abc.de" and same("api.x.ai") == "x.ai"
+    assert same("www.gov.kr") == same("plus.gov.kr") == "gov.kr"
+    assert same("a.b.ac.uk") == "b.ac.uk" and same("x.y.ne.jp") == "y.ne.jp" and same("www.data.go.kr") == "data.go.kr"

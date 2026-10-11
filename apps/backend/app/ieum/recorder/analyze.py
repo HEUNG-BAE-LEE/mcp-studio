@@ -408,14 +408,18 @@ def _origin(url: str) -> str:
     return f"{p.scheme}://{p.netloc}".lower() if p.netloc else ""
 
 
+_SECOND_LEVEL = {"co", "go", "or", "ac", "ne", "re", "pe", "ed", "mil", "com", "net", "org", "edu"}
+
+
 def _site(host: str) -> str:
-    """등록 도메인 어림값(새 의존성 없이). 마지막 두 마디, 단 최상위가 두 글자이고 둘째 마디가 세 글자 이하면(co.kr, go.kr, or.kr,
-    ac.kr, co.uk …) 마지막 세 마디. 공개 접미사 목록이 아니라 어림이라 드문 접미사(예: 세 마디 공공 도메인)는 틀릴 수 있다. IP·점 없는 이름은 그대로."""
+    """등록 도메인 어림값(새 의존성 없이). 마지막 두 마디, 단 최상위가 두 글자이고 둘째 마디가 흔한 범용 이름(co, go, or, ac, ne, re,
+    pe, ed, mil, com, net, org, edu — co.kr, go.kr, ac.uk, ne.jp …)이면 마지막 세 마디. 공개 접미사 목록이 아니라 어림이라
+    목록에 없는 접미사(예: seoul.kr 같은 지역 도메인, github.io 같은 공개 접미사)는 틀릴 수 있다. IP·점 없는 이름은 그대로."""
     host = (host or "").lower().rstrip(".")
     if not host or "." not in host or re.fullmatch(r"[\d.]+|\[?[0-9a-f:]+\]?", host):
         return host
     labels = host.split(".")
-    if len(labels) >= 3 and len(labels[-1]) == 2 and len(labels[-2]) <= 3:
+    if len(labels) >= 3 and len(labels[-1]) == 2 and labels[-2] in _SECOND_LEVEL:
         return ".".join(labels[-3:])
     return ".".join(labels[-2:])
 
@@ -806,9 +810,12 @@ def _link_path(st: dict, n: dict, prev_steps: List[dict], user_vals: Dict[str, s
         if tl:
             for a in rest:
                 _use_template(params[a], tl, a, st, contrib)
+    risky = bool(st.get("write")) or (st.get("method") or "").upper() not in ("GET", "HEAD")
     for a, p in params.items():
         if p.get("source"):
             continue
+        if risky:
+            p["ex"] = ""                                      # 쓰기 단계: 기록 값으로 다시 보내면 지난 자원을 또 지우거나 고친다. 값을 받아야 한다
         name = a
         while name in inputs and inputs[name]["ex"] != p["ex"]:     # 다른 단계의 같은 이름 자리({id})와 섞이지 않게
             name += "_"
