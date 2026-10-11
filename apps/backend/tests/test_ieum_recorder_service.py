@@ -418,3 +418,14 @@ def test_앞_단계에서_잇는_경로_자리도_도구의_필수_입력이고_
     src = next(s for s in out["sources"] if s["base"] == "https://n.news.naver.com")
     req = engine.build_request(src, tool, {ps["id"]["a"]: "021", ps["id2"]["a"]: "0000101010"}, {})
     assert req["url"] == "https://n.news.naver.com/mnews/article/021/0000101010"
+
+
+def test_분석_결과가_없던_업무는_단계를_바꿔도_결과를_지어내지_않는다(ieum_state):
+    bf = _three(ieum_state)
+    bf["output"] = {"from": None, "fields": []}
+    bf["steps"][2]["recordedRes"] = ""                       # 남는 마지막 핵심 단계에 응답이 없다
+    store.save_function(bf)
+    out = service.update_function("bf_00000001", {"steps": [{"id": "s1"}, {"id": "s2", "skip": True}, {"id": "s3"}]})
+    assert out["output"] == {"from": None, "fields": []}
+    out = service.update_function("bf_00000001", {"steps": [{"id": "s1"}, {"id": "s2"}, {"id": "s3", "skip": True}]})
+    assert out["output"]["from"] == "s2" and out["output"]["fields"]               # 남은 단계가 화면에 보인 결과를 내면 그 단계

@@ -272,7 +272,7 @@ def _template_link(tpls: List[Optional[str]], want: Dict[str, str], prev_steps: 
 
 
 def _row_ids(tpl: str, data, group: str) -> List[int]:
-    """template_rows 와 같은 순서의 행 번호들."""
+    """묶음 안에서 틀에 맞는 후보를 하나 이상 가진 행 번호(ri)들, 첫 등장 순서. 출처 식의 k 는 이 목록의 순번이다."""
     out: List[int] = []
     for _, _, g, ri in _matches(tpl, data):
         if g == group and ri is not None and ri not in out:
@@ -461,18 +461,13 @@ def _last_main(sp: dict) -> Optional[dict]:
     return mains[-1] if mains else None
 
 
-def _landed(items: list, spans: List[dict], policy: Policy) -> set:
-    """사람 행동(클릭·키·제출) 묶음에서 주 화면이 마지막으로 연 GET 문서(리디렉트면 마지막 것). 사람이 눌러 연 화면이므로 화면 표시 판정과
-    상관없이 핵심이다(본문 앞부분이 스크립트뿐이면 글자 조각 판정이 놓친다). 다만 뒤의 사람 행동이 주 화면을 다른 문서로 옮겼으면
-    거쳐 간 화면이라 예전 규칙(화면 표시·뒤 단계가 쓰는가)을 따른다. 같은 화면 안의 행동(댓글 더보기·공감 등)은 내리지 않는다."""
-    kept = {id(n) for _, n, _, _ in items}
-    mains = [(sp["seq"], _last_main(sp)) for sp in spans]
-    mains = [(seq, m) for seq, m in mains if m is not None]
-    out = set()
-    for i, (seq, m) in enumerate(mains):
-        if i == len(mains) - 1 and id(m) in kept:          # 뒤에 다른 화면 이동이 없는 마지막 도착 화면
-            out.add(id(m))
-    return out
+def _landed(items: list, spans: List[dict]) -> set:
+    """기록 전체에서 사람 행동(클릭·키·제출)이 주 화면에 마지막으로 연 GET 문서(그 묶음 안 리디렉트면 마지막 것) 하나.
+    사람이 눌러 도착한 화면이라 화면 표시 판정과 상관없이 핵심이다(본문 앞부분이 스크립트뿐이면 글자 조각 판정이 놓친다).
+    그 앞의 도착 화면은 뒤의 화면 이동으로 떠난 거쳐 간 화면이라 예전 규칙(화면 표시·뒤 단계가 쓰는가)을 따른다.
+    같은 화면 안의 행동(댓글 더보기·공감 등)은 주 화면 문서를 열지 않으므로 도착 화면을 바꾸지 않는다. items 에 없는(뺀) 요청은 고르지 않는다."""
+    mains = [m for m in (_last_main(sp) for sp in spans) if m is not None]
+    return {id(mains[-1])} if mains and id(mains[-1]) in {id(n) for _, n, _, _ in items} else set()
 
 
 def _shown(data, raw: str, aria: str) -> bool:
@@ -525,7 +520,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                                        for _, n, _, _ in items])
     code_paths = {p for _, n, p, _ in items if tables and n["method"] == "GET" and re.search(r"code|cmmn", p, re.I)}
 
-    landed = _landed([it for it in items if id(it[1]) not in side], spans, policy)
+    landed = _landed([it for it in items if id(it[1]) not in side], spans)
 
     # 1) 핵심 후보
     steps: List[dict] = []

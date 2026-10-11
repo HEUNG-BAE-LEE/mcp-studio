@@ -153,6 +153,7 @@ function recReviewHTML() {
       ${s.writeWhy ? `<small class="rec-why">${s.write ? '쓰기' : '조회'}로 본 이유: ${esc(s.writeWhy)}</small><br>` : ''}
       <div class="mono">${esc(s.method)} ${esc(s.path)}${s.discriminator ? ` (${esc(s.discriminator)})` : ''}</div>
       ${s.base !== f.source.base ? `<small>다른 시스템: ${esc(s.base)}</small><br>` : ''}
+      ${Number.isInteger(s.pickedIndex) ? `<small>기록 때 고른 결과: ${s.pickedIndex + 1}번째${s.pickedRow ? ` · ${esc(String(s.pickedRow).slice(0, 40))}` : ''}</small><br>` : ''}
       ${s.params.map(p => `<small>${esc(p.a)} ← ${esc(p.from)}${p.confidence === 'low' ? ' ⚠' : ''}</small>`).join('<br>')}
       ${Object.keys(s.outputs).length ? `<br><small>꺼내는 값: ${Object.entries(s.outputs).map(([k, p]) => `${esc(k)}=${esc(p)}`).join(', ')}</small>` : ''}
       <div class="rec-shots">${ev(seq, 'pre')}${ev(seq, 'post')}</div></div>`; }).join('');

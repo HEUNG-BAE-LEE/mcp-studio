@@ -48,8 +48,6 @@ def _keys(d) -> set:
     return {re.sub(r"\[\d+\]", "[]", p) for p, _ in leaves(d, 200)}
 
 
-_HTML_HINT = htmltable.HTML_HINT
-_visible_text = htmltable.visible_text
 _TITLE = re.compile(r"<title\b[^>]*>(.*?)</title\s*>", re.I | re.S)
 ERR_PAGE_TEXT = 5000            # 화면 글자가 이보다 짧아야 오류 화면으로 본다(긴 정상 화면의 오류 코드표·안내를 오류로 보지 않게)
 
@@ -63,12 +61,12 @@ def _looks_error(data, text: str, recorded: str = "", seen_before=None) -> bool:
     # 기록 때 정상 응답에도 보이던 문구는 오류 표시로 보지 않는다: 기록 때 전체 화면에서 찾은 목록(seen_before)이 있으면 그것,
     # 없으면(예전 기록) 저장된 앞부분 본문(recorded)과 비교한다.
     text = text or ""
-    seen = _visible_text(text)
-    ignore = set(seen_before or ()) | {t for t in _ERR_TEXT if t in _visible_text(recorded)}
+    seen = htmltable.visible_text(text)
+    ignore = set(seen_before or ()) | {t for t in _ERR_TEXT if t in htmltable.visible_text(recorded)}
     hits = [t for t in _ERR_TEXT if t in seen and t not in ignore]
     if not hits:
         return False
-    if not _HTML_HINT.search(text):
+    if not htmltable.HTML_HINT.search(text):
         return True
     # HTML 은 오류 화면처럼 보일 때만: 보이는 글자가 짧거나 제목에 문구가 있다
     m = _TITLE.search(text)

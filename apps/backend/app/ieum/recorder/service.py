@@ -191,7 +191,11 @@ def _reoutput(bf: dict, spans: List[dict]) -> None:
     human = [q for q in seqs if ((by_seq[q].get("action") or {}).get("type")) != "open"]
     sp = by_seq[(human or seqs)[0]] if seqs else {}
     aria = (sp.get("post") or {}).get("aria") or ""
-    bf["output"] = {"from": last["id"], "fields": analyze.output_fields(data, aria) if data is not None and aria else []}
+    fields = analyze.output_fields(data, aria) if data is not None and aria else []
+    if orig.get("from") is None and not fields:
+        bf["output"] = copy.deepcopy(orig)                   # 분석이 결과를 정하지 못한 업무: 의미 있는 결과가 생기지 않으면 지어내지 않는다
+        return
+    bf["output"] = {"from": last["id"], "fields": fields}
 
 
 def _next_step_id(bf: dict) -> str:
