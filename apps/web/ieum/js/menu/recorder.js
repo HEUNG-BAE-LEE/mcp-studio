@@ -4,7 +4,7 @@
    전역 REC 는 discovery.js 가 쓰고 있어서, 이 파일의 상태 객체는 RECR 이다. */
 const RECR = { page:'list', list:[], fns:[], usage:null, demo:null, form:null, live:null, fn:null, rec:null, busy:false, values:{}, load:'loading', loadErr:'', wheel:0, wheelQ:null, saveQ:null };
 const REC_STATUS = { recording:['기록 중','info'], analyzing:['분석 중','info'], verifying:['검증 중','info'], review:['검토 대기','warn'],
-  confirmed:['확정','ok'], registered:['등록 완료','ok'], failed:['실패','danger'], interrupted:['중단됨','mute'] };
+  confirmed:['등록 전','mute'], registered:['등록 완료','ok'], failed:['실패','danger'], interrupted:['중단됨','mute'] };
 const REC_VERIFY = { verified:['검증됨','ok'], partial:['부분 검증','warn'], failed:['검증 실패','danger'], pending:['검증 전','mute'],
   skipped:['검증 생략','mute'], stale:['다시 검증 필요','warn'], 'needs-login':['다시 로그인 필요','warn'], 'needs-value':['값 다시 입력 필요','warn'] };
 const REC_REASON = { needs_value:'값 입력 필요', unresolved_path:'값 경로를 찾지 못함', auth_expired:'로그인 만료', waf_blocked:'보안 장비가 막음',

@@ -135,7 +135,7 @@ def recording_shot(rid: str, name: str):
         return fail(400, "잘못된 화면 캡처 이름입니다.")
     path = store.rec_dir(rid) / name
     if not path.exists():
-        return fail(404, "화면 캡처가 없습니다. 업무 기능을 확정했거나 보관 기간이 지나 지웠을 수 있습니다.")
+        return fail(404, "화면 캡처가 없습니다. 업무 기능을 등록했거나 보관 기간이 지나 지웠을 수 있습니다.")
     return Response(content=path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
