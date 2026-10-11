@@ -1,4 +1,4 @@
-"""업무 기능 수정·확정·등록."""
+"""업무 기능 수정·등록(등록이 곧 확정)."""
 import asyncio
 import json
 
@@ -50,14 +50,14 @@ def test_제외된_요청을_단계로_올린다(saved):
     assert [s["path"] for s in out["steps"]] == ["/vendList.do", "/common/codeList.do"] and out["steps"][1]["role"] == "prereq"
 
 
-def test_정책을_채우면_미완이_풀린다(saved):
+def test_정책은_받지_않고_미완을_다시_구하지_않는다(saved):
     out = service.update_function(saved["id"], {"policy": {"scope": "부서 데이터", "sensitivity": "일반"}})
-    assert out["policyIncomplete"] is False
+    assert out["policy"].get("scope") is None and out["policyIncomplete"] is True       # 분석이 남긴 값을 건드리지 않는다
 
 
-def test_확정하면_스크린샷을_지우고_행동_묶음은_남긴다(saved):
-    out = service.confirm(saved["id"])
-    assert out["status"] == "confirmed" and out["policyIncomplete"] is True
+def test_등록하면_스크린샷을_지우고_행동_묶음은_남긴다(saved):
+    out = service.register_flow(saved["id"])["function"]
+    assert out["status"] == "registered" and out["confirmedAt"]
     assert not list(store.rec_dir("rec_00000001").glob("*.jpg")) and store.read_spans("rec_00000001")
 
 
@@ -168,7 +168,8 @@ def test_라우트가_업무_기능을_다룬다(saved):
     assert c.get(base).json()["resultData"]["id"] == "bf_00000001"
     assert c.put(base, json={"name": "새 이름"}).json()["resultData"]["name"] == "새 이름"
     assert c.post(base + "register/", json={"mode": "single"}).status_code == 201
-    assert c.post(base + "confirm/").json()["resultData"]["status"] == "confirmed"
+    assert c.post(base + "register/").json()["resultData"]["function"]["status"] == "registered"
+    assert c.post(base + "confirm/").status_code in (404, 405)
     assert c.get("/api/ieum/recorder/functions/bf_deadbeef/").status_code == 404
     assert c.get("/api/ieum/recorder/functions/bf_nope/").status_code == 400
 
@@ -179,14 +180,14 @@ def _two_step(saved_extra=None):
     return other
 
 
-def test_검증하는_사이_확정해도_확정이_유지된다(saved, monkeypatch):
+def test_검증하는_사이_등록해도_등록이_유지된다(saved, monkeypatch):
     async def slow_verify(bf, rec, spans, session=None, values=None):
-        await asyncio.to_thread(service.confirm, saved["id"])       # 검증 도중 사람이 확정
+        await asyncio.to_thread(service.register_flow, saved["id"])       # 검증 도중 사람이 등록
         return {"verification": {"status": "verified", "at": 9, "runs": []}, "executionMode": "session"}
     monkeypatch.setattr(service.replay, "verify", slow_verify)
     asyncio.run(service.reverify(saved["id"], None))
     out = store.get_function(saved["id"])
-    assert out["status"] == "confirmed" and out["verification"]["at"] == 9
+    assert out["status"] == "registered" and out["verification"]["at"] == 9
 
 
 def test_분석_검증_중이면_다시_검증을_거부한다(saved):
@@ -237,7 +238,6 @@ def test_기존_원본의_인증정보는_덮어쓰지_않는다(saved):
 @pytest.mark.parametrize("patch", [
     {"inputs": "x"}, {"inputs": [{"name": "vendNm", "source": "BOGUS"}]}, {"inputs": [{"name": "vendNm", "type": "blob"}]},
     {"inputs": [{"name": "vendNm", "required": "yes"}]}, {"inputs": [{"name": "nope"}]},
-    {"policy": {"risk": "SUPER"}}, {"policy": {"operation": "EXPLODE"}}, {"policy": {"approval": 3}},
     {"steps": [{"id": "s1", "write": "yes"}]}, {"steps": [{"id": "s1", "write": 1}]},
     {"steps": [{"id": "s9"}]}, {"steps": [{"id": "s1"}, {"id": "s1"}]}, {"steps": []},
     {"promote": {"method": "GET"}}, {"promote": "x"}, {"promote": {"method": "GET", "path": "/nowhere.do"}},
@@ -293,7 +293,7 @@ def test_라우트_검증_오류는_400_모드는_400_출력은_고정문구(sav
     app.include_router(router)
     c = TestClient(app)
     base = "/api/ieum/recorder/functions/bf_00000001/"
-    assert c.put(base, json={"policy": {"risk": "SUPER"}}).status_code == 400
+    assert c.put(base, json={"policy": {"risk": "SUPER"}}).status_code == 200          # 정책은 받지 않는다(무시)
     assert c.post(base + "register/", json={"mode": "all"}).status_code == 400
 
     async def boom(*a, **k):
@@ -303,16 +303,13 @@ def test_라우트_검증_오류는_400_모드는_400_출력은_고정문구(sav
     assert r.status_code == 400 and "비밀" not in r.text
 
 
-def test_검토에서_write_를_바꾸면_낡음이_되고_정책을_다시_계산한다(saved):
-    out = service.update_function(saved["id"], {"policy": {"scope": "부서 데이터", "sensitivity": "일반"}})
-    assert out["policy"]["operation"] == "READ"
+def test_검토에서_write_를_바꾸면_낡음이_되고_작업_유형만_다시_구한다(saved):
     out = service.update_function(saved["id"], {"steps": [{"id": "s1", "write": True}]})
     st = out["steps"][0]
     assert st["write"] is True and st["writeWhy"] == "사람이 지정" and out["verification"]["status"] == "stale"
-    assert out["policy"]["operation"] == "CREATE" and out["policy"]["approval"] == "CONFIRM" and out["policy"]["envPolicy"] == "op-confirm"
-    assert out["policy"]["scope"] == "부서 데이터"                      # 사람이 채운 범위·민감도는 지우지 않는다
+    assert out["policy"]["operation"] == "CREATE" and out["policy"]["approval"] == "NONE"     # 승인 등 나머지 정책은 다시 구하지 않는다
     back = service.update_function(saved["id"], {"steps": [{"id": "s1", "write": False}]})
-    assert back["steps"][0]["write"] is False and back["policy"]["operation"] == "READ" and back["policy"]["approval"] == "NONE"
+    assert back["steps"][0]["write"] is False and back["policy"]["operation"] == "READ"
 
 
 def test_write_를_안_적으면_근거와_검증을_건드리지_않고_같은_값이라도_적으면_사람이_지정한_것이다(saved):
@@ -331,10 +328,12 @@ def test_이름만으로_조회라고_본_POST_는_쓰기_도구로_등록하고
     assert service.register_single("bf_00000001")["tools"][0]["mode"] == "read"
 
 
-def test_쓰기로_바꿀_때_사람이_올려_둔_위험도는_내리지_않는다(saved):
-    service.update_function(saved["id"], {"policy": {"risk": "CRITICAL", "approval": "HITL"}})
-    out = service.update_function(saved["id"], {"steps": [{"id": "s1", "write": True}]})
-    assert out["policy"]["risk"] == "CRITICAL" and out["policy"]["approval"] == "HITL"
+def test_등록한_뒤_고치면_다시_등록할_수_있게_등록_전으로_돌아간다(saved):
+    service.register_flow(saved["id"])
+    out = service.update_function(saved["id"], {"name": "새 이름"})
+    assert out["status"] == "draft" and out["registered"]["mode"] == "flow"
+    service.register_flow(saved["id"])
+    assert service.update_function(saved["id"], {"policy": {"risk": "HIGH"}})["status"] == "registered"     # 무시한 키만 오면 그대로
 
 
 def test_올린_단계도_이름으로_판정한다(saved):

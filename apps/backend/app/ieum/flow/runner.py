@@ -334,7 +334,8 @@ async def _run(source: dict, tool: dict, args: dict, index: Optional[int], match
     gap = 0.0 if all((urlsplit((st.get("base") or default_base)).hostname or "").lower() in _LOCAL for st in steps) else GAP
     rec = _Recording(_FlowTransport(cookies), pace)
     trace["_rec"] = rec
-    inputs = {p["a"]: str(args[p["a"]]) for p in tool.get("params") or [] if p.get("loc") == "input" and p["a"] in args}
+    # AI 는 a(snake 이름)로 넘기고 단계는 input.<원래 이름>(o) 을 쓴다(spec._param 이 secNo 를 sec_no 로 바꾼다)
+    inputs = {(p.get("o") or p["a"]): str(args[p["a"]]) for p in tool.get("params") or [] if p.get("loc") == "input" and p["a"] in args}
 
     async def run(ss, stop_after=None):
         res = await core.run_steps(ss, default_base, inputs, {}, rec, None, _read_only, gap, needs={}, pace=pace, stop_after=stop_after)
@@ -432,9 +433,12 @@ async def _invoke(source: dict, tool: dict, args: dict, ctx: dict) -> Tuple[Any,
         result = data                                      # 목록 보기는 변환하지 않고 그대로 돌려준다
     else:
         x = htmltable.without_links(data) if htmltable.is_copy(data) else data
-        result = engine.convert_response(tool, x, mask=tool.get("mask", True)) if isinstance(x, (dict, list)) else None
+        mask = tool.get("mask", True)
+        result = engine.convert_response(tool, x, mask=mask) if isinstance(x, (dict, list)) else None
         if not result:
-            result = x
+            # 응답 매핑이 없거나 하나도 맞지 않아 원본 data 를 그대로 돌려준다. 매핑의 가리기 규칙을 거치지 않으므로
+            # 마스킹이 켜져 있으면 목록 행 글자와 같은 마스킹기로 문자열 잎의 개인정보 패턴을 가린다
+            result = Masker().value(x) if mask else x
         if picked is not None:
             result = dict(result, picked=picked) if isinstance(result, dict) else {"result": result, "picked": picked}
     _finish_trace(trace)

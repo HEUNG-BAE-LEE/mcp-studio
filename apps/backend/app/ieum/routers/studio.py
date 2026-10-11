@@ -78,4 +78,6 @@ def tool_save(tool_id: str, payload: Optional[dict] = Body(None)):
     if "status" in patch and patch["status"] not in STATUSES:
         return fail(400, "알 수 없는 도구 상태입니다.")
     patch.pop("src", None)
+    for k in ("flow", "kind", "rec"):      # 업무 도구의 단계·종류·근거는 업무 기록에서 다시 등록할 때만 바뀐다(설계 2절)
+        patch.pop(k, None)
     return ok(dict(repo.save_tool(tool_id, patch), src=sid))

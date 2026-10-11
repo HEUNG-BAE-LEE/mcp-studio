@@ -1,4 +1,4 @@
-"""업무 기록 메뉴: 기록 시작·화면 중계(WebSocket)·종료, 업무 기능 검토·확정·등록.
+"""업무 기록 메뉴: 기록 시작·화면 중계(WebSocket)·종료, 업무 기능 검토·등록(등록이 곧 확정).
 
 WebSocket 은 기록 세션마다 시작 응답으로 받은 토큰이 있어야 열린다. 콘솔에 사용자 로그인이 아직 없어서, 남의 기록
 화면을 열 수 없게 하는 장치가 이 토큰뿐이다. 스토어·파일을 다루는 동기 함수는 이벤트 루프를 막지 않게 스레드로 넘긴다.
@@ -168,12 +168,17 @@ async def recording_ws(websocket: WebSocket, rid: str, token: str = ""):
 MANAGER.on_stopped = service.finish
 
 
+def _with_blockers(bf: dict) -> dict:
+    """업무 기능 응답에 업무 도구로 등록하지 못하는 이유(flowBlockers)를 싣는다. 저장하지 않고 응답할 때마다 구한다."""
+    return dict(bf, flowBlockers=service.flow_blockers(bf))
+
+
 @router.get("/functions/{fid}/")
 async def function_get(fid: str):
     if not _fid_ok(fid):
         return fail(400, "잘못된 업무 기능 번호입니다.")
     try:
-        return ok(await asyncio.to_thread(store.get_function, fid))
+        return ok(_with_blockers(await asyncio.to_thread(store.get_function, fid)))
     except KeyError:
         return fail(404, "업무 기능을 찾을 수 없습니다.")
 
@@ -187,7 +192,7 @@ async def function_put(fid: str, payload: Optional[dict] = Body(None)):
     except KeyError:
         return fail(404, "업무 기능을 찾을 수 없습니다.")
     try:
-        return ok(await asyncio.to_thread(service.update_function, fid, payload or {}))
+        return ok(_with_blockers(await asyncio.to_thread(service.update_function, fid, payload or {})))
     except ValueError as exc:
         return fail(400, str(exc))
 
@@ -200,7 +205,7 @@ async def function_verify(fid: str, payload: Optional[dict] = Body(None)):
     if values is not None and not (isinstance(values, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in values.items())):
         return fail(400, "values 는 입력 이름과 값(글)의 객체여야 합니다.")
     try:
-        return ok(await service.reverify(fid, values))
+        return ok(_with_blockers(await service.reverify(fid, values)))
     except KeyError:
         return fail(404, "업무 기능을 찾을 수 없습니다.")
     except service.Busy as exc:
@@ -210,26 +215,19 @@ async def function_verify(fid: str, payload: Optional[dict] = Body(None)):
         return fail(400, "다시 검증하지 못했습니다. 서버 로그를 확인해 주세요.")
 
 
-@router.post("/functions/{fid}/confirm/")
-async def function_confirm(fid: str):
-    if not _fid_ok(fid):
-        return fail(400, "잘못된 업무 기능 번호입니다.")
-    try:
-        return ok(await asyncio.to_thread(service.confirm, fid))
-    except KeyError:
-        return fail(404, "업무 기능을 찾을 수 없습니다.")
-
-
 @router.post("/functions/{fid}/register/")
 async def function_register(fid: str, payload: Optional[dict] = Body(None)):
     if not _fid_ok(fid):
         return fail(400, "잘못된 업무 기능 번호입니다.")
-    mode = (payload or {}).get("mode") or "single"
-    if mode not in ("single", "steps"):
-        return fail(400, "mode 는 single 또는 steps 여야 합니다.")
+    mode = (payload or {}).get("mode") or "flow"
+    # flow = 업무 도구 하나, steps = 단계별 도구, single = 예전 호출 호환(단계 하나). 등록이 곧 확정이다(confirm 라우트는 없앴다)
+    fns = {"flow": service.register_flow, "steps": service.register_steps, "single": service.register_single}
+    if mode not in fns:
+        return fail(400, "mode 는 flow, steps, single 중 하나여야 합니다.")
     try:
-        fn = service.register_steps if mode == "steps" else service.register_single
-        return ok(await asyncio.to_thread(fn, fid), 201)
+        out = await asyncio.to_thread(fns[mode], fid)
+        out["function"] = _with_blockers(out["function"])
+        return ok(out, 201)
     except KeyError:
         return fail(404, "업무 기능을 찾을 수 없습니다.")
     except ValueError as exc:

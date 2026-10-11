@@ -3,9 +3,10 @@
 종료 → 분석 → 검증 → 검토. 검증은 기록 세션의 브라우저가 살아 있을 때 해야 같은 세션 쿠키·페이지·원값을 쓸 수 있어서,
 검증이 끝날 때까지 브라우저를 닫지 않는다. 분석은 CPU 를 쓰므로 스레드로 넘긴다.
 
-확정하면 스크린샷을 지운다(그림 속 개인정보). 확정 뒤 근거는 마스킹된 ARIA 텍스트로 보여 준다.
-도구 등록은 단계가 하나일 때만 "업무 기능 = 도구 하나"다. 여러 단계를 도구 하나로 실행하는 것은 다음 작업이다.
-단계마다 출처가 다를 수 있어(결재 시스템 등) 출처별 원본 시스템 아래에 등록한다.
+도구 후보로 등록하는 것이 곧 확정이다(따로 확정하지 않는다). 등록하면 스크린샷을 지운다(그림 속 개인정보). 등록 뒤 근거는
+마스킹된 ARIA 텍스트로 보여 준다. 조회 단계만 남은 검증한 업무는 업무 도구(kind "flow") 하나로 등록하고(register_flow),
+쓰기가 섞인 업무는 단계별 도구로 등록한다(register_steps). 단계마다 출처가 다를 수 있어(결재 시스템 등) 출처별 원본 시스템을 만든다.
+도구 정책(실행 방식·마스킹·캐시·한도)은 변환 스튜디오에서만 정하므로 업무 기능의 policy 는 받지 않는다.
 """
 import asyncio
 import copy
@@ -13,7 +14,7 @@ import json
 import logging
 import re
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlsplit
 
 from app.ieum.discovery import infer
@@ -21,17 +22,12 @@ from app.ieum.discovery.policy import Policy
 from app.ieum.discovery.jobs import _slug
 from app.ieum.discovery.masking import Masker, is_masked
 from app.ieum.gateway import credentials, session_auth, spec
-from app.ieum.recorder import analyze, replay, store
+from app.ieum.recorder import analyze, htmltable, replay, store
 from app.ieum.repositories import logs as log_repo
 from app.ieum.repositories import sources as src_repo
 from app.ieum.repositories import studio as tool_repo
 
 log = logging.getLogger(__name__)
-EDITABLE_POLICY = ("operation", "risk", "approval", "scope", "sensitivity")
-
-
-def _incomplete(bf: dict) -> bool:
-    return bf["policy"].get("scope") is None or bf["policy"].get("sensitivity") is None
 
 
 def _audit(bf: dict, rec: dict, verification: dict, kind: str) -> None:
@@ -99,8 +95,6 @@ async def finish(rid: str, session) -> None:
 
 SOURCES = (analyze.USER_INPUT, analyze.PREVIOUS_STEP_OUTPUT, analyze.SESSION_CONTEXT, analyze.SYSTEM_CONFIG, analyze.DERIVED, analyze.CONSTANT)
 TYPES = ("string", "number", "date")
-POLICY_ENUMS = {"operation": tuple(analyze._ORDER), "risk": ("LOW", "MEDIUM", "HIGH", "CRITICAL"), "approval": ("NONE", "CONFIRM", "HITL")}
-FREE_POLICY = ("scope", "sensitivity")          # 분석은 비워 두고 사람이 짧은 글로 채운다
 FID = re.compile(r"^bf_[0-9a-f]{8}$")
 
 
@@ -203,21 +197,19 @@ def _next_step_id(bf: dict) -> str:
     return f"s{max(nums or [0]) + 1}"
 
 
-_LEVELS = {"risk": ("LOW", "MEDIUM", "HIGH", "CRITICAL"), "approval": ("NONE", "CONFIRM", "HITL")}
+def _reop(bf: dict) -> None:
+    """작업 유형(policy.operation)만 남은 단계로 다시 구한다. 설명 문장(analyze._describe)에만 쓰고 정책으로 보이지 않는다."""
+    fresh = analyze.policy_for([analyze.step_op(s) for s in bf["steps"] if not s.get("skip")])
+    bf.setdefault("policy", {})["operation"] = fresh["operation"]
 
 
-def _apply_policy(cur: dict, fresh: dict, keep_higher: bool) -> None:
-    """다시 계산한 정책을 적용한다. 쓰기가 있으면 사람이 올려 둔 위험도·승인은 내리지 않는다."""
-    for k in ("operation", "risk", "approval", "envPolicy"):
-        old, new = cur.get(k), fresh[k]
-        if keep_higher and k in _LEVELS and old in _LEVELS[k]:
-            new = max(old, new, key=_LEVELS[k].index)
-        cur[k] = new
+EDIT_KEYS = ("name", "desc", "inputs", "steps", "promote")
 
 
 def update_function(fid: str, patch: dict) -> dict:
     if not isinstance(patch, dict):
         _bad("본문은 객체여야 합니다.")
+    patch = {k: v for k, v in patch.items() if k != "policy"}     # 도구 정책은 변환 스튜디오에서만 정한다(받아도 버린다)
     spans: List[dict] = []
     if "steps" in patch:                                   # 결과 단계를 다시 정할 때 쓸 화면 기록. 잠금(store.LOCK) 밖에서 미리 읽는다
         try:
@@ -236,17 +228,6 @@ def update_function(fid: str, patch: dict) -> dict:
         want = patch.get("promote")
         if "promote" in patch and not (isinstance(want, dict) and isinstance(want.get("method"), str) and isinstance(want.get("path"), str)):
             _bad("promote 는 method 와 path 글이 필요합니다.")
-        pol = patch.get("policy")
-        if "policy" in patch:
-            if not isinstance(pol, dict):
-                _bad("policy 는 객체여야 합니다.")
-            for k, v in pol.items():
-                if k in POLICY_ENUMS:
-                    if v not in POLICY_ENUMS[k]:
-                        _bad(f"{k} 값이 올바르지 않습니다.")
-                elif k in FREE_POLICY:
-                    if v is not None and (not isinstance(v, str) or len(v) > 60):
-                        _bad(f"{k} 는 60자 이하의 글이어야 합니다.")
         hit = None
         if want is not None:
             hit = next((x for x in bf["excluded"] if x["method"] == want["method"] and x["path"] == want["path"]), None)
@@ -284,9 +265,8 @@ def update_function(fid: str, patch: dict) -> dict:
             bf["steps"] = new_steps
             _reoutput(bf, spans)
             stale = True
-            if write_changed:                                              # 설계 3판 6절: 단계의 write 로 정책을 다시 구한다
-                fresh = analyze.policy_for([analyze.step_op(s) for s in new_steps if not s.get("skip")])
-                _apply_policy(bf["policy"], fresh, keep_higher=any(x.get("write") for x in new_steps if not x.get("skip")))
+            if write_changed:                                              # 단계의 write 로 작업 유형을 다시 구한다
+                _reop(bf)
         if hit is not None:
             bf["excluded"].remove(hit)
             bf["references"] = [x for x in bf["references"] if x["path"] != hit["path"]]
@@ -299,17 +279,12 @@ def update_function(fid: str, patch: dict) -> dict:
                    "outputs": {}, "params": [], "recordedRes": "", "recordedData": None, "recordedStatus": None}
             bf["steps"].append(new)
             if write:
-                fresh = analyze.policy_for([analyze.step_op(x) for x in bf["steps"] if not x.get("skip")])
-                _apply_policy(bf["policy"], fresh, keep_higher=True)
+                _reop(bf)
             stale = True
-        if pol:
-            for k in EDITABLE_POLICY:
-                if k in pol:
-                    bf["policy"][k] = pol[k] or None
-        bf["policyIncomplete"] = _incomplete(bf)
         if stale:
             bf["verification"]["status"] = "stale"
-        if bf.get("status") == "confirmed":
+        # 고치면 등록한 도구(등록 순간의 스냅샷)와 달라진다: 다시 등록할 수 있게 "등록 전"으로 돌린다(registered 기록은 남긴다)
+        if bf.get("status") in ("confirmed", "registered") and any(k in patch for k in EDIT_KEYS):
             bf["status"] = "draft"
     return store.update_function(fid, apply)
 
@@ -346,16 +321,6 @@ async def reverify(fid: str, values: Optional[Dict[str, str]] = None) -> dict:
         _REVERIFYING.discard(fid)
     await asyncio.to_thread(_audit, out, rec, result["verification"], "다시 검증")
     return out
-
-
-def confirm(fid: str) -> dict:
-    def apply(b: dict) -> None:
-        b["status"] = "confirmed"
-        b["policyIncomplete"] = _incomplete(b)
-        b["confirmedAt"] = time.time()
-    bf = store.update_function(fid, apply)
-    store.delete_shots(bf["source"]["recordingId"])
-    return bf
 
 
 # 사람이 쓴 글(설명·이름·제목)과 키는 건드리지 않는다. 값 자리(예시·기본값·샘플)만 비운다.
@@ -404,6 +369,24 @@ def _tool_from_step(bf: dict, st: dict, taken: set, title: str) -> dict:
     return _scrub(tool)
 
 
+def _source_for_base(bf: dict, base: str, sources: List[dict], cred: dict, recipe) -> Tuple[dict, bool]:
+    """단계 base 의 원본 시스템(proto "disc"): 있으면 그것, 없으면 새로. 기록 시작 주소의 원본이면 기록 계정으로 로그인 정보를 채운다.
+    (원본 시스템, 로그인 정보가 있는가). 원본 시스템 저장은 부른 쪽이 한다."""
+    existing = next((x for x in sources if x.get("proto") == "disc" and x.get("base") == base), None)
+    sid = existing["id"] if existing else _slug(bf["name"], {x["id"] for x in sources}, urlsplit(base).netloc)
+    primary = base == bf["source"]["base"].rstrip("/")
+    src = {"id": sid, "name": existing["name"] if existing else (bf["name"] if primary else urlsplit(base).netloc),
+           "desc": "", "proto": "disc", "spec": "업무 기록으로 추론", "base": base,
+           "auth": "세션 (서비스 계정)", "authType": "session", "sync": "방금", "specUrl": None}
+    known = False
+    if primary and cred.get("username") and recipe:
+        if not credentials.get(sid):         # 이미 있는 원본 시스템의 인증 정보는 덮어쓰지 않는다
+            credentials.put(sid, {"type": "session", "username": cred["username"], "password": cred.get("password", ""), "recipe": recipe})
+            session_auth.invalidate(sid)
+        known = True
+    return src, known or bool(credentials.get(sid))
+
+
 def _register(bf: dict, steps: List[dict]) -> dict:
     by_base: Dict[str, List[dict]] = {}
     for st in steps:
@@ -414,26 +397,15 @@ def _register(bf: dict, steps: List[dict]) -> dict:
     out_sources, out_tools, login_known = [], [], {}
     with store.LOCK:         # 원본 시스템·도구 읽기, 이름 정하기, 쓰기를 한 번에 한다(재진입 가능). 겹친 등록·스튜디오 저장이 서로를 지우지 않게
         for base, group in by_base.items():
-            sources = src_repo.list_sources()
-            existing = next((x for x in sources if x.get("proto") == "disc" and x.get("base") == base), None)
-            sid = existing["id"] if existing else _slug(bf["name"], {x["id"] for x in sources}, urlsplit(base).netloc)
+            src, known = _source_for_base(bf, base, src_repo.list_sources(), cred, recipe)
+            sid = src["id"]
             current = list(tool_repo.all_tools().get(sid, []))
             taken = {t["id"] for t in tool_repo.flat_tools()}
-            primary = base == bf["source"]["base"].rstrip("/")
-            src = {"id": sid, "name": existing["name"] if existing else (bf["name"] if primary else urlsplit(base).netloc),
-                   "desc": "", "proto": "disc", "spec": "업무 기록으로 추론", "base": base,
-                   "auth": "세션 (서비스 계정)", "authType": "session", "sync": "방금", "specUrl": None}
-            known = False
-            if primary and cred.get("username") and recipe:
-                if not credentials.get(sid):         # 이미 있는 원본 시스템의 인증 정보는 덮어쓰지 않는다
-                    credentials.put(sid, {"type": "session", "username": cred["username"], "password": cred.get("password", ""), "recipe": recipe})
-                    session_auth.invalidate(sid)
-                known = True
-            login_known[sid] = known or bool(credentials.get(sid))
+            login_known[sid] = known
             ids = set()
             for st in group:
                 title = bf["name"] if len(steps) == 1 else f"{bf['name']} — {st['path'].rsplit('/', 1)[-1]}"
-                old = next((t for t in current if (t.get("rec") or {}).get("function") == bf["id"]
+                old = next((t for t in current if (t.get("rec") or {}).get("function") == bf["id"] and t.get("kind") != "flow"
                             and t.get("method") == st["method"] and t.get("path") == st["path"]), None)
                 tool = _tool_from_step(bf, st, taken, title)
                 if old is not None:                  # 다시 등록하면 같은 도구를 제자리에서 바꾼다(이름·id 유지)
@@ -453,15 +425,204 @@ def _register(bf: dict, steps: List[dict]) -> dict:
     return {"sources": out_sources, "tools": out_tools, "loginKnown": login_known}
 
 
+def _mark_registered(fid: str, mode: str, tool_ids: List[str]) -> dict:
+    """등록 = 확정(설계 4절 2판). 등록 상태·확정 시각·등록한 도구를 남긴다. 부른 쪽이 store.LOCK 을 쥐고 있다."""
+    now = time.time()
+
+    def apply(b: dict) -> None:
+        b.update(status="registered", confirmedAt=now, registered={"at": now, "mode": mode, "tools": list(tool_ids)})
+    return store.update_function(fid, apply)
+
+
+def _register_and_mark(fid: str, mode: str, build) -> dict:
+    """잠금 안에서 업무 기능을 다시 읽어 등록하고 등록 완료를 남긴다. 조건을 못 채우거나 실패하면 아무것도 바꾸지 않는다.
+    스크린샷 지우기는 파일 일이라 잠금 밖에서 한다."""
+    with store.LOCK:
+        bf = store.get_function(fid)
+        out = build(bf)
+        out["function"] = _mark_registered(fid, mode, [t["id"] for t in out["tools"]])
+    store.delete_shots(bf["source"]["recordingId"])
+    return out
+
+
 def register_single(fid: str) -> dict:
-    bf = _active(store.get_function(fid))
-    if len(bf["steps"]) != 1:
-        raise ValueError("여러 단계 업무는 다음 작업에서 도구 하나로 등록할 수 있습니다. 지금은 단계를 낱개 도구로 등록해 주세요.")
-    return _register(bf, bf["steps"])
+    """예전 호출 호환(단계가 하나인 업무를 낱개 도구로). 화면은 flow/steps 를 쓴다."""
+    def build(bf):
+        bf = _active(bf)
+        if len(bf["steps"]) != 1:
+            raise ValueError("여러 단계 업무는 다음 작업에서 도구 하나로 등록할 수 있습니다. 지금은 단계를 낱개 도구로 등록해 주세요.")
+        return _register(bf, bf["steps"])
+    return _register_and_mark(fid, "steps", build)
 
 
 def register_steps(fid: str) -> dict:
-    bf = _active(store.get_function(fid))
-    if not bf["steps"]:
-        raise ValueError("등록할 단계가 없습니다.")
-    return _register(bf, bf["steps"])
+    def build(bf):
+        bf = _active(bf)
+        if not bf["steps"]:
+            raise ValueError("등록할 단계가 없습니다.")
+        return _register(bf, bf["steps"])
+    return _register_and_mark(fid, "steps", build)
+
+
+# ── 업무 도구(kind "flow") ─────────────────────────────────────────────────
+FLOW_MAX_STEPS = 10
+_FLOW_PARAM_KEYS = ("a", "loc", "from", "ex", "type", "needsValue")
+
+
+def _is_read(st: dict) -> bool:
+    """업무 도구에 넣을 수 있는 조회 단계: GET/HEAD, 또는 사람이 조회로 확정한 POST(write 가 명시적으로 False)."""
+    if st.get("write"):
+        return False
+    if str(st.get("method") or "").upper() in ("GET", "HEAD"):
+        return True
+    return st.get("writeWhy") == "사람이 지정" and st.get("write") is False
+
+
+def flow_blockers(bf: dict) -> List[str]:
+    """업무 도구로 등록하지 못하는 이유(화면이 버튼 아래에 보여 준다). 빈 목록이면 등록할 수 있다."""
+    out: List[str] = []
+    v = bf.get("verification") or {}
+    same_ok = any(r.get("kind") == "same-values" and r.get("ok") for r in v.get("runs") or [])
+    # 낡음(stale)은 검증 뒤 정의가 바뀐 것이라 예전 실행 결과로 통과시키지 않는다. 부분 통과는 같은 값 실행이 성공했을 때만
+    if not (v.get("status") == "verified" or (v.get("status") == "partial" and same_ok)):
+        out.append("검증을 통과해야 등록할 수 있습니다.")
+    steps = [s for s in bf.get("steps") or [] if not s.get("skip")]
+    if not steps:
+        out.append("등록할 단계가 없습니다.")
+    elif len(steps) > FLOW_MAX_STEPS:
+        out.append(f"남은 단계가 {len(steps)}개라 업무 도구 상한 {FLOW_MAX_STEPS}개를 넘습니다. 단계를 건너뛰거나 단계별로 등록하세요.")
+    for st in steps:
+        if not _is_read(st):
+            out.append(f"쓰기 단계 {st['id']} 가 남아 있습니다. 건너뛰거나 단계별로 등록하세요.")
+        if st.get("exec") == "browser":
+            out.append(f"브라우저에서만 돌아가는 단계 {st['id']} 가 있습니다. 단계별로 등록하세요.")
+    return out
+
+
+def _flow_step(bf: dict, st: dict) -> dict:
+    """도구 안에 얼리는 단계 사본. 응답 원문은 넣지 않고 판정에 쓰는 모양·기록 때 본 오류 문구만 넣는다."""
+    if st.get("kind") == "html":
+        shape: Optional[list] = sorted(htmltable.shape(st.get("recordedData") or {}))
+    else:
+        rec = infer.parse_json(st.get("recordedRes") or "")
+        # 기록 응답이 JSON 으로 읽히지 않으면 모양 키를 넣지 않는다: 빈 모양([])이 있으면 core.judge 가 JSON 이 아닌 응답을 늘 모양 불일치로 본다
+        shape = sorted(replay._keys(rec)) if rec is not None else None
+    out = {"id": st["id"], "base": st.get("base") or bf["source"]["base"], "method": st["method"], "path": st["path"],
+           "params": [{k: p[k] for k in _FLOW_PARAM_KEYS if k in p} for p in st.get("params") or []],
+           "headers": {k: v for k, v in (st.get("headers") or {}).items() if not is_masked(v)},
+           "outputs": dict(st.get("outputs") or {}), "kind": st.get("kind"), "charset": st.get("charset"),
+           "recordedErrSeen": list(st.get("recordedErrSeen") or []),
+           "write": False}                       # 실행기는 GET/HEAD 가 아닌 단계를 write 가 명시적으로 False 일 때만 보낸다
+    if shape is not None:
+        out["recordedShape"] = shape
+    return out
+
+
+def _pick_of(steps: List[dict], names: set) -> Optional[dict]:
+    """고르는 지점: 앞 단계 목록의 묶음 안 주소 후보(links[틀@묶음][k.j/n…])를 출처로 쓰는 첫 단계.
+    tpl 은 실행기가 행을 세는 틀이다 — analyze.get_path 가 k 를 [k.j/n@행틀] 의 행 틀(없으면 틀)로 세므로 같은 것을 쓴다."""
+    ids = {s["id"] for s in steps}
+    for st in steps:
+        for p in st.get("params") or []:
+            frm = p.get("from") or ""
+            sid, _, expr = frm.partition(".")
+            if sid not in ids or not expr.startswith("links["):
+                continue
+            m = analyze.LINK_EXPR.match(expr)
+            if not m or m.group(3) is None:           # 예전 꼴 [k] 는 행 순번이 아니라 고를 수 없다
+                continue
+            tpl, group = analyze._split_tpl(m.group(1))
+            if not group:
+                continue
+            arg = lambda n: n + "_" if n in names else n      # noqa: E731
+            return {"list": sid, "step": st["id"], "tpl": m.group(5) or tpl, "group": group,
+                    "args": {"index": arg("index"), "match": arg("match")}}
+    return None
+
+
+def _flow_tool(bf: dict, steps: List[dict], taken: set) -> dict:
+    used = {_input_of(p) for st in steps for p in st.get("params") or [] if (p.get("from") or "").startswith("input.")}
+    path_inputs = {_input_of(p) for st in steps for p in st.get("params") or []
+                   if p.get("loc") == "path" and (p.get("from") or "").startswith("input.")}
+    params = []
+    for inp in bf["inputs"]:
+        n = inp["name"]
+        if n not in used:
+            continue
+        ex = inp.get("ex") or ""
+        masked = is_masked(ex)                           # 가린 기록 값은 예시로 굳히지 않고 필수로 받는다
+        sch = {"type": {"number": "integer"}.get(inp.get("type"), "string")}
+        if ex and not masked:
+            sch["example"] = ex
+        required = bool(inp.get("required")) or masked or n in path_inputs
+        q = spec._param(n, "input", sch, required, inp.get("screenLabel") or None)
+        q["loc"] = "input"
+        params.append(q)
+    names = {inp["name"] for inp in bf["inputs"]} | {p["a"] for p in params}
+    pick = _pick_of(steps, names)
+    if pick:
+        a = pick["args"]
+        params.append({"o": a["index"], "a": a["index"], "at": "integer", "loc": "pick", "rule": "keep", "req": False,
+                       "d": "목록에서 몇 번째 항목인지(1부터). 없으면 목록을 돌려줍니다."})
+        params.append({"o": a["match"], "a": a["match"], "at": "string", "loc": "pick", "rule": "keep", "req": False,
+                       "d": "목록 행 글자에 이 말이 든 첫 항목"})
+    last = steps[-1]
+    res, _ = infer.build_res(last.get("recordedRes") or "", Masker(pii=True))
+    tool = {"id": infer.tool_name(last["path"], "", "read", taken), "kind": "flow", "title": bf["name"],
+            "desc": bf.get("desc") or bf["name"], "status": "review", "mode": "read", "params": params, "res": res, "guess": 0,
+            "flow": {"version": 1, "steps": [_flow_step(bf, st) for st in steps], "pick": pick,
+                     "verifiedAt": (bf.get("verification") or {}).get("at")},
+            "rec": {"function": bf["id"], "recording": bf["source"]["recordingId"]}}
+    return _scrub(tool)
+
+
+def _merge_flow(old: dict, new: dict) -> dict:
+    """다시 등록: 이름(id)·호출 수와 스튜디오에서 고친 제목·설명·파라미터 설명·응답 매핑·정책은 옛 값을 두고 단계와 파라미터만 새로 쓴다."""
+    old_d = {p.get("a"): p.get("d") for p in old.get("params") or [] if "d" in p}
+    params = [dict(p, d=old_d[p["a"]]) if p.get("a") in old_d else p for p in new["params"]]
+    return dict(old, kind="flow", mode="read", flow=new["flow"], params=params, rec=new["rec"])
+
+
+def _register_flow(bf: dict) -> dict:
+    why = flow_blockers(bf)
+    if why:
+        raise ValueError(" ".join(why))
+    steps = _active(bf)["steps"]
+    rid = bf["source"]["recordingId"]
+    cred = credentials.get(f"rec:{rid}") or {}
+    recipe = (bf.get("auth") or {}).get("recipe")
+    primary = bf["source"]["base"].rstrip("/")
+    bases = [primary] + [b for b in dict.fromkeys((st.get("base") or primary).rstrip("/") for st in steps) if b != primary]
+    out_sources, login_known = [], {}
+    with store.LOCK:         # _register 와 같은 이유. 재진입 가능
+        main_src = None
+        for base in bases:                       # 다른 주소 단계의 원본도 만든다(실행기가 단계 base 로 인증을 찾는다)
+            src, known = _source_for_base(bf, base, src_repo.list_sources(), cred, recipe)
+            login_known[src["id"]] = known
+            if base == primary:
+                main_src = src
+                continue
+            src["desc"] = f"도구 {len(tool_repo.all_tools().get(src['id'], []))}개"
+            out_sources.append(src_repo.upsert_source(src))
+        sid = main_src["id"]
+        current = list(tool_repo.all_tools().get(sid, []))
+        taken = {t["id"] for t in tool_repo.flat_tools()}
+        old = next((t for t in current if t.get("kind") == "flow" and (t.get("rec") or {}).get("function") == bf["id"]), None)
+        if old is not None:
+            taken.discard(old["id"])
+        tool = _flow_tool(bf, steps, taken)
+        if old is not None:
+            tool = _merge_flow(old, tool)
+            current[current.index(old)] = tool_repo.with_defaults(tool, main_src)
+        else:
+            tool = tool_repo.with_defaults(tool, main_src)
+            current.append(tool)
+        main_src["desc"] = f"도구 {len(current)}개"
+        out_sources.insert(0, src_repo.upsert_source(main_src))
+        saved = tool_repo.replace_source_tools(sid, current)
+    return {"sources": out_sources, "tools": [t for t in saved if t["id"] == tool["id"]], "loginKnown": login_known}
+
+
+def register_flow(fid: str) -> dict:
+    """검증한 조회 업무를 업무 도구 하나로 등록한다(설계 4절). 등록이 곧 확정이다."""
+    return _register_and_mark(fid, "flow", _register_flow)

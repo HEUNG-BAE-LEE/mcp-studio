@@ -38,6 +38,8 @@ def site():
             elif self.path.startswith("/art/"):
                 aid = self.path.rsplit("/", 1)[1]
                 body, ct = f"<html><body><table><tr><th>번호</th><th>제목</th></tr><tr><td>{aid}</td><td>본문 {aid}</td></tr></table></body></html>", "text/html; charset=utf-8"
+            elif self.path.startswith("/tel/"):
+                body, ct = "<html><body><table><tr><th>이름</th><th>연락처</th></tr><tr><td>홍길동</td><td>010-1234-5678</td></tr></table></body></html>", "text/html; charset=utf-8"
             elif self.path.startswith("/api/art/"):
                 aid = self.path.rsplit("/", 1)[1]
                 body, ct = json.dumps({"id": aid, "title": "본문 " + aid}), "application/json"
@@ -376,3 +378,24 @@ def test_배포_스냅샷에_flow_가_들어간다(site):
     m = manifest.build({"id": "ts", "slug": "s", "name": "s", "tools": ["news_t"]}, "v1", [t],
                        {"t-src": {"id": "t-src", "name": "시험", "proto": "disc", "base": base, "authType": "none"}})
     assert m["tools"][0]["flow"]["pick"]["step"] == "s2"
+
+
+def test_응답_매핑이_없으면_원본_결과의_개인정보를_가린다(site):
+    """마지막 단계 res 가 비어 원본 data 를 그대로 돌려줄 때도 mask 가 켜져 있으면 개인정보 패턴을 가린다."""
+    base, _ = site
+    t = dict(_tool(base, last="/tel/{id}"), mask=True)
+    out, _ = runner.invoke(dict(SRC, base=base), t, {"index": 1}, {})
+    assert "010-1234-5678" not in json.dumps(out, ensure_ascii=False) and "홍길동" in json.dumps(out, ensure_ascii=False)
+    t["mask"] = False
+    out, _ = runner.invoke(dict(SRC, base=base), t, {"index": 1}, {})
+    assert "010-1234-5678" in json.dumps(out, ensure_ascii=False)
+
+
+def test_입력_파라미터는_원래_이름으로_단계에_넣는다(site):
+    """spec._param 은 AI 이름(a)을 snake 로 바꾼다(secNo -> sec_no). 단계는 input.<원래 이름>(o) 을 쓴다."""
+    base, st = site
+    t = _tool(base)
+    t["flow"]["steps"][0]["params"] = [{"a": "q", "loc": "query", "from": "input.secNo", "ex": ""}]
+    t["params"].append({"o": "secNo", "a": "sec_no", "at": "string", "loc": "input", "rule": "name", "req": True})
+    runner.invoke(dict(SRC, base=base), t, {"sec_no": "7"}, {})
+    assert st["hits"] == ["/list?q=7"]
