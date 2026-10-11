@@ -175,9 +175,16 @@ function buildRealTrace(toolId, model, out, hold) {
         : `<div class="apv"><b>${esc((t && t.confirmQ) || '이 작업을 실행할까요?')}</b><dl>${rows}</dl><div class="acts"><button class="btn primary sm" data-act="approve">실행</button><button class="btn sm" data-act="reject">그만두기</button></div><small>이 도구는 사용자 확인 후 실행하도록 설정되어 있습니다.</small></div>` });
     return steps;
   }
-  if (tr.originRequest) steps.push({ k:'ieum', title:'이음이 원본 요청으로 바꿨습니다', who:t ? PDESC[SRC[t.src].proto] : '', ms:`${tr.convertMs ?? 0}ms`,
+  if (Array.isArray(tr.steps) && tr.steps.length) {
+    tr.steps.forEach(st => {
+      if (st.originRequest) steps.push({ k:'ieum', title:`단계 ${st.id} 요청`, who:t ? PDESC[SRC[t.src].proto] : '', ms:'', body:code(httpReq(st.originRequest), 'http') });
+      if (st.originResponse) steps.push({ k:'src', title:`단계 ${st.id} 응답${st.ok === false ? ' (실패)' : ''}`, who:t ? SRC[t.src].name : '', ms:`${st.sourceMs ?? 0}ms`,
+        body:code(httpResp(st.originResponse), 'http') + (st.ok === false && st.reason ? `<p class="pv-note">${esc(st.reason)}</p>` : '') });
+      else if (st.ok === false) steps.push({ k:'src', title:`단계 ${st.id} 실패`, who:'', ms:'', body:`<p class="pv-note">${esc(st.reason || '')}</p>` });
+    });
+  } else if (tr.originRequest) steps.push({ k:'ieum', title:'이음이 원본 요청으로 바꿨습니다', who:t ? PDESC[SRC[t.src].proto] : '', ms:`${tr.convertMs ?? 0}ms`,
     body:`<div class="rules">${ruleChips(tr.rulesReq)}<span class="rl ij" title="원본 시스템 인증 정보를 이음 보관소에서 꺼내 넣습니다">인증 정보 주입</span></div>${code(httpReq(tr.originRequest), 'http')}` });
-  if (tr.originResponse) steps.push({ k:'src', title:'원본 시스템이 응답했습니다', who:t ? SRC[t.src].name : '', ms:`${tr.sourceMs ?? 0}ms`, body:code(httpResp(tr.originResponse), 'http') });
+  if (!(Array.isArray(tr.steps) && tr.steps.length) && tr.originResponse) steps.push({ k:'src', title:'원본 시스템이 응답했습니다', who:t ? SRC[t.src].name : '', ms:`${tr.sourceMs ?? 0}ms`, body:code(httpResp(tr.originResponse), 'http') });
   if (out.ok) steps.push({ k:'ieum', title:'AI가 읽기 쉬운 결과로 바꿨습니다', who:'JSON', ms:'',
     body:`<div class="rules">${ruleChips(tr.rulesRes) || '<span class="rl nm">이름 정리</span>'}</div>${code(tr.aiResult || out.result || {})}` });
   else steps.push({ k:'ieum', title:'호출에 실패했습니다', who:'오류', ms:'', body:`<div class="notice warn" style="margin:0">${svg('alert', 18)}<div class="nt">${esc(out.error || '')}</div></div>` });

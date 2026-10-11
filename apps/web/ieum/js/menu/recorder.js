@@ -343,6 +343,7 @@ Object.assign(CHG, {
   recDesc: el => recSaveFn({ desc:el.value }),
 });
 Object.assign(ACT, {
+  recOpenFn: a => { S.view = 'rec'; go('rec'); recOpenFn(a.dataset.id); },
   recNew: () => { RECR.form = { name:'', base:'', start:'', env:'op', account:'', password:'', owner:WS.user || '' }; RECR.page = 'new'; render(); },
   recBack: () => { recWs.close(); RECR.page = 'list'; RECR.live = null; RECR.fn = null; RECR.rec = null; RECR.form = null; RECR.values = {}; render(); recRefresh(); },
   recDemo: () => { Object.assign(RECR.form, RECR.demo); render(); },

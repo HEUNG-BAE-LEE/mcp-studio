@@ -30,7 +30,7 @@ const PDESC = { soap:'SOAP 1.1, XML 메시지', rest:'REST, JSON', gov:'공공�
 const srcTotal = s => s.ext ? s.ext.total : srcTools(s.id).length;
 const srcPub = s => srcTools(s.id).filter(t => t.status === 'done').length;
 const srcPending = s => srcTools(s.id).filter(t => t.status === 'review' || t.status === 'drift').length;
-const opLabel = t => t.method ? `${t.method} ${t.path}` : t.op;
+const opLabel = t => t.kind === 'flow' && t.flow ? `업무 ${t.flow.steps.length}단계` : t.method ? `${t.method} ${t.path}` : t.op;
 
 const stt = (k, map) => { const [l, c] = map[k]; return `<span class="stt ${c}">${l}</span>`; };
 const prBadge = p => `<span class="pr ${p}">${PRL[p]}</span>`;

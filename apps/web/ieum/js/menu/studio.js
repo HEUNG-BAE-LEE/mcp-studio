@@ -50,9 +50,36 @@ function mapResHTML(t) {
   }).join('')}</tbody></table></div>`;
 }
 function previewHTML(t) {
+  if (S.ptab === 'req' && t.kind === 'flow') return code(t.flow.steps.map(x => `${x.method} ${(x.base || '').replace(/\/$/, '')}${x.path}`).join('\n'), 'http') + `<p class="pv-note">단계마다 나가는 요청입니다. 값은 실행할 때 앞 단계 응답과 입력으로 채워지며, 여기서는 요청을 만들지 않습니다.</p>`;
   if (S.ptab === 'req') return code(origReq(t), 'http') + `<p class="pv-note">예시 값으로 만든 원본 요청입니다. 인증 정보는 이음 보관소에서 꺼내 넣고, AI에게는 보여주지 않습니다.</p>`;
   if (S.ptab === 'res') return `<div class="cmp"><div><p class="cap"><i style="background:var(--rag)"></i>원본 응답</p>${code(origResp(t), 'http')}</div><div><p class="cap"><i style="background:var(--mcp)"></i>AI에게 전달하는 결과</p>${code(aiResult(t))}</div></div>`;
   return code(mcpDef(t)) + `<p class="pv-note">AI 모델은 이 정의만 봅니다. 원본 필드 이름, 코드값, 인증 정보는 드러나지 않습니다.</p>`;
+}
+/* 업무 도구(여러 단계)의 단계 흐름 — 읽기 전용. 단계를 고치는 곳은 업무 기록이다 */
+const flowStepLine = s => `${s.id} ${s.method} ${s.path}`;
+function flowPickText(f) {
+  const a = (f.pick && f.pick.args) || {};
+  const how = [a.index && `index`, a.match && `match`].filter(Boolean).join(' · ');
+  return `목록에서 고름${how ? ` (${how})` : ''}`;
+}
+function flowChainHTML(t) {
+  const f = t.flow, chips = [];
+  f.steps.forEach(s => {
+    if (f.pick && f.pick.step === s.id) chips.push(`<span class="rl nm">${esc(flowPickText(f))}</span>`);
+    chips.push(`<span class="rl nm" title="${esc(s.base || '')}">${esc(flowStepLine(s))}</span>`);
+  });
+  return `<div class="flow-chain" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0">${chips.join('<span aria-hidden="true">→</span>')}</div>`;
+}
+function flowVerifiedText(f) {
+  const v = f.verifiedAt; if (!v) return '검증됨';
+  const d = new Date(v > 1e11 ? v : v * 1000);
+  return `검증됨(${d.getMonth() + 1}월 ${d.getDate()}일)`;
+}
+function recNoticeHTML(t) {
+  const btns = `<button class="btn sm" data-act="recOpenFn" data-id="${esc(t.rec.recording)}">기록 보기</button><button class="btn sm primary" data-act="reviewDone">검토 완료</button>`;
+  if (t.kind === 'flow') return `<div class="notice td-notice">${svg('info', 18)}<div class="nt"><b>업무 기록으로 만든 도구입니다</b> · ${esc(flowVerifiedText(t.flow))} · 단계 ${t.flow.steps.length}개</div>${btns}</div>`;
+  const need = (t.params || []).filter(p => p.loc === 'path' && !p.ex && !p.example).map(p => p.a);
+  return `<div class="notice td-notice">${svg('info', 18)}<div class="nt"><b>업무 기록의 한 단계로 만든 도구입니다.</b>${need.length ? ` 앞 단계 값이 필요한 입력: ${esc(need.join(', '))}` : ''}</div>${btns}</div>`;
 }
 function noticeHTML(t) {
   if (t.status === 'drift') { const r = t.res.find(x => x.drift && !x.fixed);
@@ -61,6 +88,7 @@ function noticeHTML(t) {
   if (t.status === 'review' && t.mode === 'write') return `<div class="notice warn td-notice">${svg('shield', 18)}<div class="nt"><b>데이터를 만들거나 바꾸는 쓰기 작업입니다.</b> 실행 방식이 사용자 확인 후 실행인지, 설명이 AI가 오해하지 않게 쓰였는지 확인한 뒤 검토를 마쳐 주세요.</div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`;
   if (t.status === 'review' && t.disc) { const ev = t.disc.ev, v = dVerify({ verify:t.disc.verify });
     return `<div class="notice ${ev === 'both' ? '' : 'warn'} td-notice">${svg('search', 18)}<div class="nt"><b>자동 탐색으로 찾은 API입니다.</b> 근거는 ${ev === 'both' ? '소스와 운영 트래픽 모두' : ev === 'src' ? 'Git 소스뿐' : '운영 트래픽뿐'}이고, 검증 결과는 ${v[0]}입니다.${ev === 'tr' ? ' 소스가 없어 타입은 관찰한 값으로 추정했습니다.' : ''}${t.disc.recNote ? ` ${esc(t.disc.recNote)}` : ''} <button class="link" data-act="discEv" data-job="${t.disc.job}" data-id="${t.disc.id}">탐색 근거 보기</button></div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`; }
+  if (t.status === 'review' && t.rec) return recNoticeHTML(t);
   if (t.status === 'review' && !t.guess) return `<div class="notice td-notice">${svg('info', 18)}<div class="nt"><b>명세를 읽어 자동으로 만든 도구 후보입니다.</b> 설명과 파라미터 매핑이 맞는지 확인한 뒤 공개하세요.</div><button class="btn sm primary" data-act="reviewDone">검토 완료</button></div>`;
   if (t.status === 'review') return `<div class="notice td-notice">${svg('info', 18)}<div class="nt"><b>호출 샘플 12건으로 형식을 추론했습니다.</b> 추정 표시가 있는 필드의 의미가 맞는지 확인해 주세요. 맞지 않으면 필드 이름과 설명을 고친 뒤 저장하세요.</div><button class="btn sm primary" data-act="reviewDone">확인 완료</button></div>`;
   if (t.status === 'off') return `<div class="notice mute td-notice">${svg('lock', 18)}<div class="nt"><b>AI 공개 대상에서 제외된 작업입니다.</b> ${esc(t.offReason || '')}</div><button class="btn sm" data-act="include">다시 포함</button></div>`;
@@ -83,7 +111,7 @@ function toolDetailHTML(t) {
   </div>
   ${noticeHTML(t)}
   <div class="pipe" aria-label="변환 흐름">
-    <div class="pp src"><span class="pl">원본 작업</span><b>${esc(opLabel(t))}</b><span>${PDESC[s.proto]}</span><span>입력 ${t.params.filter(p => p.o).length}개, 응답 ${t.res.length}개</span></div>
+    <div class="pp src"><span class="pl">원본 작업</span>${t.kind === 'flow' ? flowChainHTML(t) + '<span>단계는 업무 기록에서 고친 뒤 다시 등록합니다.</span>' : `<b>${esc(opLabel(t))}</b>`}<span>${PDESC[s.proto]}</span><span>입력 ${t.params.filter(p => p.o).length}개, 응답 ${t.res.length}개</span></div>
     <div class="plink"><i></i></div>
     <div class="pp hub"><span class="hb">${MARK(20)}이음 변압기</span><span class="rc">${Object.entries(rc).map(([k, n]) => `<span>${RULE[k][0]} ${n}</span>`).join('')}</span></div>
     <div class="plink"><i></i></div>
@@ -162,7 +190,7 @@ Object.assign(ACT, {
   include: () => { const t = curTool(); t.status = 'done'; markDirty(); refreshTool(); toast(`${t.id} 도구를 다시 공개했습니다.`); },
   exec: a => { const t = curTool(); if (t.mode === 'write' && a.dataset.v === 'auto') return; t.exec = a.dataset.v; markDirty(); $$('.opt[data-act="exec"]').forEach(b => b.classList.toggle('on', b.dataset.v === t.exec)); if (S.ptab === 'mcp') $('#preview').innerHTML = previewHTML(t); },
   saveTool: () => { const t = curTool(); const btn = $('#saveBtn'); btn.disabled = true;
-    api.put(`/studio/${t.id}/`, t).then(() => { t._dirty = false; delete t._orig; t._ri = 0; toast('저장했습니다. 다음 배포 때 반영됩니다.'); })
+    api.put(`/studio/${t.id}/`, (({ flow, kind, rec, ...rest }) => rest)(t)).then(() => { t._dirty = false; delete t._orig; t._ri = 0; toast('저장했습니다. 다음 배포 때 반영됩니다.'); })
       .catch(e => { btn.disabled = false; toast(`저장하지 못했습니다. ${e.message}`, 'warn'); }); },
   tryTool: () => { S.pg.tool = curTool().id; S.pg.out = null; go('play'); },
   reread: () => {

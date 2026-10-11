@@ -138,3 +138,94 @@ def test_이미_등록된_다른_기능을_열면_그_기능의_원본으로_스
         finally:
             browser.close()
     assert sid == "b-src" and src == "b-src"
+
+
+FLOW_TOOL = {
+    "id": "news_t", "kind": "flow", "title": "뉴스 조회", "desc": "뉴스를 고른다", "mode": "read", "status": "review", "exec": "auto",
+    "src": "news-src", "limit": 60, "mask": False, "cache": False, "res": [],
+    "params": [{"o": "index", "a": "index", "at": "integer", "loc": "pick", "rule": "keep", "req": False, "ex": "1"}],
+    "rec": {"function": "bf_x", "recording": "rec_x"},
+    "flow": {"version": 1, "verifiedAt": 1760000000, "pick": {"list": "s1", "step": "s2", "tpl": "/art/{id}", "group": "ul", "args": {"index": "index", "match": "match"}},
+             "steps": [{"id": "s1", "base": "https://example.test", "method": "GET", "path": "/section/{sec}", "params": []},
+                       {"id": "s2", "base": "https://example.test", "method": "GET", "path": "/art/{id}", "params": []}]},
+}
+SRC_ROW = {"id": "news-src", "name": "뉴스 시스템", "proto": "disc", "base": "https://example.test", "authType": "none", "spec": "탐색", "sync": "방금"}
+
+
+def _open_studio(page, console_url, tool, src=SRC_ROW):
+    page.goto(console_url + "/ieum/")
+    page.wait_for_function("typeof indexTools === 'function' && !document.body.hasAttribute('aria-busy')")
+    page.evaluate("""([tool, src]) => { SOURCES.push(src); SRC[src.id] = src; TOOLS[src.id] = [tool]; indexTools();
+        Object.assign(S, {view:'studio', src:src.id, tool:tool.id, tf:'all', tq:''}); render(); }""", [tool, src])
+    return page.inner_text("main") if page.query_selector("main") else page.inner_text("body")
+
+
+def test_스튜디오는_업무_도구의_단계_흐름과_기록_안내를_보인다(console_url):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        browser, _ = launch(pw)
+        try:
+            page = browser.new_page()
+            text = _open_studio(page, console_url, FLOW_TOOL)
+            label = page.evaluate("opLabel(TOOL.news_t)")
+            btn = page.get_attribute("[data-act=recOpenFn]", "data-id")
+            page.click("[data-act=ptab][data-v=req]")
+            req = page.inner_text("#preview")
+        finally:
+            browser.close()
+    assert "업무 기록으로 만든 도구입니다" in text and "기록 보기" in text and "검토 완료" in text
+    assert "s1 GET /section/{sec}" in text and "목록에서 고름" in text and "s2 GET /art/{id}" in text
+    assert "단계는 업무 기록에서 고친 뒤 다시 등록합니다." in text
+    assert "명세를 읽어 자동으로 만든 도구 후보" not in text
+    assert label == "업무 2단계" and btn == "rec_x"
+    assert "GET https://example.test/section/{sec}" in req and "GET https://example.test/art/{id}" in req
+
+
+def test_단계_도구는_앞_단계_값이_필요한_입력을_안내한다(console_url):
+    from playwright.sync_api import sync_playwright
+    tool = dict(FLOW_TOOL, id="step_t")
+    for k in ("kind", "flow"):
+        tool.pop(k)
+    tool.update(method="GET", path="/art/{id}", params=[{"o": "id", "a": "id", "at": "string", "loc": "path", "rule": "keep", "req": True}])
+    with sync_playwright() as pw:
+        browser, _ = launch(pw)
+        try:
+            page = browser.new_page()
+            text = _open_studio(page, console_url, tool)
+        finally:
+            browser.close()
+    assert "업무 기록의 한 단계로 만든 도구입니다" in text and "앞 단계 값이 필요한 입력: id" in text and "기록 보기" in text
+    assert "명세를 읽어 자동으로 만든 도구 후보" not in text
+
+
+def test_테스트_실행_기록은_단계별로_그린다(console_url):
+    from playwright.sync_api import sync_playwright
+    trace = {"steps": [{"id": "s1", "originRequest": {"method": "GET", "url": "http://x/list"}, "originResponse": {"status": 200, "body": "목록"}, "ok": True},
+                       {"id": "s2", "originRequest": {"method": "GET", "url": "http://x/art/202"}, "originResponse": {"status": 200, "body": "본문"}, "ok": True}],
+             "originRequest": {"method": "GET", "url": "http://x/art/202"}, "originResponse": {"status": 200, "body": "본문"}}
+    with sync_playwright() as pw:
+        browser, _ = launch(pw)
+        try:
+            page = browser.new_page()
+            _open_studio(page, console_url, FLOW_TOOL)
+            html = page.evaluate("""trace => { const st = buildRealTrace('news_t', 'mcp', {ok:true, result:{}, trace}, false); return traceHTML(st, st.length, true, false); }""", trace)
+        finally:
+            browser.close()
+    assert html.index("http://x/list") < html.index("http://x/art/202")
+    assert html.count("http://x/art/202") == 1
+
+
+def test_기록_보기는_업무_기록_메뉴에서_그_기록을_연다(console_url):
+    from playwright.sync_api import sync_playwright
+    rec = {"id": "rec_x", "functionId": FID, "approvals": []}
+    with sync_playwright() as pw:
+        browser, _ = launch(pw)
+        try:
+            page = browser.new_page()
+            page.route("**/api/ieum/recorder/recordings/rec_x/", lambda r: r.fulfill(status=200, content_type="application/json", body=_env(rec)))
+            page.route("**/api/ieum/recorder/functions/%s/" % FID, lambda r: r.fulfill(status=200, content_type="application/json", body=_env(FN)))
+            _open_studio(page, console_url, FLOW_TOOL)
+            page.click("[data-act=recOpenFn]")
+            page.wait_for_function("S.view === 'rec' && RECR.page === 'review' && RECR.fn && RECR.fn.id === '%s'" % FID)
+        finally:
+            browser.close()
