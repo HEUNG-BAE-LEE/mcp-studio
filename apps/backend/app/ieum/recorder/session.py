@@ -4,7 +4,8 @@
 세션마다 Chromium 을 따로 띄워 쿠키와 기록이 섞이지 않게 한다. 화면은 CDP 스트리밍으로 구독자마다 최신 프레임만 보내고,
 입력은 relay 로 넣는다. 입력을 넣기 직전에 trace.begin() 을 불러 직전 화면을 뜬다.
 
-쓰기 승인 창이 떠 있는 동안에는 다른 입력을 받지 않는다(승인 창 아래 클릭이 엉뚱한 곳에 들어가지 않게).
+기록 중 쓰기는 붙잡지 않고 보낸다(설계 3판). 승인 창은 멈춘 뒤 재실행 검증(Replay)만 띄운다.
+기록 종료는 새 입력을 막고, 이미 나간 쓰기가 끝나기를 기다린 뒤 마지막 묶음을 닫고, 그다음에 쓰기를 막는다(wind_down).
 화면에서 오는 메시지는 둘로 나눈다(dispatch). 승인·확인 창 응답은 받는 즉시 처리하고, 나머지(클릭·휠·글자·키·일시 정지·탭)와
 브라우저가 알린 새 탭 열림·탭 닫힘은 세션마다 한 줄에 넣어 소비 작업 하나가 도착 순서대로 처리한다. 순서를 정하는 곳은 이 줄
 하나뿐이다. 확인 창이 열린 페이지에서 입력 처리(스냅샷)가 막혀도 같은 연결로 온 확인 창 응답이 그 뒤에 갇히지 않게 하려는 것이다.
@@ -21,7 +22,7 @@ from urllib.parse import urlsplit
 
 from app.ieum.discovery import browser as browser_mod
 from app.ieum.discovery.policy import Policy
-from app.ieum.recorder import login, relay, store
+from app.ieum.recorder import config, login, relay, store
 from app.ieum.recorder.guard import Guard
 from app.ieum.recorder.trace import INIT_JS, Trace
 
@@ -39,7 +40,7 @@ class RecorderSession:
     def __init__(self, rec: dict, creds: Optional[dict], on_dead: Optional[Callable[[str], None]] = None):
         self.rid, self.rec, self.creds, self.owner = rec["id"], rec, creds, rec.get("owner") or ""
         self.token = secrets.token_urlsafe(18)
-        self.policy = Policy(base=rec["sourceBase"], read_post=rec.get("readPost", ""))
+        self.policy = Policy(base=rec["sourceBase"], read_post="")     # 3판: 조회용 POST 지정(readPost)은 가드가 쓰지 않는다(예전 기록 값도 무시)
         self.guard = Guard(self.policy, rec["env"], self.broadcast)
         self.trace = Trace(self.rid, self.policy, self.guard, self.broadcast, on_closed=self._after_span)
         self.subs: Dict[object, relay.LatestSender] = {}
@@ -155,6 +156,8 @@ class RecorderSession:
         self.ctx.on("request", self.trace.on_request)
         self.ctx.on("requestfinished", self.trace.on_request_done)
         self.ctx.on("requestfailed", self.trace.on_request_done)
+        self.ctx.on("requestfinished", self.guard.on_request_done)     # 보낸 쓰기의 끝(종료가 기다린다)
+        self.ctx.on("requestfailed", self.guard.on_request_done)
         self.ctx.on("requestfailed", lambda r: asyncio.ensure_future(self._on_request_failed(r)))
         self.ctx.on("response", self.trace.on_response)
         page = await self.ctx.new_page()
@@ -404,13 +407,57 @@ class RecorderSession:
             await asyncio.sleep(0.02)
 
     async def begin_stopping(self) -> None:
-        """멈춤의 시작: 입력을 끊고, 이 뒤에 붙잡힐 기록 쪽 쓰기는 바로 거절하고, 열려 있는 확인 창을 닫는다(정상 멈춤·유휴 멈춤 공통)."""
+        """멈춤의 시작: 새 입력만 막는다(정상 멈춤·유휴 멈춤 공통). 쓰기는 아직 막지 않는다 — 마지막 동작의 쓰기가 나가는 중일 수 있다."""
         self.stopping = True
         if not self.stopping_at:
             self.stopping_at = time.time()
         kept = [m for m in self._inputs if m.get("t") in CONTROL_KINDS]
         self._inputs.clear()                             # 줄에 남은 입력은 멈춤 뒤에 처리하지 않는다(탭 열림·닫힘 같은 제어는 남긴다)
         self._inputs.extend(kept)
+
+    def _waitable_writes(self) -> int:
+        """기다릴 수 있는 진행 중 쓰기 수. 확인 창이 열린 페이지의 쓰기는 뺀다: 창이 열려 있으면 그 페이지의 요청 완료 알림이
+        창을 닫을 때까지 오지 않는다(응답을 받고 alert 를 띄운 경우 실측). 창은 마무리에서 닫는다. 쓰기는 이미 서버로 갔다."""
+        n = 0
+        for req in self.guard.inflight_writes():
+            try:
+                page = req.frame.page
+            except Exception:
+                page = None
+            if page is not None and self.dialog_open(page):
+                continue
+            n += 1
+        return n
+
+    async def _wait_writes(self) -> int:
+        """이미 나간 쓰기가 모두 끝나고 마지막 쓰기 뒤 STOP_QUIET_SEC 동안 새 쓰기가 없을 때까지 기다린다(상한 STOP_WRITE_WAIT_SEC).
+        클릭 뒤 스크립트가 늦게 보내는 저장이 있어 쓰기가 없어도 조용한 시간만큼은 기다린다. 조회 요청은 세지 않는다.
+        상한을 넘기면 끊지 않고(이미 서버로 갔다) 남은 개수를 돌려준다. 기다리는 동안 새로 뜬 확인 창은 _on_dialog 가 닫는다."""
+        start = time.monotonic()
+        deadline = start + config.STOP_WRITE_WAIT_SEC
+        shown = 0
+        while True:
+            n = self._waitable_writes()
+            now = time.monotonic()
+            quiet_from = max(start, self.guard.last_write_at)
+            if n == 0 and now - quiet_from >= config.STOP_QUIET_SEC:
+                return 0
+            if now >= deadline:
+                break
+            if n and n != shown:
+                shown = n
+                await self.broadcast({"t": "notice", "msg": f"저장 요청 {n}건이 끝나기를 기다리는 중입니다."})
+            await asyncio.sleep(0.05)
+        if n:
+            log.warning("기록 %s: 응답을 받지 못한 쓰기 %d건을 남기고 종료합니다", self.rid, n)
+            await self.broadcast({"t": "notice", "msg": f"응답을 받지 못한 쓰기 {n}건이 있습니다."})
+        return n
+
+    async def wind_down(self) -> int:
+        """멈춤의 마무리(정상 멈춤·유휴 멈춤 공통, begin_stopping 뒤): 마지막 쓰기를 기다리고 → 마지막 묶음을 닫고
+        → 그때부터 쓰기를 막고 → 열려 있는 확인 창을 닫는다. 응답을 받지 못한 쓰기 수를 돌려준다."""
+        pending = await self._wait_writes()
+        await self.trace.finish(self.page)
         self.guard.closing_now()
         if self._dialog is not None:
             d = self._dialog
@@ -420,12 +467,11 @@ class RecorderSession:
                     self._dialog = None                  # 닫는 사이 새로 뜬 창은 지우지 않는다
             except Exception:
                 pass                                     # 닫지 못해도 멈춤은 계속한다. _dialog 를 남겨 두어 스냅샷이 그 페이지를 계속 건너뛴다
+        return pending
 
     async def stop(self) -> None:
         await self.begin_stopping()
-        await self._deny_pending()
-        await self.trace.finish(self.page)
-        await self._deny_pending()
+        pending = await self.wind_down()
         recipe = await login.recipe_for(self.guard.login_req, self.policy, self.creds)
         login_path = urlsplit(self.guard.login_req["url"]).path if self.guard.login_req else ""
 
@@ -434,8 +480,11 @@ class RecorderSession:
             r["approvals"] = list(self.guard.decisions)
             r["login"]["recipe"] = recipe
             r["login"]["path"] = login_path
+            r["pendingWrites"] = pending
+            if self.guard.sent_dropped:
+                r["approvalsDropped"] = self.guard.sent_dropped
         await asyncio.to_thread(store.update_recording, self.rid, fin)
-        self.accept_replay = True                       # 기록 쪽 승인은 모두 닫았다. 이제부터 오는 승인 창은 Replay 의 것이다
+        self.accept_replay = True                       # 기록 쪽 승인은 없다. 이제부터 오는 승인 창은 Replay 의 것이다
 
     async def close(self) -> None:
         me = asyncio.current_task()

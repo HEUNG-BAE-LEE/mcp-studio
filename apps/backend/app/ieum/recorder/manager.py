@@ -255,13 +255,12 @@ class Manager:
                     continue                     # 분석·검증 중인 세션은 service.finish 가 닫는다
                 if now - s.last_input > config.idle_sec():
                     try:
-                        await s.begin_stopping()          # 멈춤과 같이: 입력을 끊고, 대기 승인을 거부로 닫고, 승인 기록을 남긴다
-                        await s._deny_pending()
-                        await s.trace.finish(s.page)
-                        await s._deny_pending()
+                        await s.begin_stopping()          # 멈춤과 같은 순서: 입력을 끊고, 마지막 쓰기를 기다리고, 묶음을 닫고, 쓰기를 막는다
+                        pending = await s.wind_down()
                         approvals = list(s.guard.decisions)
                         await asyncio.to_thread(store.update_recording, rid, lambda r: r.update(
-                            status="interrupted", endedAt=now, error="입력이 오래 없어 기록을 멈췄습니다.", approvals=approvals))
+                            status="interrupted", endedAt=now, error="입력이 오래 없어 기록을 멈췄습니다.", approvals=approvals,
+                            pendingWrites=pending))
                     finally:
                         await self.close(rid)
                 elif now - s.started > config.max_sec():

@@ -70,58 +70,59 @@ def test_읽기는_그대로_보낸다():
     assert run(go()) == ("continue", [])
 
 
-def test_운영_쓰기는_승인하면_보낸다():
+# ── 기록 중 쓰기(설계 3판 8절): 붙잡지 않고 보내고 sent 로 남긴다 ─────────────────
+def test_기록_중_운영_쓰기는_묻지_않고_보내고_sent_로_남긴다():
     async def go():
         g, sent = make()
         g.label = "저장"
+        req = Req("http://h:8080/po/poSave.do", "POST", post="qty=1")
         r = Route()
-        task = asyncio.ensure_future(g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="qty=1")))
-        await asyncio.sleep(0.05)
-        assert g.holding and sent[0]["t"] == "hold" and sent[0]["path"] == "/poSave.do" and sent[0]["label"] == "저장"
-        assert g.decide(sent[0]["id"], True)
-        await task
-        return r.done, g.decisions[-1]["decision"], g.holding
-    assert run(go()) == ("continue", "approve", False)
+        await g.route(r, req)
+        d = g.decisions[-1]
+        return r.done, sent, (d["decision"], d["path"], d["label"]), g.holding, g.decided_requests.get(id(req))
+    assert run(go()) == ("continue", [], ("sent", "/po/poSave.do", "저장"), False, "sent")
 
 
-def test_다른_시스템으로_가는_운영_쓰기도_승인을_받는다():
-    async def go():
-        g, sent = make(timeout=0.05)
-        r = Route()
-        await g.route(r, Req("http://appr.corp:9090/approve.do", "POST", post="docNo=1"))
-        return r.done, g.decisions[-1]["decision"]
-    assert run(go()) == ("abort", "timeout")
-
-
-def test_운영_쓰기는_거절하면_버린다():
+def test_다른_시스템으로_가는_쓰기도_기록_중에는_보낸다():
     async def go():
         g, sent = make()
         r = Route()
-        task = asyncio.ensure_future(g.route(r, Req("http://h:8080/po/poSave.do", "POST")))
-        await asyncio.sleep(0.05)
-        g.decide(sent[0]["id"], False)
-        await task
-        return r.done, g.decisions[-1]["decision"]
-    assert run(go()) == ("abort", "deny")
+        await g.route(r, Req("http://appr.corp:9090/approve.do", "POST", post="docNo=1"))
+        return r.done, sent, g.decisions[-1]["decision"]
+    assert run(go()) == ("continue", [], "sent")
 
 
-def test_승인_응답이_없으면_시간_초과로_보내지_않는다():
+def test_sent_기록의_주소는_개인정보와_토큰을_가린다():
     async def go():
-        g, sent = make(timeout=0.1)
-        r = Route()
-        await g.route(r, Req("http://h:8080/po/poSave.do", "POST"))
-        return r.done, g.decisions[-1]["decision"], sent[-1]
-    done, decision, last = run(go())
-    assert done == "abort" and decision == "timeout" and last == {"t": "hold-end", "id": last["id"], "decision": "timeout"}
+        g, sent = make()
+        await g.route(Route(), Req("http://h:8080/po/poSave.do?tel=010-1234-5678&_csrf=abc", "POST", post="a=1"))
+        return g.decisions
+    dec = run(go())
+    blob = str(dec)
+    assert dec[-1]["decision"] == "sent" and "010-1234-5678" not in blob and "_csrf=abc" not in blob
 
 
-def test_스테이징은_쓰기도_보내고_기록한다():
+def test_같은_쓰기가_반복되면_매번_남기되_상한을_넘으면_개수만_센다(monkeypatch):
+    from app.ieum.recorder import guard as guard_mod
+    monkeypatch.setattr(guard_mod, "SENT_LOG_MAX", 3)
+
+    async def go():
+        g, sent = make()
+        for _ in range(5):
+            r = Route()
+            await g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="a=1"))
+            assert r.done == "continue"
+        return [d["decision"] for d in g.decisions], g.sent_dropped
+    assert run(go()) == (["sent"] * 3, 2)
+
+
+def test_스테이징도_기록_중_쓰기는_같은_규칙이다():
     async def go():
         g, sent = make(env="stg")
         r = Route()
         await g.route(r, Req("http://h:8080/po/poSave.do", "POST"))
         return r.done, g.decisions[-1]["decision"], sent
-    assert run(go()) == ("continue", "staging", [])
+    assert run(go()) == ("continue", "sent", [])
 
 
 def test_로그인_요청은_승인_없이_보내고_붙잡아_둔다():
@@ -135,21 +136,34 @@ def test_로그인_요청은_승인_없이_보내고_붙잡아_둔다():
 
 def test_토큰_필드가_든_저장은_로그인으로_오인하지_않는다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r = Route()
         await g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="csrfToken=abc&qty=1"))
         return r.done, g.login_req, g.decisions[-1]["decision"]
-    assert run(go()) == ("abort", None, "timeout")
+    assert run(go()) == ("continue", None, "sent")
 
 
-def test_조회용_POST_는_통과하고_이름이_쓰기_같은_GET_은_승인_대상():
+def test_readPost_는_가드에서_쓰지_않고_이름이_쓰기_같은_GET_도_보낸다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()                                   # P 에 read_post 가 있어도 무시한다(예전 기록)
         r1, r2 = Route(), Route()
         await g.route(r1, Req("http://h:8080/po/searchPost.do", "POST"))
         await g.route(r2, Req("http://h:8080/po/poDelete.do?id=1", "GET"))
-        return r1.done, r2.done
-    assert run(go()) == ("continue", "abort")
+        return r1.done, r2.done, [d["decision"] for d in g.decisions]
+    assert run(go()) == ("continue", "continue", ["sent", "sent"])
+
+
+def test_readPost_로_지정한_POST_도_가드가_실패하면_보내지_않는다():
+    class FlakyRoute(Route):
+        async def continue_(self):
+            raise RuntimeError("continue 실패")
+
+    async def go():
+        g, sent = make()
+        r = FlakyRoute()
+        await g.route(r, Req("http://h:8080/po/searchPost.do", "POST", post="q=1"))
+        return r.done
+    assert run(go()) == "abort"
 
 
 def test_Replay_쓰기_승인도_같은_창을_쓴다():
@@ -162,16 +176,62 @@ def test_Replay_쓰기_승인도_같은_창을_쓴다():
     assert run(go()) is True
 
 
-def test_알림이_실패하면_운영_쓰기는_보내지_않는다():
+def test_Replay_쓰기는_거절하면_보내지_않는다():
+    async def go():
+        g, sent = make()
+        task = asyncio.ensure_future(g.ask("POST", "http://h:8080/po/poSave.do", "Replay: 발주 저장"))
+        await asyncio.sleep(0.05)
+        assert g.holding and sent[0]["t"] == "hold"
+        g.decide(sent[0]["id"], False)
+        return await task, g.decisions[-1]["decision"]
+    assert run(go()) == (False, "deny")
+
+
+def test_Replay_승인_응답이_없으면_시간_초과로_보내지_않는다():
+    async def go():
+        g, sent = make(timeout=0.1)
+        ok = await g.ask("POST", "http://h:8080/po/poSave.do", "Replay: 발주 저장")
+        return ok, g.decisions[-1]["decision"], sent[-1]
+    ok, decision, last = run(go())
+    assert ok is False and decision == "timeout" and last == {"t": "hold-end", "id": last["id"], "decision": "timeout"}
+
+
+def test_알림이_실패하면_Replay_운영_쓰기는_보내지_않는다():
     async def go():
         async def notify(msg):
             if msg["t"] == "hold":
                 raise RuntimeError("socket closed")
         g = Guard(P, "op", notify, timeout=5.0)
-        r = Route()
-        await g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="qty=1"))
-        return r.done, g.decisions[-1]["decision"], g.holding
-    assert run(go()) == ("abort", "error", False)
+        ok = await g.ask("POST", "http://h:8080/po/poSave.do", "Replay")
+        return ok, g.decisions[-1]["decision"], g.holding
+    assert run(go()) == (False, "error", False)
+
+
+def test_보낸_쓰기는_끝날_때까지_진행_중으로_센다():
+    async def go():
+        g, sent = make()
+        w, rd = Req("http://h:8080/po/poSave.do", "POST", post="a=1"), Req("http://h:8080/po/poList.do")
+        t0 = g.last_write_at
+        await g.route(Route(), w)
+        await g.route(Route(), rd)
+        mid = (g.writes_in_flight, g.last_write_at > t0)
+        g.on_request_done(rd)                              # 조회는 세지 않는다
+        g.on_request_done(w)
+        g.on_request_done(w)                               # 두 번 와도 음수가 되지 않는다
+        return mid, g.writes_in_flight
+    assert run(go()) == ((1, True), 0)
+
+
+def test_재지정된_쓰기가_끝나면_원래_요청도_끝난_것으로_본다():
+    async def go():
+        g, sent = make()
+        w = Req("http://h:8080/po/poSave.do", "POST", post="a=1")
+        await g.route(Route(), w)
+        nxt = Req("http://h:8080/po/poList.do")
+        nxt.redirected_from = w
+        g.on_request_done(nxt)
+        return g.writes_in_flight
+    assert run(go()) == 0
 
 
 def test_알림이_실패해도_읽기는_그대로_보낸다():
@@ -211,43 +271,39 @@ def test_루프백_표기_정규화는_허용_규칙을_흔들지_않는다():
     assert scope.blocked("http://127.0.0.1:8000/demo-legacy/po/main.do", "http://127.0.0.1:8000") is None
 
 
-def test_자원_모양_주소의_POST_도_쓰기로_승인을_받는다():
+def test_자원_모양_주소의_POST_도_쓰기로_보내고_남긴다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r = Route()
         await g.route(r, Req("http://h:8080/po/imgSave.do?name=logo.png", "POST", post="x=1"))
-        return r.done, sent[0]["t"], g.decisions[-1]["decision"]
-    assert run(go()) == ("abort", "hold", "timeout")
+        return r.done, sent, g.decisions[-1]["decision"]
+    assert run(go()) == ("continue", [], "sent")
 
-
-def test_다른_출처의_조회용_POST_는_승인을_받고_대상_출처는_통과한다():
+def test_조회용_POST_도_출처와_상관없이_쓰기로_남긴다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r1, r2 = Route(), Route()
         await g.route(r1, Req("http://other.corp/po/searchPost.do", "POST", post="q=1"))
         await g.route(r2, Req("http://h:8080/po/searchPost.do", "POST", post="q=1"))
-        return r1.done, r2.done, g.decisions[-1]["decision"]
-    assert run(go()) == ("abort", "continue", "timeout")
+        return r1.done, r2.done, [d["decision"] for d in g.decisions]
+    assert run(go()) == ("continue", "continue", ["sent", "sent"])
 
-
-def test_넓은_로그인_판정으로_저장을_통과시키지_않는다():
+def test_넓은_로그인_판정으로_저장을_로그인으로_남기지_않는다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r1, r2 = Route(), Route()
         await g.route(r1, Req("http://h:8080/po/inspSave.do", "POST", post="passYn=Y&qty=1"))
         await g.route(r2, Req("http://h:8080/po/pwChange.do", "POST", post="newPw=a&confirmPw=b"))
-        return r1.done, r2.done, g.login_req
-    assert run(go()) == ("abort", "abort", None)
-
+        return r1.done, r2.done, g.login_req, [d["decision"] for d in g.decisions]
+    assert run(go()) == ("continue", "continue", None, ["sent", "sent"])
 
 def test_텍스트_본문의_비밀번호는_로그인이_아니다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r = Route()
         await g.route(r, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=x", ctype="text/plain"))
-        return r.done, g.login_req
-    assert run(go()) == ("abort", None)
-
+        return r.done, g.login_req, g.decisions[-1]["decision"]
+    assert run(go()) == ("continue", None, "sent")
 
 def test_JSON_로그인은_대상_출처에서_승인_없이_보낸다():
     async def go():
@@ -259,14 +315,13 @@ def test_JSON_로그인은_대상_출처에서_승인_없이_보낸다():
     assert run(go()) == ("continue", [], "application/json")
 
 
-def test_다른_출처의_로그인_모양_요청은_승인을_받는다():
+def test_다른_출처의_로그인_모양_요청은_로그인이_아니다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r = Route()
         await g.route(r, Req("http://other.corp/po/loginProc.do", "POST", post="userId=a&userPw=b"))
-        return r.done, g.login_req
-    assert run(go()) == ("abort", None)
-
+        return r.done, g.login_req, g.decisions[-1]["decision"]
+    assert run(go()) == ("continue", None, "sent")
 
 def test_흔한_로그인_필드_이름도_로그인으로_본다():
     async def go():
@@ -289,36 +344,31 @@ def test_콘솔_경로의_표기_변형도_막는다():
 
 def test_비밀번호_변경은_로그인으로_오인하지_않는다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r1, r2 = Route(), Route()
         await g.route(r1, Req("http://h:8080/po/pwChange.do", "POST", post="memberId=a&newPw=b&confirmPw=b"))
         await g.route(r2, Req("http://h:8080/po/updateMyInfo.do", "POST", post="userId=a&userPw=b"))
-        return r1.done, r2.done, g.login_req
-    assert run(go()) == ("abort", "abort", None)
-
+        return r1.done, r2.done, g.login_req, [d["decision"] for d in g.decisions]
+    assert run(go()) == ("continue", "continue", None, ["sent", "sent"])
 
 def test_변경이_아닌_로그인_경로는_그대로_로그인이다():
     async def go():
         g, sent = make()
         r1, r2 = Route(), Route()
         await g.route(r1, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
-        # 승인 없는 로그인은 기록당 한 번이므로 두 번째 경로는 새 기록(새 가드)으로 본다
-        g2, sent2 = make()
-        await g2.route(r2, Req("http://h:8080/po/j_security_check", "POST", post="j_username=a&j_password=b"))
-        return r1.done, r2.done, sent + sent2, g.login_req is not None and g2.login_req is not None
-    assert run(go()) == ("continue", "continue", [], True)
+        await g.route(r2, Req("http://h:8080/po/j_security_check", "POST", post="j_username=a&j_password=b"))
+        return r1.done, r2.done, sent, [d["decision"] for d in g.decisions], g.login_req["url"]
+    assert run(go()) == ("continue", "continue", [], ["login", "login"], "http://h:8080/po/j_security_check")
 
-
-def test_승인_없는_로그인은_기록당_한_번이고_기록에_남는다():
+def test_다시_로그인해도_보내고_레시피는_마지막_로그인으로_남는다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r1, r2 = Route(), Route()
-        await g.route(r1, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
-        first = (r1.done, g.decisions[-1]["decision"], g.login_req is not None)
-        await g.route(r2, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
-        return first, r2.done, g.decisions[-1]["decision"]
-    assert run(go()) == (("continue", "login", True), "abort", "timeout")
-
+        req1 = Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b")
+        await g.route(r1, req1)
+        await g.route(r2, Req("http://h:8080/po/loginProc.do", "POST", post="userId=c&userPw=d"))
+        return r1.done, r2.done, [d["decision"] for d in g.decisions], g.login_req["post"], g.decided_requests.get(id(req1)), sent
+    assert run(go()) == ("continue", "continue", ["login", "login"], "userId=c&userPw=d", "login", [])
 
 def test_가입_결제_생성_경로는_첫_요청이어도_로그인이_아니다():
     async def go():
@@ -328,36 +378,21 @@ def test_가입_결제_생성_경로는_첫_요청이어도_로그인이_아니�
                            ("/order/pay.do", "orderId=1&payPw=2"),
                            ("/member/signup.do", "userId=a&userPw=b"),
                            ("/member/registerUser.do", "userId=a&userPw=b")):
-            g, sent = make(timeout=0.05)
+            g, sent = make()
             r = Route()
             await g.route(r, Req("http://h:8080" + path, "POST", post=post))
-            out.append((path, r.done, g.login_req))
+            out.append((path, r.done, g.login_req, g.decisions[-1]["decision"]))
         return out
-    assert all(d == "abort" and lr is None for _, d, lr in run(go())), run(go())
+    got = run(go())
+    assert all(d == "continue" and lr is None and dec == "sent" for _, d, lr, dec in got), got
 
-
-def test_POST_가_아닌_로그인_모양_요청은_승인을_받는다():
+def test_POST_가_아닌_로그인_모양_요청은_로그인으로_남기지_않는다():
     async def go():
-        g, sent = make(timeout=0.05)
+        g, sent = make()
         r = Route()
         await g.route(r, Req("http://h:8080/po/loginProc.do", "PUT", post="userId=a&userPw=b"))
         return r.done, g.login_req, g.decisions[-1]["decision"]
-    assert run(go()) == ("abort", None, "timeout")
-
-
-def test_승인받은_재로그인도_login_req_에_남는다():
-    async def go():
-        g, sent = make()
-        r1, r2 = Route(), Route()
-        await g.route(r1, Req("http://h:8080/po/loginProc.do", "POST", post="userId=a&userPw=b"))
-        task = asyncio.ensure_future(g.route(r2, Req("http://h:8080/po/loginProc.do", "POST", post="userId=c&userPw=d")))
-        await asyncio.sleep(0.05)
-        hold = [m for m in sent if m["t"] == "hold"][-1]
-        assert g.decide(hold["id"], True)
-        await task
-        return r2.done, g.login_req["post"], g.decisions[-1]["decision"]
-    assert run(go()) == ("continue", "userId=c&userPw=d", "approve")
-
+    assert run(go()) == ("continue", None, "sent")
 
 # ── 외부 통계 자동 차단 · 종료 중 즉시 거절 ─────────────────────────────────
 def _route_one(req, **kw):
@@ -400,8 +435,7 @@ def test_비슷한_이름의_호스트와_일반_구글_요청은_통계가_아�
     assert not is_beacon("https://www.google.com/search", "xhr")
     assert is_beacon("https://WWW.Google-Analytics.com./g/collect", "fetch")
     done, sent, dec, cnt, holding = _route_one(Req("https://evil-google-analytics.com/g/collect", "POST", rtype="fetch", post="a=1"))
-    assert sent == ["hold"] and holding and cnt == 0
-
+    assert done == "continue" and sent == [] and dec == ["sent"] and cnt == 0
 
 def test_환경변수로_통계_호스트를_더한다(monkeypatch):
     from app.ieum.recorder.guard import is_beacon
@@ -409,10 +443,9 @@ def test_환경변수로_통계_호스트를_더한다(monkeypatch):
     assert is_beacon("https://stat.corp.example/c", "xhr") and is_beacon("https://a.metrics.test/c", "xhr")
 
 
-def test_대상_출처_쓰기는_통계_규칙을_타지_않고_기존대로_묻는다():
+def test_대상_출처_쓰기는_통계_규칙을_타지_않고_보낸다():
     done, sent, dec, cnt, holding = _route_one(Req("http://h:8080/po/poSave.do", "POST", rtype="ping", post="a=1"))
-    assert sent == ["hold"] and holding and cnt == 0
-
+    assert done == "continue" and sent == [] and dec == ["sent"] and cnt == 0
 
 def test_종료_중에는_기록_쪽_쓰기를_묻지_않고_바로_거절한다():
     async def go():
@@ -451,7 +484,7 @@ def test_외부_통계_기록의_이름은_사용자_동작이_아니라_고정_
     assert run(go()) == [("beacon", "외부 통계")]
 
 
-def test_구글을_흉내낸_호스트와_구글_일반_POST_는_통계가_아니라_승인을_받는다():
+def test_구글을_흉내낸_호스트와_구글_일반_POST_는_통계가_아니라_보낸다():
     for url in ("https://google.com.evil.net/g/collect", "https://accounts.google.com/x"):
         done, sent, dec, cnt, holding = _route_one(Req(url, "POST", rtype="xhr", post="a=1"))
-        assert sent == ["hold"] and holding and cnt == 0 and "beacon" not in dec, url
+        assert done == "continue" and sent == [] and dec == ["sent"] and cnt == 0, url

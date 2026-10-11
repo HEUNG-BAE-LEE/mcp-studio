@@ -52,3 +52,8 @@ def beacon_hosts() -> List[str]:
     """기본 목록에 환경변수 IEUM_RECORDER_BEACON_HOSTS(쉼표 목록)를 덧붙인다."""
     extra = [x.strip().lower().lstrip("*.").rstrip(".") for x in os.environ.get("IEUM_RECORDER_BEACON_HOSTS", "").split(",") if x.strip()]
     return list(BEACON_HOSTS) + [x for x in extra if x]
+
+
+# 기록 종료 때 이미 나간 쓰기를 기다리는 상한과 마지막 쓰기 뒤 조용해야 하는 시간(설계 3판 8절). 시험이 값을 바꿔 끼운다
+STOP_WRITE_WAIT_SEC = 60.0
+STOP_QUIET_SEC = 1.5

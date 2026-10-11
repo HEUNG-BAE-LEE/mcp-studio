@@ -2,7 +2,7 @@
 
 - XHR 읽기 업무(조회 → 상세)가 2단계 업무 기능과 poNo 연결이 되고 검증된다
 - 서버 렌더링 업무(폼 검색 → 상세)가 HTML 표 단계 2개, 표에서 꺼낸 값 연결, 숨은 토큰 → 브라우저 실행으로 정리되고 검증된다
-- 운영 쓰기는 승인 없이는 시연 사이트에 닿지 않는다
+- 기록 중 운영 쓰기는 묻지 않고 시연 사이트에 닿고 보낸 쓰기(sent)로 남는다(설계 3판)
 - 한글 IME 입력이 깨지지 않는다
 """
 import asyncio
@@ -142,31 +142,25 @@ def test_서버_렌더링_업무가_HTML_표_단계와_브라우저_실행으로
     assert "010-4821-5678" not in saved                              # 상세 화면의 휴대전화는 ARIA·응답 사본 어디에도 원값으로 남지 않는다
 
 
-def test_운영_쓰기는_거절하면_닿지_않고_승인하면_닿는다(ieum_server):
+def test_기록_중_운영_쓰기는_묻지_않고_닿고_보낸_쓰기로_남는다(ieum_server):
+    # 설계 3판: 기록 중 쓰기는 사람의 실제 업무라 붙잡지 않고 보낸다. 승인은 재실행 검증 때 받는다
     d = Driver(ieum_server)
     try:
+        q = dict(params={"fromDt": "20261001", "toDt": "20261031"}, headers={"X-Requested-With": "XMLHttpRequest"}, timeout=10)
         d.click("text=발주 등록")
+        assert httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 0
         d.click("#btnVend")
         d.click("a.vendPick >> nth=0")
         d.click("button.pick >> nth=0")
         d.click("#btnSave")
-        hold = d.wait(lambda m: m["t"] == "hold")
-        assert hold["path"].endswith("/poSave.do")
-        d.ws.send(json.dumps({"t": "approve", "id": hold["id"], "ok": False}))
-        d.wait(lambda m: m["t"] == "hold-end" and m["decision"] == "deny")
-        q = dict(params={"fromDt": "20261001", "toDt": "20261031"}, headers={"X-Requested-With": "XMLHttpRequest"}, timeout=10)
-        assert httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 0
-        d.msgs.clear()
-        d.click("#btnSave")
-        hold = d.wait(lambda m: m["t"] == "hold")
-        d.ws.send(json.dumps({"t": "approve", "id": hold["id"], "ok": True}))
-        d.wait(lambda m: m["t"] == "hold-end" and m["decision"] == "approve")
         end = time.time() + 15
         while time.time() < end:
             if httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 1:
                 break
             time.sleep(0.3)
         assert httpx.get(ieum_server + "/demo-legacy/po/poList.do", cookies=d.cookies(), **q).json()["totalCnt"] == 1
+        assert not [m for m in d.msgs if m["t"] == "hold"]
+        assert any(x["decision"] == "sent" and x["path"].endswith("/poSave.do") for x in d.session.guard.decisions)
     finally:
         d.close()
 

@@ -194,7 +194,10 @@ class BrowserTransport:
             headers["content-type"] = f"application/x-www-form-urlencoded; charset={step.get('charset') or 'UTF-8'}"
         # 승인받은 쓰기는 기록 가드를 다시 지난다. 바로 이 요청(메서드·최종 주소·본문)만, 보내는 동안만 통과시킨다.
         # 표시 헤더를 붙이는 방식은 쓰지 않는다(다른 출처면 CORS 사전 요청이 생겨 그것이 붙잡힌다).
-        token = self.guard.allow_exact(step["method"], url, body) if (self.guard is not None and step.get("write")) else None
+        # 조회로 분류된 비GET 단계(2판 readPost)도 같다: 3판 가드는 readPost 를 보지 않으므로 여기서 그 요청 하나만 통과시킨다
+        # (예전 가드의 readPost 통과와 같은 범위). 운영 비GET 의 재실행 승인은 T6 에서 모든 단계로 넓힌다.
+        exact = step.get("write") or str(step.get("method") or "").upper() not in ("GET", "HEAD")
+        token = self.guard.allow_exact(step["method"], url, body) if (self.guard is not None and exact) else None
         try:
             r = await self.page.evaluate(_FETCH_SEND, [step["method"], url, headers, body])
         finally:

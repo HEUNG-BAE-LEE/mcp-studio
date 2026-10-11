@@ -1,13 +1,19 @@
 # apps/backend/app/ieum/recorder/guard.py
-"""쓰기 가드: 운영에서 쓰기 요청은 붙잡아 사람에게 묻고, 서버 보호 주소는 막는다.
+"""쓰기 가드(설계 3판 8절): 기록 중 쓰기는 붙잡지 않고 보내 기록하고, 서버 보호 주소와 외부 통계는 막는다.
+
+기록하는 사람은 자기 업무를 실제로 하는 중이다. 자기 브라우저로 해도 같은 요청이 나가므로 기록 중에는 묻지 않는다.
+사람 모르게 운영 데이터가 바뀔 위험은 기록 뒤 시스템이 다시 보내는 재실행에 있고, 그 승인은 ask() 가 받는다.
+
+순서: 1 항상 차단 → 2 조회 → 3 재실행이 승인받은 바로 그 요청 → 4 다른 출처 외부 통계 → 5 종료 마무리 뒤 쓰기 거절
+→ 6 그 밖의 쓰기는 보내고 sent(로그인은 login)로 남긴다.
 
 판단은 버튼 글자가 아니라 나가는 요청으로 한다(2026-10-09 실험: 글자로 하자 "승인대기" 행이 금지어 "승인"에 걸렸다).
-글자(label)는 승인 창의 설명으로만 쓴다. 어느 출처로 가는 쓰기든 같다 — 결재 시스템의 저장도 운영 데이터를 바꾼다.
+글자(label)는 기록의 설명으로만 쓴다. 자동 탐색과 달리 가짜 응답을 만들지 않는다.
 
-자동 탐색과 달리 가짜 응답을 만들지 않는다. 가짜 {} 를 받은 화면은 다음 단계에 필요한 값(생성 번호)이 없어 헤맨다.
+로그인 판정은 세션 레시피를 남기는 데만 쓴다. 비밀번호 계열 필드가 있을 때만 로그인으로 본다. masking.is_secret_key 는
+token 도 비밀로 봐서, 그걸 쓰면 csrfToken 이 든 저장 요청을 로그인으로 오인해 그 요청이 레시피가 된다.
 
-로그인은 비밀번호 계열 필드가 있을 때만 로그인으로 본다. masking.is_secret_key 는 token 도 비밀로 봐서, 그걸 쓰면
-csrfToken 이 든 저장 요청을 로그인으로 오인해 승인 없이 보낸다.
+종료가 마지막 쓰기를 기다릴 수 있게, 보낸 쓰기가 끝날(응답·실패) 때까지 진행 중으로 센다(writes_in_flight).
 """
 import asyncio
 import itertools
@@ -25,6 +31,7 @@ from app.ieum.recorder import config, scope
 _PW_ENDS = ("pw", "pwd", "passwd", "password")
 _ID_PARTS = ("user", "login", "account", "email", "usr")
 _LOGIN_CTYPES = ("application/x-www-form-urlencoded",)   # multipart 는 parse_form 이 못 읽으므로 뺐다
+SENT_LOG_MAX = 500             # 기록 중 보낸 쓰기·종료 뒤 거절 이력의 기록당 상한. 넘으면 개수만 센다(sent_dropped)
 
 
 def _compact(name: str) -> str:
@@ -128,7 +135,6 @@ class Guard:
         self.target_origin = f"{parts.scheme}://{parts.netloc}"
         self.label = ""
         self.login_req: Optional[dict] = None
-        self.login_passed = False                    # 승인 없는 로그인 통과는 기록당 한 번뿐이다
         self.decisions: List[dict] = []
         self.decided_requests: Dict[int, str] = {}
         self._holds: Dict[str, asyncio.Future] = {}
@@ -137,13 +143,33 @@ class Guard:
         self._tokens = itertools.count(1)
         self._exact: Dict[int, tuple] = {}            # Replay 가 승인받아 지금 보내는 요청 (메서드, 주소, 본문). 보내는 동안만 있다
         self._masker = Masker(pii=True)
-        self.closing = False                          # 기록을 멈추는 중이다. 새로 붙잡힐 기록 쪽 쓰기는 묻지 않고 거절한다
+        self.closing = False                          # 기록 종료 마무리가 끝났다. 이 뒤 페이지가 스스로 보낸 쓰기는 거절한다
+        self.sent_logged = 0                          # decisions 에 남긴 sent·종료 뒤 거절 수(상한 SENT_LOG_MAX)
+        self.sent_dropped = 0                         # 상한을 넘어 개수만 센 것
+        self._writes: Dict[int, object] = {}          # 보내고 아직 끝나지 않은 기록 중 쓰기(id(request) → request)
+        self.last_write_at = time.monotonic()         # 쓰기가 마지막으로 나가거나 끝난 시각(종료의 조용한 시간 기준)
         self.beacon_count = 0                         # 자동으로 막은 외부 통계 요청 수(주소별 첫 1건만 decisions 에 남는다)
         self._beacon_seen: set = set()
 
     def closing_now(self) -> None:
-        """기록 종료를 시작한다. 이후 기록 쪽 쓰기는 승인 창 없이 즉시 거절한다(Replay 의 ask 는 영향받지 않는다)."""
+        """기록 종료 마무리(마지막 묶음을 닫은 뒤). 이후 페이지가 보낸 쓰기는 즉시 거절한다(Replay 의 ask 는 영향받지 않는다)."""
         self.closing = True
+
+    @property
+    def writes_in_flight(self) -> int:
+        return len(self._writes)
+
+    def inflight_writes(self) -> list:
+        return list(self._writes.values())
+
+    def on_request_done(self, request) -> None:
+        """요청이 끝났다(requestfinished·requestfailed). 보낸 쓰기였으면 진행 중에서 뺀다. 재지정된 요청은 원래 요청까지 거슬러 뺀다."""
+        r, seen = request, 0
+        while r is not None and seen < 20:
+            if self._writes.pop(id(r), None) is not None:
+                self.last_write_at = time.monotonic()
+            r = getattr(r, "redirected_from", None)
+            seen += 1
 
     @property
     def holding(self) -> bool:
@@ -181,16 +207,15 @@ class Guard:
             url, method, rtype = request.url, request.method.upper(), request.resource_type
             if scope.blocked(url, self.target_origin, config.deny_entries()):
                 return False
-            if not self._is_write_req(url, method, rtype):
-                return True
-            return self.policy.same_origin(url) and bool(self.policy.is_read_post(url))
+            return not self._is_write_req(url, method, rtype)
         except Exception:
             return False
 
     def _is_login(self, request, url: str) -> bool:
-        """로그인은 대상 출처로 가는 폼·JSON 이고, 비밀번호 필드와 아이디 계열 필드가 함께 있을 때만이다."""
+        """로그인은 대상 출처로 가는 POST 폼·JSON 이고, 비밀번호 필드와 아이디 계열 필드가 함께 있을 때만이다.
+        통과 여부는 가르지 않는다(기록 중 쓰기는 모두 보낸다). 세션 레시피로 남길 요청을 고르는 데만 쓴다."""
         try:
-            if not self.policy.same_origin(url):
+            if request.method.upper() != "POST" or not self.policy.same_origin(url):
                 return False
             ctype = ((request.headers or {}).get("content-type", "") or "").lower()
             if not (any(c in ctype for c in _LOGIN_CTYPES) or "json" in ctype):
@@ -199,9 +224,8 @@ class Guard:
             pw_names = [k for k in names if _is_password_field(k)]
             if not pw_names:
                 return False
-            # 비밀번호 변경은 로그인이 아니다: 변경용 필드(newPw, confirmPw...)나 변경 동작의 경로(pwChange.do...)면 승인을 받는다.
-            # 잔여 위험: 이름만으로는 로그인과 쓰기를 완전히 가를 수 없다. 그래서 로그인 모양의 쓰기는 POST 만,
-            # 기록당 최대 한 번만 승인 없이 나간다(login_passed). 두 번째부터는 일반 쓰기처럼 승인을 받는다.
+            # 비밀번호 변경·가입은 로그인이 아니다: 변경용 필드(newPw, confirmPw...)나 변경 동작의 경로(pwChange.do...)면
+            # 레시피로 남기지 않는다(재실행이 그 요청을 로그인으로 다시 보내면 비밀번호가 바뀐다).
             if any(_is_change_field(k) for k in pw_names) or _is_change_path(url):
                 return False
             return any(k != pk and _is_id_field(k) for pk in pw_names for k in names)
@@ -234,36 +258,28 @@ class Guard:
                 self._log(method, url, "beacon", label="외부 통계")
             await route.abort("blockedbyclient")
             return
-        is_login = self._is_login(request, url)
-        if is_login and method == "POST" and not self.login_passed:
-            self.login_passed = True
-            self._log(method, url, "login")
-            self._remember_login(request, url, method)
-            await route.continue_()
-            return
-        if self.policy.same_origin(url) and self.policy.is_read_post(url):
-            await route.continue_()
-            return
-        if self.env != "op":
-            self._log(method, url, "staging")
-            self.decided_requests[id(request)] = "staging"
-            if is_login:
-                self._remember_login(request, url, method)
-            await route.continue_()
-            return
         if self.closing:
-            self._log(method, url, "deny", label="기록 종료 중")
+            # 마지막 묶음을 닫은 뒤 페이지가 스스로 보낸 쓰기(떠날 때 자동 저장, 오류 재시도). 사람이 한 동작이 아니다
+            self._log(method, url, "deny", label="기록 종료 중", capped=True)
             self.decided_requests[id(request)] = "deny"
             await route.abort("blockedbyclient")
             return
-        decision = await self._hold(method, url, self.label)
+        # 사람의 동작으로 나간 쓰기다. 묻지 않고 보내고 이력에 남긴다(운영·스테이징 같음, 어느 출처든)
+        is_login = self._is_login(request, url)
+        decision = "login" if is_login else "sent"
         self.decided_requests[id(request)] = decision
-        if decision == "approve":
-            if is_login:
-                self._remember_login(request, url, method)    # 승인받은 재로그인도 세션 레시피의 근거가 된다
+        self._writes[id(request)] = request             # continue 전에 센다: 응답이 continue_ 반환보다 먼저 올 수 있다
+        self.last_write_at = time.monotonic()
+        try:
             await route.continue_()
+        except BaseException:
+            self._writes.pop(id(request), None)
+            raise
+        if is_login:
+            self._log(method, url, "login")
+            self._remember_login(request, url, method)
         else:
-            await route.abort("blockedbyclient")
+            self._log(method, url, "sent", capped=True)
 
     def _remember_login(self, request, url: str, method: str) -> None:
         frame_url = getattr(getattr(request, "frame", None), "url", "") or ""
@@ -346,7 +362,13 @@ class Guard:
         except Exception:
             return urlsplit(url)._replace(query="").geturl()
 
-    def _log(self, method: str, url: str, decision: str, hid: str = "", label: str = "") -> None:
+    def _log(self, method: str, url: str, decision: str, hid: str = "", label: str = "", capped: bool = False) -> None:
+        """이력을 남긴다. capped 이력(sent, 종료 뒤 거절)은 기록당 SENT_LOG_MAX 건까지만 남기고 나머지는 개수만 센다."""
+        if capped:
+            if self.sent_logged >= SENT_LOG_MAX:
+                self.sent_dropped += 1
+                return
+            self.sent_logged += 1
         url = self.safe_url(url)
         self.decisions.append({"id": hid, "method": method, "url": self.policy.display(url), "path": urlsplit(url).path,
                                "label": label or self.label, "decision": decision, "at": time.time()})

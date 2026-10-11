@@ -338,7 +338,7 @@ class Trace:
                 "path": self.policy.rel(parts.path) if primary else parts.path,
                 "status": status, "ctype": ctype, "charset": m.group(1).upper() if m else None, "rtype": rtype,
                 "headers": capture.keep_headers(req.headers), "post": self._post(req.post_data, req_ctype),
-                "res": masked, "data": data, "file": is_file, "held": bool(decision and decision != "staging"),
+                "res": masked, "data": data, "file": is_file, "held": decision in ("approve", "deny", "timeout", "error"),   # 붙잡아 물었던 요청만(기록 중 보낸 쓰기는 sent)
                 "decision": decision, "primary": primary, "t": time.time()})
         except Exception:
             pass

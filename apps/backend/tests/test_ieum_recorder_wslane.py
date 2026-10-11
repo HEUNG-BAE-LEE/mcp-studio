@@ -105,7 +105,10 @@ def test_입력_처리_예외는_로그만_남기고_소비_작업은_계속_돈
     assert done == [0, 2] and alive and finished
 
 
-def test_종료_시작에서_닫는_사이_새로_뜬_확인_창은_지우지_않는다():
+def test_종료_마무리에서_닫는_사이_새로_뜬_확인_창은_지우지_않는다(monkeypatch):
+    from app.ieum.recorder import config
+    monkeypatch.setattr(config, "STOP_QUIET_SEC", 0.05)   # 설계 3판: 확인 창은 마지막 쓰기를 기다리고 묶음을 닫은 뒤(wind_down) 닫는다
+
     async def go():
         s = _bare_session()
         newer = object()
@@ -115,6 +118,7 @@ def test_종료_시작에서_닫는_사이_새로_뜬_확인_창은_지우지_�
                 s._dialog = newer                          # 닫는 사이 새 확인 창이 떴다
         s._dialog = D()
         await s.begin_stopping()
+        await s.wind_down()
         return s._dialog is newer
     assert _run(go())
 

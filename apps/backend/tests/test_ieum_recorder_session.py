@@ -221,35 +221,29 @@ def test_중복_멈춤은_409이고_on_stopped는_한_번(live, monkeypatch):
         pass
 
 
-def test_멈추면_대기_중인_승인은_거부로_닫힌다(live, monkeypatch):
+def test_기록_중_쓰기는_묻지_않고_원본에_닿고_sent_로_남는다(live, monkeypatch):
+    # 설계 3판: 기록하는 사람은 자기 업무를 실제로 하는 중이다. 기록 중 쓰기는 붙잡지 않고 보낸다
     from app.ieum.recorder import manager, store
     out = start(live)
     s = manager.MANAGER.get(out["id"])
     call(s.page.goto(s.policy.base + "/poListView.do"))
     monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)                 # 멈춘 뒤에도 세션을 열어 두고 원본 상태를 본다
+    ws = WS()
+    s.subscribe(ws)
 
-    async def list_body():
-        r = await s.ctx.request.get(s.policy.base + "/poList.do")
-        return await r.text()
-    before = call(list_body())
-
-    async def fire():
-        # 승인 대기를 만든다: 유효한 발주 저장을 보낸다(승인되면 원본에 발주가 생긴다)
-        asyncio.ensure_future(s.page.evaluate(
-            "fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
-            "body:'vendCd=V001&itemCd=I001&qty=1&unitPrice=100&payTerm=30'}).catch(()=>0)"))
-        for _ in range(100):
-            if s.guard.holding:
-                return True
-            await asyncio.sleep(0.05)
-        return False
+    async def count():
+        r = await s.ctx.request.get(s.policy.base + "/poList.do", headers={"X-Requested-With": "XMLHttpRequest"})
+        return (await r.json())["totalCnt"]
+    before = call(count())
     try:
-        assert call(fire())
+        call(s.page.evaluate(
+            "fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',"
+            "'X-Requested-With':'XMLHttpRequest'},body:'vendCd=V001&itemCd=I001&qty=1&unitPrice=100&payTerm=30'}).then(r=>r.text())"))
         call(manager.MANAGER.stop(out["id"]))
         decisions = [a["decision"] for a in store.get_recording(out["id"])["approvals"]]
-        assert "deny" in decisions and "approve" not in decisions
-        assert not s.guard.holding
-        assert call(list_body()) == before             # 원본에 쓰기가 닿지 않았다
+        assert "sent" in decisions and "deny" not in decisions
+        assert not [m for m in ws.msgs if m.get("t") == "hold"] and not s.guard.holding
+        assert call(count()) == before + 1             # 쓰기가 원본에 닿았다
     finally:
         pass
 
@@ -306,23 +300,23 @@ def test_멈춤이_실패하면_세션이_남지_않고_다시_시작할_수_있
 
 
 def test_늦게_붙은_구독자도_떠_있는_승인_창을_받는다(live, monkeypatch):
+    # 설계 3판: 승인 창은 멈춘 뒤 재실행(Replay)의 ask 만 띄운다. 목록에서 다시 연 화면도 그 창을 받아야 한다
     from app.ieum.recorder import manager
     out = start(live)
     s = manager.MANAGER.get(out["id"])
-    call(s.page.goto(s.policy.base + "/poListView.do"))
     monkeypatch.setattr(manager.MANAGER, "on_stopped", _noop)
+    call(manager.MANAGER.stop(out["id"]))
 
     async def fire():
-        asyncio.ensure_future(s.page.evaluate(
-            "fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
-            "body:'vendCd=V001&itemCd=I001&qty=1&unitPrice=100&payTerm=30'}).catch(()=>0)"))
+        t = asyncio.ensure_future(s.guard.ask("POST", s.policy.base + "/poSave.do", "Replay 검증: /poSave.do"))
         for _ in range(100):
             if s.guard.holding:
-                return True
+                return t
             await asyncio.sleep(0.05)
-        return False
+        return None
+    t = call(fire())
     try:
-        assert call(fire())
+        assert t is not None
         late = WS()
         s.subscribe(late)
         end = time.time() + 5
@@ -330,6 +324,6 @@ def test_늦게_붙은_구독자도_떠_있는_승인_창을_받는다(live, mon
             time.sleep(0.1)
         holds = [m for m in late.msgs if m["t"] == "hold"]
         assert len(holds) == 1 and holds[0]["method"] == "POST"
-        call(manager.MANAGER.stop(out["id"]))
+        call(s.handle({"t": "approve", "id": holds[0]["id"], "ok": False}))
     finally:
         pass

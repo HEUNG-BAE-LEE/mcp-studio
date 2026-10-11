@@ -117,7 +117,7 @@ def test_편집_가능한_요소와_입력_역할은_글자_대신_이름표를_
     assert texts == ["메모", "검색어", "PO-2609-0142"], texts
 
 
-def test_멈추기_시작한_뒤_페이지가_보낸_쓰기는_120초_기다리지_않고_바로_거절한다(live, monkeypatch):
+def test_멈춤_마무리_뒤_페이지가_보낸_쓰기는_묻지_않고_바로_거절한다(live, monkeypatch):
     from app.ieum.recorder import manager
     out = start(live)
     rid = out["id"]
@@ -127,12 +127,13 @@ def test_멈추기_시작한_뒤_페이지가_보낸_쓰기는_120초_기다리�
     ws = WS()
     s.subscribe(ws)
     try:
-        call(s.page.evaluate(
-            "setTimeout(()=>fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
-            f"body:'{SAVE_BODY}'}}).catch(()=>0),1500)"))
         t0 = time.time()
         call(manager.MANAGER.stop(rid))
-        time.sleep(2.5)                                    # 쓰기가 나간 뒤까지 기다린다(멈춤은 그 전에 시작했다)
+        # 설계 3판: 마지막 쓰기를 기다리는 동안 나온 쓰기는 보낸다. 마무리(묶음 닫기) 뒤에 페이지가 보낸 쓰기만 막는다
+        call(s.page.evaluate(
+            "setTimeout(()=>fetch('/demo-legacy/po/poSave.do',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},"
+            f"body:'{SAVE_BODY}'}}).catch(()=>0),300)"))
+        time.sleep(1.0)
         assert time.time() - t0 < 15
         assert not [m for m in ws.msgs if m.get("t") == "hold"]
         assert not s.guard.holding

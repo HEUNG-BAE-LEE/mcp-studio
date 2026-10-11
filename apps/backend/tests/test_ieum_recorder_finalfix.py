@@ -36,19 +36,14 @@ def test_Replay_가_물은_승인_창은_replay_승인으로_표시된다():
     assert run(go()) is True
 
 
-def test_기록_중_붙잡은_요청은_replay_승인이_아니다():
+def test_기록_중_쓰기는_승인_창을_띄우지_않는다():
     g, sent = make()
 
     async def go():
         r = Route()
-        t = asyncio.ensure_future(g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="a=1")))
-        await asyncio.sleep(0.05)
-        hid = next(iter(g.pending))
-        replay_hold = g.is_replay_hold(hid)
-        g.decide(hid, False)
-        await t
-        return replay_hold
-    assert run(go()) is False
+        await g.route(r, Req("http://h:8080/po/poSave.do", "POST", post="a=1"))
+        return r.done, dict(g.pending), sent
+    assert run(go()) == ("continue", {}, [])                          # 설계 3판: 승인 창은 재실행(ask)만 띄운다
 
 
 class _GuardPage:
@@ -84,10 +79,11 @@ def test_Replay_가_승인받은_그_요청만_정확히_한_번_통과한다():
     assert [m["t"] for m in sent].count("hold") == 0                  # 승인은 ask 가 이미 받았다(여기서는 다시 묻지 않는다)
 
 
-def test_본문이나_쿼리가_다른_같은_경로_쓰기는_허용을_쓰지_못하고_붙잡힌다():
+def test_본문이나_쿼리가_다른_같은_경로_쓰기는_허용을_쓰지_못하고_막힌다():
     g, sent = make(timeout=0.2)
 
     async def go():
+        g.closing_now()                                               # 재실행은 기록을 멈춘 뒤에만 돈다
         token = g.allow_exact("POST", "http://h:8080/po/poSave.do?q=1", "a=1")
         out = []
         for u, body in (("http://h:8080/po/poSave.do?q=1", "a=2"), ("http://h:8080/po/poSave.do?q=2", "a=1"), ("http://h:8080/po/poSave.do", "a=1")):
@@ -97,11 +93,12 @@ def test_본문이나_쿼리가_다른_같은_경로_쓰기는_허용을_쓰지_
         g.revoke(token)
         return out
     assert run(go()) == ["abort", "abort", "abort"]
-    assert [m["t"] for m in sent].count("hold") == 3
+    assert [d["decision"] for d in g.decisions] == ["deny"] * 3 and not [m for m in sent if m["t"] == "hold"]
 
 
-def test_승인받았지만_보내지_못하면_허용이_남지_않아_뒤따른_쓰기는_붙잡힌다():
+def test_승인받았지만_보내지_못하면_허용이_남지_않아_뒤따른_쓰기는_막힌다():
     g, sent = make(timeout=0.2)
+    g.closing_now()                                                   # 재실행은 기록을 멈춘 뒤에만 돈다
     page = _GuardPage(g, tokens={})                                    # 숨은 토큰을 못 찾는다
     bf = _one()
     bf["steps"][0].update(exec="browser", method="POST", write=True, formPage="http://h:8080/po/form.do",
@@ -224,7 +221,8 @@ def test_승인_기록과_승인_창에_쿼리의_개인정보와_토큰이_남�
 
     async def go():
         r = Route()
-        t = asyncio.ensure_future(g.route(r, Req("http://h:8080/po/save.do?tel=010-1234-5678&_csrf=abc", "POST", post="a=1")))
+        await g.route(r, Req("http://h:8080/po/save.do?tel=010-1234-5678&_csrf=abc", "POST", post="a=1"))   # 기록 중 보낸 쓰기(sent)
+        t = asyncio.ensure_future(g.ask("POST", "http://h:8080/po/save.do?tel=010-1234-5678&_csrf=abc", "Replay"))
         await asyncio.sleep(0.05)
         g.deny_all()
         await t

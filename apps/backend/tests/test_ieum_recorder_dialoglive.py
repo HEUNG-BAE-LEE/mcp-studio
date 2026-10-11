@@ -80,10 +80,10 @@ def test_알림이_반복되는_사이트에서_확인_창이_열린_채_멈춰�
     ws = WS()
     s.subscribe(ws)
     try:
-        assert _wait(lambda: any(m.get("t") == "hold" for m in ws.msgs))      # 쓰기가 승인 대기에 걸린다
-        hid = next(m["id"] for m in ws.msgs if m.get("t") == "hold")
-        call(s.handle({"t": "approve", "id": hid, "ok": False}))               # 거절 -> fetch 실패 -> 페이지가 alert
+        # 설계 3판: 쓰기는 붙잡지 않고 보낸다 -> 서버가 500 -> 페이지가 alert(열린 채 둔다)
         assert _wait(lambda: s._dialog is not None)
+        assert not [m for m in ws.msgs if m.get("t") == "hold"]
+        assert any(d["decision"] == "sent" for d in s.guard.decisions)
         t0 = time.time()
         call(manager.MANAGER.stop(rid), timeout=30)
         assert time.time() - t0 < 20
