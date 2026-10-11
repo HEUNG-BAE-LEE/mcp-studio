@@ -67,4 +67,8 @@ resource "azurerm_dev_test_global_vm_shutdown_schedule" "this" {
   daily_recurrence_time = var.auto_shutdown_time
   timezone              = "Korea Standard Time"
   notification_settings { enabled = false }
+  lifecycle {
+    # Azure 가 VM ID 의 리소스 그룹 이름을 대문자로 돌려준다. 대소문자만 다른데 교체로 잡혀 apply 마다 스케줄을 지웠다 만든다
+    ignore_changes = [virtual_machine_id]
+  }
 }
