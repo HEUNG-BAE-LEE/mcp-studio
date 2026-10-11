@@ -183,9 +183,13 @@ def test_JSON_목록은_기존_JSON_경로_연결이_먼저다():
     assert "pickedIndex" not in s2
 
 
-def test_후보가_없으면_경로_자리는_여전히_채우지_못한다():
+def test_후보가_없으면_경로_자리는_기록_값을_예로_둔_입력이다():
+    """T13: 출처가 없는 경로 자리는 풀리지 않은 쿼리 값처럼 입력이 된다(재실행 같은 값 실행은 기록 값을 쓴다)."""
     bf = analyze.analyze(REC, _record("<ul><li><a href='/x.do'>x</a></li></ul>", "http://h:8080/data/15000002/fileData.do"))
-    assert not any(p["loc"] == "path" for st in bf["steps"] for p in st["params"])
+    p = next(p for st in bf["steps"] for p in st["params"] if p["loc"] == "path")
+    assert p["from"] == "input.id" and p["source"] == "USER_INPUT" and p["ex"] == "15000002" and p["confidence"] == "low"
+    inp = next(i for i in bf["inputs"] if i["name"] == "id")
+    assert inp["ex"] == "15000002" and inp["needsValue"] is False
 
 
 def test_후보_목록은_화면_표시_판정과_출력_필드에_쓰지_않는다():

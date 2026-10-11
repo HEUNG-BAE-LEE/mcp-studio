@@ -103,7 +103,7 @@ def news_site():
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             st["hits"].append(self.path)
-            if self.path.startswith("/list.do"):
+            if self.path.startswith(("/list.do", "/section/")):
                 a, b, c = st["ids"]
                 body = LIST.format(a=a, b=b, c=c)
             elif self.path.startswith("/mnews/article/"):
@@ -183,3 +183,31 @@ def test_시작_묶음의_요청은_화면에_보여도_뒤_단계가_쓰지_않
     assert [s["path"] for s in bf["steps"]] == ["/list.do", "/mnews/article/{id}/{id2}"]
     assert bf["steps"][0]["role"] == "prereq"
     assert any(e["path"] == "/api/notice/poll.do" for e in bf["excluded"])
+
+
+# ── T13-1: 출처 없는 경로 자리는 입력 ─────────────────────────────────────
+SECTION = LIST.replace("<title>뉴스 목록</title>", "<title>경제</title>")
+
+
+def test_시작_화면_경로의_자리는_기록_값을_예로_둔_입력이고_재실행이_된다(news_site):
+    base = news_site["base"]
+    sec = SECTION.format(a="0000000001", b="0000000002", c="0000000003")
+    spans = [_open_span(base, [_net(base + "/section/101", sec, htmltable.to_data(sec))], "- link: 첫 기사 제목"),
+             {"seq": 2, "action": {"type": "click", "target": {"tag": "A", "text": "둘째 기사 제목"}, "isTrusted": True, "t": 2}, "fills": [],
+              "pre": {"url": "/section/101", "href": base + "/section/101", "title": "경제", "aria": "", "hidden": {}, "shot": None},
+              "network": [_net(base + "/mnews/article/052/0000000002", DETAIL.format(id="0000000002"))],
+              "post": {"url": "/x", "href": base + "/x", "title": "기사", "aria": "- heading: 기사 본문 0000000002", "hidden": {}, "shot": None}}]
+    bf = analyze.analyze({"id": "rec_00000022", "name": "기사", "sourceBase": base, "env": "op", "login": {}, "approvals": []}, spans)
+    s1 = bf["steps"][0]
+    assert s1["path"] == "/section/{id}"
+    p = next(p for p in s1["params"] if p["loc"] == "path")
+    assert p["from"] == "input.id" and p["ex"] == "101"
+    from app.ieum.recorder import replay
+    news_site["ids"] = ["0000000009", "0000000008", "0000000007"]
+
+    async def no(step):
+        return False
+    run = asyncio.new_event_loop().run_until_complete(replay.run_once(
+        bf, {i["name"]: i["ex"] for i in bf["inputs"]}, {}, replay.HttpTransport([], host="127.0.0.1"), None, no, 0))
+    assert run["ok"], run
+    assert "/section/101" in news_site["hits"] and "/mnews/article/052/0000000008" in news_site["hits"]

@@ -686,11 +686,15 @@ def _same_row(st: dict, contrib: list) -> None:
 
 
 def _link_path(st: dict, n: dict, prev_steps: List[dict], user_vals: Dict[str, str], inputs: Dict[str, dict], contrib: list) -> None:
-    """경로 틀의 {자리} 값을 잇는다. 사용자 입력 → 기존 연결 규칙 → 주소 후보 틀 맞추기 순서. 잇지 못한 자리는 그대로 두어
-    재실행이 unresolved_path 로 멈추게 한다(값을 지어내지 않는다)."""
-    slots = [(a, v) for a, v in _path_slots(n["path"], st["path"]) if v and HIDDEN not in v and not _MASKED.search(v)]
+    """경로 틀의 {자리} 값을 잇는다. 사용자 입력 → 기존 연결 규칙 → 주소 후보 틀 맞추기 순서. 어디에도 출처가 없는 자리는
+    풀리지 않은 쿼리 값처럼 입력(input.<자리>, 예 = 기록 값, 확신도 low)이 된다. 가린 자리는 값이 필요한 입력(needsValue)이다."""
+    every = [(a, v) for a, v in _path_slots(n["path"], st["path"]) if v]
+    slots = [(a, v) for a, v in every if HIDDEN not in v and not _MASKED.search(v)]
     rest: Dict[str, str] = {}
     params: Dict[str, dict] = {}
+    for a, v in every:
+        if (a, v) not in slots:
+            params[a] = {"a": a, "loc": "path", "ex": "" if HIDDEN in v else v, "type": "string", "required": True}
     for a, v in slots:
         p = {"a": a, "loc": "path", "ex": v, "type": _type(v), "required": True}
         params[a] = p
@@ -708,7 +712,18 @@ def _link_path(st: dict, n: dict, prev_steps: List[dict], user_vals: Dict[str, s
         if tl:
             for a in rest:
                 _use_template(params[a], tl, a, st, contrib)
-    st["params"] += [p for p in params.values() if p.get("source")]
+    for a, p in params.items():
+        if p.get("source"):
+            continue
+        name = a
+        while name in inputs and inputs[name]["ex"] != p["ex"]:     # 다른 단계의 같은 이름 자리({id})와 섞이지 않게
+            name += "_"
+        masked = p["ex"] == "" or bool(_MASKED.search(p["ex"]))
+        p.update({"from": f"input.{name}", "source": USER_INPUT, "confidence": "low"})
+        inp = _input(name, p["type"], USER_INPUT, p["ex"], "", "low", True)
+        inp["needsValue"] = inp["needsValue"] or masked
+        inputs.setdefault(name, inp)
+    st["params"] += list(params.values())
 
 
 def _input(name, typ, source, ex, label, confidence, required) -> dict:
