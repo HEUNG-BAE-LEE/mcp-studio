@@ -488,3 +488,18 @@ def test_접근_이름에_비밀_낱말이_있으면_이름이_무엇이든_비�
         await page.wait_for_timeout(300)
     rec, sent, tr = _record(ieum_state, steps, "tablepw.html")
     assert "55667788" not in _all_saved(rec, tr)
+
+
+def test_따옴표와_역슬래시가_든_비밀번호도_행_칸_이름에서_가린다():
+    from app.ieum.recorder.trace import mask_input_lines
+    text = '- row "비밀번호 ab\\"cd":\n  - cell "ab\\"cd"\n- row "비밀번호 ab\\\\cd":\n  - cell "ab\\\\cd"'
+    out = mask_input_lines(text, [{"names": ["비밀번호"], "value": 'ab"cd'}, {"names": ["비밀번호"], "value": "ab\\cd"}])
+    assert "ab" not in out and "cd" not in out and out.count("••••••••") >= 4
+
+
+def test_영문_비밀_라벨은_낱말_단위로_판정한다():
+    from app.ieum.recorder.trace import secret_label
+    for t in ("Shipping No", "Opinion", "Spinner", "Footprint"):
+        assert not secret_label(t), t
+    for t in ("PIN 번호", "Password", "새 비밀번호", "User PIN", "OTP코드"):
+        assert secret_label(t), t
