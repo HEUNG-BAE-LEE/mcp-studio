@@ -403,6 +403,26 @@ def step_op(st: dict) -> str:
     return _op_of({"path": st.get("path") or ""}, st.get("label") or "", bool(st.get("write")))
 
 
+def _landed(items: list, spans: List[dict], policy: Policy) -> set:
+    """사람 행동(클릭·키·제출) 묶음에서 주 화면이 마지막으로 연 GET 문서(리디렉트면 마지막 것). 사람이 눌러 연 화면이므로 화면 표시 판정과
+    상관없이 핵심이다(본문 앞부분이 스크립트뿐이면 글자 조각 판정이 놓친다). 다만 그 뒤 사람 행동이 핵심 요청(화면에 보인 응답·쓰기)을
+    낳았으면 그 화면은 거쳐 간 메뉴 화면이라 예전 규칙(화면 표시·뒤 단계가 쓰는가)을 따른다."""
+    last_core = -1
+    for sp, n, _, data in items:
+        if sp["action"].get("type") == "open":
+            continue
+        if classify_write(n, policy)[0] or _shown(data, n.get("res") or "", (sp.get("post") or {}).get("aria") or ""):
+            last_core = max(last_core, sp["seq"])
+    kept = {id(n) for _, n, _, _ in items}
+    out = set()
+    for sp in spans:
+        if sp["action"].get("type") in ("click", "key", "submit") and sp["seq"] >= last_core:
+            mains = [n for n in sp["network"] if n.get("main") and n.get("rtype") == "document" and (n.get("method") or "").upper() == "GET"]
+            if mains and id(mains[-1]) in kept:
+                out.add(id(mains[-1]))
+    return out
+
+
 def _shown(data, raw: str, aria: str) -> bool:
     """응답 값이 화면에 나타났는가. JSON·HTML 사본이면 잎 값으로, 아니면 응답 글자 조각으로 본다."""
     if not aria:
@@ -442,6 +462,8 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                                        for _, n, _, _ in items])
     code_paths = {p for _, n, p, _ in items if tables and n["method"] == "GET" and re.search(r"code|cmmn", p, re.I)}
 
+    landed = _landed(items, spans, policy)
+
     # 1) 핵심 후보
     steps: List[dict] = []
     dropped_headers: set = set()
@@ -460,6 +482,8 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
         cand = not (shown or write)                       # 화면에 안 나타난 요청: 뒤 단계가 쓰면 prereq, 아니면 빠진다
         if sp["action"].get("type") == "open":
             cand = True                                   # 시작 묶음은 첫 사람 입력까지 열려 있어 폴링 등이 쌓인다: 뒤 단계가 쓸 때만 남긴다
+        elif id(n) in landed:
+            cand = False                                  # 사람이 눌러 연 주 화면 문서
         if cand and data is None:
             if key not in seen:
                 seen[key] = None

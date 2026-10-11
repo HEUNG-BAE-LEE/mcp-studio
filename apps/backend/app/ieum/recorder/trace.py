@@ -516,13 +516,19 @@ class Trace:
             req_ctype = (req.headers or {}).get("content-type", "")
             m = _CHARSET.search(req_ctype) or _CHARSET.search(ctype)
             decision = self.guard.decided_requests.get(id(req), "")
+            main = False
+            if rtype == "document":                       # 주 화면(최상위 틀)의 화면 이동 문서인가. 광고·보안 확인 같은 안쪽 틀 문서는 아니다
+                try:
+                    main = bool(req.is_navigation_request()) and req.frame.parent_frame is None
+                except Exception:
+                    main = False
             span["network"].append({
                 "method": req.method.upper(), "url": self._url(url), "origin": f"{parts.scheme}://{parts.netloc}",
                 "base": self.policy.base if primary else f"{parts.scheme}://{parts.netloc}",
                 "path": self.policy.rel(parts.path) if primary else parts.path,
                 "status": status, "ctype": ctype, "charset": m.group(1).upper() if m else None, "rtype": rtype,
                 "headers": capture.keep_headers(req.headers), "post": self._post(req.post_data, req_ctype),
-                "res": masked, "data": data, "errSeen": err_seen, "file": is_file, "held": decision in ("approve", "deny", "timeout", "error"),   # 붙잡아 물었던 요청만(기록 중 보낸 쓰기는 sent)
+                "res": masked, "data": data, "errSeen": err_seen, "main": main, "file": is_file, "held": decision in ("approve", "deny", "timeout", "error"),   # 붙잡아 물었던 요청만(기록 중 보낸 쓰기는 sent)
                 "decision": decision, "primary": primary, "t": time.time()})
         except Exception:
             pass
