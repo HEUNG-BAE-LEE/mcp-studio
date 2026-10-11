@@ -64,9 +64,13 @@ def get_path(data, path: str):
     m = LINK_EXPR.match(path or "")
     if m:                                                      # 설계 4판 주소 후보 출처: links[틀][k].자리
         tpl, group = _split_tpl(m.group(1))
+        k, name = int(m.group(2)), m.group(4)
+        if m.group(3) is not None and group is not None:
+            rows = template_rows(tpl, data, group)
+            j = int(m.group(3))
+            return rows[k][j].get(name) if k < len(rows) and j < len(rows[k]) else None
         rows = template_matches(tpl, data, group)
-        k = int(m.group(2))
-        return rows[k][0].get(m.group(3)) if k < len(rows) else None
+        return rows[k][0].get(name) if k < len(rows) else None
     query = None
     blanked = re.sub(r"\['(?:[^'\\]|\\.)*'\]", lambda m: "_" * len(m.group(0)), path)     # ['a?b'] 안의 ? 는 가린다
     cut = blanked.rfind("?")
@@ -93,7 +97,10 @@ def get_path(data, path: str):
 
 
 # ── 주소 후보와 틀 맞추기 (설계 4판) ─────────────────────────────────────────
-# 출처 문법: links[<틀>@<묶음>][<k>].<자리 이름>   (k 는 0부터. 단계 출처는 앞에 "s2." 를 붙인다)
+# 출처 문법: links[<틀>@<묶음>][<k>.<j>].<자리 이름>   (k·j 는 0부터. 단계 출처는 앞에 "s2." 를 붙인다)
+#   k = 묶음 안에서 틀에 맞는 후보를 하나 이상 가진 행들 중 몇 번째 행인가, j = 그 행 안에서 틀에 맞는 후보(자리 값이 같은 것은 하나로) 중
+#   몇 번째인가. 행마다 숫자 인자 개수가 달라도(onclick 인자 3개·5개) 순번이 엇나가지 않는다. 주소 틀은 보통 행마다 하나라 j=0.
+#   예전 꼴 links[<틀>@<묶음>][<k>] 는 묶음 안 고유 후보의 k 번째로 그대로 읽는다.
 #   묶음 = 누른 후보의 행이 속한 반복 묶음 이름 "부모 태그.클래스>행 태그.클래스"(예: div.list>div.item, 클래스의 숫자는 뺌).
 #          k 는 그 묶음 안에서만 센다 — 같은 틀의 랭킹·메뉴 링크가 앞에 있어도, 그 개수가 바뀌어도 순번이 엇나가지 않는다.
 #          행이 없는 후보(JSON 값, 반복 조상이 없는 링크)는 "@묶음" 없이 전체 순서로 센다. 틀에 @ 가 있으면 끝에 "@" 를 붙인다.
@@ -103,7 +110,7 @@ def get_path(data, path: str):
 #        후보 전체가 틀과 같아야 한다. "?이름={자리}" 는 쿼리 어디에 있든 맞춘다.
 #   후보 = HTML 사본이면 links 의 v(문서 순서), JSON 이면 문자열 값 전부(leaves 순서).
 #   자리 값이 "."·".." 이거나 "/" 를 품으면 그 후보는 맞지 않는 것으로 본다. 자리 값이 같은 후보는 하나로 친다.
-LINK_EXPR = re.compile(r"^links\[(.*)\]\[(\d+)\]\.(.+)$", re.S)
+LINK_EXPR = re.compile(r"^links\[(.*)\]\[(\d+)(?:\.(\d+))?\]\.(.+)$", re.S)
 _SLOT = re.compile(r"\{([^{}:]+)(?::([dw]))?\}")
 _ID_CLASS = infer._ID_SEG.pattern[1:-1]                     # infer 의 식별자 조각 정규식(^…$ 를 뗀 것)을 그대로 쓴다
 _SLOT_CLASS = {"d": r"\d+", "w": r"[\w\-.]+", "": "(?:" + _ID_CLASS + ")", "q": r"[^&#'\"\s]+"}
@@ -176,13 +183,13 @@ def _matches(tpl: str, data):
         vals = {nm: unquote(m.group(f"g{i}")) for i, nm in enumerate(names) if m.group(f"g{i}") is not None}
         if any(_bad_slot(v) for v in vals.values()):
             continue
-        yield {nm: v for nm, v in vals.items() if nm != "*"}, c["row"], c["g"]
+        yield {nm: v for nm, v in vals.items() if nm != "*"}, c["row"], c["g"], c.get("ri")
 
 
 def template_matches(tpl: str, data, group: Optional[str] = None) -> List[Tuple[Dict[str, str], str, str]]:
     """틀에 맞는 후보 줄. group 이 있으면 그 묶음 안에서만. 자리 값이 같은 것은 하나로. [(자리 값들, 행 글자, 묶음)]"""
     out, seen = [], set()
-    for vals, row, g in _matches(tpl, data):
+    for vals, row, g, _ in _matches(tpl, data):
         if group is not None and g != group:
             continue
         key = tuple(sorted(vals.items()))
@@ -191,6 +198,21 @@ def template_matches(tpl: str, data, group: Optional[str] = None) -> List[Tuple[
         seen.add(key)
         out.append((vals, row, g))
     return out
+
+
+def template_rows(tpl: str, data, group: str) -> List[List[Dict[str, str]]]:
+    """묶음 안에서 틀에 맞는 후보를 가진 행들(첫 등장 순서). 행마다 자리 값 목록(같은 값은 하나로)."""
+    order: List[int] = []
+    rows: Dict[int, List[Dict[str, str]]] = {}
+    for vals, _, g, ri in _matches(tpl, data):
+        if g != group or ri is None:
+            continue
+        if ri not in rows:
+            rows[ri] = []
+            order.append(ri)
+        if vals not in rows[ri]:
+            rows[ri].append(vals)
+    return [rows[ri] for ri in order]
 
 
 def _derive(c: str, name: str, v: str) -> Optional[str]:
@@ -230,15 +252,30 @@ def _template_link(tpls: List[Optional[str]], want: Dict[str, str], prev_steps: 
                 tpl = next((t for t in (_derive(c["v"], name, v) for c in cands if v in c["v"]) if t), None)
                 if tpl is None:
                     continue
-            hits = [(row, g) for vals, row, g in _matches(tpl, data) if all(vals.get(nm) == v for nm, v in want.items())]
+            hits = [(row, g, ri) for vals, row, g, ri in _matches(tpl, data) if all(vals.get(nm) == v for nm, v in want.items())]
             if not hits:
                 continue
-            row, g = next((h for h in hits if label and label in h[0]), hits[0])
-            rows = template_matches(tpl, data, g or None)
-            k = next(i for i, (vals, _, _) in enumerate(rows) if all(vals.get(nm) == v for nm, v in want.items()))
-            spec = f"{tpl}@{g}" if g else (tpl + "@" if "@" in tpl else tpl)
-            return prev, spec, k, row, len(rows)
+            row, g, ri = next((h for h in hits if label and label in h[0]), hits[0])
+            fits = lambda vals: all(vals.get(nm) == v for nm, v in want.items())   # noqa: E731
+            if g and ri is not None:                         # 묶음 안: (행 순번 k, 행 안 순번 j)
+                order = [r for r in _row_ids(tpl, data, g)]
+                rows = template_rows(tpl, data, g)
+                k = order.index(ri)
+                j = next(i for i, vals in enumerate(rows[k]) if fits(vals))
+                return prev, f"{tpl}@{g}", f"{k}.{j}", row, len(rows), k
+            rows = template_matches(tpl, data, None)
+            k = next(i for i, (vals, _, _) in enumerate(rows) if fits(vals))
+            return prev, (tpl + "@" if "@" in tpl else tpl), str(k), row, len(rows), k
     return None
+
+
+def _row_ids(tpl: str, data, group: str) -> List[int]:
+    """template_rows 와 같은 순서의 행 번호들."""
+    out: List[int] = []
+    for _, _, g, ri in _matches(tpl, data):
+        if g == group and ri is not None and ri not in out:
+            out.append(ri)
+    return out
 
 
 def _path_slots(raw: str, tpl: str) -> List[Tuple[str, str]]:
@@ -498,6 +535,7 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
                 p.update({"from": f"const:{value}", "source": CONSTANT, "confidence": "low" if p["type"] in ("date", "number") else "mid"})
             st["params"].append(p)
         _link_path(st, n, steps[:i], user_vals, inputs, contrib)
+        _same_row_check(st)
 
     # 2-1) 뒤 단계가 쓰지 않은 후보(화면에 안 나타난 요청)는 뺀다. 쓰인 것은 prereq 로 남는다
     used = set()
@@ -558,6 +596,8 @@ def analyze(rec: dict, spans: List[dict]) -> dict:
     for s in steps:
         for k in ("_sample", "_spans", "_label", "_title", "_write", "_dropped"):
             s.pop(k, None)
+        for p in s["params"]:
+            p.pop("_row", None)
     login = rec.get("login") or {}
     return {"id": "bf_" + rec["id"][4:], "name": rec["name"], "desc": desc, "status": "draft",
             "source": {"base": rec["sourceBase"], "recordingId": rec["id"], "made": "manual-record", "env": rec["env"]},
@@ -590,13 +630,28 @@ def _use_link(p: dict, name: str, links: list, st: dict, contrib: list) -> None:
 def _use_template(p: dict, tl: tuple, slot: str, st: dict, contrib: list, short: bool = False) -> None:
     """4판: 주소 후보 틀의 k 번째 후보에서 자리 값을 꺼낸다. 후보가 하나면 high, 여럿이면 순번에 기대므로 mid,
     쿼리·본문 값이 짧은 숫자 하나뿐이면 우연히 겹칠 수 있어 low."""
-    prev, tpl, k, row, count = tl
-    expr = f"links[{tpl}][{k}].{slot}"
+    prev, tpl, idx, row, count, k = tl
+    expr = f"links[{tpl}][{idx}].{slot}"
     prev["outputs"][expr] = expr
     contrib.append((prev, expr, st["id"]))
     p.update({"from": f"{prev['id']}.{expr}", "source": PREVIOUS_STEP_OUTPUT,
               "confidence": "low" if short else ("high" if count == 1 else "mid")})
-    st["pickedIndex"], st["pickedRow"] = k, row                # 검토 화면 표시용: 기록 때 고른 결과의 순번과 행 글자
+    p["_row"] = (prev["id"], tpl.rpartition("@")[2] if "@" in tpl else "", k)   # 한 요청의 자리들이 같은 행에서 왔는지 보려고(분석 끝에 지운다)
+    st["pickedIndex"], st["pickedRow"] = k, row                # 검토 화면 표시용: 기록 때 고른 결과의 행 순번과 행 글자
+
+
+def _same_row_check(st: dict) -> None:
+    """한 요청의 자리 여럿이 같은 묶음에서 왔으면 같은 행이어야 한다. 누른 요소 글자가 든 행을 먼저 고르므로 보통 같다.
+    다른 행에서 왔으면 그대로 두되 확신도를 낮춰 검토 화면에서 묻는다(재실행 때 서로 다른 결과의 값이 섞일 수 있다)."""
+    by: Dict[tuple, set] = {}
+    for p in st["params"]:
+        if p.get("_row") and p["_row"][1]:
+            by.setdefault(p["_row"][:2], set()).add(p["_row"][2])
+    for key, ks in by.items():
+        if len(ks) > 1:
+            for p in st["params"]:
+                if p.get("_row") and p["_row"][:2] == key:
+                    p["confidence"] = "low"
 
 
 def _link_path(st: dict, n: dict, prev_steps: List[dict], user_vals: Dict[str, str], inputs: Dict[str, dict], contrib: list) -> None:

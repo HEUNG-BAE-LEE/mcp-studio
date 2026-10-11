@@ -378,7 +378,7 @@ def to_data(html: str) -> Optional[dict]:
 
 
 def links_of(data) -> List[dict]:
-    """사본의 주소 후보를 [{v, row, g}] 로 펼친다(행이 없으면 row·g 는 "")."""
+    """사본의 주소 후보를 [{v, row, g, ri}] 로 펼친다(ri 는 행 번호, 행이 없으면 row·g 는 "" 이고 ri 는 None)."""
     rows = (data or {}).get("linkRows") or []
     out = []
     for x in (data or {}).get("links") or []:
@@ -386,7 +386,7 @@ def links_of(data) -> List[dict]:
             continue
         r = x.get("r")
         row = rows[r] if isinstance(r, int) and 0 <= r < len(rows) and isinstance(rows[r], dict) else {}
-        out.append({"v": x["v"], "row": str(row.get("t") or ""), "g": str(row.get("g") or "")})
+        out.append({"v": x["v"], "row": str(row.get("t") or ""), "g": str(row.get("g") or ""), "ri": r if row else None})
     return out
 
 
