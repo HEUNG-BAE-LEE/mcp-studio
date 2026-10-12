@@ -203,3 +203,108 @@ def test_영문_이름의_업무가_두_주소를_쓰면_원본이_따로_남고
     saved = {x["base"]: x["id"] for x in src_repo.list_sources() if x["id"] in ids}
     assert set(saved) == {"http://127.0.0.1:9", "http://127.0.0.2:9"}
     assert out["tools"][0]["id"] in {t["id"] for t in tool_repo.all_tools()[saved["http://127.0.0.1:9"]]}
+
+
+# I1: 기록 세션 밖 재검증에서 사람이 조회로 확정한 POST 만 승인 없이 보낸다(업무 도구 실행과 같은 기준)
+def _post_server(hits):
+    import http.server
+    import json
+    import threading
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def _reply(self):
+            n = int(self.headers.get("Content-Length") or 0)
+            hits.append((self.command, self.path, self.rfile.read(n).decode() if n else ""))
+            b = json.dumps({"RSLT": "0000", "resultList": [{"LAW_NM": "도로교통법"}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+        do_GET = do_POST = _reply
+
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+def _law_bf(base, write, why):
+    import json
+    return _bf(id="bf_law", source={"base": base, "recordingId": "rec_law", "made": "manual-record", "env": "op"}, inputs=[],
+               steps=[{"id": "s1", "role": "core", "base": base, "method": "POST", "path": "/lawSearch.do", "kind": "json", "exec": "http",
+                       "charset": None, "write": write, "writeWhy": why, "headers": {}, "outputs": {},
+                       "params": [{"a": "q", "loc": "form", "from": "const:도로", "ex": ""}], "recordedData": None, "recordedErrSeen": [],
+                       "recordedRes": json.dumps({"RSLT": "0000", "resultList": [{"LAW_NM": "민법"}]})}],
+               output={"from": "s1", "fields": []}, verification={"status": "stale", "at": 1.0, "runs": []})
+
+
+LAW_REC = {"id": "rec_law", "name": "법령", "sourceBase": "", "env": "op", "status": "done",
+           "login": {"mode": "manual", "recipe": None, "path": ""}, "approvals": []}
+
+
+def test_세션_밖_재검증은_사람이_조회로_확정한_POST_를_보내고_등록까지_간다(ieum_state):
+    import asyncio
+    hits = []
+    srv, base = _post_server(hits)
+    try:
+        store.save_function(_law_bf(base, True, "POST — 기본 쓰기"))
+        store.save_recording(dict(LAW_REC, sourceBase=base))
+        service.update_function("bf_law", {"steps": [{"id": "s1", "skip": False, "write": False}]})   # 사람이 조회로 확정(PUT)
+        bf = asyncio.run(service.reverify("bf_law"))
+        assert bf["verification"]["status"] == "verified", bf["verification"]
+        assert [h[:2] for h in hits] == [("POST", "/lawSearch.do")]
+        assert "승인했지만" not in str(bf["verification"])
+        out = service.register_flow("bf_law")
+    finally:
+        srv.shutdown()
+    assert out["tools"][0]["kind"] == "flow" and store.get_function("bf_law")["status"] == "registered"
+
+
+@pytest.mark.parametrize("write,why", [(False, "POST — 기본 쓰기"), (True, "사람이 지정"), (None, "사람이 지정")])
+def test_세션_밖_재검증은_확정하지_않은_운영_POST_를_보내지_않는다(ieum_state, write, why):
+    import asyncio
+    from app.ieum.recorder import replay
+    hits = []
+    srv, base = _post_server(hits)
+    try:
+        bf = _law_bf(base, write, why)
+        if write is None:
+            bf["steps"][0].pop("write")
+        out = asyncio.run(replay.verify(bf, dict(LAW_REC, sourceBase=base), [], None))
+    finally:
+        srv.shutdown()
+    run = out["verification"]["runs"][0]
+    assert out["verification"]["status"] == "failed" and run["steps"][-1]["reason"] == "write_denied" and hits == []
+
+
+def test_세션_안_재실행은_확정한_조회_POST_도_사람에게_묻는다(ieum_state):
+    import asyncio
+    from app.ieum.recorder import replay
+    asked = []
+
+    class Guard:
+        env = "op"
+
+        async def ask(self, method, url, label):
+            asked.append((method, url, label))
+            return False
+
+    class Ctx:
+        async def cookies(self):
+            return []
+
+    class Sess:
+        closed, ctx, page, guard = False, Ctx(), None, Guard()
+        trace = type("T", (), {"raw": {}})()
+
+    hits = []
+    srv, base = _post_server(hits)
+    try:
+        out = asyncio.run(replay.verify(_law_bf(base, False, "사람이 지정"), dict(LAW_REC, sourceBase=base), [], Sess()))
+    finally:
+        srv.shutdown()
+    assert len(asked) == 1 and asked[0][0] == "POST" and hits == []
+    assert out["verification"]["runs"][0]["steps"][-1]["reason"] == "write_denied"

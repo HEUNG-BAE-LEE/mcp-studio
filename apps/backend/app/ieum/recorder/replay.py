@@ -209,7 +209,12 @@ async def _verify(bf: dict, rec: dict, spans: list, session=None, values: Option
             http = HttpTransport(await do_login() if auto else [], host=host)
 
             async def ask(st):
-                return "staging" if config.is_staging(bf["source"].get("env")) else False    # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다
+                # 기록 화면 밖 재검증: 운영 쓰기는 물을 창이 없으니 보내지 않는다. 사람이 검토 화면에서 조회로 확정한 POST
+                # (writeWhy "사람이 지정" + write 가 명시적으로 False)만 업무 도구 실행(flow.runner._read_only)과 같은 기준으로 보낸다.
+                # "approve" 가 아닌 값을 돌려줘 결과에 "승인했지만" 이 남지 않게 한다
+                if config.is_staging(bf["source"].get("env")):
+                    return "staging"
+                return "read" if st.get("writeWhy") == "사람이 지정" and st.get("write") is False else False
     except LoginError:
         return result("needs-login", [])
     except Exception as exc:
