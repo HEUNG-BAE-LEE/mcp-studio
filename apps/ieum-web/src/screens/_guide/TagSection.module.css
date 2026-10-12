@@ -1,0 +1,6 @@
+/* Tag 절 — 관찰 값 칩 묶음(이음 .codes) */
+.codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1-5);
+}

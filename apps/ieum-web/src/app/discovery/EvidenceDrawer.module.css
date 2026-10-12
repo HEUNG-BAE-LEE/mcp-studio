@@ -1,0 +1,56 @@
+/* EvidenceDrawer — 탐색 근거 드로어의 배치와 칸 글자(옛 js/menu/discovery.js:326-356)
+   요약 아래 16(옛 .lsum css/console.css:804) · 알림 아래 6(옛 인라인 margin-bottom:6px :339-340) */
+.summary {
+  margin-bottom: var(--s-4);
+}
+
+.note {
+  margin-bottom: var(--s-1-5);
+}
+
+/* 머리 설명의 도구 이름 · 고정폭(옛 .mono :488) */
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-mono);
+}
+
+/* 둘째 캡션 위 12(옛 인라인 margin-top:12px :346) · 차단 · 파일 응답 알림 위 10(옛 :347-348) */
+.second-caption {
+  margin-top: var(--s-3);
+}
+
+.traffic-notice {
+  margin-top: var(--s-2-5);
+}
+
+/* 파라미터 추론 칸 글자(옛 .map .f · .ty · .dsc · .codes css/console.css:681-695) */
+.field {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+
+.type {
+  /* check-css-disable-next-line literal-px -- 1px 광학 보정(옛 .map .ty margin-top 1px) */
+  margin-top: 1px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-tag);
+}
+
+.description {
+  min-width: 130px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.faint {
+  color: var(--text-faint);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}

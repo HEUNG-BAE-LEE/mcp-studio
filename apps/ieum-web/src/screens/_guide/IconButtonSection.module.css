@@ -1,0 +1,11 @@
+/* IconButton 절 — on-band 예시를 얹을 파란 띠(모달 머리 모양을 흉내 낸 카탈로그 바탕) */
+.band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 460px;
+  height: var(--h-modal-head);
+  padding: 0 var(--s-2) 0 var(--s-5);
+  background: var(--brand-band);
+  color: var(--on-fill);
+}

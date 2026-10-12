@@ -1,0 +1,29 @@
+/* 셸 절 — 조각을 담는 틀(카탈로그 전용). 레일은 화면 높이(100vh)라 틀 높이에서 자른다. 본문 여백은 셸 본문과 같은 토큰 */
+.frame {
+  display: flex;
+  max-height: calc(8 * var(--s-10));
+  overflow: hidden;
+  border: 1px solid var(--line-divider);
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.content {
+  padding: var(--content-pad-top) var(--content-pad-x) var(--s-6);
+}
+
+@media (max-width: 760px) {
+  .content {
+    padding: var(--s-4-5) var(--s-3-5) var(--s-6);
+  }
+}
+
+/* 예시 한 벌을 감싼 칸 — 카탈로그 .section이 grid라 칸이 틀의 최소 폭까지 늘어난다. 0으로 줄어들 수 있게 해 틀 안에서 접히게 한다 */
+.example {
+  min-width: 0;
+}

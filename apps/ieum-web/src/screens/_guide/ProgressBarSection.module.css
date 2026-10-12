@@ -1,0 +1,13 @@
+/* ProgressBar 절 — 값 글자 + 막대 한 줄 */
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.label {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}

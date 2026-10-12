@@ -1,0 +1,6 @@
+/* FieldPair 절 — 값 칸 글자 흉내(쓰는 곳이 토큰으로 주는 보조 글자. 이음 .ep-row 안 인라인 13.5 · --text-2) */
+.value {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  overflow-wrap: anywhere;
+}

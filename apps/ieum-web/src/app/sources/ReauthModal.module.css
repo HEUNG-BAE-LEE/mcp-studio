@@ -1,0 +1,4 @@
+/* ReauthModal — 본문 문단은 위 여백이 없고 아래는 14(옛 <p style="margin-top:0">의 기본 아래 여백 1em — js/menu/sources.js:136) */
+.lead {
+  margin: 0 0 var(--s-3-5);
+}

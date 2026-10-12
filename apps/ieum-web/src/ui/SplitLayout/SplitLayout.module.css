@@ -1,0 +1,27 @@
+/* SplitLayout — 이음 .studio · .dp(css/console.css:614,784 · 접힘 875) · .pg(733 · 접힘 877)
+   칸은 최소 폭 0으로 줄어든다(minmax(0, …) + 칸 min-width 0) — 넘치는 내용은 칸 안에서 처리한다. 접어도 간격은 그대로다(옛 그대로) */
+.root {
+  display: grid;
+  align-items: start;
+}
+
+.root > * {
+  min-width: 0;
+}
+
+.root[data-variant='list'] {
+  grid-template-columns: var(--w-list-aside) minmax(0, 1fr);
+  gap: var(--s-7);
+}
+
+/* 테스트 실행 — 호출 열은 320 ~ 430으로 늘고 준다(고유 치수) */
+.root[data-variant='playground'] {
+  grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+  gap: var(--s-6);
+}
+
+@media (max-width: 1100px) {
+  .root[data-variant] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

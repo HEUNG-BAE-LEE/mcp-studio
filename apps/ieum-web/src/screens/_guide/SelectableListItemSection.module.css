@@ -1,0 +1,7 @@
+/* SelectableListItem 절 — 목록 상자 자리(옛 Panel 안 목록 열 폭). 항목 아래 선이 이어지게 세로로 쌓는다 */
+.list {
+  width: var(--w-list-aside);
+  max-width: 100%;
+  border: 1px solid var(--line-control);
+  background: var(--surface);
+}

@@ -1,0 +1,12 @@
+/* 카탈로그 ChatInput 절 — 대화 상자 자리(점선 · 상자 면)와 보낸 글 기록. 부품 모양이 아니다 */
+.well {
+  border: 1px dashed var(--line-control);
+  background: var(--surface);
+}
+
+.sent {
+  margin: 0;
+  padding-left: var(--s-5);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}

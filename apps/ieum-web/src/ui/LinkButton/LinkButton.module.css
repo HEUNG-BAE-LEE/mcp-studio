@@ -1,0 +1,28 @@
+/* LinkButton — 이음 .link(css/console.css:184) · 도구 id(js/menu/deploy.js:87) · 뒤로(js/menu/discovery.js:256). 변형은 data-variant. hover · 비활성 모양이 없다(옛 .link에 없음) */
+.root {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-size: var(--fs-ui-sm);
+  letter-spacing: var(--tracking-control);
+  text-decoration: underline;
+  text-underline-offset: var(--s-0-5);
+  cursor: pointer;
+}
+
+.root[data-variant='mono'] {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  letter-spacing: var(--tracking-mono);
+  text-decoration: none;
+}
+
+.root[data-variant='back'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-0-5);
+  font-size: var(--fs-label);
+  text-decoration: none;
+}

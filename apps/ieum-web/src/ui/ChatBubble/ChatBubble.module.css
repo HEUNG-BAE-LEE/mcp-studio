@@ -1,0 +1,71 @@
+/* ChatBubble — 이음 .msg(css/console.css:740-747). 최대 폭 88%는 ChatLog 안쪽 폭에 대한 비율이다.
+   사용자 말풍선만 주조 바탕이다(DESIGN 핵심 규칙 2 ①). 글줄은 한 문단 — 줄바꿈을 지키지 않는다(옛 그대로) */
+.root {
+  max-width: 88%;
+  padding: var(--s-2-5) var(--s-3-5);
+  border-radius: var(--r-bubble);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 꼬리 — 말하는 쪽 아래 모서리만 작다 */
+.root[data-variant='user'] {
+  align-self: flex-end;
+  border-bottom-right-radius: var(--r-sm);
+  background: var(--primary);
+  color: var(--on-fill);
+}
+
+.root[data-variant='assistant'],
+.root[data-variant='typing'] {
+  align-self: flex-start;
+  border: 1px solid var(--line-divider);
+  border-bottom-left-radius: var(--r-sm);
+  background: var(--surface-sub);
+}
+
+.root[data-variant='typing'] {
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+}
+
+.by {
+  display: block;
+  margin-bottom: var(--s-0-5);
+  color: var(--text-faint);
+  font-size: var(--fs-tag);
+}
+
+/* 점 셋은 한 덩어리로 다닌다 — 줄이 접혀도 점끼리 갈라지지 않는다 */
+.dots {
+  white-space: nowrap;
+}
+
+/* 점 — 지름 5는 고유 치수(한 변 = 다른 변). --m-blink 한 번씩 반복해 --opacity-blink까지 옅어지고, 둘째 · 셋째 점은 --m-stagger · 그 두 배만큼 늦게 시작한다
+   (DESIGN 이식 기간 유지 — 반복 모션). 모션 줄이기면 base.css가 애니메이션을 꺼 멈춘 점이 된다 */
+.dot {
+  display: inline-block;
+  width: 5px;
+  /* check-css-disable-next-line literal-px -- 점 고유 지름 5(한 변 = 다른 변, 이음 .msg.typing i) */
+  height: 5px;
+  margin-left: var(--s-1);
+  border-radius: 50%;
+  background: var(--text-faint);
+  animation: blink var(--m-blink) infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: var(--m-stagger);
+}
+
+.dot:nth-child(3) {
+  animation-delay: calc(var(--m-stagger) * 2);
+}
+
+@keyframes blink {
+  50% {
+    opacity: var(--opacity-blink);
+  }
+}

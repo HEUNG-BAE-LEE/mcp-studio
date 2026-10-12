@@ -1,0 +1,19 @@
+/* 로고 절 — 설명은 catalog.module.css를 쓰고, 이 절에만 있는 모양만 둔다 */
+.logos {
+  display: flex;
+  gap: var(--s-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--primary);
+}
+
+.logos li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.logos code {
+  color: var(--text-muted);
+}

@@ -1,0 +1,16 @@
+/* 아이콘 절 — 표 · 소제목 · 설명은 catalog.module.css를 쓰고, 이 절에만 있는 모양만 둔다 */
+/* 표 안을 가운데 정렬한다 — catalog의 왼쪽 정렬보다 선택자 구체성을 한 단계 올려 CSS 순서에 기대지 않는다 */
+table.centered th,
+table.centered td {
+  text-align: center;
+}
+
+table.centered tbody th {
+  text-align: left;
+}
+
+.picker {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}

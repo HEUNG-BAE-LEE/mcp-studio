@@ -1,0 +1,89 @@
+/* SelectableListItem — 이음 .tool-item(css/console.css:621-629) · .ts-item(785-790). 둘 다 전체 폭 버튼 · 두 줄 · 아래 선.
+   안쪽 13/16 · 15/18 → 단계(--s-3 --s-4 · --s-3-5 --s-4-5), 줄 사이 3 → --s-1(이웃 단계로 묶음 — DESIGN 이식 기간 허용 차이).
+   글자 자간은 버튼 UA 기본(normal)을 그대로 둔다 — 옛 <button>이 같다(DESIGN 핵심 규칙 5) */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-divider);
+  border-radius: 0;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.root[data-variant='id'] {
+  padding: var(--s-3) var(--s-4);
+}
+
+.root[data-variant='name'] {
+  padding: var(--s-3-5) var(--s-4-5);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-1-5);
+}
+
+.root[data-variant='name'] .head {
+  gap: var(--s-2);
+}
+
+.title {
+  min-width: 0;
+}
+
+/* 도구 id — 고정폭 한 줄 말줄임 */
+.root[data-variant='id'] .title {
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-sm);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 묶음 이름 — 본문 글꼴 굵게, 길면 줄을 바꾼다(칩은 줄어들지 않는다) */
+.root[data-variant='name'] .title {
+  font-size: var(--fs-subhead);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+
+/* 칩이 칸의 줄 상자(행간)에 얹히지 않고 첫 줄 높이를 그대로 정하게 flex로 둔다(옛 .tr1 안 .stt가 flex 항목) */
+.status {
+  display: flex;
+  flex: none;
+}
+
+.description {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.root:hover {
+  background: var(--surface-hover);
+}
+
+/* 고른 항목 — hover보다 뒤에 둬서 고른 채 가리켜도 그대로다(옛 .on이 :hover 뒤) */
+.root[aria-pressed='true'] {
+  background: var(--surface-selected);
+  box-shadow: var(--edge-active);
+}
+
+/* 제외 — 글자만 옅게. 칩 · 표지는 자기 색을 가진다 */
+.root[data-dimmed] .title,
+.root[data-dimmed] .description {
+  color: var(--text-faint);
+}
+
+/* 포커스 — 목록 스크롤 상자에 잘리지 않게 안쪽 링(전역 링은 지우지 않고 자리만 안쪽으로) */
+.root:focus-visible {
+  outline-offset: -2px;
+}

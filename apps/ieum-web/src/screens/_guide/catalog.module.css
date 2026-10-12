@@ -1,0 +1,86 @@
+/* 카탈로그 절이 같이 쓰는 조각 — 절 바탕 배치 · 소제목 · 설명 · 표. 절에만 있는 모양은 그 절의 css에 둔다 */
+.section {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.heading {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+}
+
+.note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-note);
+}
+
+/* 표는 자기 상자 안에서 가로 스크롤한다 — 좁은 폭에서 페이지가 넘치지 않게 */
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-divider);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table thead th,
+.table tbody th {
+  background: var(--surface-sub);
+  font-weight: var(--fw-medium);
+}
+
+.table tbody th {
+  white-space: nowrap;
+}
+
+.caption {
+  padding-bottom: var(--s-2);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  text-align: left;
+}
+
+/* 이름 · 값 아래에 붙는 작은 토큰 이름 */
+.token {
+  display: block;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+/* 부품 절이 같이 쓰는 늘어놓기 — 가로로 흐르는 줄 · 세로 쌓기 */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.stack {
+  display: grid;
+  gap: var(--s-4);
+}
+
+/* 예시 자리 테두리 — 빈 자리 · 상자 안 예시가 어디까지인지 보이게 하는 카탈로그 전용 점선(부품 모양이 아니다) */
+.frame {
+  padding: var(--s-3);
+  border: 1px dashed var(--line-control);
+}
+
+.frame-label {
+  margin: 0 0 var(--s-2);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}

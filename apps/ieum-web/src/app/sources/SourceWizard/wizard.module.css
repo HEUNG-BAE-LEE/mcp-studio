@@ -1,0 +1,9 @@
+/* 연결 마법사 공용 배치 — 단계 표시 아래 22(옛 .wz-steps css/console.css:813),
+   단계 본문 안내 문단 위 14 · 아래 12(옛 .tab-hint css/console.css:289) */
+.steps {
+  margin-bottom: var(--s-5-5);
+}
+
+.hint {
+  margin: var(--s-3-5) 0 var(--s-3);
+}

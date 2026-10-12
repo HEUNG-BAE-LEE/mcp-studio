@@ -1,0 +1,4 @@
+/* ModeCard — 추천 카드는 격자 줄 전체 칸(옛 .mode-card.wide css/console.css:913) */
+.wide {
+  grid-column: 1 / -1;
+}

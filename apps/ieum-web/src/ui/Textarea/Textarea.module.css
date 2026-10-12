@@ -1,0 +1,36 @@
+/* Textarea — code는 이음 textarea.inp(css/console.css:837,1078)의 두 정의가 겹친 결과, prose는 .desc-ed textarea(:667-668 — 반지름 4 → --r-sm).
+   base.css가 textarea에 글꼴을 물려주지 않아 글꼴 · 크기 · 색을 직접 정한다 */
+.root {
+  display: block;
+  width: 100%;
+  /* check-css-disable-next-line literal-px -- 여러 줄 입력 최소 높이 120(고유 치수, 옛 textarea.inp) */
+  min-height: 120px;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+
+/* 도구 설명 편집 — 본문 글꼴 · 설명 글 행간 */
+.root[data-variant='prose'] {
+  /* check-css-disable-next-line literal-px -- 도구 설명 편집 최소 높이 78(고유 치수, 옛 .desc-ed textarea) */
+  min-height: 78px;
+  padding: var(--s-2-5) var(--s-3);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+}
+
+.root:focus {
+  border-color: var(--primary);
+}
+
+.root:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}

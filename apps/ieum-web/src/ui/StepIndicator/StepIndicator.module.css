@@ -1,0 +1,129 @@
+/* StepIndicator — 이음 .wz-steps · .ws · .ws-line(css/console.css:813-819, wizard) · .dstep · .ds · .ds-line(:938-947,981-982, job) · 760(:1062-1063).
+   단계 사이 선은 단계와 나란한 <li>다(옛 .ws-line · .ds-line처럼 flex:1 형제 항목) — 선만 남은 폭을 나눠 갖고 단계는 늘지 않아,
+   좁으면 단계만 다음 줄로 내려가고 선은 앞 줄 끝에 남는다.
+   원 지름(wizard 22 · job 24)은 고유 치수. 행간 · 자간은 옛이 적지 않아 물려받는다 */
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 단계 사이 선 — 남은 폭을 나눠 갖는다 */
+.line {
+  flex: 1;
+  /* check-css-disable-next-line literal-px -- 선 고유 두께 1(옛 .ws-line · .ds-line height 1px) */
+  height: 1px;
+  background: var(--line-control);
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1-75);
+  color: var(--text-faint);
+  font-size: var(--fs-ui-sm);
+  white-space: nowrap;
+}
+
+/* 번호 원 — wizard 22 */
+.mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  /* check-css-disable-next-line literal-px -- 원 고유 지름 22(한 변 = 다른 변, 이음 .ws em) */
+  height: 22px;
+  border: 1px solid var(--line-control);
+  border-radius: 50%;
+  background: var(--surface-sub);
+  color: var(--text-faint);
+  font-size: var(--fs-tag);
+  font-weight: var(--fw-bold);
+}
+
+/* ── wizard ── */
+.root[data-variant='wizard'] .line {
+  min-width: 14px;
+}
+
+.step[data-state='current'] {
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}
+
+.step[data-state='current'] .mark {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-fill);
+}
+
+.step[data-state='done'] .mark {
+  border-color: var(--primary-line);
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+/* ── job — 원 24 · 글자 한 단계 크게 ── */
+.root[data-variant='job'] .line {
+  min-width: 16px;
+}
+
+.root[data-variant='job'] .step {
+  font-size: var(--fs-label);
+}
+
+.root[data-variant='job'] .mark {
+  width: 24px;
+  /* check-css-disable-next-line literal-px -- 원 고유 지름 24(한 변 = 다른 변, 이음 .ds em) */
+  height: 24px;
+  font-size: var(--fs-caption);
+}
+
+.note {
+  font-size: var(--fs-tag);
+}
+
+.step[data-state='run'] {
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}
+
+.step[data-state='run'] .mark {
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: var(--halo-current);
+  color: var(--on-fill);
+}
+
+.root[data-variant='job'] .step[data-state='done'] {
+  color: var(--text-muted);
+}
+
+.step[data-state='skip'] {
+  opacity: var(--opacity-skipped);
+}
+
+.step[data-state='fail'] {
+  color: var(--danger);
+}
+
+.step[data-state='fail'] .mark {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  /* job — 사이 선을 숨기고 줄 간격을 넓힌다 */
+  .root[data-variant='job'] {
+    gap: var(--s-2) var(--s-3);
+  }
+
+  .root[data-variant='job'] .line {
+    display: none;
+  }
+}

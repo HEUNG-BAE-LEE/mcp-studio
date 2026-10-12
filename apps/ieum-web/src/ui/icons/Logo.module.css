@@ -1,0 +1,23 @@
+/* 로고 크기 26 · 24 · 20은 아이콘 단계(--icon-*) 밖의 고유 치수다 — 로고에는 단계 토큰이 없다.
+   width는 고정폭 속성이라 리터럴이 허용되고, height만 파생 치수 끄기를 단다 */
+.logo {
+  flex-shrink: 0;
+}
+
+.size26 {
+  width: 26px;
+  /* check-css-disable-next-line literal-px -- 로고 고유 치수 26(GNB 로고). 아이콘 단계 밖이라 토큰이 없고 width와 같은 값이다 */
+  height: 26px;
+}
+
+.size24 {
+  width: 24px;
+  /* check-css-disable-next-line literal-px -- 로고 고유 치수 24(구조도 허브). 아이콘 단계 밖이라 토큰이 없고 width와 같은 값이다 */
+  height: 24px;
+}
+
+.size20 {
+  width: 20px;
+  /* check-css-disable-next-line literal-px -- 로고 고유 치수 20(파이프라인 허브). 아이콘 단계 밖이라 토큰이 없고 width와 같은 값이다 */
+  height: 20px;
+}

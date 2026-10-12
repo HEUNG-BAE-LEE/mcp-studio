@@ -1,0 +1,63 @@
+/* 아이콘 크기 · 선 두께는 단계 토큰(--icon-* · --icon-stroke-*)으로만 정한다. 단계 이름 ↔ 토큰은 이 파일이 잇는다 */
+/* stroke-width는 viewBox(24) 기준 단위라 크기에 비례해 렌더 두께가 바뀐다(이음 원본 svg()와 같음) */
+.icon {
+  flex-shrink: 0;
+  stroke-width: var(--icon-stroke);
+}
+
+.xs {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.sm {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.md-minus {
+  width: var(--icon-md-minus);
+  height: var(--icon-md-minus);
+}
+
+.md {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.lg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+.xl {
+  width: var(--icon-xl);
+  height: var(--icon-xl);
+}
+
+.shell {
+  width: var(--icon-shell);
+  height: var(--icon-shell);
+}
+
+.hero {
+  width: var(--icon-hero);
+  height: var(--icon-hero);
+}
+
+.empty {
+  width: var(--icon-empty);
+  height: var(--icon-empty);
+}
+
+.light {
+  stroke-width: var(--icon-stroke-light);
+}
+
+.bold {
+  stroke-width: var(--icon-stroke-bold);
+}
+
+.heavy {
+  stroke-width: var(--icon-stroke-heavy);
+}

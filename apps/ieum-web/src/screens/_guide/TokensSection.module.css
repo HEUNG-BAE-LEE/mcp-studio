@@ -1,0 +1,96 @@
+/* 토큰 절 — 견본 모양. 견본 값은 TSX가 `--sample: var(--토큰)`으로 넘긴다(아래 기본값 0은 넘기지 않았을 때의 자리) */
+.sample {
+  --sample: 0;
+  display: inline-block;
+}
+
+.sampleCell {
+  min-width: var(--w-field-label);
+}
+
+.note {
+  min-width: var(--w-list-aside);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+
+.color {
+  width: var(--w-field-label);
+  height: var(--h-xs);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-sm);
+  background: var(--sample);
+}
+
+.space {
+  height: var(--s-2);
+  width: var(--sample);
+  background: var(--primary);
+}
+
+.height {
+  width: var(--s-6);
+  height: var(--sample);
+  border: 1px solid var(--primary-line);
+  background: var(--primary-bg);
+}
+
+.width {
+  width: var(--sample);
+  max-width: 100%;
+  height: var(--s-2);
+  background: var(--primary);
+}
+
+.radius {
+  width: var(--h-md);
+  height: var(--h-md);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--sample);
+}
+
+.fontSize {
+  font-size: var(--sample);
+}
+
+.fontWeight {
+  /* check-css-disable-next-line property-value -- 견본 값은 TSX가 --fw-* 토큰 이름으로만 넘긴다(tokenSource의 --fw- 머리) */
+  font-weight: var(--sample);
+}
+
+.lineHeight {
+  background: var(--surface-sub);
+  line-height: var(--sample);
+  white-space: pre-line;
+}
+
+.tracking {
+  /* check-css-disable-next-line property-value -- 견본 값은 TSX가 --tracking-* 토큰 이름으로만 넘긴다 */
+  letter-spacing: var(--sample);
+}
+
+.fontFamily {
+  font-family: var(--sample);
+}
+
+.shadow {
+  width: var(--w-field-label);
+  height: var(--h-md);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  /* check-css-disable-next-line property-value -- 견본 값은 TSX가 --shadow-* · --ring-* · --edge-* · --halo-* 토큰 이름으로만 넘긴다 — 카탈로그 견본이라 카드 · 표 · 패널 규칙 밖 */
+  box-shadow: var(--sample);
+}
+
+.border {
+  width: var(--w-field-label);
+  border-top: var(--sample) solid var(--text);
+}
+
+.opacity {
+  width: var(--w-field-label);
+  height: var(--h-xs);
+  background: var(--primary);
+  /* check-css-disable-next-line property-value -- 견본 값은 TSX가 --opacity-* 토큰 이름으로만 넘긴다 */
+  opacity: var(--sample);
+}

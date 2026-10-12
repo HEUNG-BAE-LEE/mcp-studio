@@ -1,0 +1,8 @@
+/* Input 절 — 표 안 칸 폭 예시(카탈로그 전용). 넓은 칸 · 최소 폭보다 좁은 칸 */
+.cell {
+  width: 180px;
+}
+
+.narrow-cell {
+  width: 40px;
+}

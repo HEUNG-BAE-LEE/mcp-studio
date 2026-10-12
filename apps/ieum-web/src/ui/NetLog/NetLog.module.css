@@ -1,0 +1,119 @@
+/* NetLog — 이음 .netlog · .nl · .ntag(css/console.css:984-1000), 760 :1067-1068.
+   상자는 칸의 남은 높이를 채우고(flex 1 — TwoColumn live 안 Box가 세로 flex) 높이 300 ~ 392 고유 치수, 넘치면 상자 안 스크롤.
+   줄 격자 칸(시각 40 · 메서드 42 · 경로 · 코드 34 · 태그)은 고유 치수다. 마지막 줄은 바탕 --surface-hover + 등장 모션 한 번(이음 .nl.enter) */
+.root {
+  flex: 1;
+  /* check-css-disable-next-line literal-px -- 기록 상자 고유 최소 높이(이음 .netlog min-height 300) */
+  min-height: 300px;
+  /* check-css-disable-next-line literal-px -- 기록 상자 고유 최대 높이(이음 .netlog max-height 392) */
+  max-height: 392px;
+  overflow: auto;
+  padding: var(--s-1) 0;
+}
+
+/* 스크롤 상자는 안쪽 링(DESIGN 접근성) — 지우지 않고 자리만 옮긴다 */
+.root:focus-visible {
+  outline-offset: -2px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 40px 42px minmax(0, 1fr) 34px auto;
+  gap: var(--s-2);
+  align-items: center;
+  padding: var(--s-1-5) var(--s-4);
+  border-bottom: 1px solid var(--line-divider);
+  font-size: var(--fs-small);
+}
+
+/* 건너뜀 줄 — 시각 + 문장 두 칸(760에서도 그대로 — 이음 .nl.skip이 .nl의 760 칸보다 세다) */
+.row[data-kind='skip'] {
+  grid-template-columns: 40px minmax(0, 1fr);
+  color: var(--text-muted);
+}
+
+.row[data-enter] {
+  background: var(--surface-hover);
+  animation: enter var(--m-enter) ease both;
+}
+
+.time {
+  color: var(--text-faint);
+  font-size: var(--fs-tag);
+  font-variant-numeric: tabular-nums;
+}
+
+.path {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 경로 앞 표식(스테이징 호출) — 네트워크 기록 표식 색(DESIGN Colors ⑤) */
+.env {
+  padding: 0 var(--s-1);
+  border-radius: var(--r-sm);
+  background: var(--netlog-flag-bg);
+  color: var(--netlog-flag);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  font-style: normal;
+}
+
+.code {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  text-align: right;
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  font-size: var(--fs-small);
+}
+
+.note-icon {
+  flex: none;
+  color: var(--warn);
+}
+
+/* 태그 flag — Tag sm · round와 같은 모양에 네트워크 기록 표식 색(도메인 색은 이 부품에서만 — DESIGN Colors ⑤) */
+.flag {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  /* check-css-disable-next-line literal-px -- 태그 sm과 같은 고유 높이(컨트롤 높이 단계와 다른 축) */
+  height: 18px;
+  padding: 0 var(--s-1-75);
+  border-radius: var(--r-pill);
+  background: var(--netlog-flag-bg);
+  color: var(--netlog-flag);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* 이음 @keyframes stepIn(css/console.css:766) — 아래에서 떠오른다 */
+@keyframes enter {
+  from {
+    opacity: 0;
+    /* check-css-disable-next-line literal-px -- 등장 모션 시작 위치 오프셋(이음 stepIn translateY 8px) */
+    transform: translateY(8px);
+  }
+}
+
+/* 760: 코드 칸을 숨기고 시각 · 메서드 칸과 줄 좌우 여백을 줄인다 */
+@media (max-width: 760px) {
+  .row {
+    grid-template-columns: 36px 40px minmax(0, 1fr) auto;
+    padding: var(--s-1-5) var(--s-3);
+  }
+
+  .code {
+    display: none;
+  }
+}

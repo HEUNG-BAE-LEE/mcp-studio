@@ -1,0 +1,24 @@
+/* MethodChip — 이음 .mth(css/console.css:994-996). 테두리가 없어 행간이 곧 높이다 — 고유 행간 18.
+   칸 안에 놓이면 칸 폭을 채우고(격자 · flex 항목), 글자 크기 10.5는 이웃 단계(--fs-micro)로 묶었다 */
+.root {
+  display: inline-block;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-mono-strong);
+  /* check-css-disable-next-line literal-px -- 메서드 표식 고유 행간(높이 18) */
+  line-height: 18px;
+  letter-spacing: var(--tracking-mono);
+  text-align: center;
+}
+
+.root[data-tone='ok'] {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.root[data-tone='warn'] {
+  background: var(--warn-bg);
+  color: var(--warn);
+}

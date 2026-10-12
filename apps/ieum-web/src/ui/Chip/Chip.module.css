@@ -1,0 +1,25 @@
+/* Chip — 이음 .chip(css/console.css:314-315). 안은 글 흐름이라 display를 inline-block으로 둔다(flex로 바꾸면 글 사이 공백이 사라진다).
+   높이는 최소 높이다 — 한 줄이면 위아래 여백이 작아 --h-sm 그대로(말풍선 안 행간 1.65에서도)이고, 긴 도구 이름이 줄을 접으면 알약이 함께 자란다
+   (옛 .presets .chip의 height: auto · min-height와 같은 꼴 — 고정 높이면 글이 알약 밖으로 넘친다) */
+.root {
+  display: inline-block;
+  min-height: var(--h-sm);
+  padding: var(--s-0-5) var(--s-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.root:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* 안 아이콘은 글줄 가운데에 앉는다 — 옛 글리프(✓ · ✕)가 글과 한 줄에 앉던 자리 */
+.root svg {
+  vertical-align: middle;
+}

@@ -1,0 +1,139 @@
+/* 변환 스튜디오 — 배치(옛 css/console.css:596,614,639,651,653,669,674,703,712-713 · js/menu/studio.js:79,101,106,120)와
+   매핑 표 칸 글자(옛 .map .f · .ty · .hid · .req · .dsc · .exv · .old · .ar · .gs-tag 왼쪽 · .sub-in — css/console.css:526,681-692,1076).
+   폭에 따른 배치는 부품(SplitLayout · TwoColumn · Pipeline · CompareGrid · DetailHead · Toolbar · Panel)이 맡는다 */
+
+/* 빈 상태 점선 상자 — 옛 인라인 margin:20px 0 */
+.empty {
+  margin: var(--s-5) 0;
+}
+
+/* 원본 선택줄 — 옛 .toolbar 위 22 */
+.toolbar {
+  margin-top: var(--s-5-5);
+}
+
+/* 목록 + 상세 — 옛 .studio 위 16 */
+.split {
+  margin-top: var(--s-4);
+}
+
+/* 공개 스위치 오른쪽 6 — 옛 .pubsw */
+.publish {
+  margin-right: var(--s-1-5);
+}
+
+/* 알림 띠 위 16 — 옛 .td-notice */
+.notice {
+  margin-top: var(--s-4);
+}
+
+/* 변환 흐름 띠 위 18 — 옛 .pipe */
+.pipeline {
+  margin-top: var(--s-4-5);
+}
+
+/* 정책 열 — 옛 정책 상자를 감싼 .sec2 위 26 */
+.policy-column {
+  margin-top: var(--subsection-top);
+}
+
+/* 설명 아래 줄(글자 수 · AI로 다시 쓰기) — 옛 .desc-ed .row */
+.desc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2-5);
+  margin-top: var(--s-1-5);
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+/* 실행 방식 라벨 아래 8 — 옛 .pol .d-label */
+.exec-label {
+  margin-bottom: var(--s-2);
+}
+
+/* 선택 카드 묶음 — 마지막 카드 아래 6(부품)을 묶음 안에 가둔다(flow-root). 그래야 아래 설정 줄의 16과 겹치지 않고 더해져
+   옛 .opt 6 + .gap.sm 16 = 22가 된다(css/console.css:258,704) */
+.exec-group {
+  display: flow-root;
+}
+
+/* 선택 카드 묶음과 설정 줄 사이 16 — 옛 .gap.sm */
+.settings-top {
+  margin-top: var(--s-4);
+}
+
+/* ── 매핑 표 칸 글자 ── */
+
+.field {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+
+.type {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-tag);
+}
+
+.required {
+  margin-left: var(--s-0-5);
+  color: var(--danger);
+  font-weight: var(--fw-bold);
+}
+
+.hidden {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+/* 설명 칸 — 옛 .map .dsc 최소 130 */
+.description {
+  min-width: 130px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.example {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.missing {
+  color: var(--danger);
+}
+
+.old {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+/* 화살표 칸 — 폭 28 · 좌우 여백 0 · 가운데 */
+.arrow {
+  width: 28px;
+  padding-right: 0;
+  padding-left: 0;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* 추정 · 새 필드 태그 왼쪽 5 → 4 */
+.tag-gap {
+  margin-left: var(--s-1);
+}
+
+/* 규칙 아래 보조 칸(고정값 · 날짜 형식 · 코드표) 위 5 → 4 */
+.below {
+  margin-top: var(--s-1);
+}
+
+/* 필수 표시 머리 보조 글의 위험색 * */
+.mark {
+  color: var(--danger);
+}

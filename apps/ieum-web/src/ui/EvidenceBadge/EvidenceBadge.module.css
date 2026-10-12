@@ -1,0 +1,28 @@
+/* EvidenceBadge — 이음 .evb(css/console.css:1041-1044). 모양은 Tag md · square와 같다(높이 20 · --r-sm · --fs-tag).
+   없음 표지는 Tag가 그리고(.root는 바깥 여백만 준다), 있음 표지만 아래 모양과 도메인 색을 가진다 */
+.root {
+  margin: 0 var(--s-0-5);
+}
+
+.root[data-kind] {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  /* check-css-disable-next-line literal-px -- 태그 md와 같은 고유 높이(컨트롤 높이 단계와 다른 축) */
+  height: 20px;
+  padding: 0 var(--s-1-75);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-tag);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+.root[data-kind='code'] {
+  background: var(--evidence-code-bg);
+  color: var(--evidence-code);
+}
+
+.root[data-kind='traffic'] {
+  background: var(--evidence-traffic-bg);
+  color: var(--evidence-traffic);
+}

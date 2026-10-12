@@ -1,0 +1,46 @@
+/* DiscoveryZone — 이음 .dz · .dz-h(css/console.css:915-920). 안쪽 위 14 · 좌우 16 · 아래 6은 칸(Field) 아래 여백 10이 더해져 16이 된다.
+   꺼진 묶음(.dz.off :916,918)은 바탕만 보조 면이고 머리 아래 여백이 없으며 아래 안쪽이 12다 — 흐리게 하지 않는다.
+   스위치가 있는 머리(.dz-h.ck2 :921-922)의 모양 · 760 이하 설명 들여쓰기는 Switch heading이 맡아 여기에 @media가 없다 */
+.root {
+  margin-top: var(--s-3);
+  padding: var(--s-3-5) var(--s-4) var(--s-1-5);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.root[data-state='off'] {
+  padding-bottom: var(--s-3);
+  background: var(--surface-sub);
+}
+
+/* 머리 아래 여백 12 — 꺼지면 없다. 스위치가 있는 머리는 Switch 루트에 이 클래스가 붙는다 */
+.head,
+.toggleHead {
+  margin-bottom: var(--s-3);
+}
+
+.root[data-state='off'] .head,
+.root[data-state='off'] .toggleHead {
+  margin-bottom: 0;
+}
+
+/* 고정 묶음 머리 — 스위치 없는 제목 + 설명. 제목 · 설명 글자 · 간격은 Switch heading과 같다(옛 .dz-h b · small :919-920) */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2-5);
+}
+
+.title {
+  font-size: var(--fs-subhead);
+  font-weight: var(--fw-bold);
+}
+
+.description {
+  flex-basis: 100%;
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+}
