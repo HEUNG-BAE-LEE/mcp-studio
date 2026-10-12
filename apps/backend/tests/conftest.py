@@ -28,6 +28,9 @@ def ieum_state(tmp_path, monkeypatch):
     monkeypatch.setenv("IEUM_STATE_DIR", str(path))
     monkeypatch.delenv("IEUM_SECRET_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    # 개발자 PC 의 .env 에 진짜 키가 있어도(config 가 읽어 들인다) 시험이 진짜 모델을 부르지 않게 한다. 쓰는 시험이 직접 넣는다.
+    for name in ("AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_API_VERSION", "AZURE_OPENAI_DEPLOYMENT"):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(runner, "_RATE", {})
     monkeypatch.setattr(engine, "_TOKEN_CACHE", {})
     monkeypatch.setattr(session_auth, "_CACHE", {})

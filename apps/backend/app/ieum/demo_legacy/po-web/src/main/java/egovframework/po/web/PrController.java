@@ -66,4 +66,14 @@ public class PrController {
         result.put("RSLT", "0000");
         return result;
     }
+
+    /** 구매요청 마감 (마감하면 더 고칠 수 없다) */
+    @PostMapping("/prClose.do")
+    @ResponseBody
+    public Map<String, Object> prClose(@RequestParam("prNo") String prNo, @RequestParam(value = "closeRsn", required = false) String closeRsn) throws Exception {
+        prService.closePr(prNo, closeRsn);
+        Map<String, Object> result = new HashMap<String, Object>();
+        result.put("RSLT", "0000");
+        return result;
+    }
 }

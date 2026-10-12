@@ -3,6 +3,8 @@ package egovframework.po.service.impl;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.ibatis.annotations.Param;
+
 import egovframework.po.service.PrSearchVO;
 import egovframework.po.service.PrVO;
 import egovframework.rte.psl.dataaccess.mapper.Mapper;
@@ -18,4 +20,6 @@ public interface PrMapper {
     int insertPrDraft(PrVO prVO) throws Exception;
 
     int updatePrSubmit(String prNo) throws Exception;
+
+    int updatePrClose(@Param("prNo") String prNo, @Param("closeRsn") String closeRsn) throws Exception;
 }

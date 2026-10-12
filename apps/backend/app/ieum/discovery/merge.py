@@ -176,6 +176,8 @@ def _record(method: str, path: str, src, group: Optional[_Group], policy: Policy
     sample = group.sample if group else None
     mode = _mode(src, group, method, policy)
     tr = None
+    # 사람 덕에 찾은 API: 본 요청이 전부 사람이 허락했거나 직접 조작해서 나간 것이다. 크롤러가 혼자서도 본 API 는 사람 확인이 아니다.
+    human = bool(group and all(o.human for o in group.items))
     res_rows: List[dict] = []
     if group:
         res_rows, masked_json = infer.build_res(sample.body, masker) if not sample.blocked and not sample.file else ([], "")
@@ -189,6 +191,7 @@ def _record(method: str, path: str, src, group: Optional[_Group], policy: Policy
         tr = {"screen": re.sub(r" 클릭$", "", first.label) if first.label else first.screen, "screens": labels[:3],
               "samples": len(group.items), "q": ("?" + "&".join(f"{k}={v}" for k, v in masker.pairs(parse_qsl(u.query)))) if u.query else "",
               "blocked": all(o.blocked for o in group.items), "file": any(o.file for o in group.items), "req": _req_text(sample, masker),
+              "human": human, "menu": next((o.menu for o in group.items if o.menu), ""), "menus": sorted({o.menu for o in group.items if o.menu}),
               "res": "" if sample.blocked else ("" if sample.file else _res_text(sample, masked_json, masker)), "code": sample.status}
         if out:
             tr["host"] = f"{urlsplit(sample.url).scheme}://{urlsplit(sample.url).netloc}"
@@ -207,7 +210,7 @@ def _record(method: str, path: str, src, group: Optional[_Group], policy: Policy
     return {
         "id": _slug(method, path), "m": method, "path": path, "mode": mode, "ev": ev, "title": title, "tool": None, "desc": "", "rec": "check", "recNote": "",
         "src": _src_text(src) if src else None, "tr": tr, "verify": {"k": "out" if out else "none"}, "params": params, "res": res_rows,
-        "dep": bool(src and src.deprecated), "_group": group,
+        "dep": bool(src and src.deprecated), "human": human, "_group": group,
     }
 
 
@@ -269,8 +272,13 @@ def _recommend(a: dict):
     if mode == "write":
         if k == "stg":
             return "yes", "스테이징에서 호출해 동작을 확인했습니다. 쓰기 도구라 실행 전에 사용자 확인을 받습니다."
+        if k == "stgerr" and a.get("human") and v.get("code") in (401, 403):
+            return "check", (f"사람이 보여준 경로로 요청 형식을 확인했습니다. 테스트 계정에는 권한이 없어 스테이징 호출이 막혔습니다(HTTP {v.get('code')}). "
+                             "권한이 있는 계정으로 한 번 더 확인해 주세요.")
         if k == "stgerr":
             return "check", f"스테이징 호출이 실패했습니다(HTTP {v.get('code')}). 파라미터와 권한을 확인해 주세요."
+        if k == "block" and a.get("human"):
+            return "check", "사람이 보여 주거나 허락해서 나간 쓰기 요청입니다. 운영에 보내지 않고 형식만 기록했으니 동작은 검증하지 못했습니다."
         if k == "block" and a["tr"] and a["tr"]["samples"] >= 3 and not a["src"]:
             return "no", "화면이 주기적으로 자동 전송하는 요청으로 보입니다. AI 가 직접 부를 일은 드뭅니다."
         if k == "block":

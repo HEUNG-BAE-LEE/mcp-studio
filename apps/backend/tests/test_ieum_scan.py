@@ -46,6 +46,7 @@ EXPECTED = [
     ("PrController", "/prDraftSave.do", "POST", "api", "write", "INSERT", "PrMapper.insertPrDraft",
      [("title", S, False, "form"), ("content", S, False, "form")]),
     ("PrController", "/prSubmit.do", "POST", "api", "write", "UPDATE", "PrMapper.updatePrSubmit", [("prNo", S, True, "form")]),
+    ("PrController", "/prClose.do", "POST", "api", "write", "UPDATE", "PrMapper.updatePrClose", [("prNo", S, True, "form"), ("closeRsn", S, False, "form")]),
     ("BudgetController", "/budgetRemain.do", "GET", "api", "read", "SELECT", "BudgetDAO.selectBudgetRemain",
      [("deptCd", S, False, "query"), ("yyyy", S, False, "query")]),
 ]
@@ -112,10 +113,10 @@ def test_샘플_엔드포인트_표_전체(sample):
         assert e.lang == "java"
 
 
-def test_샘플_api_13_page_9_전체_22(sample):
+def test_샘플_api_14_page_9_전체_23(sample):
     kinds = [e.kind for e in sample.endpoints]
-    assert len(sample.endpoints) == 22
-    assert kinds.count("api") + kinds.count("file") == 13
+    assert len(sample.endpoints) == 23
+    assert kinds.count("api") + kinds.count("file") == 14
     assert kinds.count("page") == 9
     assert kinds.count("file") == 1
 
@@ -165,9 +166,9 @@ def test_샘플_파라미터_설명은_VO_필드_주석에서(sample):
 def test_샘플_controllers_sql_counts_files(sample):
     assert [(c.cls, c.api, c.page, c.deprecated) for c in sample.controllers] == [
         ("BudgetController", 1, 0, 0), ("ItemController", 1, 0, 0), ("LoginController", 1, 3, 0),
-        ("PoController", 6, 3, 1), ("PrController", 3, 2, 0), ("VendController", 1, 1, 0)]
+        ("PoController", 6, 3, 1), ("PrController", 4, 2, 0), ("VendController", 1, 1, 0)]
     assert all(isinstance(c, ControllerInfo) and c.file.endswith(c.cls + ".java") for c in sample.controllers)
-    assert sample.sql_counts == {"SELECT": 9, "INSERT": 2, "UPDATE": 2}
+    assert sample.sql_counts == {"SELECT": 9, "INSERT": 2, "UPDATE": 3}
     # src/test 를 뺀 java, xml 파일 수
     expected = [p for p in SAMPLE.rglob("*") if p.is_file() and p.suffix in (".java", ".xml") and "src/test" not in p.as_posix()]
     assert sample.files == len(expected)
@@ -179,7 +180,7 @@ def test_샘플_on_file은_컨트롤러마다_한_번(sample):
     res = scanner.scan(SAMPLE, on_file=lambda info, eps: calls.append((info, eps)))
     assert [i.cls for i, _ in calls] == ["BudgetController", "ItemController", "LoginController", "PoController",
                                          "PrController", "VendController"]
-    assert sum(len(eps) for _, eps in calls) == len(res.endpoints) == 22
+    assert sum(len(eps) for _, eps in calls) == len(res.endpoints) == 23
     info, eps = calls[3]
     assert (info.api, info.page) == (6, 3) and len(eps) == 9 and all(e.cls == "PoController" for e in eps)
 
@@ -1681,7 +1682,7 @@ def test_어느_단계에서_취소돼도_예외_없이_부분_결과(limit):
         return len(calls) > limit
 
     res = scanner.scan(SAMPLE, should_cancel=cancel)
-    assert isinstance(res, ScanResult) and len(res.endpoints) <= 22
+    assert isinstance(res, ScanResult) and len(res.endpoints) <= 23
     assert all(e.file for e in res.endpoints)
 
 

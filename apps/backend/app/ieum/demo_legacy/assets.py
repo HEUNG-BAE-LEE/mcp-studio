@@ -190,6 +190,8 @@ function setVend(cd, nm) { picked.vendCd = cd; $id('vendSel').textContent = nm +
 
 $id('btnVend').onclick = function () {
   clearMsg();
+  // 레거시 화면답게 비어 있으면 서버에 묻지 않고 대화상자로 돌려보낸다.
+  if (!$id('vendNm').value.replace(/\s+/g, '')) { alert('거래처명을 입력하세요.'); return; }
   getJSON('vendList.do?vendNm=' + enc($id('vendNm').value)).then(function (d) {
     $id('vendResult').innerHTML = d.resultList.length ? d.resultList.map(function (v) {
       return '<a href="#" class="vendPick" data-cd="' + esc(v.VEND_CD) + '" data-nm="' + esc(v.VEND_NM) + '">' + esc(v.VEND_NM) + ' (' + esc(v.VEND_CD) + ')</a>';
@@ -231,14 +233,24 @@ $id('btnSave').onclick = function () {
 
 # 구매요청함: 로드할 때 목록과 상태 코드를 함께 부른다.
 PR_LIST_JS = r"""
+var prRows = [];
 Promise.all([getJSON('prList.do?deptCd=D1030&sttsCd=10'), getJSON('common/codeList.do?grpCd=PR_STTS')]).then(function (res) {
   var names = {};
   res[1].resultList.forEach(function (c) { names[c.CD] = c.CD_NM; });
-  var rows = res[0].resultList.map(function (r) {
+  prRows = res[0].resultList;
+  var rows = prRows.map(function (r) {
     return '<tr><td>' + esc(r.PR_NO) + '</td><td>' + esc(r.PR_TITLE) + '</td><td>' + esc(r.REQ_NM) + '</td><td>' + esc(names[r.PR_STTS_CD] || r.PR_STTS_CD) + '</td></tr>';
   });
   $id('prTable').tBodies[0].innerHTML = rows.length ? rows.join('') : '<tr><td colspan="4" class="c">조회된 구매요청이 없습니다.</td></tr>';
 }).catch(showMsg);
+
+// 마감하면 더 고칠 수 없다. 첫 번째 요청을 마감 처리한다(화면에서 고르는 UI 는 생략).
+$id('btnClose').onclick = function () {
+  clearMsg();
+  if (!prRows.length) { alert('마감할 구매요청이 없습니다.'); return; }
+  if (!confirm('선택한 구매요청을 마감 처리하시겠습니까?')) { return; }
+  postForm('prClose.do', {prNo: prRows[0].PR_NO}).then(function () { location.reload(); }).catch(showMsg);
+};
 """
 
 # 구매요청 작성: 예산 확인, 자동 임시저장(로드 1.5초 뒤부터 3초마다), 전송
@@ -291,4 +303,25 @@ getJSON('chart/monthly.do?yyyy=2026').then(function (d) {
     return '<tr><td>' + parseInt(r.MM, 10) + '월</td><td class="r">' + esc(r.CNT) + '</td></tr>';
   }).join('');
 }).catch(showMsg);
+"""
+
+
+# 발주 승인(승인 권한이 있는 계정만 열린다): 승인대기 발주를 보여 주고 승인한다
+PO_APRV_JS = r"""
+function load() {
+  getJSON('poList.do?sttsCd=20').then(function (d) {
+    var rows = d.resultList.map(function (r) {
+      return '<tr><td>' + esc(r.PO_NO) + '</td><td>' + esc(r.VEND_NM) + '</td><td class="r">' + esc(r.PO_AMT) + '</td><td><button type="button" class="approve" data-po="' + esc(r.PO_NO) + '">승인</button></td></tr>';
+    });
+    $id('aprvTable').tBodies[0].innerHTML = rows.length ? rows.join('') : '<tr><td colspan="4" class="c">승인 대기 중인 발주가 없습니다.</td></tr>';
+  }).catch(showMsg);
+}
+$id('aprvTable').onclick = function (ev) {
+  var b = ev.target;
+  if (b && b.className === 'approve') {
+    clearMsg();
+    postForm('poApprove.do', {poNo: b.getAttribute('data-po')}).then(load).catch(showMsg);
+  }
+};
+load();
 """

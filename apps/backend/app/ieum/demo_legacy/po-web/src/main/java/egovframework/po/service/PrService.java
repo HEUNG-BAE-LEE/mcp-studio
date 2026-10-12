@@ -16,4 +16,7 @@ public interface PrService {
 
     /** 구매요청 상신 */
     void submitPr(String prNo) throws Exception;
+
+    /** 구매요청 마감 */
+    void closePr(String prNo, String closeRsn) throws Exception;
 }
