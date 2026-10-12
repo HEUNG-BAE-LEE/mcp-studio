@@ -20,6 +20,8 @@ cd apps/backend && .venv/bin/uvicorn app.main:app --port 18000
 cd apps/backend && .venv/bin/pytest tests/ -v
 cd apps/backend && .venv/bin/pytest tests/test_masking.py -k 마스킹 -v   # 일부만 실행
 cd apps/backend && .venv/bin/pytest tests/test_ieum_gateway.py tests/test_ieum_units.py -v   # 이음
+cd apps/backend && .venv/bin/pytest tests/test_ieum_hitl.py -v   # 사람과 함께 탐색하기의 규칙(브라우저 없음, 1초)
+cd apps/backend && IEUM_SKIP_BROWSER_TESTS=1 .venv/bin/pytest tests/ -q   # 실제 브라우저 시험(탐색 e2e 합쳐 10분 가까이)을 건너뛴다
 
 # 관리자 화면 (:15173)
 cd apps/admin && npm run dev
@@ -181,6 +183,22 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 서비스 계정에 로그인하고, 세션이 끊기면 한 번 다시 로그인해 재시도한다. 계정 비밀번호와 Git 토큰은 작업 설정에 남기지 않고
 금고(`disc:<작업 id>` 키)에만 둔다. 브라우저는 번들 Chromium → 시스템 Chrome → Edge 순이라 `playwright install` 없이도 돈다.
 
+**사람과 함께 탐색하기(HITL)** (`discovery/hitl.py` 상태·규칙, `planner.py` 계획·용도, 크롤러·작업·라우터가 읽고 쓴다). 탐색 목적과 질문 예시를
+받아 (1) 메뉴를 열 순서를 정하고 (2) 판단하기 어려운 곳에서 질문을 남기고 (3) 일시정지·말로 하는 지시·직접 조작을 받고 (4) 찾은 API 에 용도와
+이어지는 질문을 붙인다. 알아 둘 것:
+- **`Hitl` 은 브라우저를 모른다.** Playwright 는 크롤러 스레드만 부른다. `Crawler(hitl=None)` 이면 예전 그대로 사람 없이 도는 탐색이라 계획·질문이 전혀 없다(크롤러 단위 시험이 이쪽이다). `jobs` 는 항상 `Hitl` 을 넘기고, 옵션 `hitl` 을 생략하면 `never`(묻지 않고 안전한 쪽으로).
+- **크롤러는 질문을 남기고 기다리지 않는다.** 질문마다 `task`(눌러 보기·값 넣고 누르기·화면 다시 열기)를 달아 두고, 답이 나오면 큐 경계에서 `_apply_answers` 가 `Entry(again=True)` 로 **그 화면을 다시 열어** 처리한다. 질문은 한 번에 하나만 카드가 되고 시간은 그 질문에만 흐른다(`Hitl.tick`, 시험은 시계를 주입한다).
+  큐는 둘이다: 계획 안은 `_pick_menu` 가 계획 순서로 뽑고(`rel` 높은 것부터, 낮은 것은 `_low_gate` 가 묻는다), 메뉴 안에서 찾은 화면은 `_front`, 그 밖은 `_queue`. 화면마다 이미 본 버튼은 `_tried` 에 둬서 다시 열어도 처음부터 또 누르지 않는다.
+- **사람이 눌러도 된다고 한 버튼도 요청은 운영에 닿지 않는다.** `_route_inner` 는 `_pressing` 중에 화면 이동(document)도 막고(`nav_block`), 막은 화면 이동은 abort 가 아니라 **204 로 채워** 브라우저가 그 화면에 머물게 한다(abort 하면 오류 화면 `chrome-error://` 로 넘어가 `_return_to` 가 돌아오느라 느리고 "열 수 없는 주소" 기록이 남는다).
+  직접 조작(`_take_over`)에서 풀어 주는 것은 로그인 경로 POST(`_LOGIN_PATH`)뿐이고, 쓰기처럼 보이는 GET 화면 이동(`risky_call`)은 직접 조작 중에도 막는다. 이 규칙을 느슨하게 하지 않는다.
+- **직접 조작은 세션을 갈아 끼운다.** 시작할 때 쿠키를 저장하고(`fresh` 면 비우고 시작 화면=로그인에서 출발), 끝나면 지우고 되돌린 뒤 로그인 직후 화면으로 간다. 하던 화면은 `_abandon` 으로 접고 `again` 으로 다시 올린다 — 화면에 붙인 `data-ieum-i` 번호가 새로고침으로 달라져 옛 후보를 누르면 엉뚱한 요소(금지어 버튼)를 누를 수 있어서다.
+  사람이 입력한 글자는 어디에도 남기지 않는다(이벤트에도 `take` 횟수만). 쉬는 시간(일시정지·직접 조작·질문 대기)은 `_idle_begin/_end` 로 세어 시간 상한에서 뺀다(겹칠 수 있어 깊이를 센다).
+- **락 순서: `hitl.lock` → `job.lock` 만 허용한다.** `Hitl` 의 기록·질문 알림 콜백이 `job.emit`(작업 락)을 부르기 때문이다. 작업 락을 쥔 채 `Hitl` 을 부르면 서로 기다린다. `Job.view` 는 `hitl.view()` 를 작업 락 **밖에서** 읽고, `Job.save` 는 스냅샷을 먼저 뜨고 나서 락을 잡는다.
+- **질문 시점 화면은 메모리에만** 둔다(`Hitl.shots`, `.../qshot/{qid}`). 직접 조작 중 화면 캡처 번호는 이벤트 없이 바뀌므로 화면은 작업 응답의 `shotSeq` 로 새로 받는다(이벤트의 `shot` 만 믿으면 갱신을 놓친다).
+- **용도 열쇠(`planner.api_key`)** 는 메서드 + 확장자·쿼리·경로변수 이름을 뗀 경로다. 탐색 중 요청 줄(`api`)과 합쳐진 API(`key`)가 같은 열쇠여야 사람이 기입한 용도(`Hitl.purp`)가 둘 다에 적용된다. 규칙으로 정한 용도·질문 연결은 **추정**이다: 쓰기 API 는 이름이 겹친다고 잇지 않고, 여러 메뉴에서 불린 API 는 메뉴의 질문을 물려받지 않는다.
+- 시험에서는 `llm.provider` 를 None 으로 막는다(`test_ieum_discovery_hitl.py`). 안 막으면 `.env` 의 Azure 설정으로 **진짜 GPT 를 부른다**(스크래치 서버도 마찬가지).
+- 스크래치 스크립트로 서버를 띄울 때는 `if __name__ == "__main__":` 가드를 둔다. 소스 분석은 `multiprocessing` `spawn` 이라 자식이 `__main__` 을 다시 읽어, 가드가 없으면 서버가 또 떠서 "소스 분석 프로세스가 비정상으로 끝났습니다" 가 난다.
+
 **이음의 배포는 별도 프로세스다** (`app/ieum/runtime/`). 묶음을 배포하면 그 묶음의 MCP 서버가 이 컴퓨터의 프로세스
 (`python -m app.ieum.runtime.server`, `127.0.0.1:81xx/mcp`)로 뜬다. 콘솔(제어면)이 `deployer`→`supervisor` 로 띄우고
 내리고 살피며, 서버(데이터면)는 스냅샷 파일 하나(`data/ieum/deployments/<id>/manifest.json`)와 상태 폴더만 보고 돈다.
@@ -213,6 +231,10 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
   `IEUM_MCP_AUTORESTORE=0` 을 기본으로 둬서 `app.main` 을 띄우는 다른 시험이 개발자 PC 의 배포를 되살리지 않는다. 복구를 시험할 때만 켠다.
 - **배포 프로세스는 부모와 같은 CPU 아키텍처로 뜬다.** Apple 실리콘에서 Rosetta 터미널이 띄운 콘솔은 x86_64 venv 를 쓰고, 자식도 그걸 이어받는다
   (`arch` 로 따로 지정하지 않는다). arm64 셸에서 x86_64 venv 를 그냥 돌리면 콘솔 자체가 `pydantic_core` 에서 죽는다 — 시험은 `arch -x86_64 .venv/bin/pytest`.
+- **Rosetta 로 뜬 Chrome 은 무거운 사이트를 못 연다.** 자식 프로세스는 부모의 CPU 를 이어받아, x86_64 venv 에서 Playwright 가 띄운 Chrome 도 변환되어 뜬다
+  (`lsof -p <chrome pid> | grep rosetta` 로 확인). 실측: wehago.com 의 `DOMContentLoaded` 가 네이티브 4초, 변환 30초 초과 — 요청은 다 끝났는데 메인 스레드가 JS 를 못 끝낸다.
+  `discovery/browser.py` 가 변환 중인 Mac 이면 설치된 Chrome·Edge 를 `arch -arm64` 래퍼로 네이티브로 띄운다. 번들 Chromium 은 x64 라 못 하니 시스템 브라우저가 먼저다.
+  "Page.goto: Timeout" 이 보이면 사이트 탓으로 단정하기 전에 이것부터 본다.
 - **이음 테스트는 `app.main` 으로 서버를 띄우지 않는다.** 기동할 때 `dev.db` 를 시드하기
   때문이다. `tests/conftest.py` 의 `ieum_server` 는 이음 라우터만 실은 앱을 진짜 포트에
   띄우고(변환 엔진이 HTTP 로 `/demo-origin` 을 부른다), `ieum_state` 는 상태 폴더를
@@ -224,6 +246,8 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 - **도구 호출 강제.** `tools` 만 넘기면 모델이 도구를 부르지 않고 되묻는다. 한국어
   시스템 메시지와 `tool_choice="required"` 를 **함께** 보내야 한다.
 - **`max_tokens` 금지.** 이 Azure 배포는 `max_completion_tokens` 를 요구한다.
+  배포 이름이 gpt-5 계열(`gpt-5.6-luna`)이라 **추론 모델**이다. 실측: `temperature` 는 기본값 말고는 400 이고, 생각 토큰이 `max_completion_tokens`
+  에 들어가서 작게 잡으면(16 으로 시험) 본문이 비어 `finish_reason=length` 로 끝난다. 이음의 `gateway/llm.py`(도구 설명 다시 쓰기)는 `temperature` 를 넣지 않고 4096 으로 둔다.
 - **JSON 판정은 Content-Type 이 아니라 파싱 시도로 한다.** 대상 사이트가
   `text/html` 로 JSON 을 보낸다.
 - **호출 간격 `MIN_INTERVAL_SEC = 1.0`.** 공공 서버 배려용이므로 낮추지 않는다.

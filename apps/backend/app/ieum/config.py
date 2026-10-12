@@ -28,8 +28,15 @@ def web_root() -> Path:
 
 
 def anthropic_key() -> str:
-    """자연어 테스트와 도구 설명 다시 쓰기에 쓴다. 없으면 그 기능만 꺼진다."""
+    """자연어 테스트와, Azure OpenAI 가 없을 때 도구 설명 다시 쓰기에 쓴다. 없으면 그 기능만 꺼진다."""
     return os.environ.get("ANTHROPIC_API_KEY", "")
+
+
+def azure_openai():
+    """(엔드포인트, 키, API 버전, 배포 이름). LLM 콘솔이 쓰는 AZURE_OPENAI_* 와 같은 값이고, 하나라도 비면 None."""
+    values = tuple(os.environ.get(name, "").strip() for name in
+                   ("AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_API_VERSION", "AZURE_OPENAI_DEPLOYMENT"))
+    return values if all(values) else None
 
 
 def chat_model() -> str:

@@ -15,7 +15,6 @@ MESSAGES = {
     500: "서버 오류가 났습니다.",
 }
 
-
 def ok(data: Any = None, code: int = 200) -> JSONResponse:
     return JSONResponse({"resultCode": code, "resultMsg": MESSAGES.get(code), "resultData": data}, status_code=code)
 

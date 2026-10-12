@@ -13,6 +13,9 @@ from app.ieum.config import DATA_DIR
 
 FRAMEWORKS = ("auto", "spring", "express", "fastapi")
 MAX_PAGES_LIMIT = 200
+# 사람에게 물어볼 때: ambig 애매할 때만, every 새 화면마다, never 묻지 않고 안전한 쪽으로. 생략하면 never(사람이 없는 호출·예약 탐색 기준).
+HITL_LEVELS = ("ambig", "every", "never")
+MAX_QUESTIONS = 10
 
 
 def default_ban() -> list:
@@ -59,6 +62,15 @@ def clean(raw: dict) -> Tuple[dict, dict]:
             "delayMs": _int(raw.get("delayMs"), 900, 0, 10_000), "maxSeconds": _int(raw.get("maxSeconds"), 600, 30, 1800),
             "account": (raw.get("account") or "").strip(), "scope": (raw.get("scope") or "").strip(), "exclude": (raw.get("exclude") or "").strip(),
             "readPost": (raw.get("readPost") or "").strip()}
+
+    # 탐색 목적: 목적과 질문 예시를 보고 메뉴 순서를 정하고, 찾은 API 의 용도와 도구 설명 초안을 쓴다. 없어도 탐색은 된다.
+    opts["purpose"] = (raw.get("purpose") or "").strip()[:200]
+    opts["ques"] = [str(q).strip()[:120] for q in (raw.get("ques") or []) if str(q or "").strip()][:MAX_QUESTIONS]
+    level = raw.get("hitl") or "never"
+    opts["hitl"] = level.strip().lower() if isinstance(level, str) else ""
+    if opts["hitl"] not in HITL_LEVELS:
+        raise ValueError("사람에게 물어볼 때 설정이 올바르지 않습니다. (애매할 때만, 새 화면마다, 묻지 않고 건너뛰기 중 하나)")
+    opts["wait"] = _int(raw.get("wait"), 120, 5, 3600)
 
     base = (raw.get("base") or "").strip().rstrip("/")
     if crawl or raw.get("stg"):

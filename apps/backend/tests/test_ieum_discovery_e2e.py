@@ -110,6 +110,15 @@ def test_메뉴를_돌며_읽기_API_를_찾고_쓰기_요청은_차단한다(cr
     assert not any(p in by_path for p in ("/loginProc.do", "/login.do", "/logout.do"))
 
 
+def test_목적이_없으면_화면_순서대로_모두_탐색하고_사람에게_묻지_않는다(crawl):
+    h = crawl["hitl"]
+    assert (crawl["opts"]["purpose"], crawl["opts"]["ques"], crawl["opts"]["hitl"]) == ("", [], "never")        # API 로 시작하며 생략하면 사람 없이 도는 탐색이다
+    assert h["plan"]["ready"] and h["plan"]["by"] == "none" and all(p["rel"] == "mid" and p["st"] in ("done", "skip") for p in h["plan"]["items"])
+    assert [p["name"] for p in h["plan"]["items"]][:3] == ["발주 현황", "발주 등록", "발주 승인"]                  # 화면의 메뉴 순서 그대로
+    assert not [a for a in h["asks"] if a["kind"] == "low"]                                                     # 관련도를 가릴 근거가 없으니 관련 낮은 메뉴도 없다
+    assert crawl["stats"]["nHuman"] == 0 and all(a["who"] == "never" for a in h["asks"])
+
+
 def test_다른_출처_요청은_범위_밖으로_분류한다(by_path):
     sso = next(a for a in by_path.values() if a["path"].endswith("/sso/userInfo.do"))
     assert (sso["ev"], sso["verify"]["k"], sso["tool"], sso["rec"]) == ("out", "out", None, "no") and sso["tr"]["host"].startswith("http://127.0.0.1:")
@@ -119,7 +128,7 @@ def test_안전_통계는_실제로_센_값이다(crawl):
     s = crawl["stats"]
     assert s["pages"] >= 7 and s["requests"] >= 10 and s["blocked"] >= 1 and s["skipped"] >= 2 and s["masked"] > 0
     assert (s["both"], s["src"], s["tr"]) == (0, 0, 9)                    # Git 을 켜지 않았으니 트래픽 근거뿐이다. 읽기 8개와 차단한 쓰기 1개
-    assert crawl["stage"] == {"src": "skip", "web": "done", "merge": "done", "verify": "done", "review": "run"} and crawl["browser"] in ("chrome", "chromium", "msedge")
+    assert crawl["stage"] == {"src": "skip", "web": "done", "merge": "done", "verify": "done", "review": "run"} and crawl["browser"].split(" ")[0] in ("chrome", "chromium", "msedge")
 
 
 def test_이벤트_스트림과_화면_캡처(live, crawl):

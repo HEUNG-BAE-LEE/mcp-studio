@@ -1,10 +1,9 @@
 """변환 스튜디오 메뉴: 원본 작업을 AI 도구로 바꾸는 정의(설명, 파라미터 매핑, 정책)를 관리한다."""
 from typing import Any, Optional
 
-import httpx
 from fastapi import APIRouter, Body
 
-from app.ieum import config
+from app.ieum.gateway import engine, llm
 from app.ieum.repositories import logs as log_repo
 from app.ieum.repositories import studio as repo
 from app.ieum.responses import fail, ok
@@ -36,29 +35,49 @@ def source_tools(source_id: str, payload: Any = Body(None)):
     return ok(repo.replace_source_tools(source_id, payload))
 
 
+REWRITE_SYSTEM = (
+    "너는 사내 시스템의 API 를 AI 에이전트가 쓰는 도구로 바꾸는 일을 돕는 기술 문서 작성자다. "
+    "주어진 도구 정보만 근거로, AI 에이전트가 읽고 \"이 도구를 언제 써야 하는지\" 판단할 수 있는 설명을 한국어 2~3문장으로 쓴다.\n"
+    "- 첫 문장은 이 도구가 무엇을 하고 무엇을 돌려주는지.\n"
+    "- 이어서 언제 쓰면 좋은지, 쓰지 말아야 할 때(데이터를 바꾸는 작업이거나 비슷한 다른 도구가 맞는 경우 등)를 쓴다.\n"
+    "- 소스 파일 경로, URL, 내부 구현 이야기는 쓰지 않는다. 주어진 정보에 없는 것은 지어내지 않는다.\n"
+    "- 설명 문장만 출력한다. 따옴표, 머리말, 목록, 마크다운은 붙이지 않는다."
+)
+
+
+def rewrite_prompt(tool, desc=None, again=False):
+    """도구 정의에서 \"AI 가 읽는 설명\"을 다시 쓰게 할 요청을 만든다. AI 에게 보이는 파라미터와 응답 필드만 싣는다."""
+    lines = ["도구 이름: %s" % tool["id"], "제목: %s" % (tool.get("title") or "-"),
+             "방식: %s" % ("쓰기(데이터 변경)" if tool.get("mode") == "write" else "읽기"),
+             "호출: %s" % ("%s %s" % (tool["method"], tool["path"]) if tool.get("path") else (tool.get("op") or "-")),
+             "현재 설명: %s" % ((desc if desc is not None else tool.get("desc")) or "(없음)")[:600]]
+    params = engine.visible_params(tool)[:30]
+    lines.append("입력 파라미터:" + ("" if params else " 없음"))
+    lines += ["- %s (%s)%s%s" % (p["a"], (p.get("at") or "string").split(" ")[0], " 필수" if p.get("req") else "",
+                                 ": %s" % p["d"] if p.get("d") and p["d"] != p["a"] else "") for p in params]
+    res = [r for r in tool.get("res", []) if r.get("a")][:30]
+    if res:
+        lines.append("응답 필드:")
+        lines += ["- %s%s" % (r["a"], " (예: %s)" % str(r["ov"])[:30] if r.get("ov") not in (None, "") else "") for r in res]
+    if again:
+        lines.append("\n이전과 다른 표현으로 써 주세요.")
+    return REWRITE_SYSTEM, "\n".join(lines)
+
+
 @router.post("/{tool_id}/rewrite/")
 def tool_rewrite(tool_id: str, payload: Optional[dict] = Body(None)):
-    """AI가 도구 설명을 다시 쓴다. ANTHROPIC_API_KEY 가 필요하다."""
-    key = config.anthropic_key()
-    if not key:
-        return fail(400, "서버에 ANTHROPIC_API_KEY 환경변수가 없어 AI로 다시 쓸 수 없습니다. 설명을 직접 고쳐 주세요.")
+    """AI(GPT, 없으면 Claude)가 도구 설명을 다시 쓴다. 백엔드의 AZURE_OPENAI_* 설정을 쓴다."""
+    if llm.provider() is None:
+        return fail(400, llm.UNAVAILABLE)
     sid, tool = repo.find_tool(tool_id)
     if tool is None:
         return fail(404)
     body = payload or {}
-    params = "\n".join("- %s (%s): %s" % (p["a"], p.get("at"), p.get("d", "")) for p in tool["params"] if p.get("a"))
-    prompt = ("다음 API를 AI 에이전트가 도구로 쓸 때 보게 될 설명을 한국어 2~3문장으로 써 주세요. 언제 이 도구를 써야 하는지, 쓰지 말아야 할 때는 언제인지를 포함하고, "
-              "설명 문장만 출력하세요.\n\n도구 이름: %s\n제목: %s\n방식: %s\n현재 설명: %s\n파라미터:\n%s\n\n%s"
-              % (tool["id"], tool.get("title"), "쓰기(데이터 변경)" if tool.get("mode") == "write" else "읽기", body.get("desc") or tool.get("desc"), params,
-                 "이전과 다른 표현으로 써 주세요." if body.get("again") else ""))
     try:
-        r = httpx.post("https://api.anthropic.com/v1/messages", timeout=60, headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
-                       json={"model": config.chat_model(), "max_tokens": 400, "messages": [{"role": "user", "content": prompt}]})
-        r.raise_for_status()
-        text = "".join(b.get("text", "") for b in r.json()["content"] if b["type"] == "text").strip()
-    except httpx.HTTPError as e:
-        return fail(502, "Claude API 호출에 실패했습니다. (%s)" % type(e).__name__)
-    return ok({"desc": text})
+        text = llm.complete(*rewrite_prompt(tool, body.get("desc"), bool(body.get("again"))))
+    except llm.LlmError as e:
+        return fail(e.status, str(e))
+    return ok({"desc": llm.clean(text)})
 
 
 @router.get("/{tool_id}/")

@@ -64,7 +64,7 @@ BUDGETS = {
 
 CODES = {
     "PO_STTS": [("10", "작성"), ("20", "승인대기"), ("30", "승인"), ("90", "취소")],
-    "PR_STTS": [("10", "요청"), ("20", "승인"), ("30", "발주 완료")],
+    "PR_STTS": [("10", "요청"), ("20", "승인"), ("30", "발주 완료"), ("40", "마감")],
     "PAY_TERM": [("10", "현금"), ("30", "30일"), ("60", "60일")],
 }
 
@@ -146,6 +146,7 @@ class LegacyDb:
         self.po_seq = 0
         self.pr_seq = 0
         self.draft = None  # type: Optional[Dict[str, str]]
+        self.closed = set()  # type: set  # 마감 처리한 구매요청 번호
 
     def list_pos(self, from_dt: str, to_dt: str, vend_cd: str, stts_cd: str) -> List[Po]:
         """조건은 빈 값이면 걸지 않는다. 최근 발주가 먼저 온다."""
@@ -177,6 +178,16 @@ class LegacyDb:
         po.stts = "30"
         return "ok"
 
+    def close_pr(self, pr_no: str) -> str:
+        """구매요청을 마감한다. 'ok' | 'none'(없음) | 'state'(이미 마감했거나 발주가 끝남). 마감하면 상태가 '마감'(40)으로 보인다."""
+        row = next((r for r in PURCHASE_REQUESTS if r[0] == pr_no), None)
+        if row is None:
+            return "none"
+        if pr_no in self.closed or row[3] == "30":
+            return "state"
+        self.closed.add(pr_no)
+        return "ok"
+
     def next_pr_no(self) -> str:
         return "%s%04d" % (NEW_PR_PREFIX, self.pr_seq + 1)
 
@@ -187,9 +198,10 @@ def search_vendors(name: str) -> List[Dict[str, str]]:
     return [vendor_row(v) for v in VENDORS if name in v[1]]
 
 
-def list_prs(dept_cd: str, stts_cd: str) -> List[Dict[str, str]]:
+def list_prs(dept_cd: str, stts_cd: str, closed=frozenset()) -> List[Dict[str, str]]:
+    rows = [(no, title, req, "40" if no in closed else stts, dept) for no, title, req, stts, dept in PURCHASE_REQUESTS]
     return [{"PR_NO": no, "PR_TITLE": title, "REQ_NM": req, "PR_STTS_CD": stts, "DEPT_CD": dept}
-            for no, title, req, stts, dept in PURCHASE_REQUESTS
+            for no, title, req, stts, dept in rows
             if (not dept_cd or dept == dept_cd) and (not stts_cd or stts == stts_cd)]
 
 

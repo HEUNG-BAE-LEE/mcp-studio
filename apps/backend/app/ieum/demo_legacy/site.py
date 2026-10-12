@@ -15,8 +15,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 
 from app.ieum.demo_legacy import data, pages
 
-DEMO_USER_ID = "svc_ieum_crawl"
+DEMO_USER_ID = "svc_ieum_crawl"        # 구매팀 테스트 계정. 발주 승인 권한이 없다
+DEMO_APPROVER_ID = "po_manager"        # 구매팀장. 발주 승인 권한이 있다(사람이 직접 보여줄 때 쓴다)
 DEMO_PASSWORD = "demo-pass"
+USER_LABELS = {DEMO_USER_ID: pages.USER_LABEL, DEMO_APPROVER_ID: "구매팀장 (승인 권한)"}
 
 JSON_TYPE = "application/json;charset=UTF-8"
 HTML_TYPE = "text/html;charset=UTF-8"
@@ -86,25 +88,38 @@ def make_router(env: str, mount: str) -> APIRouter:
     def logged_in(request: Request) -> bool:
         return request.cookies.get("JSESSIONID") in sessions
 
-    def page(path: str, render: Callable[[Request], str]) -> None:
-        """로그인이 필요한 HTML 화면. 세션이 없으면 로그인 화면으로 보낸다."""
+    def user_of(request: Request) -> str:
+        return sessions.get(request.cookies.get("JSESSIONID", ""), "")
+
+    def page(path: str, render: Callable[[Request], str], approver: bool = False) -> None:
+        """로그인이 필요한 HTML 화면. 세션이 없으면 로그인 화면으로 보낸다. approver 면 승인 권한이 없는 계정에게 403 화면을 준다."""
         async def endpoint(request: Request) -> Response:
             if not logged_in(request):
                 return redirect("login.do")
-            return HTMLResponse(render(request), media_type=HTML_TYPE)
+            user = user_of(request)
+            token = pages.CURRENT_USER.set(USER_LABELS.get(user, pages.USER_LABEL))
+            try:
+                if approver and user != DEMO_APPROVER_ID:
+                    return HTMLResponse(pages.denied_page(env, "발주 승인"), status_code=403, media_type=HTML_TYPE)
+                return HTMLResponse(render(request), media_type=HTML_TYPE)
+            finally:
+                pages.CURRENT_USER.reset(token)
         router.add_api_route("/" + path, endpoint, methods=["GET"], include_in_schema=False, name=path)
 
-    def api(path: str, handler: Callable[[Dict[str, str]], Response], method: str = "GET") -> None:
+    def api(path: str, handler: Callable[[Dict[str, str]], Response], method: str = "GET", approver: bool = False) -> None:
         """로그인과 X-Requested-With 가 필요한 JSON 엔드포인트.
 
         세션이 없으면 XHR 이어도 302 로 로그인 화면을 준다(레거시 앱이 그렇다). 헤더가 없으면 WAF 가
         막는 흉내로 400 이다. 처리 중 예외는 어느 엔드포인트든 같은 500 본문으로 내보낸다.
+        approver 면 승인 권한이 없는 계정에게 403 이다.
         """
         async def endpoint(request: Request) -> Response:
             if not logged_in(request):
                 return redirect("login.do")
             if request.headers.get("x-requested-with", "").lower() != "xmlhttprequest":
                 return _err(400, "비정상 요청입니다.")
+            if approver and user_of(request) != DEMO_APPROVER_ID:
+                return _err(403, "승인 권한이 없습니다.")
             try:
                 return handler(await _params(request))
             except Exception:  # 공통 예외 처리기 흉내. 원인은 감춘다.
@@ -126,10 +141,10 @@ def make_router(env: str, mount: str) -> APIRouter:
     @router.post("/loginProc.do", include_in_schema=False)
     async def login_proc(request: Request) -> Response:
         p = await _params(request)
-        if p.get("userId") != DEMO_USER_ID or p.get("userPw") != DEMO_PASSWORD:
+        if p.get("userId") not in USER_LABELS or p.get("userPw") != DEMO_PASSWORD:
             return redirect("login.do?err=1")
         sid = secrets.token_hex(16).upper()
-        sessions[sid] = DEMO_USER_ID
+        sessions[sid] = p["userId"]
         res = redirect("main.do")
         res.headers.append("set-cookie", "JSESSIONID=%s; Path=%s; HttpOnly" % (sid, mount))
         return res
@@ -143,10 +158,12 @@ def make_router(env: str, mount: str) -> APIRouter:
     page("main.do", lambda request: pages.main_page(env, other_origin(request)))
     page("poListView.do", lambda request: pages.po_list_page(env))
     page("poRegView.do", lambda request: pages.po_reg_page(env))
+    page("poAprvView.do", lambda request: pages.po_aprv_page(env), approver=True)
     page("prListView.do", lambda request: pages.pr_list_page(env))
     page("prRegView.do", lambda request: pages.pr_reg_page(env, db.next_pr_no(), db.draft))
     page("vendListView.do", lambda request: pages.vend_list_page(env))
     page("statView.do", lambda request: pages.stat_page(env))
+    page("admin/sysView.do", lambda request: pages.admin_page(env))
 
     # ------------------------------------------------------------ 발주
     def po_list(p: Dict[str, str]) -> Response:
@@ -191,7 +208,7 @@ def make_router(env: str, mount: str) -> APIRouter:
     api("poList.do", po_list)
     api("poDetail.do", po_detail)
     api("poSave.do", po_save, "POST")
-    api("poApprove.do", po_approve, "POST")
+    api("poApprove.do", po_approve, "POST", approver=True)
     api("poExcelDown.do", po_excel_down)
     api("oldPoList.do", old_po_list)
 
@@ -213,7 +230,15 @@ def make_router(env: str, mount: str) -> APIRouter:
 
     # ------------------------------------------------------------ 구매요청, 예산
     def pr_list(p: Dict[str, str]) -> Response:
-        return _ok(resultList=data.list_prs(p.get("deptCd", ""), p.get("sttsCd", "")))
+        return _ok(resultList=data.list_prs(p.get("deptCd", ""), p.get("sttsCd", ""), db.closed))
+
+    def pr_close(p: Dict[str, str]) -> Response:
+        if not p.get("prNo", "").strip():
+            return _err(400, _MISSING + " (prNo)")
+        result = db.close_pr(p["prNo"].strip())
+        if result == "none":
+            return _err(404, "구매요청을 찾을 수 없습니다.")
+        return _err(409, "마감할 수 없는 상태입니다.") if result == "state" else _ok()
 
     def pr_draft_save(p: Dict[str, str]) -> Response:
         db.draft = {"title": p.get("title", ""), "content": p.get("content", "")}
@@ -236,6 +261,7 @@ def make_router(env: str, mount: str) -> APIRouter:
     api("prList.do", pr_list)
     api("prDraftSave.do", pr_draft_save, "POST")
     api("prSubmit.do", pr_submit, "POST")
+    api("prClose.do", pr_close, "POST")
     api("budgetRemain.do", budget_remain)
 
     # ------------------------------------------------------------ 공통 모듈

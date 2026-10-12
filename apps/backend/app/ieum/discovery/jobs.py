@@ -5,6 +5,7 @@
     sys  stage|note     준비, 교차 확인, 검증 같은 전체 단계와 메모
     git  stage|file     소스 분석: 저장소 복제, 프레임워크 감지, 컨트롤러 파일마다 찾은 API
     web  page|act|req|skip|done   화면 탐색: 연 화면, 누른 것, 캡처한 요청, 건너뛴 것
+    web  plan|ask|human|auto|wait|take   사람과 함께 탐색하기: 메뉴 계획, 질문, 사람의 결정, 시간이 지나 처리한 것, 기다리는 중, 직접 조작
     vfy  call           검증 호출
 
 작업 상태: scheduled → running → review(결과 검토) → done(도구 등록) / failed / cancelled / interrupted.
@@ -18,9 +19,10 @@ from typing import Dict, List, Optional
 from urllib.parse import urlsplit
 
 from app.ieum import config
-from app.ieum.discovery import merge, options, repo, scan_proc, verify
+from app.ieum.discovery import merge, options, planner, repo, scan_proc, verify
 from app.ieum.discovery.browser import BrowserUnavailable, capabilities
 from app.ieum.discovery.crawler import Crawler
+from app.ieum.discovery.hitl import Hitl
 from app.ieum.discovery.masking import Masker
 from app.ieum.discovery.policy import Policy
 from app.ieum.gateway import credentials, session_auth
@@ -31,7 +33,7 @@ from app.ieum.store import JsonStore
 store = JsonStore("discovery", "jobs")
 MAX_EVENTS = 3000
 SAVE_EVERY = 3.0
-ALWAYS_KEEP = ("page", "stage", "done", "call", "file", "act", "note")      # 이벤트가 넘쳐도 버리지 않는 종류
+ALWAYS_KEEP = ("page", "stage", "done", "call", "file", "act", "note", "plan", "ask", "human", "auto")      # 이벤트가 넘쳐도 버리지 않는 종류
 STAGES = ("src", "web", "merge", "verify", "review")
 ACTIVE = ("running",)
 
@@ -52,8 +54,10 @@ class Job:
         self.cancel = threading.Event()
         self.shot: Optional[bytes] = None
         self.crawler: Optional[Crawler] = None
+        self.hitl: Optional[Hitl] = None
         self.thread: Optional[threading.Thread] = None
         self.scan_files: List[tuple] = []
+        self.scan_hints: List[dict] = []           # 소스 분석이 지금까지 찾은 API. 화면 탐색이 위험해 보이는 버튼을 물을 때 근거로 쓴다
         self._saved_at = 0.0
 
     # ── 이벤트 ──────────────────────────────────────────────────────────────
@@ -85,6 +89,10 @@ class Job:
         if not force and time.time() - self._saved_at < SAVE_EVERY:
             return
         self._saved_at = time.time()
+        if self.hitl is not None:
+            snap = self.hitl.snapshot()                 # 락 순서: 사람과 함께 쪽을 먼저 잠그고 풀고 나서 작업을 잠근다(반대로 잠그면 서로 기다린다)
+            with self.lock:
+                self.d["hitl"] = snap
         _save_all()
 
     # ── 보기 ────────────────────────────────────────────────────────────────
@@ -104,20 +112,23 @@ class Job:
         return s
 
     def view(self, after: int = 0, limit: int = 600) -> dict:
+        hv = self.hitl.view() if self.hitl is not None else None      # 작업 락을 잡기 전에 읽는다(락 순서)
         with self.lock:
             d = self.d
             fresh = [e for e in d["events"] if e["seq"] > after]
             evs = fresh[:limit]
             out = {k: d.get(k) for k in ("id", "name", "status", "stage", "act", "opts", "error", "notes", "registered", "sourceId", "browser",
                                          "framework", "files", "createdAt", "startAt", "startedAt", "finishedAt", "shotSeq", "codeTables")}
-            out.update(events=copy.deepcopy(evs), seq=(evs[-1]["seq"] if evs else after), more=len(fresh) > limit, stats=self.stats(), elapsed=self.elapsed())
+            out.update(events=copy.deepcopy(evs), seq=(evs[-1]["seq"] if evs else after), more=len(fresh) > limit, stats=self.stats(), elapsed=self.elapsed(), hitl=hv)
             if d["status"] in ("review", "done"):
-                out["apis"] = copy.deepcopy(d["apis"])
+                out["apis"] = with_purpose(copy.deepcopy(d["apis"]), (hv or {}).get("purp") or {})
             return out
 
     def summary(self) -> dict:
         v = self.view(limit=0)
         v.pop("events", None)
+        h = v.pop("hitl", None) or {}
+        v["hitl"] = {"level": h.get("level"), "counts": h.get("counts")}      # 목록에는 요약만. 질문과 계획은 작업을 열었을 때 받는다
         v["apiCount"] = len([a for a in self.d["apis"] if a["verify"]["k"] != "out"])
         return v
 
@@ -145,7 +156,10 @@ def _jobs() -> Dict[str, Job]:
                 if d["status"] in ACTIVE:
                     d.update(status="interrupted", error="서버가 다시 시작되어 탐색이 중단되었습니다.", finishedAt=d.get("finishedAt") or time.time())
                     d["stage"] = {k: ("fail" if v == "run" else v) for k, v in d["stage"].items()}
-                _REG["jobs"][d["id"]] = Job(d)
+                job = Job(d)
+                job.hitl = _make_hitl(job, d.get("opts") or {}, d.get("hitl"))
+                job.hitl.resolve_all(lambda q: q["def"], "end")        # 돌던 탐색이 사라졌으니 답을 기다리던 질문은 더 처리할 수 없다
+                _REG["jobs"][d["id"]] = job
         return _REG["jobs"]  # type: ignore[return-value]
 
 
@@ -156,6 +170,24 @@ def _save_all() -> None:
             with j.lock:
                 rows.append(copy.deepcopy(j.d))
         store.save(rows)
+
+
+def _make_hitl(job: Job, opts: dict, snap: Optional[dict] = None) -> Hitl:
+    """작업의 사람과 함께 탐색하기 상태. 기록(log)과 질문 알림(on_ask)은 작업의 이벤트로 흘려 화면이 폴링으로 읽게 한다."""
+    kw = dict(elapsed=job.elapsed, log=lambda kind, text: job.emit("web", kind, msg=text),
+              on_ask=lambda rec: job.emit("web", "ask", qid=rec["id"], kind=rec["kind"], msg=rec["title"], menu=rec.get("menu")))
+    if snap:
+        return Hitl.restore(snap, **kw)
+    return Hitl(level=opts.get("hitl") or "never", wait=opts.get("wait") or 120, purpose=opts.get("purpose") or "", ques=opts.get("ques") or [], **kw)
+
+
+def with_purpose(apis: List[dict], purp: dict) -> List[dict]:
+    """사람이 기입한 용도(연필)를 API 에 덮어쓴다. 열쇠는 메서드와 확장자·변수 이름을 뗀 경로다(탐색 중 요청과 합쳐진 API 를 같은 것으로 잇는다)."""
+    for a in apis:
+        p = purp.get(planner.api_key(a["m"], a["path"]))
+        if p:
+            a["use"], a["qa"], a["useBy"] = p["use"], list(p["qa"]), "human"
+    return apis
 
 
 def get(job_id: str) -> Job:
@@ -171,7 +203,8 @@ def list_jobs() -> List[dict]:
 
 
 def environment() -> dict:
-    return {"capabilities": capabilities(), "defaults": {"ban": options.default_ban(), "maxPages": 50, "frameworks": list(options.FRAMEWORKS)}}
+    return {"capabilities": capabilities(), "defaults": {"ban": options.default_ban(), "maxPages": 50, "frameworks": list(options.FRAMEWORKS),
+                                                         "hitl": "ambig", "wait": 120, "maxQuestions": options.MAX_QUESTIONS}}
 
 
 # ── 시작 ────────────────────────────────────────────────────────────────────
@@ -182,7 +215,9 @@ def _new(opts: dict, name: str) -> Job:
          "sourceId": None, "recipe": None, "browser": "", "framework": "", "files": 0, "codeTables": 0, "shotSeq": 0,
          "stats": {"pages": 0, "requests": 0, "blocked": 0, "skipped": 0, "controllers": 0, "masked": 0, "found": 0, "both": 0, "src": 0, "tr": 0},
          "stage": {"src": "skip" if not opts["git"] else "wait", "web": "skip" if not opts["crawl"] else "wait", "merge": "wait", "verify": "wait", "review": "wait"}}
-    return Job(d)
+    job = Job(d)
+    job.hitl = _make_hitl(job, opts)
+    return job
 
 
 def start(raw: dict) -> Job:
@@ -338,6 +373,7 @@ def _run(job: Job) -> None:
         if job.cancel.is_set():
             return _finish(job, "cancelled")
         merge.finalize(apis, masker)
+        _annotate(job, apis, o)
 
         d["apis"] = [_public(a) for a in apis]
         d["stats"].update(_final_stats(job, crawl_res, merged, masker, apis))
@@ -346,6 +382,20 @@ def _run(job: Job) -> None:
         _finish(job, "review")
     except Exception as exc:
         _finish(job, "failed", error=f"탐색 중 오류가 났습니다. ({type(exc).__name__}: {str(exc)[:200]})")
+
+
+def _annotate(job: Job, apis: List[dict], o: dict) -> None:
+    """찾은 API 마다 용도와 이어지는 질문을 붙인다. 목적도 질문도 없으면 제목에 읽기/쓰기만 붙인다."""
+    purpose, ques = o.get("purpose") or "", o.get("ques") or []
+    if purpose or ques:
+        job.emit("sys", "note", msg="API 마다 용도와 이어지는 질문을 정하고 있습니다")          # AI 가 정하면 API 수에 따라 몇 초에서 수십 초 걸린다
+    plan = [dict(p) for p in job.hitl.plan] if job.hitl else None
+    by = planner.annotate(apis, purpose, ques, plan)
+    for a in apis:
+        a["key"] = planner.api_key(a["m"], a["path"])                   # 용도를 기입할 때 어떤 API 인지 가리키는 열쇠
+    if purpose or ques:
+        job.emit("sys", "note", msg="AI(GPT)가 API 용도와 질문 연결을 정했습니다. 연필로 직접 고칠 수 있습니다" if by == "ai"
+                 else "API 용도와 질문 연결은 이름과 낱말이 겹치는 정도로 추정했습니다. 연필로 직접 고칠 수 있습니다")
 
 
 def _finish(job: Job, status: str, error: Optional[str] = None) -> None:
@@ -372,6 +422,7 @@ def _scan(job: Job, o: dict, sec: dict, out: dict) -> None:
             if info.deprecated:
                 notes.append(f"@Deprecated {info.deprecated}개")
             job.scan_files.append((info.file, {merge._stem(e.path) for e in api}))
+            job.scan_hints.extend({"title": e.title, "method": e.method, "path": e.path, "mode": e.mode} for e in api if e.title)
             job.emit("git", "file", f=info.file.rsplit("/", 1)[-1], dir=info.file, apis=[{"m": e.method or "", "path": e.path, "dep": e.deprecated} for e in api],
                      note=", ".join(notes))
 
@@ -395,7 +446,7 @@ def _scan(job: Job, o: dict, sec: dict, out: dict) -> None:
 def _crawl(job: Job, o: dict, sec: dict, policy: Policy, out: dict) -> None:
     job.stage(web="run")
     try:
-        crawler = Crawler(policy, o["start"], sec, emit=job.emit, on_shot=job.set_shot, cancelled=job.cancel.is_set)
+        crawler = Crawler(policy, o["start"], sec, emit=job.emit, on_shot=job.set_shot, cancelled=job.cancel.is_set, hitl=job.hitl, hints=lambda: list(job.scan_hints))
         job.crawler = crawler
         res = crawler.run()
         out["crawl"] = res
@@ -442,6 +493,9 @@ def _final_stats(job: Job, crawl_res, merged: dict, masker: Masker, apis: List[d
              stgVerified=len([a for a in apis if a["verify"]["k"] in ("stg", "stgerr")]))
     if crawl_res:
         s.update(pages=len(crawl_res.pages), requests=crawl_res.total, blocked=crawl_res.blocked, skipped=len(crawl_res.skipped))
+    if job.hitl is not None:
+        c = job.hitl.counts()
+        s.update(nHuman=c["human"], nAuto=c["auto"], nTake=c["take"])
     return s
 
 
@@ -458,16 +512,24 @@ def _slug(name: str, taken: set, fallback: str = "") -> str:
     return sid
 
 
-def _tool(a: dict, job_id: str) -> dict:
+def _desc_with_questions(desc: str, a: dict, ques: List[str]) -> str:
+    """도구 설명 끝에 이 도구로 답할 질문 예시를 붙인다. AI 가 언제 이 도구를 골라야 하는지 알려 주는 문장이다."""
+    qs = [f'"{ques[i]}"' for i in a.get("qa") or [] if 0 <= i < len(ques)]
+    return f"{desc} {', '.join(qs)} 같은 질문에 답할 때 씁니다.".strip() if qs else desc
+
+
+def _tool(a: dict, job_id: str, ques: Optional[List[str]] = None) -> dict:
     only_tr = a["ev"] == "tr"
     res = copy.deepcopy(a["res"])
     if only_tr or not res:
         for r in res:
             r["guess"] = 1
     src, tr = a.get("src"), a.get("tr")
-    return {"id": a["tool"], "method": a["m"], "path": a["path"], "title": a["title"], "status": "review", "mode": a["mode"], "desc": a["desc"],
+    return {"id": a["tool"], "method": a["m"], "path": a["path"], "title": a["title"], "status": "review", "mode": a["mode"],
+            "desc": _desc_with_questions(a["desc"], a, ques or []),
             "confirmQ": a.get("confirmQ"), "params": copy.deepcopy(a["params"]), "res": res, "guess": 1 if (only_tr or not res) else 0,
             "disc": {"job": job_id, "id": a["id"], "ev": a["ev"], "verify": a["verify"], "rec": a["rec"], "recNote": a["recNote"],
+                     "use": a.get("use") or "", "qa": list(a.get("qa") or []), "human": bool(a.get("human")),
                      "src": {"file": src["file"], "line": src["line"], "fn": src["fn"], "sql": src["sql"], "mapper": src["mapper"]} if src else None,
                      "tr": {"screen": tr["screen"], "samples": tr["samples"]} if tr else None}}
 
@@ -482,7 +544,8 @@ def register(job_id: str, api_ids: List[str]) -> dict:
     d, o = job.d, job.d["opts"]
     if d["status"] not in ("review", "done"):
         raise JobError("탐색이 끝난 뒤에 등록할 수 있습니다.")
-    chosen = [a for a in d["apis"] if a["id"] in set(api_ids) and a["tool"]]
+    apis = with_purpose(copy.deepcopy(d["apis"]), job.hitl.view()["purp"] if job.hitl else {})   # 사람이 기입한 용도가 도구 설명에 들어간다
+    chosen = [a for a in apis if a["id"] in set(api_ids) and a["tool"]]
     if not chosen:
         raise JobError("도구로 만들 수 있는 API 를 하나 이상 골라 주세요.")
     sources = src_repo.list_sources()
@@ -495,7 +558,7 @@ def register(job_id: str, api_ids: List[str]) -> dict:
     for a in chosen:
         if a["id"] in have:
             continue
-        t = _tool(a, job_id)
+        t = _tool(a, job_id, o.get("ques") or [])
         if t["id"] in taken:                                      # 도구 이름은 전체에서 유일해야 AI 가 구분한다
             t["id"] = f"{t['id']}_{sid.replace('-', '_')}"
         taken.add(t["id"])
@@ -517,3 +580,17 @@ def register(job_id: str, api_ids: List[str]) -> dict:
         d["stage"]["review"] = "done"
     job.save(force=True)
     return {"source": saved_src, "tools": saved, "added": len(new), "loginKnown": bool(d.get("recipe"))}
+
+
+# ── 사람과 함께 탐색하기: 화면이 쓰는 조회 ──────────────────────────────────
+
+def pending() -> dict:
+    """답을 기다리는 질문이 있는 탐색들. 헤더의 알림 표시가 폴링한다."""
+    rows = []
+    for j in list(_jobs().values()):
+        if j.d["status"] not in ACTIVE or j.hitl is None:
+            continue
+        ps = j.hitl.pending()
+        if ps:
+            rows.append({"id": j.d["id"], "name": j.d["name"], "count": len(ps), "title": ps[0]["title"], "kind": ps[0]["kindLabel"]})
+    return {"count": sum(r["count"] for r in rows), "jobs": rows}

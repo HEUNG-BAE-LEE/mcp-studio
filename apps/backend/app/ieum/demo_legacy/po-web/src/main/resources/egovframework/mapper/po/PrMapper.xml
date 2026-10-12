@@ -36,4 +36,14 @@
            AND STTS_CD = 'D'
     </update>
 
+    <!-- 구매요청 마감 (상태 S, A → C) -->
+    <update id="updatePrClose">
+        UPDATE TB_PR
+           SET STTS_CD = 'C'
+             , CLOSE_RSN = #{closeRsn}
+             , CLOSE_DT = SYSDATE
+         WHERE PR_NO = #{prNo}
+           AND STTS_CD IN ('S', 'A')
+    </update>
+
 </mapper>

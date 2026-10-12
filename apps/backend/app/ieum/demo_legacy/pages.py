@@ -2,6 +2,7 @@
 
 링크는 전부 상대 경로다(`main.do`). 화면은 `<마운트>/xxx.do` 에 있어 어느 마운트(운영/스테이징)에서도 그대로 풀린다.
 """
+import contextvars
 import html
 import json
 from typing import Dict, Optional
@@ -11,9 +12,11 @@ from app.ieum.demo_legacy import assets, data
 SYSTEM_NAME = "구매관리시스템"
 USER_LABEL = "구매팀 테스트계정"
 MENU = [
-    ("main.do", "메인"), ("poListView.do", "발주 현황"), ("poRegView.do", "발주 등록"),
-    ("prListView.do", "구매요청"), ("vendListView.do", "거래처 관리"), ("statView.do", "통계"),
+    ("main.do", "메인"), ("poListView.do", "발주 현황"), ("poRegView.do", "발주 등록"), ("poAprvView.do", "발주 승인"),
+    ("prListView.do", "구매요청"), ("vendListView.do", "거래처 관리"), ("statView.do", "통계"), ("admin/sysView.do", "시스템 관리"),
 ]
+# 지금 화면을 그리는 요청의 사용자 이름표. 사이트가 요청마다 정해 준다(로그인 계정마다 위 칸의 표시가 다르다).
+CURRENT_USER = contextvars.ContextVar("current_user", default=USER_LABEL)
 ERR_LOGIN = "아이디 또는 비밀번호가 올바르지 않습니다."
 
 
@@ -38,7 +41,7 @@ def layout(env: str, title: str, body: str, script: str = "", active: str = "") 
     """로그인한 사용자가 보는 공통 틀: 상단 바(시스템명, 사용자, 로그아웃), 상단 메뉴, 본문."""
     top = "".join([
         '<div id="topbar"%s><span class="sysnm">%s</span>' % (' class="stg"' if env == "stg" else "", system_name(env)),
-        '<span class="user">%s <a href="logout.do">로그아웃</a></span></div>\n' % USER_LABEL,
+        '<span class="user">%s <a href="logout.do">로그아웃</a></span></div>\n' % html.escape(CURRENT_USER.get()),
         '<div id="menu">%s</div>\n' % " ".join('<a href="%s">%s</a>' % item for item in MENU),
     ])
     return _document(env, title, top, body, assets.COMMON_JS + script, active)
@@ -102,7 +105,7 @@ def po_reg_page(env: str) -> str:
     body = """<h2>발주 등록</h2>
 <div class="box">
 <b>1. 거래처</b><br>
-거래처명 <input id="vendNm" value="한빛"> <button type="button" id="btnVend">찾기</button>
+거래처명 <input id="vendNm" value=""> <button type="button" id="btnVend">찾기</button>
 <div id="vendResult" class="info"></div>
 선택한 거래처: <span id="vendSel">-</span>
 </div>
@@ -128,7 +131,7 @@ def po_reg_page(env: str) -> str:
 
 def pr_list_page(env: str) -> str:
     body = """<h2>구매요청함</h2>
-<p><a class="btn" href="prRegView.do">요청 작성</a></p>
+<p><a class="btn" href="prRegView.do">요청 작성</a> <button type="button" id="btnClose">마감 처리</button></p>
 <div id="msg" class="err"></div>
 <table id="prTable" class="list">
 <thead><tr><th>요청번호</th><th>제목</th><th>요청자</th><th>상태</th></tr></thead>
@@ -178,3 +181,27 @@ def stat_page(env: str) -> str:
 <tbody></tbody>
 </table>"""
     return layout(env, "통계", body, assets.STAT_JS, "statView.do")
+
+
+def po_aprv_page(env: str) -> str:
+    """발주 승인. 승인 권한이 있는 계정에게만 열린다."""
+    body = """<h2>승인 대기 발주</h2>
+<div id="msg" class="err"></div>
+<table id="aprvTable" class="list">
+<thead><tr><th>발주번호</th><th>거래처</th><th>발주금액(원)</th><th>승인</th></tr></thead>
+<tbody><tr><td colspan="4" class="c">불러오는 중입니다.</td></tr></tbody>
+</table>"""
+    return layout(env, "발주 승인", body, assets.PO_APRV_JS, "poAprvView.do")
+
+
+def denied_page(env: str, title: str) -> str:
+    """권한이 없는 계정이 연 화면(HTTP 403)."""
+    body = """<h2>%s</h2>
+<div class="box err"><b>403 접근 권한이 없습니다</b><br>%s 메뉴는 구매팀장 이상만 사용할 수 있습니다.</div>""" % (html.escape(title), html.escape(title))
+    return layout(env, title, body, "", "poAprvView.do")
+
+
+def admin_page(env: str) -> str:
+    body = """<h2>시스템 관리</h2>
+<p class="info">사용자와 권한, 코드를 관리하는 화면입니다. 관리자만 사용합니다.</p>"""
+    return layout(env, "시스템 관리", body, "", "admin/sysView.do")

@@ -16,12 +16,12 @@ XHR = {"X-Requested-With": "XMLHttpRequest"}
 JSON_TYPE = "application/json;charset=UTF-8"
 FORM_OK = dict(vendCd="V0012", itemCd="P-10023", qty="3", unitPrice="12,500")
 
-PAGES = ["main.do", "poListView.do", "poRegView.do", "prListView.do", "prRegView.do", "vendListView.do", "statView.do"]
+PAGES = ["main.do", "poListView.do", "poRegView.do", "prListView.do", "prRegView.do", "vendListView.do", "statView.do", "admin/sysView.do"]
 GET_APIS = [
     "poList.do", "poDetail.do?poNo=PO-2609-0142", "poExcelDown.do", "oldPoList.do", "vendList.do", "itemPrice.do?itemCd=P-10023",
     "prList.do", "budgetRemain.do?deptCd=D1030&yyyy=2026", "chart/monthly.do?yyyy=2026", "common/codeList.do?grpCd=PO_STTS",
 ]
-POST_APIS = ["poSave.do", "poApprove.do", "prDraftSave.do", "prSubmit.do"]
+POST_APIS = ["poSave.do", "poApprove.do", "prDraftSave.do", "prSubmit.do", "prClose.do"]
 
 
 def login(client, base=OP, user=site.DEMO_USER_ID, pw=site.DEMO_PASSWORD):
@@ -36,9 +36,9 @@ def session_id(response):
 class Env:
     """한 환경(운영/스테이징)에 로그인한 채 JSON 엔드포인트와 화면을 부르는 도우미."""
 
-    def __init__(self, client, base):
+    def __init__(self, client, base, user=site.DEMO_USER_ID):
         self.client, self.base = client, base
-        assert login(client, base).status_code == 302
+        assert login(client, base, user).status_code == 302
 
     def get(self, path, **params):
         return self.client.get(self.base + "/" + path, params=params, headers=XHR)
@@ -70,6 +70,17 @@ def op(client):
 @pytest.fixture
 def stg(client):
     return Env(client, STG)
+
+
+@pytest.fixture
+def mgr(client):
+    """승인 권한이 있는 구매팀장으로 로그인한 운영. 발주 승인은 이 계정만 한다."""
+    return Env(client, OP, site.DEMO_APPROVER_ID)
+
+
+@pytest.fixture
+def mgr_stg(client):
+    return Env(client, STG, site.DEMO_APPROVER_ID)
 
 
 # ---------------------------------------------------------------- 로그인과 세션
@@ -225,17 +236,25 @@ def test_poSave는_쿼리와_본문을_합쳐_읽고_JSON_본문은_읽지_않�
     assert op.client.post(OP + "/poSave.do", json=FORM_OK, headers=XHR).status_code == 400  # 스프링 form 바인딩은 JSON 본문을 보지 않는다
 
 
-def test_poApprove는_승인대기만_승인으로_바꾼다(op):
-    r = op.post("poApprove.do", poNo="PO-2609-0142")
+def test_poApprove는_승인대기만_승인으로_바꾼다(mgr):
+    r = mgr.post("poApprove.do", poNo="PO-2609-0142")
     assert r.status_code == 200 and r.json() == {"RSLT": "0000"}
-    assert op.get("poDetail.do", poNo="PO-2609-0142").json()["po"]["PO_STTS_CD"] == "30"
-    again = op.post("poApprove.do", poNo="PO-2609-0142")
+    assert mgr.get("poDetail.do", poNo="PO-2609-0142").json()["po"]["PO_STTS_CD"] == "30"
+    again = mgr.post("poApprove.do", poNo="PO-2609-0142")
     assert again.status_code == 409 and again.json() == {"RSLT": "E409", "MSG": "승인할 수 없는 상태입니다."}
     for po_no in ("PO-2609-0131", "PO-2609-0138", "PO-2609-0119"):  # 작성, 승인, 취소
-        assert op.post("poApprove.do", poNo=po_no).status_code == 409
-    missing = op.post("poApprove.do", poNo="PO-0000-0000")
+        assert mgr.post("poApprove.do", poNo=po_no).status_code == 409
+    missing = mgr.post("poApprove.do", poNo="PO-0000-0000")
     assert missing.status_code == 404 and missing.json() == {"RSLT": "E404", "MSG": "발주를 찾을 수 없습니다."}
-    assert op.post("poApprove.do").status_code == 400
+    assert mgr.post("poApprove.do").status_code == 400
+
+
+def test_승인_권한이_없는_계정은_발주를_승인할_수_없다(op, mgr_stg):
+    r = op.post("poApprove.do", poNo="PO-2609-0142")
+    assert r.status_code == 403 and r.json() == {"RSLT": "E403", "MSG": "승인 권한이 없습니다."} and r.headers["content-type"] == JSON_TYPE
+    assert op.get("poDetail.do", poNo="PO-2609-0142").json()["po"]["PO_STTS_CD"] == "20"      # 상태는 그대로다
+    assert op.post("poApprove.do").status_code == 403                                           # 값이 비어도 권한이 먼저다
+    assert mgr_stg.post("poApprove.do", poNo="PO-2609-0142").status_code == 200
 
 
 def test_poExcelDown은_xlsx_파일_응답이다(op):
@@ -322,7 +341,7 @@ def test_common_codeList는_그룹별_코드를_주고_없는_그룹은_빈_목�
         assert r.status_code == 200 and r.json()["RSLT"] == "0000"
         return [(x["CD"], x["CD_NM"]) for x in r.json()["resultList"]]
     assert pairs("PO_STTS") == [("10", "작성"), ("20", "승인대기"), ("30", "승인"), ("90", "취소")]
-    assert pairs("PR_STTS") == [("10", "요청"), ("20", "승인"), ("30", "발주 완료")]
+    assert pairs("PR_STTS") == [("10", "요청"), ("20", "승인"), ("30", "발주 완료"), ("40", "마감")]
     assert pairs("PAY_TERM") == [("10", "현금"), ("30", "30일"), ("60", "60일")]
     assert pairs("NOPE") == [] and pairs("") == []
 
@@ -338,7 +357,8 @@ def test_처리_중_예외는_엔드포인트가_달라도_같은_500_본문이�
 
 
 # ---------------------------------------------------------------- 운영/스테이징 격리
-def test_운영에서_바꾼_상태는_스테이징에_없다(op, stg):
+def test_운영에서_바꾼_상태는_스테이징에_없다(mgr, mgr_stg):
+    op, stg = mgr, mgr_stg
     assert op.post("poSave.do", **FORM_OK).json()["PO_NO"] == "PO-2610-0001"
     assert "PO-2610-0001" in op.po_nos() and len(op.po_nos()) == 9
     assert "PO-2610-0001" not in stg.po_nos() and len(stg.po_nos()) == 8
@@ -348,6 +368,9 @@ def test_운영에서_바꾼_상태는_스테이징에_없다(op, stg):
     assert stg.post("poApprove.do", poNo="PO-2609-0142").status_code == 200  # 스테이징에서는 아직 승인대기였다
     op.post("prDraftSave.do", title="운영초안", content="x")
     assert "운영초안" in op.page("prRegView.do").text and "운영초안" not in stg.page("prRegView.do").text
+    op.post("prClose.do", prNo="PR-2609-0088")
+    assert {r["PR_NO"]: r["PR_STTS_CD"] for r in op.get("prList.do", deptCd="D1030").json()["resultList"]}["PR-2609-0088"] == "40"
+    assert {r["PR_NO"]: r["PR_STTS_CD"] for r in stg.get("prList.do", deptCd="D1030").json()["resultList"]}["PR-2609-0088"] == "10"
 
 
 def test_운영_쿠키로는_스테이징에_들어갈_수_없다(client):
@@ -369,12 +392,14 @@ def test_reset은_상태와_세션을_초기값으로_되돌린다():
     app = FastAPI()
     app.include_router(router, prefix=OP)
     client = TestClient(app, follow_redirects=False)
-    env = Env(client, OP)
+    env = Env(client, OP, site.DEMO_APPROVER_ID)
     env.post("poSave.do", **FORM_OK)
     env.post("poApprove.do", poNo="PO-2609-0142")
+    env.post("prClose.do", prNo="PR-2609-0088")
     router.reset()
     assert client.get(OP + "/main.do").status_code == 302  # 세션이 지워졌다
     env = Env(client, OP)
+    assert env.get("prList.do", deptCd="D1030").json()["resultList"][0]["PR_STTS_CD"] == "10"      # 마감도 되돌아간다
     assert len(env.po_nos()) == 8
     assert env.get("poDetail.do", poNo="PO-2609-0142").json()["po"]["PO_STTS_CD"] == "20"
     assert env.post("poSave.do", **FORM_OK).json()["PO_NO"] == "PO-2610-0001"
@@ -383,10 +408,10 @@ def test_reset은_상태와_세션을_초기값으로_되돌린다():
 # ---------------------------------------------------------------- 화면
 SCREEN_TITLES = {
     "main.do": "월별 발주 현황", "poListView.do": "발주 현황", "poRegView.do": "발주 등록", "prListView.do": "구매요청함",
-    "prRegView.do": "구매요청 작성", "vendListView.do": "거래처 관리", "statView.do": "통계",
+    "prRegView.do": "구매요청 작성", "vendListView.do": "거래처 관리", "statView.do": "통계", "admin/sysView.do": "시스템 관리",
 }
-MENU = ('<a href="main.do">메인</a> <a href="poListView.do">발주 현황</a> <a href="poRegView.do">발주 등록</a> '
-        '<a href="prListView.do">구매요청</a> <a href="vendListView.do">거래처 관리</a> <a href="statView.do">통계</a>')
+MENU = ('<a href="main.do">메인</a> <a href="poListView.do">발주 현황</a> <a href="poRegView.do">발주 등록</a> <a href="poAprvView.do">발주 승인</a> '
+        '<a href="prListView.do">구매요청</a> <a href="vendListView.do">거래처 관리</a> <a href="statView.do">통계</a> <a href="admin/sysView.do">시스템 관리</a>')
 # 화면별로 (있어야 하는 요소, 화면 JS 가 부르는 요청 문자열)
 SCREEN_PARTS = {
     "main.do": ([], ["chart/monthly.do?yyyy=2026", "common/codeList.do?grpCd=PO_STTS", "fetch(OTHER + '/demo-legacy/sso/userInfo.do')"]),
@@ -397,10 +422,11 @@ SCREEN_PARTS = {
          '<table id="poTable"', "<tbody>", 'onclick="openDetail(', 'style="cursor:pointer"'],
         ["poList.do?fromDt=", "'&vendCd='", "'&sttsCd='", "poDetail.do?poNo=", "common/codeList.do?grpCd=PAY_TERM"]),
     "poRegView.do": (
-        ['<input id="vendNm" value="한빛">', '<button type="button" id="btnVend">찾기</button>', '<button type="button" class="pick">품목 선택</button>',
+        ['<input id="vendNm" value="">', '<button type="button" id="btnVend">찾기</button>', '<button type="button" class="pick">품목 선택</button>',
          '<button type="button" id="btnSave">저장</button>', '<a href="poListView.do">취소</a>', 'data-item-cd="P-10023" data-vend-cd="V0012"'],
-        ["vendList.do?vendNm=", "itemPrice.do?itemCd=", "'&vendCd='", "poSave.do"]),
-    "prListView.do": (['<a class="btn" href="prRegView.do">요청 작성</a>'], ["prList.do?deptCd=D1030&sttsCd=10", "common/codeList.do?grpCd=PR_STTS"]),
+        ["vendList.do?vendNm=", "itemPrice.do?itemCd=", "'&vendCd='", "poSave.do", "alert('거래처명을 입력하세요.')"]),
+    "prListView.do": (['<a class="btn" href="prRegView.do">요청 작성</a>', '<button type="button" id="btnClose">마감 처리</button>'],
+                      ["prList.do?deptCd=D1030&sttsCd=10", "common/codeList.do?grpCd=PR_STTS", "prClose.do", "confirm('선택한 구매요청을 마감 처리하시겠습니까?')"]),
     "prRegView.do": (
         ['<input id="title">', '<textarea id="content">', '<button type="button" id="btnBudget">예산 확인</button>', '<button type="button" id="btnSubmit">요청 전송</button>'],
         ["budgetRemain.do?deptCd=D1030&yyyy=2026", "prDraftSave.do", "prSubmit.do",
@@ -422,7 +448,7 @@ def test_화면은_공통_틀과_h2_하나를_가진다(op, path, title):
     assert "<style>" in html and "<script>" in html
     assert not re.search(r'<script[^>]*\ssrc=|<link[^>]*rel="stylesheet"|(?:src|href)="https?:|@import|url\(\s*https?:', html)  # 오프라인에서 뜬다
     assert "X-Requested-With" in html and "XMLHttpRequest" in html  # 화면 JS 가 헤더를 붙인다
-    for source_only in ("poExcelDown", "poApprove", "oldPoList"):  # 소스에만 있는 API 는 화면이 가리키지 않는다
+    for source_only in ("poExcelDown", "poApprove.do", "oldPoList"):  # 소스에만 있는 API 는 화면이 가리키지 않는다
         assert source_only not in html
     # 공통 틀의 id 와 화면 요소의 id 가 겹치면 getElementById 가 엉뚱한 요소를 돌려준다(textarea#content 가 그랬다)
     ids = re.findall(r'\bid="([^"]+)"', html)
@@ -484,7 +510,7 @@ def test_라우터는_운영과_스테이징을_접두사에_붙이고_reset이_
     assert demo_legacy.router.tags == ["ieum-demo-legacy"]
     op = Env(wired, OP)
     assert wired.get(STG + "/main.do").status_code == 302  # 운영에만 로그인했다
-    stg = Env(wired, STG)
+    stg = Env(wired, STG, site.DEMO_APPROVER_ID)
     op.post("poSave.do", **FORM_OK)
     stg.post("poApprove.do", poNo="PO-2609-0142")
     demo_legacy.reset()
@@ -497,3 +523,45 @@ def test_레거시_사이트는_OpenAPI에_드러나지_않는다(wired):
     # 실제 레거시 사이트에는 명세가 없다. 앱의 /openapi.json 이 소스에만 있는 API 를 알려주면 안 된다.
     paths = wired.get("/openapi.json").json()["paths"]
     assert not [p for p in paths if p.startswith("/demo-legacy")]
+
+
+# ---------------------------------------------------------------- 승인 권한, 마감, 시스템 관리
+def test_계정마다_화면_위쪽에_자기_이름표가_보인다(client):
+    for user, label in ((site.DEMO_USER_ID, "구매팀 테스트계정"), (site.DEMO_APPROVER_ID, "구매팀장 (승인 권한)")):
+        Env(client, OP, user)
+        assert label in client.get(OP + "/main.do").text, user
+    assert login(client, OP, site.DEMO_APPROVER_ID, "틀림").status_code == 302 and "set-cookie" not in login(client, OP, site.DEMO_APPROVER_ID, "틀림").headers
+
+
+def test_발주_승인_화면은_권한이_없으면_403_있으면_승인_대기_표를_연다(op):
+    denied = op.page("poAprvView.do")
+    assert denied.status_code == 403 and denied.headers["content-type"] == "text/html;charset=UTF-8"
+    assert "<h2>발주 승인</h2>" in denied.text and "403 접근 권한이 없습니다" in denied.text and "구매팀장 이상만 사용할 수 있습니다" in denied.text
+    assert MENU in denied.text and "구매팀 테스트계정" in denied.text and "poApprove.do" not in denied.text      # 틀은 그대로, 승인 기능은 싣지 않는다
+    opened = Env(op.client, OP, site.DEMO_APPROVER_ID).page("poAprvView.do")           # 같은 브라우저에서 구매팀장으로 다시 로그인한다
+    assert opened.status_code == 200 and "<h2>승인 대기 발주</h2>" in opened.text and 'id="aprvTable"' in opened.text and "구매팀장 (승인 권한)" in opened.text
+    assert "poList.do?sttsCd=20" in opened.text and "postForm('poApprove.do'" in opened.text and 'class="approve"' in opened.text
+
+
+def test_발주_승인_화면은_로그인이_필요하다(client):
+    r = client.get(OP + "/poAprvView.do")
+    assert r.status_code == 302 and r.headers["location"] == OP + "/login.do"
+
+
+def test_prClose는_구매요청을_마감하고_목록에_마감으로_보인다(op):
+    def status(no):
+        return {r["PR_NO"]: r["PR_STTS_CD"] for r in op.get("prList.do").json()["resultList"]}[no]
+    assert status("PR-2609-0088") == "10"
+    r = op.post("prClose.do", prNo="PR-2609-0088")
+    assert r.status_code == 200 and r.json() == {"RSLT": "0000"} and status("PR-2609-0088") == "40"
+    assert op.post("prClose.do", prNo="PR-2609-0088").status_code == 409                                       # 이미 마감
+    assert op.post("prClose.do", prNo="PR-2609-0066").status_code == 409                                       # 발주가 끝난 요청
+    again = op.post("prClose.do", prNo="PR-0000-0000")
+    assert again.status_code == 404 and again.json() == {"RSLT": "E404", "MSG": "구매요청을 찾을 수 없습니다."}
+    assert op.post("prClose.do").status_code == 400
+    assert ("40", "마감") in [(c["CD"], c["CD_NM"]) for c in op.get("common/codeList.do", grpCd="PR_STTS").json()["resultList"]]
+
+
+def test_시스템_관리_화면은_제외_경로_시험용으로_admin_아래에_있다(op):
+    r = op.page("admin/sysView.do")
+    assert r.status_code == 200 and "<h2>시스템 관리</h2>" in r.text

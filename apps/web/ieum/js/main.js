@@ -9,8 +9,7 @@ function render() {
   $('#view').innerHTML = VFN[S.view]();
   if (S.view === 'play') { renderChat(); renderTrace(); }
   try { localStorage.setItem('ieum.view', S.view === 'disc' ? 'src' : S.view); } catch (e) {}
-  if (S.view === 'disc' && S.disc && $('#bwImg')) discBrowserPatch(S.disc);
-  if (S.view === 'disc' && S.disc && S.disc.phase === 'running') { const nl = $('#netlog'); if (nl) nl.scrollTop = nl.scrollHeight; }
+  if (S.view === 'disc') discAfterRender();
 }
 const go = v => { S.view = v; render(); window.scrollTo({ top:0 }); const n = $('#nav .on'); n && n.scrollIntoView({ inline:'nearest', block:'nearest' }); };
 const curTool = () => TOOL[S.tool];
@@ -63,5 +62,5 @@ $$('[data-ico]').forEach(el => el.insertAdjacentHTML('afterbegin', svg(el.datase
 $('#logoMark').innerHTML = MARK(26);
 
 document.body.setAttribute('aria-busy', 'true');
-loadAll().then(() => { document.body.removeAttribute('aria-busy'); $('#wsCompany').textContent = WS.company; $('#wsUser').textContent = WS.user; $('#wsAvatar').textContent = (WS.user || '?').slice(0, 1); render(); refreshDash(); })
+loadAll().then(() => { document.body.removeAttribute('aria-busy'); $('#wsCompany').textContent = WS.company; $('#wsUser').textContent = WS.user; $('#wsAvatar').textContent = (WS.user || '?').slice(0, 1); render(); refreshDash(); startBell(); })
   .catch(e => { $('#view').innerHTML = `<div class="md-empty" style="margin:40px">서버에서 데이터를 불러오지 못했습니다. ${esc(e.message)}</div>`; });

@@ -5,6 +5,7 @@
 """
 import contextlib
 import os
+import socket
 import threading
 import time
 
@@ -154,3 +155,23 @@ def test_화면_상한에서_멈춘다(site):
     base, hits = site
     res = Crawler(Policy(base=base, delay_ms=50, max_pages=1), base + "/", None, emit=lambda *a, **k: None, on_shot=lambda b: 1, cancelled=lambda: False).run()
     assert len(res.pages) == 1 and ("GET", "/page2.html") not in reached(hits)
+
+
+def test_시간_상한에_닿았다는_알림은_한_번만_나온다(site):
+    base, _ = site
+    events = []
+    Crawler(Policy(base=base, delay_ms=50, max_seconds=0), base + "/", None, emit=lambda l, k, **f: events.append((k, f)), on_shot=lambda b: 1, cancelled=lambda: False).run()
+    # 한 화면 안에서 한 번, 화면 사이에서 한 번 물어도 알림은 하나다(예전에는 같은 문장이 두 번 보였다)
+    assert [f["msg"] for k, f in events if k == "note" and "상한" in f.get("msg", "")] == ["시간 상한(0초)에 도달해 멈춥니다"]
+
+
+def test_시작_화면이_열리지_않으면_이유를_알려_준다(monkeypatch):
+    """접속은 받고 응답은 주지 않는 서버. 예전에는 "Page.goto: Timeout 30000ms exceeded." 만 보였다."""
+    from app.ieum.discovery import crawler
+    monkeypatch.setattr(crawler, "GOTO_TIMEOUT_MS", 2000)
+    with socket.socket() as blackhole:
+        blackhole.bind(("127.0.0.1", 0))
+        blackhole.listen(8)
+        url = f"http://127.0.0.1:{blackhole.getsockname()[1]}/"
+        res = Crawler(Policy(base=url, delay_ms=50), url, None, emit=lambda *a, **k: None, on_shot=lambda b: 1, cancelled=lambda: False).run()
+    assert res.stopped == "error" and res.error.startswith("시작 페이지를 2초 안에 열지 못했습니다") and "Timeout" not in res.error

@@ -34,4 +34,9 @@ public class PrServiceImpl implements PrService {
     public void submitPr(String prNo) throws Exception {
         prMapper.updatePrSubmit(prNo);
     }
+
+    @Override
+    public void closePr(String prNo, String closeRsn) throws Exception {
+        prMapper.updatePrClose(prNo, closeRsn);
+    }
 }
