@@ -57,8 +57,9 @@ def _update(ts_id: str, **fields) -> dict:
 
 
 def _other_ports(ts_id: str) -> set:
-    """다른 묶음이 쓰는 포트. 서버가 내려가 있어도 그 묶음 자리를 뺏지 않는다."""
-    return {x["port"] for x in repo.toolsets.load() if x["id"] != ts_id and x.get("port")}
+    """다른 묶음이 쓰는 포트. 서버가 내려가 있어도 그 묶음 자리를 뺏지 않는다. 온톨로지 서버의 포트도 뺀다."""
+    from app.ieum.onto import mcp as onto_mcp
+    return {x["port"] for x in repo.toolsets.load() if x["id"] != ts_id and x.get("port")} | onto_mcp.ports()
 
 
 def deploy(ts_id: str) -> dict:

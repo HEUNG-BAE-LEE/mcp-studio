@@ -13,7 +13,7 @@ from urllib.parse import parse_qs
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from app.ieum.demo_legacy import data, pages
+from app.ieum.demo_legacy import data, hooks, pages
 
 DEMO_USER_ID = "svc_ieum_crawl"        # 구매팀 테스트 계정. 발주 승인 권한이 없다
 DEMO_APPROVER_ID = "po_manager"        # 구매팀장. 발주 승인 권한이 있다(사람이 직접 보여줄 때 쓴다)
@@ -187,12 +187,14 @@ def make_router(env: str, mount: str) -> APIRouter:
         if not qty or not price:
             return _err(400, "수량과 단가는 1 이상의 숫자여야 합니다.")
         po = db.add_po(p["vendCd"].strip(), p["itemCd"].strip(), qty, price, p.get("payTerm", "").strip() or "30")
+        hooks.call("add_po", env, po)
         return _ok(PO_NO=po.po_no)
 
     def po_approve(p: Dict[str, str]) -> Response:
         if not p.get("poNo", "").strip():
             return _err(400, _MISSING + " (poNo)")
         result = db.approve(p["poNo"].strip())
+        result = hooks.call("approve", env, p["poNo"].strip(), result, default=result)
         if result == "none":
             return _err(404, "발주를 찾을 수 없습니다.")
         return _err(409, "승인할 수 없는 상태입니다.") if result == "state" else _ok()
@@ -236,6 +238,7 @@ def make_router(env: str, mount: str) -> APIRouter:
         if not p.get("prNo", "").strip():
             return _err(400, _MISSING + " (prNo)")
         result = db.close_pr(p["prNo"].strip())
+        result = hooks.call("close_pr", env, p["prNo"].strip(), result, default=result)
         if result == "none":
             return _err(404, "구매요청을 찾을 수 없습니다.")
         return _err(409, "마감할 수 없는 상태입니다.") if result == "state" else _ok()

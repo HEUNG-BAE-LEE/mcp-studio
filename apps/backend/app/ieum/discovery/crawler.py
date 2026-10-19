@@ -18,6 +18,13 @@
     눌러 보는 동안에는 화면 이동도 막는다(GET 으로 구현된 쓰기가 있어도 닿지 않게). 직접 조작에서 풀어 주는 것은 로그인 요청뿐이다.
   - 사람이 일시정지하거나 직접 조작하면 이 스레드가 쉰다. 쉬는 시간은 시간 상한(max_seconds)에 넣지 않는다.
 
+자바스크립트가 화면을 그리는 사이트(SPA, 나라장터 같은 WebSquare)를 위한 것:
+  - DOMContentLoaded 에 화면이 비어 있어서, 눌러볼 것이 생기고 화면이 잠잠해질 때까지 기다린다(_ready).
+  - 시작하자마자 뜨는 공지 팝업은 메뉴를 가리므로 닫는다(_dismiss_overlays).
+  - 메뉴가 href="javascript:void(null)" 이고 하위 메뉴가 숨어 있으면 링크가 아니라 **눌러서** 연다. 주소가 바뀌지 않으므로 메뉴의 길(Entry.path)로 화면을 가리킨다.
+  - 조회도 POST 인 사이트: 이름이 조회처럼 보이는 POST(reads.py)가 막히면 사람에게 보내도 되는지 묻고, 허락하면 그 이름의 요청만 보낸다.
+    쓰기를 막는 규칙은 그대로다. 허락한 것은 "조회로 보이는 이름" 뿐이고 저장·삭제 같은 낱말이 든 요청은 계속 막는다.
+
 Playwright 는 동기 API 를 쓴다. 이 모듈은 전용 스레드에서만 부른다(jobs.py).
 """
 import re
@@ -30,7 +37,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qsl, urljoin, urlsplit
 
 from app.ieum.discovery import browser as browser_mod
-from app.ieum.discovery import infer, planner
+from app.ieum.discovery import infer, planner, reads
 from app.ieum.discovery.hitl import Hitl
 from app.ieum.discovery.masking import is_secret_key
 from app.ieum.discovery.policy import Policy, risky_call
@@ -42,6 +49,11 @@ STATIC_TYPES = {"image", "stylesheet", "font", "media", "script", "manifest", "t
 FILE_TYPES = ("spreadsheetml", "ms-excel", "octet-stream", "pdf", "zip", "msword", "hwp", "x-download")
 MAX_BODY = 40_000          # 응답 본문은 스키마 추론에만 쓴다. 통째로 들고 있지 않는다
 MAX_ACTIONS = 12           # 한 화면에서 누르는 버튼 수 상한
+MAX_LANDING = 4            # 메뉴가 있는 앱의 시작 화면에서 누르는 버튼 수 상한(화면은 메뉴 계획이 돈다)
+MAX_TRIES = 30             # 한 화면에서 눌러 본 시도 수 상한(못 누른 것 포함). 눌리지 않는 것이 수십 개인 화면에서 시간을 다 쓰지 않게
+MAX_FAILS = 5              # 연속으로 못 누르면 그 화면은 거기까지만 누른다(가려져 있거나 화면 밖이라 눌리지 않는 단추가 이어지는 화면)
+CLICK_TIMEOUT_MS = 3000    # 단추 하나를 누르려고 기다리는 시간(가린 것이 사라지기를 기다린다)
+RETRY_TIMEOUT_MS = 1500    # 가린 것을 치우고 다시 누를 때
 MAX_SKIP_EVENTS = 25       # 건너뛴 링크를 화면 기록에 다 쏟아내면 읽을 수 없다
 GOTO_TIMEOUT_MS = 30_000       # 화면 하나를 여는 데 주는 시간(DOMContentLoaded 까지). 시험이 줄여 쓴다
 OBSERVE_MS = 1600          # 화면마다 마지막에 잠깐 지켜본다. 자동 저장, 폴링처럼 화면이 스스로 부르는 요청을 보려는 것이다
@@ -50,30 +62,61 @@ MAX_SAMPLES = 10           # 같은 (메서드, 경로)의 요청은 이만큼�
 
 # 사람에게 묻는 질문 수 상한. 사이트가 크면 질문이 끝없이 이어져 사람이 지치고, 어차피 답이 없으면 기본값으로 처리된다.
 MAX_ASKS = {"low": 3, "perm": 3, "risky": 10, "input": 10, "screen": 30}
-MAX_MENUS = 60             # 계획에 올리는 메뉴 수 상한
+MAX_MENUS = 100            # 계획에 올리는 메뉴 수 상한(관련도 순으로 자른다)
+MAX_MENUS_READ = 400       # 화면에서 읽는 메뉴 수 상한. 자르기 전에 계획이 관련도로 줄 세운다
 TAKE_SHOT_SEC = 0.8        # 직접 조작 중 화면 캡처 간격(입력이 없을 때)
 IDLE_POLL_MS = 300         # 일시정지, 질문 대기 중 확인 간격
+READY_BOOT_MS = 14_000     # 처음 여는 화면이 그려지기를 기다리는 시간 상한. 자바스크립트가 DOMContentLoaded 뒤에 화면을 그리는 사이트(SPA)가 있다
+READY_PAGE_MS = 3_000      # 그 밖의 화면
+READY_MIN = 3              # 눌러볼 것이 이만큼 보이면 화면이 그려졌다고 본다
+READY_STABLE_MS = 1_400    # 눌러볼 것이 한두 개뿐인 화면은 이만큼 변화가 없으면 그려졌다고 본다
+QUIET_MS = 450             # 화면 변화(DOM)가 이만큼 없으면 잠잠하다고 본다
+MAX_PATH_STEPS = 6         # 메뉴 길의 단계 수 상한
+MAX_OVERLAYS = 8           # 한 번에 닫는 팝업 수 상한
 
 # 누르지 않을 단어(설정)에는 없지만 데이터 상태를 바꾸는 것처럼 보이는 버튼 글자. 기본 금지어(삭제, 저장, 승인, 결재, 결제, 확정, 전송)는 넣지 않는다.
-_RISKY_KO = ("마감", "취소", "반려", "폐기", "해지", "종료", "정산", "발행", "이관", "상신", "회수", "반송", "중지", "해제", "폐쇄", "일괄")
+_RISKY_KO = ("마감", "취소", "반려", "폐기", "해지", "종료", "정산", "발행", "이관", "상신", "회수", "반송", "중지", "해제", "폐쇄", "일괄", "투찰")
 _RISKY_EN = re.compile(r"\b(reject|terminate|settle|revoke|void|deactivate|finalize)\b", re.I)
 _PLAIN = frozenset(("취소",))                      # 양식을 닫는 흔한 버튼. 이름이 이것뿐이면 위험하지 않다
 _NEEDS_INPUT = re.compile(r"(입력|선택|필수|기입|넣어)")       # "거래처명을 입력하세요" 같은 안내
 _DENY_TEXT = re.compile(r"(접근 ?권한|권한이 ?없|권한 ?없음|허용되지 ?않|접근이 ?거부|forbidden|access denied|not authorized|unauthori[sz]ed|\b403\b)", re.I)
 _LOGIN_PATH = re.compile(r"(?:^|/)(?:login|logon|signin|sign-in|auth|sso)", re.I)
+_LOGIN_TEXT = re.compile(r"(로그인|회원 ?가입|이용자 ?등록|아이디 ?찾기|비밀번호 ?찾기|\blog ?in\b|\bsign ?(?:in|up)\b|\bjoin\b)", re.I)     # 로그인 없이 탐색하는 사이트에서는 누를 이유가 없다
+_MASK = re.compile(r"(background|mask|backdrop|dim|overlay|modal|layer|processbar)", re.I)       # 화면을 통째로 덮는 층(대화상자 뒤 배경, 처리 중 표시)의 이름
+_PRIMARY = re.compile(r"^\s*(검색|조회|검색하기|조회하기|목록 ?조회|찾기|search|query|find)\s*$", re.I)       # 데이터를 불러오는 주 단추. "온라인 매뉴얼 조회" 같은 곁가지보다 먼저 누른다
+_READ_FIRST = re.compile(r"(조회|검색|찾기|목록|상세|보기|search|query|list|find|view|inquiry|retrieve)", re.I)     # 눌러서 데이터를 불러오는 것 같은 단추: 먼저 누른다
+# 브라우저가 스스로 붙이는 표준 요청 헤더. 도구가 다시 보낼 이유가 없거나(쿠키는 이음이 세션으로 넣는다) 요청마다 달라진다.
+_BROWSER_HEADERS = frozenset((
+    "cookie", "authorization", "proxy-authorization", "host", "connection", "content-length", "accept-encoding", "accept-language", "user-agent", "referer", "origin",
+    "cache-control", "pragma", "upgrade-insecure-requests", "te", "dnt", "priority", "if-none-match", "if-modified-since", "range", "expect", "keep-alive", "x-forwarded-for"))
+_VOLATILE_HEADER = ("nonce", "timestamp", "signature", "traceparent", "tracestate", "trace-id", "span", "request-id", "requestid", "correlation", "uuid")   # 요청마다 바뀌는 값
 _SHORT_WHY = {"제외 경로라 열지 않음": "제외 경로", "탐색 범위 밖이라 열지 않음": "탐색 범위 밖", "삭제처럼 보이는 주소라 열지 않음": "삭제처럼 보이는 주소"}
 
 # 화면 안의 눌러볼 만한 것을 모은다. 번호를 data 속성으로 붙여 두면 다시 찾을 수 있고, 같은 요소를 두 번 누르지 않는다.
 # 버튼에는 가까이 있는 입력칸(`inp`)도 붙인다 — 값이 필요한 화면에서 어느 칸에 넣을지 사람에게 보여 주려는 것이다.
+# `nav` 는 메뉴·머리말 안의 것(메뉴는 탐색 계획이 맡는다), `x` 는 표준 요소가 아닌데 눌리게 만든 것(div, span 에 핸들러를 단 SPA)이다.
 _CANDIDATES_JS = """
 () => {
-  const SEL = 'a[href], button, input[type=button], input[type=submit], input[type=image], [role=button], [onclick], .btn';
+  const SEL = 'a[href], a:not([href]), button, input[type=button], input[type=submit], input[type=image], [role=button], [role=tab], [role=menuitem], [onclick], .btn';
+  const NAV = 'nav, [role=navigation], [role=banner], [role=contentinfo], [role=menubar], #gnb, #lnb, #snb, .gnb, .lnb, .snb, [id*=gnb], [class*=gnb], .menu-generator';
   const out = [];
   let n = window.__ieumN || 0, m = window.__ieumM || 0;
   const visible = (el) => {
     const r = el.getBoundingClientRect();
     if (r.width < 4 || r.height < 4) return false;
+    // 문서의 왼쪽·위쪽 밖(left:-9999px 같은 접근성용 숨김, 넘겨 놓은 슬라이드)에 있는 것은 스크롤해도 닿지 않는다. 문서 좌표로 본다(스크롤한 화면에서 위쪽 단추를 놓치지 않게).
+    if (r.right + window.pageXOffset <= 0 || r.bottom + window.pageYOffset <= 0) return false;
     const st = getComputedStyle(el);
+    if (r.left >= window.innerWidth || r.top >= window.innerHeight || r.right <= 0 || r.bottom <= 0) {
+      // 화면 밖이다. 문서 안에 있으면 스크롤해서 닿지만, 고정 위치(오른쪽 퀵 메뉴, TOP 단추)의 조상 안에 있으면 영영 닿지 않는다.
+      let scrollable = false;
+      for (let p = el; p && p !== document.body; p = p.parentElement) {
+        const ps = getComputedStyle(p);
+        if (ps.position === 'fixed') return false;
+        if (/(auto|scroll)/.test(ps.overflowX + ' ' + ps.overflowY)) scrollable = true;                                // 스크롤 상자 안이면 Playwright 가 스크롤해서 닿는다
+      }
+      if (r.left >= window.innerWidth && !scrollable && document.documentElement.scrollWidth <= window.innerWidth) return false;     // 가로로 스크롤할 수도 없다
+    }
     return st.visibility !== 'hidden' && st.display !== 'none' && st.pointerEvents !== 'none' && !el.disabled;
   };
   const label = (el) => (el.innerText || el.value || el.getAttribute('aria-label') || el.title || el.alt || '')
@@ -101,12 +144,17 @@ _CANDIDATES_JS = """
     }
     return null;
   };
-  const push = (el, kind) => {
+  const inNav = (el) => {
+    if (el.closest(NAV)) return true;
+    const hd = el.closest('header, footer');
+    return !!hd && !hd.closest('article, section, main, aside');
+  };
+  const push = (el, kind, extra) => {
     if (!visible(el)) return;
     if (!el.dataset.ieumI) el.dataset.ieumI = String(++n);
     out.push({ i: el.dataset.ieumI, tag: el.tagName.toLowerCase(), kind, text: label(el),
                href: el.getAttribute('href') || '', onclick: (el.getAttribute('onclick') || '').slice(0, 200),
-               title: el.getAttribute('title') || '', inp: kind === 'button' ? nearInput(el) : null });
+               title: el.getAttribute('title') || '', inp: kind === 'button' ? nearInput(el) : null, nav: inNav(el), x: !!extra });
   };
   for (const el of document.querySelectorAll(SEL)) {
     if (el.tagName === 'TR') continue;
@@ -119,35 +167,157 @@ _CANDIDATES_JS = """
     if (!t || seen.has(t)) continue;
     if (tr.getAttribute('onclick') || getComputedStyle(tr).cursor === 'pointer') { seen.add(t); push(tr, 'row'); }
   }
+  // 표준 요소가 아닌데 눌리게 만든 것(div, span 에 핸들러). 포인터 커서가 표지다. 가장 바깥 것만, 짧은 글자가 있는 것만, 수에 상한을 둔다.
+  const SKIP = new Set(['TR', 'TD', 'TH', 'LI', 'LABEL', 'OPTION', 'SELECT', 'INPUT', 'TEXTAREA', 'TABLE', 'TBODY', 'THEAD', 'BODY', 'HTML']);
+  let extras = 0;
+  for (const el of document.querySelectorAll('body *')) {
+    if (extras >= 30) break;
+    if (SKIP.has(el.tagName.toUpperCase()) || el.childElementCount > 3 || el.closest(SEL) || el.dataset.ieumI) continue;
+    const t = (el.textContent || '').trim();
+    if (!t || t.length > 40) continue;
+    if (getComputedStyle(el).cursor !== 'pointer') continue;
+    const p = el.parentElement;
+    if (p && getComputedStyle(p).cursor === 'pointer') continue;
+    if (!visible(el) || inNav(el)) continue;
+    push(el, 'button', true);
+    extras++;
+  }
   window.__ieumN = n;
   window.__ieumM = m;
   return out;
 }
 """
 
-# 메뉴로 보이는 링크. 이름 붙은 내비게이션 영역 안의 링크를 먼저 보고, 그런 영역이 없으면 화면의 링크 전부를 본다.
-_MENUS_JS = """
-() => {
-  const NAV = '#menu, #gnb, #lnb, #snb, #nav, #navi, #sidebar, .menu, .gnb, .lnb, .snb, .nav, .navi, .navbar, .sidebar, .side-menu, nav, [role=navigation], [role=menubar], aside';
+# 메뉴를 읽고 가리키는 데 같이 쓰는 도구. 메뉴는 `li` 안에 앵커가 든 나무다(나라장터의 mega menu 처럼 하위 메뉴가 숨어 있어도 DOM 에는 다 있다).
+_MENU_LIB_JS = """
+  const LINK_NAV = '#menu, #gnb, #lnb, #snb, #nav, #navi, #sidebar, .menu, .gnb, .lnb, .snb, .nav, .navi, .navbar, .sidebar, .side-menu, nav, [role=navigation], [role=menubar], aside';
+  const TREE_NAV = LINK_NAV + ', [id*=gnb], [class*=gnb], .menu-generator';
   const vis = (el) => {
     const r = el.getBoundingClientRect();
     const st = getComputedStyle(el);
-    return r.width >= 4 && r.height >= 4 && st.visibility !== 'hidden' && st.display !== 'none';
+    return r.width >= 4 && r.height >= 4 && r.right + window.pageXOffset > 0 && r.bottom + window.pageYOffset > 0 && st.visibility !== 'hidden' && st.display !== 'none';
   };
-  const label = (el) => (el.innerText || el.getAttribute('aria-label') || el.title || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
-  const out = [], seen = new Set();
+  const label = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || el.title || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
+  const realHref = (h) => !!h && !/^(#|javascript:|mailto:|tel:)/i.test(h);
+  const ownAnchor = (li) => { for (const a of li.querySelectorAll('a')) { if (a.closest('li') === li) return a; } return null; };
+  const menuNodes = () => {
+    const roots = [...document.querySelectorAll(TREE_NAV)].filter(vis), seen = new Set(), nodes = [];
+    for (const root of roots) {
+      for (const li of root.querySelectorAll('li')) {
+        if (seen.has(li)) continue;
+        const a = ownAnchor(li);
+        const name = a ? label(a) : '';
+        if (!name) continue;
+        seen.add(li);
+        const path = [];
+        for (let p = li; p && root.contains(p); p = p.parentElement && p.parentElement.closest('li')) {
+          const pa = ownAnchor(p), t = pa ? label(pa) : '';
+          if (t) path.unshift(t);
+        }
+        const leaf = ![...li.querySelectorAll('li')].some((c) => { const ca = ownAnchor(c); return ca && label(ca); });
+        nodes.push({ a, path, leaf, href: a.getAttribute('href') || '' });
+      }
+    }
+    return nodes;
+  };
+"""
+
+# 메뉴로 보이는 링크와 메뉴 나무. 이름 붙은 내비게이션 영역 안의 링크를 먼저 보고, 그런 영역이 없으면 화면의 링크 전부를 본다.
+# 나무의 끝(leaf)이 링크가 아니면(javascript:void) 눌러서 여는 메뉴다.
+_MENUS_JS = "() => {" + _MENU_LIB_JS + """
+  const links = [], seen = new Set();
   const take = (root) => {
     root.querySelectorAll('a[href]').forEach((a) => {
       const href = a.getAttribute('href') || '';
-      if (!href || /^(#|javascript:|mailto:|tel:)/i.test(href) || !vis(a)) return;
+      if (!realHref(href) || !vis(a)) return;
       const name = label(a);
       if (!name || seen.has(a.href)) return;
       seen.add(a.href);
-      out.push({ name, url: a.href });
+      links.push({ name, url: a.href });
     });
   };
-  [...document.querySelectorAll(NAV)].filter(vis).forEach(take);
-  if (!out.length && document.body) take(document.body);
+  [...document.querySelectorAll(LINK_NAV)].filter(vis).forEach(take);
+  if (!links.length && document.body) take(document.body);
+  const tree = menuNodes().map((n) => ({ path: n.path, leaf: n.leaf, url: realHref(n.href) ? n.a.href : '' }));
+  return { links, tree };
+}
+"""
+
+# 메뉴 길(["입찰", "입찰공고"])이 가리키는 앵커에 표지를 붙이고 보이는지 돌려준다. 없으면 null.
+_MENU_PICK_JS = "(path) => {" + _MENU_LIB_JS + """
+  for (const x of document.querySelectorAll('[data-ieum-m]')) x.removeAttribute('data-ieum-m');
+  const key = path.join('\\u0001');
+  const n = menuNodes().find((x) => x.path.join('\\u0001') === key);
+  if (!n) return null;
+  n.a.setAttribute('data-ieum-m', '1');
+  return { vis: vis(n.a), leaf: n.leaf };
+}
+"""
+
+# 화면이 그려졌는지 가늠하는 값: 눌러볼 것의 수, 글자 수, 요소 수. 같은 값이 한동안 이어지면 그려진 것이다.
+_CLICKABLES_JS = """
+() => {
+  const vis = (el) => { const r = el.getBoundingClientRect(); const st = getComputedStyle(el); return r.width >= 4 && r.height >= 4 && r.right + window.pageXOffset > 0 && r.bottom + window.pageYOffset > 0 && st.visibility !== 'hidden' && st.display !== 'none'; };
+  const n = [...document.querySelectorAll('a, button, input[type=button], input[type=submit], [role=button], [role=menuitem], [role=tab], [onclick], .btn')].filter(vis).length;
+  return { n, t: document.body ? document.body.innerText.length : 0, d: document.getElementsByTagName('*').length, rs: document.readyState };
+}
+"""
+
+# 화면 변화(요소가 붙고 떨어지거나 글자가 바뀜)가 q 밀리초 동안 없을 때까지, 길어야 m 밀리초. 애니메이션이 바꾸는 속성은 보지 않는다.
+_QUIET_JS = """
+([q, m]) => new Promise((res) => {
+  const t0 = performance.now();
+  let t = setTimeout(done, q);
+  const mo = new MutationObserver(() => { clearTimeout(t); t = setTimeout(done, q); });
+  mo.observe(document, { subtree: true, childList: true, characterData: true });
+  const hard = setTimeout(done, m);
+  function done() { mo.disconnect(); clearTimeout(t); clearTimeout(hard); res(Math.round(performance.now() - t0)); }
+})
+"""
+
+# 메뉴를 가리는 팝업(공지, 안내)과 그 닫는 단추를 찾는다. 위에 있는 것부터 후보 목록으로 돌려주고, 단추마다 표지(data-ieum-d)를 붙인다.
+# 같은 높이로 겹친 팝업(나라장터는 4개가 z-index 6010 으로 쌓인다)은 어느 것이 위인지 알 수 없어서 하나만 고르지 않고 모두 돌려준다 — 가려진 팝업의 단추는 눌러도 닫히지 않는다.
+# 단추의 순위: 0 닫기·창닫기·X, 1 취소, 2 확인(단추가 그것 하나뿐인 안내 창). 데이터를 바꾸는 단추(저장, 삭제…)는 후보가 아니다. 팝업은 안쪽 것만 본다.
+_OVERLAY_JS = """
+() => {
+  const vis = (el) => { const r = el.getBoundingClientRect(); const st = getComputedStyle(el); return r.width >= 4 && r.height >= 4 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0'; };
+  const SEL = '[role=dialog], [role=alertdialog], [aria-modal=true], dialog[open], .modal, .popup, .w2window, .w2popup_window, [class*=popup], [class*=modal], [class*=dialog], [id*=popup], [id*=modal]';
+  const STRONG = '[role=dialog], [role=alertdialog], [aria-modal=true], dialog[open]';
+  const z = (el) => { const v = parseInt(getComputedStyle(el).zIndex, 10); return isNaN(v) ? 0 : v; };
+  const lab = (c) => ((c.innerText || c.value || '') + '').replace(/\\s+/g, ' ').trim();
+  const attr = (c) => (c.getAttribute('title') || c.getAttribute('aria-label') || c.getAttribute('alt') || '');
+  const isOverlay = (el) => {
+    if (!vis(el)) return false;
+    const r = el.getBoundingClientRect(), st = getComputedStyle(el);
+    if (r.width < 120 || r.height < 60) return false;
+    if (el.matches(STRONG)) return true;
+    return (st.position === 'fixed' || st.position === 'absolute') && z(el) >= 100;
+  };
+  const found = [...document.querySelectorAll(SEL)].filter(isOverlay);
+  const inner = found.filter((el) => !found.some((o) => o !== el && el.contains(o)));
+  const order = inner.map((el, i) => ({ el, z: z(el), i })).sort((a, b) => (b.z - a.z) || (b.i - a.i));
+  const CLOSE_TXT = /^(닫기|창 ?닫기|닫음|close|[×✕✖xX])$/i, CLOSE_ATTR = /(닫기|창 ?닫기|close)/i, CLOSE_CLS = /(^|[\\s_-])(close|btn_?close)([\\s_-]|$)|_close\\b|close_/i;
+  for (const x of document.querySelectorAll('[data-ieum-d]')) x.removeAttribute('data-ieum-d');
+  const out = [];
+  for (const { el } of order) {
+    const btns = [...el.querySelectorAll('button, input[type=button], input[type=submit], [role=button]')].filter(vis);
+    const ctl = [...el.querySelectorAll('button, input[type=button], input[type=submit], input[type=image], a, [role=button], span, i, em, div, img')].filter(vis).filter((c) => {
+      if (!/^(button|input|a)$/i.test(c.tagName) && c.getAttribute('role') !== 'button') { const r = c.getBoundingClientRect(); return r.width <= 80 && r.height <= 80; }
+      return true;
+    });
+    let best = null;
+    for (const c of ctl) {
+      const t = lab(c), a = attr(c), k = String(c.className || '');
+      const rank = (CLOSE_TXT.test(t) || CLOSE_ATTR.test(a) || CLOSE_CLS.test(k)) ? 0 : /^(취소|cancel)$/i.test(t) ? 1 : (/^(확인|ok|예|yes)$/i.test(t) && btns.length <= 1) ? 2 : -1;
+      if (rank < 0) continue;
+      if (!best || rank < best.rank) best = { c, rank, t: t || a || k };
+    }
+    if (!best) continue;
+    best.c.setAttribute('data-ieum-d', String(out.length + 1));
+    if (!el.dataset.ieumO) el.dataset.ieumO = String((window.__ieumO = (window.__ieumO || 0) + 1));
+    out.push({ k: String(out.length + 1), oid: el.dataset.ieumO, rank: best.rank, label: best.t.slice(0, 20), text: (el.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 200), strong: el.matches(STRONG) });
+    if (out.length >= 8) break;
+  }
   return out;
 }
 """
@@ -205,6 +375,7 @@ class Observed:
     screen: str = ""                       # 요청이 나간 화면 (base 를 뗀 경로)
     human: bool = False                    # 사람이 허락했거나 직접 조작해서 나간 요청
     menu: str = ""                         # 요청이 나간 때 탐색하던 메뉴(탐색 계획 항목 id)
+    read: bool = False                     # 조회라서 보낸 POST: 사람이 이름이 조회처럼 보이는 요청을 허락했다(조회용 POST 패턴은 policy 가 판정한다)
 
 
 @dataclass
@@ -216,6 +387,8 @@ class Entry:
     text: str = ""
     again: bool = False                    # 이미 연 화면에 다시 가는 것(질문에 답한 뒤, 직접 조작한 뒤). 방문 판정과 개수 세기를 건너뛴다
     task: Optional[dict] = None            # 화면을 연 뒤 할 일: {op: press|fill, ckey, value}
+    path: Optional[List[str]] = None       # 눌러서 여는 메뉴의 길(["입찰", "입찰공고", "입찰공고목록"]). 주소가 바뀌지 않는 화면(SPA)은 이 길로 가리킨다
+    fresh: bool = False                    # 이미 열려 있어도 처음부터 다시 불러온다(조회용 POST 를 허락한 뒤 — 막혔던 조회가 이제 나가게)
 
 
 @dataclass
@@ -226,6 +399,7 @@ class CrawlResult:
     recipe: Optional[dict] = None          # 로그인 방법. 도구를 실행할 때 같은 방식으로 로그인한다
     cookies: List[dict] = field(default_factory=list)
     login_path: str = ""                   # 로그인 요청 경로. API 후보에서 뺀다
+    anonymous: bool = False                # 로그인 화면 없이 열린 공개 사이트. 도구는 방문만으로 받은 세션으로 실행한다
     browser: str = ""
     stopped: str = ""                      # "" | "limit" | "time" | "cancel" | "error"
     error: str = ""                        # stopped == "error" 일 때 사용자에게 보일 이유
@@ -286,6 +460,8 @@ class Crawler:
         self._relogins = 0
         self._samples: Dict[str, int] = {}
         self._blocked_reqs: set = set()      # 우리가 가로챈 요청. 가짜 응답이 response 이벤트로 또 올라오는 것을 거른다
+        self._read_reqs: set = set()         # 조회로 허락해 운영에 보낸 POST. 응답을 기록할 때 조회라고 표시한다
+        self._read_sent = 0                  # 그렇게 보낸 POST 수
         self._creating_main = False
         self._stop_said = ""
         self.login_page_path = ""
@@ -302,6 +478,17 @@ class Crawler:
         self._in_page = False
         self._abandon = False                     # 직접 조작으로 화면 상태가 바뀌어 하던 화면을 접는다
         self._abandon_url = ""
+        self._abandon_fresh = False               # 접은 화면을 다시 열 때 처음부터(본 버튼을 비우고 새로 불러온다)
+        # 조회에도 POST 를 쓰는 사이트
+        self._read_seen = reads.Seen()            # 막은 POST 중 이름이 조회처럼 보이는 것
+        self._reads_ok = False                    # 그런 이름의 POST 를 보내도 된다고 허락했다(질문에 답해서. 설정으로 미리 허락했으면 policy.read_auto)
+        self._reads_key = "readpost|" + policy.origin
+        self._reads_take_key = "readpost-take|" + policy.origin      # 직접 조작 중에 사람 앞에서 한 질문. "묻지 않고" 설정으로 이미 막기로 정해졌어도 사람이 지금 보고 있으면 다시 묻는다
+        self._click_menus = False                 # 탐색 계획에 눌러서 여는 메뉴가 있다 — 메뉴 안의 단추는 계획이 맡는다
+        self._masked = False                      # 화면을 통째로 덮은 층(마스크)을 못 닫았다. 그 화면은 더 누르지 않는다
+        self._bad: Dict[str, int] = {}            # 단추(_key)별로 눌리지 않은 횟수. 화면이 바뀌어도 같은 자리에서 계속 가려지는 단추(고정 머리말·꼬리말 뒤)에 3초씩 쓰지 않는다
+        self._dirty = False                       # 풀지 못한 가림(마스크 등)이 남아 앱이 어긋났다. 다음 메뉴는 앱을 다시 열어서 간다
+        self._overlay_said = False
         self._by_human = self._pressing = self._accept_confirm = self._taking = False
         self._dialogs: List[Tuple[str, str]] = []
         self._status: Optional[int] = None
@@ -384,7 +571,7 @@ class Crawler:
     def _explore(self) -> None:
         from playwright.sync_api import TimeoutError as PlaywrightTimeout
         try:
-            self._goto(self.start_url)
+            self._goto(self.start_url, boot=True)
         except PlaywrightTimeout as exc:
             raise RuntimeError(self._start_page_timeout()) from exc
         self._emit_page(0, "시작 페이지를 열었습니다")
@@ -396,9 +583,11 @@ class Crawler:
             logged_in_now = True
         else:
             self.login_done = True
+            self.res.anonymous = True
         self._home = self.page.url
         # 로그인했다면 도착한 화면은 새 화면이라 page 이벤트를 낸다. 안 했다면 시작 화면에 이미 냈다.
         self._after_load(0, first=not logged_in_now)
+        self._requeue_abandoned(None)
         self._loop()
 
     def _loop(self) -> None:
@@ -414,17 +603,30 @@ class Crawler:
                     continue
                 return
             self._open(entry)
-            if self._abandon:                       # 직접 조작으로 화면 상태가 바뀌었다. 하던 화면은 처음부터가 아니라 이어서 다시 한다
-                self._abandon = False
-                cur = self._cur or entry
-                # 사람이 답한 일(누르기, 값 넣기)을 하기 전에 접었다면 그 일도 이어서 한다. 한 일은 _act_on_page 가 task 를 비워 둔다.
-                self._front.appendleft(Entry(url=self._abandon_url or cur.url, depth=cur.depth, menu=cur.menu, text=cur.text, again=True, task=cur.task))
+            self._requeue_abandoned(entry)
+
+    def _requeue_abandoned(self, entry: Optional[Entry]) -> None:
+        """하던 화면을 접었다(직접 조작으로 화면 상태가 바뀌었거나, 조회용 POST 를 허락해 처음부터 다시 봐야 한다). 접은 화면을 이어서 다시 한다."""
+        if not self._abandon:
+            return
+        self._abandon = False
+        fresh, self._abandon_fresh = self._abandon_fresh, False
+        if fresh:
+            self._tried.clear()                     # 막혔던 응답으로 본 것이라 다시 눌러 본다
+        cur = self._cur or entry
+        url = self._abandon_url or (cur.url if cur else "") or self._home or self.page.url
+        # 사람이 답한 일(누르기, 값 넣기)을 하기 전에 접었다면 그 일도 이어서 한다. 한 일은 _act_on_page 가 task 를 비워 둔다.
+        self._front.appendleft(Entry(url=url, depth=cur.depth if cur else 0, menu=cur.menu if cur else None, text=cur.text if cur else "", again=True,
+                                     task=cur.task if cur else None, path=cur.path if cur else None, fresh=fresh))
 
     def _open(self, e: Entry) -> None:
-        if not e.again:
-            self.policy.visit(e.url)
         self._cur = e
         self._set_menu(e.menu)
+        if e.path:
+            self._open_path(e)
+            return
+        if not e.again:
+            self.policy.visit(e.url)
         try:
             self._goto(e.url)
         except Cancelled:
@@ -432,6 +634,42 @@ class Crawler:
         except Exception as exc:
             self._skip(e.url, f"열지 못함 ({type(exc).__name__})")
             return
+        self._after_load(e.depth, entry=e)
+
+    def _on_app(self, url: str) -> bool:
+        return self.policy.normalize(self.page.url) == self.policy.normalize(url)
+
+    def _open_path(self, e: Entry) -> None:
+        """눌러서 여는 메뉴. 앱이 이미 열려 있으면 다시 불러오지 않고 메뉴 길만 누른다(화면마다 앱을 새로 띄우면 팝업과 처음 조회가 되풀이된다)."""
+        home = e.url or self._home
+        label = e.text or " > ".join(e.path or [])
+        ok = False
+        try:
+            loaded = False
+            if e.fresh or self._dirty or not self._on_app(home):
+                self._goto(home, boot=True)
+                loaded = True
+                self._dirty = False
+            ok = self._run_path(e.path or [])
+            if not ok and not loaded:                  # 앱 상태가 어긋났을 수 있다. 한 번 새로 열어 다시 해 본다
+                self._goto(home, boot=True)
+                self._dirty = False
+                ok = self._run_path(e.path or [])
+        except Cancelled:
+            raise
+        except Exception as exc:
+            self._skip(home, f"메뉴를 열지 못함 ({type(exc).__name__})", label)
+            if self.hitl and e.menu:
+                self.hitl.fail_menu(e.menu, "열지 못함")
+            return
+        if not ok:
+            self._skip(home, "메뉴를 찾지 못했거나 눌러도 열리지 않음", label)
+            if self.hitl and e.menu:
+                self.hitl.fail_menu(e.menu, "눌러도 열리지 않음")
+            return
+        if not e.again:
+            self.policy.visit(self.page.url)
+        self._status = None                                # 화면 이동이 아니라 앱 안에서 바뀐 것이라 응답 상태가 없다
         self._after_load(e.depth, entry=e)
 
     def _next_entry(self) -> Optional[Entry]:
@@ -444,7 +682,7 @@ class Crawler:
                     if not self._queue:
                         return None
                     e = self._queue.popleft()
-            if e.again:
+            if e.again or e.path:                   # 눌러서 여는 메뉴에는 주소가 없다. 판정은 메뉴를 읽을 때 했다(화면 상한은 _stop_reason 이 본다)
                 return e
             ok, why = self.policy.url_decision(e.url, e.depth)
             if not ok:
@@ -484,15 +722,101 @@ class Crawler:
             self._idle += time.time() - self._idle_since
             self._idle_since = None
 
-    def _goto(self, url: str) -> None:
+    def _goto(self, url: str, boot: bool = False) -> None:
+        """화면을 연다. boot: 앱을 처음 띄우는 것(시작 화면, 앱 전체를 다시 불러올 때) — 자바스크립트가 화면을 그리기를 더 오래 기다린다."""
         resp = self.page.goto(url, wait_until="domcontentloaded", timeout=GOTO_TIMEOUT_MS)
         self._status = resp.status if resp else None
         self._settle()
+        self._ready(READY_BOOT_MS if boot else READY_PAGE_MS)
+
+    def _ready(self, wait_ms: int) -> None:
+        """DOMContentLoaded 뒤에 자바스크립트가 화면을 그리는 사이트(SPA)를 위해, 눌러볼 것이 생기고 화면이 잠잠해질 때까지 기다린다.
+
+        그 사이트들은 열자마자 화면이 비어 있다(나라장터는 눌러볼 것이 5~6초 뒤에야 생긴다). 비어 있을 때 훑으면 아무것도 못 찾고 끝난다.
+        눌러볼 것이 READY_MIN 개 이상 보이고 문서가 다 불러와졌거나(readyState), 한두 개뿐이어도 변화 없이 READY_STABLE_MS 가 지나면 그려진 것으로 본다.
+        (스크립트를 내려받는 동안 건너뛰기 링크 몇 개만 보이는 사이트가 있어서, 눌러볼 것의 수만 보지 않는다.) 그 뒤 메뉴를 가리는 팝업을 닫는다.
+        """
+        t0 = time.time()
+        end, last, since, said = t0 + wait_ms / 1000, None, t0, False
+        while time.time() < end:
+            if self._cancelled():
+                raise Cancelled()
+            if not said and time.time() - t0 > 2.5:
+                said = True                                     # 화면이 비어 있는 채로 오래 가면 사람이 멈춘 줄 안다
+                self._emit("web", "wait", msg="화면이 그려지기를 기다리고 있습니다 (자바스크립트로 화면을 그리는 사이트는 몇 초 걸립니다)")
+            try:
+                cur = self.page.evaluate(_CLICKABLES_JS)
+            except Exception:
+                break                                           # 이동 중
+            sig = (cur["n"], cur["t"], cur["d"])
+            if sig != last:
+                last, since = sig, time.time()
+            if (cur["n"] >= READY_MIN and cur["rs"] == "complete") or (cur["n"] >= 1 and (time.time() - since) * 1000 >= READY_STABLE_MS):
+                break
+            self.page.wait_for_timeout(250)
+        self._settle()
+        self._quiet()
+        if not self._taking:
+            self._dismiss_overlays()
+
+    def _quiet(self, quiet_ms: int = QUIET_MS, max_ms: int = 2500) -> None:
+        """화면 변화(요소가 붙고 떨어지거나 글자가 바뀜)가 잠시 없을 때까지. 요청이 끝난 뒤에도 화면은 따로 그려진다."""
+        try:
+            self.page.evaluate(_QUIET_JS, [quiet_ms, max_ms])
+        except Exception:
+            pass
+
+    def _risky_text(self, text: str) -> bool:
+        return any(w in text for w in _RISKY_KO) or bool(self.policy.banned_word(text)) or bool(_RISKY_EN.search(text))
+
+    def _dismiss_overlays(self) -> int:
+        """메뉴를 가리는 팝업(공지, 안내)을 닫는다. 닫은 수.
+
+        팝업의 닫기·창닫기·X 를 누르고, 그것이 없으면 취소, 단추가 확인 하나뿐인 안내 창이면 확인을 누른다. 확인이 데이터를 바꾸는 안내(삭제, 승인…)일 수
+        있으니 팝업 글에 위험해 보이는 낱말이 있으면 확인은 누르지 않는다. 같은 높이로 겹친 팝업은 어느 것이 위인지 몰라서 후보를 차례로 시도한다.
+        눌러서 닫히지 않으면(가려져 있으면) 단추의 핸들러를 자바스크립트로 부른다 — 닫는 단추는 보이는 것만 누를 이유가 없다.
+        """
+        closed, tried = 0, {}
+        for _ in range(MAX_OVERLAYS * 2):
+            try:
+                found = self.page.evaluate(_OVERLAY_JS)
+            except Exception:
+                break
+            found = [f for f in found if tried.get(f["oid"], 0) < 2 and not (f["rank"] == 2 and self._risky_text(f.get("text") or ""))]
+            if not found:
+                break
+            f = found[0]
+            tried[f["oid"]] = tried.get(f["oid"], 0) + 1
+            loc = self.page.locator(f'[data-ieum-d="{f["k"]}"]').first
+            try:
+                if tried[f["oid"]] == 1:
+                    loc.click(timeout=1200)
+                else:
+                    loc.evaluate("el => el.click()")                # 누르기가 가로채인 팝업. 핸들러를 직접 부른다
+            except Exception:
+                try:
+                    loc.evaluate("el => el.click()")
+                except Exception:
+                    continue
+            closed += 1
+            self.page.wait_for_timeout(150)
+        if closed:
+            try:                                                    # 닫은 자리에 새로 그려지는 팝업이 있다(내용을 불러오며 뒤늦게 뜬다)
+                if self.page.evaluate(_OVERLAY_JS):
+                    self.page.wait_for_timeout(250)
+            except Exception:
+                pass
+        if closed and not self._overlay_said:
+            self._overlay_said = True
+            self._say(f"공지·안내 팝업 {closed}개를 닫았습니다. 팝업이 메뉴를 가려 누를 수 없기 때문입니다")
+        return closed
 
     def _after_load(self, depth: int, first: bool = False, entry: Optional[Entry] = None) -> None:
         """화면 하나를 열었을 때: 제목을 읽고, 세션을 확인하고, 눌러볼 것을 누르고, 갈 곳을 모은다."""
         meta = self._heading()
         self.heading = meta.get("heading") or meta.get("title") or self.policy.display(self.page.url)
+        if entry is not None and entry.path:
+            self.heading = entry.path[-1]                    # 주소가 같은 화면들(SPA)은 메뉴 이름이 화면 이름이다. 제목에 " > " 가 들어가면 안 된다(screen_title 이 나눈다)
         self.action = "화면 열기"
         if self.login_done and self._looks_like_login():
             # 세션이 끊겼다. 한 번만 다시 로그인한다.
@@ -504,11 +828,14 @@ class Crawler:
             return
         again = bool(entry and entry.again)
         if not first and not again:
-            self._emit_page(depth, f"{self.heading} 화면을 열었습니다")
+            self._emit_page(depth, f"{self.heading} 화면을 열었습니다", title=self.heading if entry is not None and entry.path else None)
         self._flush()
         if self.hitl and entry is not None and not again:
             if self._denied(entry) or self._screen_gate(entry):
                 return
+        if self._readpost_gate():                              # 허락했다: 막혔던 조회가 이제 나가니 이 화면을 처음부터 다시 연다
+            self._abandon, self._abandon_fresh, self._abandon_url = True, True, self.page.url
+            return
         if self.hitl and not self._planned and depth == 0 and self.login_done:
             self._build_plan()
         self._act_on_page(depth, entry)
@@ -520,10 +847,10 @@ class Crawler:
         path = urlsplit(self.page.url).path
         return path == self.login_page_path or "login" in path.lower()
 
-    def _emit_page(self, depth: int, msg: str, human: bool = False) -> None:
+    def _emit_page(self, depth: int, msg: str, human: bool = False, title: Optional[str] = None) -> None:
         meta = self._heading()
-        self.res.pages.append({"url": self.policy.display(self.page.url), "title": meta.get("heading") or meta.get("title"), "depth": depth})
-        self._emit("web", "page", url=self.policy.display(self.page.url), title=meta.get("title", ""), cnt=len(self.res.pages), msg=msg, shot=self._shot(),
+        self.res.pages.append({"url": self.policy.display(self.page.url), "title": title or meta.get("heading") or meta.get("title"), "depth": depth})
+        self._emit("web", "page", url=self.policy.display(self.page.url), title=title or meta.get("title", ""), cnt=len(self.res.pages), msg=msg, shot=self._shot(),
                    menu=self._menu, why=self._why, human=1 if human else None)
 
     def _heading(self) -> dict:
@@ -537,8 +864,11 @@ class Crawler:
         return f"{c['tag']}|{c['kind']}|{c['text']}|{c['href']}|{c['onclick']}"
 
     def _act_on_page(self, depth: int, entry: Optional[Entry] = None) -> None:
-        tried = self._tried.setdefault(self.policy.normalize(self.page.url), set())
+        # 이미 본 버튼은 화면 단위로 센다. 주소가 같은 화면들(SPA)이 한 묶음이 되면 두 번째 화면의 "조회" 버튼이 이미 눌렀다고 건너뛰어진다.
+        tried = self._tried.setdefault(self.policy.normalize(self.page.url) + (("|" + ">".join(entry.path)) if entry and entry.path else ""), set())
         task = entry.task if entry else None
+        landing = self._click_menus and depth == 0 and not (entry and entry.path)
+        limit = MAX_LANDING if landing else MAX_ACTIONS
         work: deque = deque()
         acted = 0
         ignore: set = set()                           # 사람이 답한 버튼만 누르는 동안 다른 버튼은 건드리지 않는다. 이미 본 것(tried)과 달리 나중에 이어서 볼 것이다
@@ -549,17 +879,28 @@ class Crawler:
                 key = self._key(c)
                 if key in tried or key in ignore or any(w["key"] == key for w in work) or any(f["key"] == key for f in fresh):
                     continue
+                if self._bad.get(key, 0) >= 2 and not task:
+                    tried.add(key)                                   # 앞 화면들에서도 두 번 눌리지 않았다(같은 자리에서 가려진다)
+                    continue
                 c["key"] = key
                 if c["kind"] == "link" and self._real_href(c["href"]):
                     tried.add(key)
                     self._enqueue(urljoin(self.page.url, c["href"]), depth + 1, c["text"], c)
+                elif c.get("nav") and self._click_menus:
+                    tried.add(key)                                   # 메뉴의 단추는 탐색 계획이 눌러서 연다. 여기서 누르면 메뉴만 여닫는다
+                elif landing and not _READ_FIRST.search(c["text"] or ""):
+                    tried.add(key)                                   # 메뉴가 있는 앱의 시작 화면은 안내 화면이다. 화면은 계획이 돌고, 여기서는 조회·검색 단추만 본다
                 else:
                     fresh.append(c)
+            # 데이터를 불러오는 단추(조회, 검색…)를 먼저, 표준 요소가 아닌데 눌리는 것(div, span)은 마지막에. 같은 부류 안에서는 화면 순서대로다.
+            fresh.sort(key=lambda c: (1 if c.get("x") else 0, 0 if _PRIMARY.search(c["text"] or "") else 1 if _READ_FIRST.search(c["text"] or "") else 2))
             # 처음 모은 것은 화면 순서대로, 방금 누른 것 때문에 나타난 것은 먼저 본다(조회 → 첫 행).
             # 그렇게 하지 않으면 뒤에 있는 "초기화" 가 먼저 눌려 방금 나타난 표가 지워진다.
             work.extend(fresh) if first else work.extendleft(reversed(fresh))
 
         self._in_page = True
+        self._masked = False
+        self._park_mouse()
         try:
             if task:
                 # 사람이 답한 버튼 하나만 누른다. 나머지는 이 화면을 처음 열었을 때 이미 본 것이다.
@@ -578,8 +919,15 @@ class Crawler:
                 work.append(target)
             else:
                 refill(first=True)
-            while work and acted < MAX_ACTIONS:
+            tries = fails = 0
+            while work and acted < limit:
+                if tries >= MAX_TRIES or fails >= MAX_FAILS:
+                    self._emit("web", "skip", msg=("누르지 못하는 단추가 이어져" if fails >= MAX_FAILS else f"눌러 본 시도가 {MAX_TRIES}번을 넘어") + " 이 화면은 여기까지만 누릅니다", menu=self._menu)
+                    break
                 if self._stop_reason() or self._abandon:
+                    return
+                if self._readpost_gate():                          # 조회로 보이는 요청이 막혔다고 물었고 허락받았다: 이 화면을 처음부터 다시 연다
+                    self._abandon, self._abandon_fresh, self._abandon_url = True, True, self.page.url
                     return
                 c = work.popleft()
                 tried.add(c["key"])
@@ -600,8 +948,15 @@ class Crawler:
                 fill = task.get("value") if forced and task["op"] == "fill" else None
                 if forced:
                     entry.task = None                                       # 이 일은 지금 한다. 이 뒤에 화면을 접어도 다시 하지 않는다
+                tries += 1
                 if self._click(c, depth, press=press, fill=fill):
                     acted += 1
+                    fails = 0
+                else:
+                    fails += 1
+                if self._masked:
+                    self._emit("web", "skip", msg="화면을 덮은 층을 닫지 못해 이 화면은 여기까지만 누릅니다", menu=self._menu)
+                    break
                 refill()
                 self.page.wait_for_timeout(self.policy.delay_ms)
             if self._abandon:
@@ -650,6 +1005,8 @@ class Crawler:
             return f"누르지 않을 단어 \"{word}\" 가 있어"
         if SESSION_KILL.search(c["text"] or ""):
             return "로그아웃이라"
+        if self.res.anonymous and c["kind"] != "row" and _LOGIN_TEXT.search(c["text"] or ""):
+            return "로그인 없이 탐색하는 사이트라"
         return self.policy.risky_click(c["href"], c["onclick"])
 
     def _skip_click(self, c: dict, why: str) -> None:
@@ -721,12 +1078,29 @@ class Crawler:
                 self._emit("web", "skip", msg=f"\"{text}\" 앞의 입력칸을 찾지 못해 값을 넣지 못했습니다", menu=self._menu)
                 return False
             try:
-                loc.click(timeout=4000)
+                loc.click(timeout=CLICK_TIMEOUT_MS)
             except Exception as exc:
-                self._emit("web", "skip", msg=f"\"{text}\" 을(를) 누르지 못했습니다 ({type(exc).__name__})", menu=self._menu)
-                return False
+                # 가려서 못 눌렀다: 공지 팝업을 닫거나 펼쳐진 메뉴를 접고 한 번만 다시 누른다.
+                try:
+                    if "intercepts pointer events" not in str(exc):
+                        raise exc
+                    self._dismiss_overlays()
+                    self._park_mouse()
+                    if _MASK.search(str(exc)):
+                        self.page.keyboard.press("Escape")             # 처리 중 표시, 파일 미리보기 같은 층의 마스크는 Esc 로 닫히는 것이 많다
+                        self.page.wait_for_timeout(250)
+                    loc.click(timeout=RETRY_TIMEOUT_MS)
+                except Exception as exc2:
+                    self._bad[c["key"]] = self._bad.get(c["key"], 0) + 1
+                    if "intercepts pointer events" in str(exc2) and _MASK.search(str(exc2)):
+                        self._dirty = self._masked = True               # 마스크가 남았다: 이 화면은 그만 누르고, 다음 메뉴는 앱을 다시 열어서 간다
+                    self._emit("web", "skip", msg=f"\"{text}\" 을(를) 누르지 못했습니다 ({self._why_click_failed(exc2)})", menu=self._menu)
+                    return False
             self._settle()
+            self._quiet(QUIET_MS, 1500)
         self._flush()
+        if not self._taking:
+            self._dismiss_overlays()                           # 눌러서 뜬 안내 창이 다음 단추를 가리지 않게
         after = self.page.url
         if after != before:
             self._enqueue(after, depth + 1, text)
@@ -735,6 +1109,19 @@ class Crawler:
         if self.hitl and fill is None:
             self._check_needs_input(c, depth)
         return True
+
+    @staticmethod
+    def _why_click_failed(exc: Exception) -> str:
+        """Playwright 의 누르기 실패를 사람이 읽을 이유로. 모르면 오류 종류."""
+        msg = str(exc)
+        if "intercepts pointer events" in msg:
+            m = re.search(r"(<[a-zA-Z][^<>\n]{0,90}>)[^\n]{0,40}intercepts pointer events", msg)      # 무엇이 가렸는지 같이 남긴다(팝업인지, 처리 중 표시인지)
+            return "다른 요소가 가려서" + (f" {m.group(1)[:80]}" if m else "")
+        if "outside of the viewport" in msg or "outside the viewport" in msg:
+            return "화면 밖에 있어서"
+        if "not visible" in msg or "not stable" in msg:
+            return "보이지 않거나 움직이고 있어서"
+        return type(exc).__name__
 
     def _fill(self, c: dict, value: str) -> bool:
         inp = c.get("inp")
@@ -768,31 +1155,58 @@ class Crawler:
             self.page.go_back(wait_until="domcontentloaded", timeout=15_000)
         except Exception:
             pass
+        reloaded = False
         if self.page.url != url:
+            reloaded = True
             try:
                 self.page.goto(url, wait_until="domcontentloaded", timeout=GOTO_TIMEOUT_MS)
             except Exception:
                 pass
         self._settle()
+        self._ready(READY_BOOT_MS if reloaded else READY_PAGE_MS)       # 앱을 다시 불러왔다면 화면이 그려질 때까지(SPA 는 몇 초 걸린다)
 
     # ── 사람과 함께: 계획 ───────────────────────────────────────────────────
 
     def _read_menus(self) -> List[dict]:
-        out, seen_url, seen_name = [], set(), {}
+        """화면의 메뉴. 주소가 있는 것은 {name, url}, 눌러서 여는 것(href 가 javascript:void 인 mega menu)은 {name, url: "", path, leaf}.
+
+        눌러서 여는 메뉴의 이름은 "입찰 > 입찰공고 > 입찰공고목록" 처럼 길 전체다. 끝 이름만으로는 어느 묶음의 것인지 알 수 없고,
+        계획이 질문과 겹치는 낱말을 찾을 때 상위 메뉴 이름도 단서가 된다.
+        """
+        out, seen_url, seen_name, seen_path = [], set(), {}, set()
+
+        def unique(name: str) -> str:
+            k = seen_name.get(name, 0)
+            seen_name[name] = k + 1
+            return f"{name} ({k + 1})" if k else name
+
+        def add_link(name: str, url: str) -> None:
+            n = self.policy.normalize(url)
+            if n in seen_url or SESSION_KILL.search(url) or SESSION_KILL.search(name):
+                return
+            seen_url.add(n)
+            out.append({"name": unique(name), "url": url})
+
         for frame in self.page.frames:
             try:
-                rows = frame.evaluate(_MENUS_JS)
+                res = frame.evaluate(_MENUS_JS) or {}
             except Exception:
                 continue
-            for m in rows:
-                n = self.policy.normalize(m["url"])
-                if n in seen_url or SESSION_KILL.search(m["url"]) or SESSION_KILL.search(m["name"]):
+            for m in res.get("links") or []:
+                add_link(m["name"], m["url"])
+            for node in res.get("tree") or []:
+                path = [str(x) for x in (node.get("path") or [])][:MAX_PATH_STEPS]
+                if not node.get("leaf") or not path:
                     continue
-                seen_url.add(n)
-                name, k = m["name"], seen_name.get(m["name"], 0)
-                seen_name[m["name"]] = k + 1
-                out.append({"name": f"{name} ({k + 1})" if k else name, "url": m["url"]})
-        return out[:MAX_MENUS]
+                if node.get("url"):
+                    add_link(" > ".join(path), node["url"])         # 숨어 있지만 주소가 있는 메뉴는 링크처럼 연다
+                    continue
+                key = "\x01".join(path)
+                if key in seen_path or any(SESSION_KILL.search(x) for x in path):
+                    continue
+                seen_path.add(key)
+                out.append({"name": unique(" > ".join(path)), "url": "", "path": path, "leaf": path[-1]})
+        return out[:MAX_MENUS_READ]
 
     def _build_plan(self) -> None:
         """로그인한 뒤 처음 도착한 화면에서 메뉴를 읽어 탐색 목적에 맞춰 순서를 정한다. 이 화면에서만 한 번 한다."""
@@ -801,25 +1215,39 @@ class Crawler:
         self._emit("web", "wait", msg="메뉴를 읽고 탐색 계획을 세우는 중입니다")         # AI 가 정하면 몇 초 걸린다
         usable, excluded = [], []
         for m in self._read_menus():
+            if m.get("path"):                                # 눌러서 여는 메뉴: 주소가 없으니 주소 검사는 못 하고, 누르지 않을 단어만 본다
+                word = self.policy.banned_word(*m["path"])
+                if word:
+                    excluded.append(dict(m, why=f"누르지 않을 단어 \"{word}\"", reason=f"누르지 않을 단어 \"{word}\" 가 있어"))
+                else:
+                    usable.append(m)
+                continue
             ok, why = self.policy.url_decision(m["url"], 1)
             if ok:
                 usable.append(m)
             elif why in _SHORT_WHY:
                 excluded.append(dict(m, why=_SHORT_WHY[why], reason=why))
         items, by = planner.build_plan(usable, h.purpose, h.ques)
+        cut = max(0, len(items) - MAX_MENUS)
+        if cut:
+            items = items[:MAX_MENUS]                        # 관련도 순으로 줄 세운 뒤에 자른다
         for ex in excluded:                                  # 제외 경로는 계획에 건너뜀으로 보인다
             items.append({"id": f"m{len(items) + 1}", "name": ex["name"], "rel": "excl", "qa": [], "why": ex["why"], "st": "skip", "hum": False, "url": ex["url"]})
         h.set_plan(items, by)
         self._dfs = by != "none"
         self._menu_urls = {self.policy.normalize(it["url"]) for it in items if it.get("url")}
+        self._click_menus = any(it.get("path") for it in items if it["rel"] != "excl")
         if not items:
             return
         n = len(items) - len(excluded)
+        how = "눌러서 여는 " if self._click_menus else ""
         if by == "none":
-            msg, det = f"메뉴 {n}개를 읽었습니다. 탐색 목적이 없어 화면 순서대로 탐색합니다", ""
+            msg, det = f"{how}메뉴 {n}개를 읽었습니다. 탐색 목적이 없어 화면 순서대로 탐색합니다", ""
         else:
-            msg = f"메뉴 {n}개를 읽고 탐색 목적에 맞춰 순서를 정했습니다"
+            msg = f"{how}메뉴 {n}개를 읽고 탐색 목적에 맞춰 순서를 정했습니다"
             det = "AI(GPT)가 정했습니다" if by == "ai" else "메뉴 이름과 질문의 낱말이 겹치는 정도로 정했습니다"
+        if cut:
+            det = (det + ". " if det else "") + f"메뉴가 많아 관련도 높은 {MAX_MENUS}개만 계획에 올렸습니다"
         self._emit("web", "plan", msg=msg, det=det, by=by, cnt=n)
         for ex in excluded:
             self._skip(ex["url"], ex["reason"], ex["name"])
@@ -843,8 +1271,79 @@ class Crawler:
             if it["rel"] == "low" and self._low_gate(it) != "go":
                 continue
             self._picked.add(it["id"])
+            if it.get("path"):                                  # 눌러서 여는 메뉴: 앱이 열린 화면에서 길을 눌러 간다
+                return Entry(url=self._home or self.start_url, depth=1, menu=it["id"], text=it.get("leaf") or it["name"], path=list(it["path"]))
             return Entry(url=it["url"], depth=1, menu=it["id"], text=it["name"])
         return None
+
+    def _menu_pick(self, path: List[str]):
+        """메뉴 길이 가리키는 앵커에 표지를 붙이고 (프레임, {vis, leaf}) 를 돌려준다. 없으면 None."""
+        for frame in self.page.frames:
+            try:
+                info = frame.evaluate(_MENU_PICK_JS, path)
+            except Exception:
+                continue
+            if info:
+                return frame, info
+        return None
+
+    def _run_path(self, path: List[str]) -> bool:
+        """메뉴 길(["입찰", "입찰공고", "입찰공고목록"])을 위에서부터 눌러 말단 화면을 연다.
+
+        위 단계는 마우스를 올리면 열리는 메뉴도, 눌러야 열리는 메뉴도 있어서 먼저 올려 보고 안 열리면 누른다.
+        하위 메뉴가 가려 있어 누를 수 없으면 거기서 멈추고 False 다(이유는 호출한 쪽이 기록한다).
+        """
+        for k in range(len(path)):
+            if self._cancelled():
+                raise Cancelled()
+            last = k == len(path) - 1
+            self._dismiss_overlays()
+            hit = self._menu_pick(path[:k + 1])
+            if hit is None:
+                return False
+            frame, info = hit
+            if not info["vis"]:
+                return False                                   # 앞 단계가 열어 주지 않았다
+            loc = frame.locator('[data-ieum-m="1"]').first
+            try:
+                if last:
+                    self._press_menu(loc)
+                else:
+                    loc.hover(timeout=2500)                        # 마우스를 올리면 열리는 메뉴
+                    self.page.wait_for_timeout(180)
+                    nxt = self._menu_pick(path[:k + 2])
+                    if nxt is None or not nxt[1]["vis"]:
+                        self._menu_pick(path[:k + 1])              # 표지를 다시 붙이고 누른다
+                        self._press_menu(frame.locator('[data-ieum-m="1"]').first)
+                        self.page.wait_for_timeout(300)
+            except Cancelled:
+                raise
+            except Exception:
+                return False
+        self._park_mouse()                                    # 펼쳐진 메뉴를 접는다(마우스가 위에 있으면 화면을 덮은 채로 있다)
+        self._settle(max_ms=4000)
+        self._quiet(QUIET_MS, 3000)
+        self._dismiss_overlays()
+        return True
+
+    def _park_mouse(self) -> None:
+        """마우스를 화면 구석으로 치운다. 마우스를 올리면 펼쳐지는 메뉴(나라장터의 mega menu)는 말단을 눌러도 마우스가 그 위에 있으면 펼쳐진 채로 화면을 덮는다."""
+        if self._taking:
+            return
+        try:
+            self.page.mouse.move(2, VIEWPORT["height"] - 2)
+            self.page.wait_for_timeout(250)
+        except Exception:
+            pass
+
+    def _press_menu(self, loc) -> None:
+        """메뉴 하나를 누른다. 팝업이 가로채면 닫고 한 번 더."""
+        try:
+            loc.click(timeout=3000)
+        except Exception:
+            if not self._dismiss_overlays():
+                raise
+            loc.click(timeout=3000)
 
     def _pickable(self) -> bool:
         h = self.hitl
@@ -912,6 +1411,69 @@ class Crawler:
             return None, h.decided(spec["key"])
         return rec, (rec["val"] if rec["st"] == "done" else None)
 
+    # ── 조회에도 POST 를 쓰는 사이트 ────────────────────────────────────────
+
+    def reads_open(self) -> bool:
+        """이름이 조회처럼 보이는 POST 를 운영에 보내도 되는가. 설정으로 미리 허락했거나 질문에 허락이라고 답했을 때다."""
+        if self.policy.read_auto or self._reads_ok:
+            return True
+        h = self.hitl
+        if h is not None and "allow" in (h.decided(self._reads_key), h.decided(self._reads_take_key)):
+            self._reads_ok = True
+        return self._reads_ok
+
+    def reads_summary(self) -> Optional[dict]:
+        """조회에도 POST 를 쓰는 사이트였는가. 허락해서 보냈으면 {state: allow, n}, 막은 채였으면 막은 조회형 요청의 요약({state: keep, n, paths, groups}). 해당 없으면 None."""
+        if self.reads_open():
+            return {"state": "allow", "n": self._read_sent, "auto": bool(self.policy.read_auto)} if self._read_sent else None
+        return self._read_seen.info("keep")
+
+    def _reads_spec(self, present: bool = False) -> dict:
+        seen = self._read_seen
+        kinds, n = len(seen.paths), seen.total()
+        return {"key": self._reads_take_key if present else self._reads_key, "kind": "readpost", "title": "조회로 보이는 요청을 실제로 보내도 될까요?",
+                "body": f"이 사이트는 조회에도 POST 를 쓰는 것 같아요. 쓰기 요청은 운영에 보내지 않는 규칙이라 {n}건을 막았고, 그래서 화면이 비어 보입니다. "
+                        f"그중 이름이 조회처럼 보이는 요청이 {kinds}종({', '.join(seen.groups())}) 있어요. 허락하면 그런 이름의 요청만 실제로 보내고 응답 형식을 기록합니다. "
+                        "저장·삭제·수정 같은 낱말이 든 요청은 계속 막아요. 이름만 보고 가리는 거라 틀릴 수 있어요.",
+                "pred": ", ".join(seen.names(4)), "predLabel": "막은 요청", "present": present,
+                "opts": [["allow", "조회로 허락하고 이어서 탐색", "pri"], ["keep", "계속 막기", ""]], "def": "keep", "defLabel": "계속 막습니다",
+                "labels": {"allow": "조회로 보이는 POST 도 보내기", "keep": "조회로 보이는 POST 계속 막기"}, "menu": self._menu, "task": None}
+
+    def _readpost_gate(self) -> bool:
+        """막은 POST 중에 이름이 조회처럼 보이는 것이 있으면 보내도 되는지 묻는다. 허락했으면 True — 막혔던 조회가 이제 나가니 호출한 쪽이 화면을 처음부터 다시 연다.
+
+        다른 질문과 달리 **답을 기다린다.** 조회가 막힌 채로 더 탐색하면 빈 화면과 "안내 메시지" 팝업만 모으고, 허락한 뒤 다시 해야 하기 때문이다.
+        "묻지 않고" 설정이면 묻지 않고 막은 채로 간다(안전한 쪽). 막은 요청은 결과 화면이 알려 주고 다시 탐색할 때 허락할 수 있다.
+        """
+        h = self.hitl
+        if h is None or not self._read_seen or self.reads_open():
+            return False
+        d = h.decided(self._reads_key)
+        if d is None:
+            rec, d = self._ask(self._reads_spec())
+            if d is None and rec is not None:
+                self._emit("web", "wait", msg="조회로 보이는 요청을 보내도 되는지 답을 기다리고 있습니다")
+                d = self._wait_answer(self._reads_key)
+        if d == "allow":
+            self._reads_ok = True
+            self._say("조회로 보이는 POST 를 보내기로 했습니다. 이 화면을 처음부터 다시 엽니다")
+            return True
+        return False
+
+    def _wait_answer(self, key: str) -> Optional[str]:
+        """질문에 답이 나올 때까지 기다린다(질문 시간은 질문에만 흐르고, 기다린 시간은 시간 상한에 넣지 않는다). 탐색이 멈추라면 None."""
+        h = self.hitl
+        self._idle_begin()
+        try:
+            while h.decided(key) is None:
+                if self._stop_reason():
+                    return None
+                self.page.wait_for_timeout(IDLE_POLL_MS)
+                h.tick()
+        finally:
+            self._idle_end()
+        return h.decided(key)
+
     def _risky_word(self, c: dict) -> Optional[str]:
         """누르지 않을 단어에는 없지만 상태를 바꾸는 것처럼 보이는 버튼의 낱말. 링크(주소 검사가 맡는다)와 표 행(데이터다)은 보지 않는다."""
         if c["kind"] in ("link", "row"):
@@ -937,7 +1499,7 @@ class Crawler:
                     "pred": self._predict(c, text), "opts": [["press", "눌러 보기 (요청은 차단)", "pri"], ["skip", "건너뛰기", ""]], "def": "skip", "defLabel": "건너뜁니다",
                     "labels": {"press": f"'{text}' 버튼을 눌러 보기 (요청은 차단)", "skip": f"'{text}' 버튼 건너뛰기"}, "menu": self._menu,
                     "task": {"url": self.page.url, "depth": self._cur.depth if self._cur else 0, "menu": self._menu, "text": text, "again": True,
-                             "task": {"op": "press", "ckey": c["key"]}}}
+                             "path": self._cur.path if self._cur else None, "task": {"op": "press", "ckey": c["key"]}}}
             rec, d = self._ask(spec, box=self._box(c))
             if d is None:
                 self._note_skipped(text, "위험해 보이는 버튼이라 사람의 답을 기다림")
@@ -986,7 +1548,8 @@ class Crawler:
                 "opts": [["skip", "이 단계 건너뛰기", ""]], "input": {"ph": label, "sugg": sugg},
                 "def": first or "skip", "defLabel": f"질문에 나온 '{first}'(으)로 넣습니다" if first else "건너뜁니다",
                 "labels": {"skip": f"'{btn}' 단계 건너뛰기", "*": f"'{label}'에 \"{{v}}\" 넣고 '{btn}' 누르기"}, "menu": self._menu,
-                "task": {"url": self.page.url, "depth": depth, "menu": self._menu, "text": btn, "again": True, "task": {"op": "fill", "ckey": c["key"]}}}
+                "task": {"url": self.page.url, "depth": depth, "menu": self._menu, "text": btn, "again": True,
+                         "path": self._cur.path if self._cur else None, "task": {"op": "fill", "ckey": c["key"]}}}
         self._ask(spec, box=self._box(c))
 
     def _deny_reason(self) -> str:
@@ -1043,7 +1606,7 @@ class Crawler:
                 "body": "처음 여는 화면이에요. 탐색하면 이 화면의 버튼을 눌러 보며 API 를 찾습니다.",
                 "opts": [["go", "이 화면 탐색하기", "pri"], ["skip", "건너뛰기", ""]], "def": "go", "defLabel": "탐색합니다",
                 "labels": {"go": f"'{name}' 화면 탐색하기", "skip": f"'{name}' 화면 건너뛰기"}, "menu": entry.menu,
-                "task": {"url": entry.url, "depth": entry.depth, "menu": entry.menu, "text": entry.text, "again": True}}
+                "task": {"url": entry.url, "depth": entry.depth, "menu": entry.menu, "text": entry.text, "again": True, "path": entry.path}}
         rec, val = self._ask(spec)
         return val != "go"
 
@@ -1155,6 +1718,7 @@ class Crawler:
             while h.take is not None:
                 if self._cancelled():
                     raise Cancelled()
+                self._take_reads()
                 cmd = h.next_input()
                 if cmd is not None:
                     self._apply_input(cmd)
@@ -1173,14 +1737,23 @@ class Crawler:
                 self.ctx.clear_cookies()
                 if saved:
                     self.ctx.add_cookies(saved)
-                self.page.goto(self._home or self.start_url, wait_until="domcontentloaded", timeout=GOTO_TIMEOUT_MS)
-                self._settle()
+                self._taking = False                            # 돌아온 화면의 팝업은 크롤러가 닫는다
+                self._goto(self._home or self.start_url, boot=True)
                 self.heading = self._heading().get("heading") or self.heading
             except Exception:
                 pass
             self.action = "화면 열기"
             self._relogins = 0
             self._idle_end()
+
+    def _take_reads(self) -> None:
+        """직접 조작 중 조회로 보이는 요청이 막히면 사람에게 바로 알린다 — 사람이 보는 화면이 비어 보이는 까닭이다. 허락하면 그 뒤 요청부터 나간다."""
+        h = self.hitl
+        if h is None or not self._read_seen or self.reads_open() or h.decided(self._reads_take_key) is not None:
+            return
+        if any(a["kind"] == "readpost" for a in h.pending()):
+            return                                              # 이미 카드가 떠 있다. 직접 조작 막대가 그 카드를 보여 준다
+        h.ask(self._reads_spec(present=True), None)
 
     def _apply_input(self, cmd: dict) -> None:
         op = cmd.get("op")
@@ -1268,6 +1841,7 @@ class Crawler:
         self.login_done = True
         self._build_recipe(login_page, user, pw)
         self.policy.visit(self.page.url)
+        self._ready(READY_BOOT_MS)                            # 로그인한 뒤에도 앱이 화면을 그리는 데 시간이 걸리는 사이트가 있다
 
     def _build_recipe(self, login_page: str, user: str, pw: str) -> None:
         """로그인 요청에서 필드 이름을 알아낸다. 도구를 실행할 때 같은 방식으로 로그인하려는 것이다."""
@@ -1330,9 +1904,17 @@ class Crawler:
         if self.policy.is_read_post(url):
             route.continue_()
             return
+        looks_read = same and method == "POST" and rtype in ("xhr", "fetch") and reads.looks_read(path)       # PUT·PATCH·DELETE 는 이름이 어떻든 쓰기다. 조회로 허락하는 것은 POST 뿐
+        if looks_read and self.reads_open():
+            self._read_reqs.add(request)
+            self._read_sent += 1
+            route.continue_()                                  # 이름이 조회처럼 보이고(쓰기 낱말이 없고) 사람이 허락했다
+            return
         # 여기까지 왔으면 쓰기(또는 막아야 할 이동)다. 운영에 보내지 않는다.
         silent = nav_block and read                            # 눌러 본 버튼이 일으킨 화면 이동: 보내지 않을 뿐 API 후보도, 차단한 쓰기 요청 수도 아니다
         self._blocked_reqs.add(request)
+        if looks_read and not silent:
+            self._read_seen.add(path)                          # 질문과 결과 안내가 읽는다. 질문은 안전한 때(화면을 다 연 뒤)에 한다
         if not silent:
             self.res.blocked += 1
             if self._room(f"{method} {path}"):
@@ -1340,7 +1922,7 @@ class Crawler:
                                                   post=post, blocked=True, out_of_scope=not self.policy.in_scope(url),
                                                   label=f"{self.heading} > {self.action}", screen=self.policy.display(self.page.url),
                                                   human=self._by_human, menu=self._menu or ""))
-            self._record_event("block", method, url, None)
+            self._record_event("block", method, url, None, rd=looks_read)
         if rtype in ("xhr", "fetch"):
             # 화면 스크립트가 응답을 기다리다 멈추지 않게 빈 성공 응답을 준다.
             route.fulfill(status=200, content_type="application/json; charset=utf-8", body="{}")
@@ -1355,14 +1937,17 @@ class Crawler:
         return self._samples[key] <= MAX_SAMPLES
 
     def _keep_headers(self, headers: Optional[dict]) -> Dict[str, str]:
-        """도구를 만들 때 다시 보내야 하는 요청 헤더만 남긴다. 인증·세션 값과 요청마다 바뀌는 토큰은 뺀다."""
+        """도구를 만들 때 다시 보내야 하는 요청 헤더만 남긴다. 인증·세션 값과 요청마다 바뀌는 값은 뺀다.
+
+        브라우저가 알아서 붙이는 표준 헤더(쿠키, 사용자 에이전트, 출처 등)를 뺀 나머지는 모두 남긴다. 시스템이 정한 헤더(나라장터의 `menu-info`
+        처럼 `x-` 로 시작하지 않는 것)가 없으면 403 을 주는 곳이 있어서다. 늘 같은 값으로 보내는 것만 도구에 넣는다(infer.build_params).
+        """
         keep = {}
         for k, v in (headers or {}).items():
             lk = k.lower()
-            if is_secret_key(lk) or "csrf" in lk or "xsrf" in lk:
+            if lk in _BROWSER_HEADERS or lk.startswith(("sec-", ":")) or is_secret_key(lk) or "csrf" in lk or "xsrf" in lk or any(w in lk for w in _VOLATILE_HEADER):
                 continue
-            if lk in ("x-requested-with", "content-type", "accept") or lk.startswith("x-"):
-                keep[lk] = v
+            keep[lk] = v
         return keep
 
     def _on_response(self, response) -> None:
@@ -1409,16 +1994,18 @@ class Crawler:
                 post = None
             obs = Observed(method=method, url=url, status=response.status, ctype=ctype, ms=ms, headers=self._keep_headers(req.headers), post=post,
                            body=body, file=is_file, out_of_scope=not self.policy.in_scope(url),
-                           label=f"{self.heading} > {self.action}", screen=self.policy.display(self.page.url), human=self._by_human, menu=self._menu or "")
+                           label=f"{self.heading} > {self.action}", screen=self.policy.display(self.page.url), human=self._by_human, menu=self._menu or "",
+                           read=req in self._read_reqs)
+            self._read_reqs.discard(req)
             self.res.observed.append(obs)
             self._record_event("out" if obs.out_of_scope else "cap", method, url, response.status, ms)
 
-    def _record_event(self, tag: str, method: str, url: str, code: Optional[int], ms: Optional[int] = None) -> None:
+    def _record_event(self, tag: str, method: str, url: str, code: Optional[int], ms: Optional[int] = None, rd: bool = False) -> None:
         key = f"{tag} {method} {urlsplit(url).path}"
         self._dups[key] = self._dups.get(key, 0) + 1
         if self._dups[key] > DUP_EVENTS:
             return
-        ev = {"m": method, "p": self.policy.display(url), "code": code, "tag": tag, "ms": ms, "human": 1 if self._by_human else None}
+        ev = {"m": method, "p": self.policy.display(url), "code": code, "tag": tag, "ms": ms, "human": 1 if self._by_human else None, "rd": 1 if rd else None}
         if self.hitl and tag in ("cap", "block"):
             # 요청 줄마다 "무엇에 쓰는 API 인가"를 붙인다. 화면 제목에 읽기/쓰기 동사를 붙인 추정이고, 사람이 고치면 그 값이 쓰인다.
             ev["api"] = planner.api_key(method, infer.templatize(self.policy.rel(urlsplit(url).path)))

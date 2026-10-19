@@ -175,3 +175,85 @@ def test_시작_화면이_열리지_않으면_이유를_알려_준다(monkeypatc
         url = f"http://127.0.0.1:{blackhole.getsockname()[1]}/"
         res = Crawler(Policy(base=url, delay_ms=50), url, None, emit=lambda *a, **k: None, on_shot=lambda b: 1, cancelled=lambda: False).run()
     assert res.stopped == "error" and res.error.startswith("시작 페이지를 2초 안에 열지 못했습니다") and "Timeout" not in res.error
+
+
+# ---------------------------------------------------------------- 조회형 POST 허락과 SPA 의 함정
+TRAPS = """<!doctype html><meta charset="utf-8"><title>함정</title>
+<style>.pop{position:fixed;left:40px;top:40px;width:420px;height:220px;background:#fff;border:2px solid #444;z-index:6010}</style>
+<div class="pop w2window" role="dialog" aria-modal="true"><p>공지 1</p><input type="button" class="close" value="닫기" onclick="this.closest('.pop').remove()"></div>
+<div class="pop w2window" role="dialog" aria-modal="true"><p>공지 2</p><input type="button" class="close" value="닫기" onclick="this.closest('.pop').remove()"></div>
+<div class="pop w2window" role="dialog" aria-modal="true"><p>공지 3</p><button class="w2window_close" title="창닫기" onclick="this.closest('.pop').remove()"></button></div>
+<button onclick="fetch('/data/afterPopups.do')">조회</button>
+<button onclick="fetch('/data/selectItemList.do', {method:'POST', body:'{}'})">목록 조회</button>
+<button onclick="fetch('/data/selectItemList.do', {method:'PUT'})">수정형 조회</button>
+<button onclick="fetch('/data/selectItemList.do', {method: ['DEL', 'ETE'].join('')})">삭제형 조회</button>
+<button onclick="fetch('/data/selectAndUpdateRow.do', {method:'POST'})">조회 후 갱신</button>
+<a href="javascript:void(0)" style="position:absolute;left:-5000px;top:20px" onclick="fetch('/data/offscreen.do')">숨김 링크</a>
+<div style="position:fixed;right:-300px;top:10px"><a href="javascript:void(0)" onclick="fetch('/data/fixedOff.do')">고정 위젯</a></div>"""
+
+
+@contextlib.contextmanager
+def serve_traps():
+    hits = []
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def record(request, call_next):
+        hits.append((request.method, request.url.path))
+        return await call_next(request)
+
+    app.get("/")(lambda: HTMLResponse(TRAPS))
+    app.api_route("/data/{name}", methods=["GET", "POST", "PUT", "DELETE"])(lambda name: JSONResponse({"ok": 1}))
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    while not server.started:
+        time.sleep(0.02)
+    try:
+        yield f"http://localhost:{server.servers[0].sockets[0].getsockname()[1]}", hits
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
+
+
+@pytest.fixture(scope="module")
+def traps():
+    with serve_traps() as (base, hits):
+        events = []
+        res = Crawler(Policy(base=base, read_auto=True, delay_ms=50, max_pages=3), base + "/", None, emit=lambda l, k, **f: events.append((l, k, f)),
+                      on_shot=lambda b: 1, cancelled=lambda: False).run()
+        yield res, list(hits), events
+
+
+def test_겹쳐_뜬_팝업을_모두_닫아야_뒤의_버튼을_누른다(traps):
+    res, hits, events = traps
+    assert res.error == ""
+    assert ("GET", "/data/afterPopups.do") in reached(hits)                                          # 팝업 3개가 버튼을 덮고 있었다
+    assert any(k == "note" and "팝업 3개" in f.get("msg", "") for _, k, f in events)
+
+
+def test_허락해도_PUT_DELETE_는_이름이_조회처럼_보여도_보내지_않는다(traps):
+    res, hits, _ = traps
+    got = reached(hits)
+    assert ("POST", "/data/selectItemList.do") in got                                               # 조회로 보이는 POST 는 허락했으니 나간다
+    assert not {("PUT", "/data/selectItemList.do"), ("DELETE", "/data/selectItemList.do")} & got
+    assert ("POST", "/data/selectAndUpdateRow.do") not in got                                       # select 로 시작해도 수정 낱말이 있다
+    sent = [o for o in res.observed if o.url.endswith("/data/selectItemList.do") and not o.blocked]
+    assert sent and all(o.read and o.method == "POST" for o in sent)
+    blocked = {(o.method, o.url.rsplit("/", 1)[-1]) for o in res.observed if o.blocked}
+    assert {("PUT", "selectItemList.do"), ("DELETE", "selectItemList.do"), ("POST", "selectAndUpdateRow.do")} <= blocked
+
+
+def test_화면_밖으로_치워_둔_것은_누르려고_시간을_쓰지_않는다(traps):
+    res, hits, events = traps
+    got = reached(hits)
+    assert ("GET", "/data/offscreen.do") not in got and ("GET", "/data/fixedOff.do") not in got
+    assert not any(k == "skip" and ("숨김 링크" in f.get("msg", "") or "고정 위젯" in f.get("msg", "")) for _, k, f in events)       # 눌러 보지도 않았다
+
+
+def test_누르지_못한_이유를_사람이_읽을_말로_바꾼다():
+    why = Crawler._why_click_failed
+    assert why(Exception("<div id=\"x\" class=\"w2modal\"> intercepts pointer events")).startswith("다른 요소가 가려서 <div")
+    assert why(Exception("Element is outside of the viewport")) == "화면 밖에 있어서"
+    assert why(Exception("element is not visible")) == "보이지 않거나 움직이고 있어서"
+    assert why(TimeoutError("x")) == "TimeoutError"

@@ -36,6 +36,21 @@ class Deployment:
         tool = self.tools.get(tool_id)
         return (self.sources.get(tool["src"]), tool) if tool else (None, None)
 
+    def definitions(self) -> list:
+        return [runner.mcp_definition(t) for t in self.tools.values()]
+
+    def call(self, name: str, args: dict, key: dict, client: str) -> dict:
+        """도구 하나를 실행한다. {'ok', 'result'|'error'}"""
+        return runner.run_tool(name, args, client=client, user=key["name"], bucket=key["id"], resolve=self.resolve)
+
+
+def load_deployment(data: dict) -> "Deployment":
+    """스냅샷 종류에 맞는 배포 객체. 온톨로지 스냅샷은 도구가 객체에서 만들어지고 질의 엔진이 실행한다."""
+    if data.get("kind") == "onto":
+        from app.ieum.onto import runtime as onto_runtime
+        return onto_runtime.OntoDeployment(data)
+    return Deployment(data)
+
 
 def client_of(headers) -> str:
     ua = (headers.get("x-ieum-client") or headers.get("user-agent") or "").lower()
@@ -93,12 +108,12 @@ def handle(dep: Deployment, headers, raw: bytes) -> Reply:
     if method == "ping":
         return _result(rid, {})
     if method == "tools/list":
-        return _result(rid, {"tools": [runner.mcp_definition(t) for t in dep.tools.values()]})
+        return _result(rid, {"tools": dep.definitions()})
     if method == "tools/call":
         name = params.get("name")
         if name not in dep.tools:
             return _error(rid, -32602, "알 수 없는 도구입니다: %s" % name)
-        out = runner.run_tool(name, params.get("arguments") or {}, client=client_of(h), user=key["name"], bucket=key["id"], resolve=dep.resolve)
+        out = dep.call(name, params.get("arguments") or {}, key, client_of(h))
         if out["ok"]:
             return _result(rid, {"content": [{"type": "text", "text": json.dumps(out["result"], ensure_ascii=False)}],
                                  "structuredContent": out["result"], "isError": False})

@@ -19,7 +19,7 @@ function srcRows() {
   }).join('');
 }
 function vSrc() {
-  const later = [['db', 'DB 직접 조회', 'SQL 조회문을 읽기 전용 도구로 변환'], ['graph', 'GraphQL', '스키마를 읽어 쿼리별 도구 생성'], ['layers', 'gRPC', 'proto 정의를 읽어 서비스별 도구 생성']];
+  const later = [['db', 'DB 직접 연결', 'DB를 객체와 관계로 정리한 온톨로지로 연결', 'onto'], ['graph', 'GraphQL', '스키마를 읽어 쿼리별 도구 생성'], ['layers', 'gRPC', 'proto 정의를 읽어 서비스별 도구 생성']];
   return pageHead('src') + `
   <div class="toolbar">
     <div class="search"><input type="search" placeholder="시스템 이름으로 검색" aria-label="원본 시스템 검색" data-inp="srcQ" value="${esc(S.srcQ)}"><span class="s-btn">${svg('search', 17)}</span></div>
@@ -36,8 +36,8 @@ function vSrc() {
   </table></div>
   <p class="tab-hint">AI 도구 수는 <b>공개 중 / 전체 작업</b>입니다. 명세가 바뀌었는지는 변환 스튜디오의 <b>명세 다시 읽기</b>로 확인합니다.</p>
   ${discJobsHTML()}
-  <h3 class="sec-t">2차 개발에서 지원할 연결 방식 <small>1차에서는 REST, SOAP, 공공데이터포털, 호출 샘플 추론을 지원합니다</small></h3>
-  <div class="later">${later.map(l => `<div class="srow avail"><span class="si">${svg(l[0], 18)}</span><span class="tx"><b>${l[1]}</b><span>${l[2]}</span></span><span class="p2">2차</span></div>`).join('')}</div>`;
+  <h3 class="sec-t">2차 개발에서 지원할 연결 방식 <small>DB 직접 연결은 온톨로지 메뉴에서 쓸 수 있어요. GraphQL, gRPC는 아직입니다</small></h3>
+  <div class="later">${later.map(l => l[3] ? `<button class="srow avail go" data-act="nav" data-v="onto"><span class="si">${svg(l[0], 18)}</span><span class="tx"><b>${l[1]}</b><span>${l[2]}</span></span><span class="p2 on">온톨로지 보기</span></button>` : `<div class="srow avail"><span class="si">${svg(l[0], 18)}</span><span class="tx"><b>${l[1]}</b><span>${l[2]}</span></span><span class="p2">2차</span></div>`).join('')}</div>`;
 }
 
 
@@ -53,7 +53,7 @@ function wzOpen() {
 function wzBody() {
   const w = S.wz;
   if (w.step === 1) return `<p class="tab-hint" style="margin-top:0">연결할 원본 시스템이 어떤 형태로 되어 있는지 고르세요.</p>
-    ${[...new Set(WZ_MODES.map(m => m.g))].map(g => `<div class="wz-g">${g}</div><div class="wz-cards">${WZ_MODES.filter(m => m.g === g).map(m => `<button class="mode-card ${w.mode === m.v ? 'on' : ''} ${m.dis ? 'dis' : ''} ${m.rec ? 'wide' : ''}" ${m.dis ? 'disabled aria-disabled="true"' : `data-act="wzMode" data-v="${m.v}"`}><span class="radio"></span><span><span class="mt">${svg(m.ic, 16)}${m.t}${m.dis ? ' <span class="p2">2차</span>' : ''}${m.rec ? ' <span class="rec">명세 없는 레거시에 추천</span>' : ''}</span><span class="mp">${m.d}</span></span></button>`).join('')}</div>`).join('')}`;
+    ${[...new Set(WZ_MODES.map(m => m.g))].map(g => `<div class="wz-g">${g}</div><div class="wz-cards">${WZ_MODES.filter(m => m.g === g).map(m => `<button class="mode-card ${w.mode === m.v ? 'on' : ''} ${m.dis ? 'dis' : ''} ${m.rec ? 'wide' : ''}" ${m.dis ? 'disabled aria-disabled="true"' : m.onto ? 'data-act="dbFromWz"' : `data-act="wzMode" data-v="${m.v}"`}><span class="radio"></span><span><span class="mt">${svg(m.ic, 16)}${m.t}${m.dis ? ' <span class="p2">2차</span>' : m.onto ? ' <span class="p2 on">2차</span>' : ''}${m.rec ? ' <span class="rec">명세 없는 레거시에 추천</span>' : ''}</span><span class="mp">${m.d}</span></span></button>`).join('')}</div>`).join('')}`;
   if (w.mode === 'discover') return wzDiscBody(w);
   const nm = `<div class="field"><label>시스템 이름</label><input class="inp" data-inp="wzName" placeholder="비우면 명세의 이름을 씁니다" value="${esc(w.name)}"></div>`;
   if (w.step === 2) {

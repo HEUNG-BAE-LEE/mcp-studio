@@ -3,6 +3,9 @@
 자동 탐색이 로그인 요청을 한 번 관찰해 "레시피"(어느 주소에, 어떤 필드 이름으로)를 남긴다.
 도구를 실행할 때 이음이 같은 레시피로 서비스 계정에 로그인해 쿠키를 받아 원본 요청에 싣는다.
 쿠키는 잠깐 기억하고(TTL), 만료되면 다시 로그인한다.
+
+로그인이 필요 없는 공개 사이트(나라장터 등)도 첫 방문에서 세션 쿠키를 주고, 그 쿠키 없이는 API 가 403 이다. 이런 곳의 레시피는
+`{"visit": true, "loginRel": 시작 주소}` 다. 로그인하지 않고 그 주소를 방문(리다이렉트 포함)해 받은 쿠키를 쓴다.
 """
 import re
 import threading
@@ -16,6 +19,7 @@ import httpx
 TTL = 20 * 60
 _EXPIRED_TEXT = re.compile(r"세션이\s*만료|다시\s*로그인|재로그인|로그인이\s*필요|session (has )?expired|login required", re.I)
 TIMEOUT = 10
+VISIT_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 _CACHE: Dict[str, tuple] = {}      # 원본 시스템 id -> (쿠키 dict, 만료 시각)
 _LOCK = threading.Lock()
 
@@ -91,9 +95,41 @@ def _url(base: str, rel: str) -> str:
     return urljoin(base.rstrip("/") + "/", rel.lstrip("/"))
 
 
+def _host_cookies(client: httpx.Client, base: str) -> Dict[str, str]:
+    """이 원본 시스템 주소로 보낼 쿠키만. 리다이렉트로 거친 다른 서버(SSO 등)의 같은 이름 쿠키(JSESSIONID)가 덮어쓰지 않게 한다."""
+    host = (urlsplit(base).hostname or "").lower()
+    picked: Dict[str, tuple] = {}
+    for c in client.cookies.jar:
+        dom = (c.domain or "").lstrip(".").lower()
+        if dom.endswith(".local") and "." not in host:
+            dom = dom[:-len(".local")]                                   # 점이 없는 호스트(localhost)의 쿠키 도메인은 http.cookiejar 가 localhost.local 로 저장한다
+        if dom and not (host == dom or host.endswith("." + dom)):
+            continue
+        rank = len(dom)                                                  # 같은 이름이면 더 구체적인(긴) 도메인의 것이 이긴다
+        if c.name not in picked or rank >= picked[c.name][0]:
+            picked[c.name] = (rank, c.value)
+    return {k: v[1] for k, v in picked.items()}
+
+
+def visit(base: str, recipe: dict, *, timeout: float = TIMEOUT) -> Dict[str, str]:
+    """로그인 없이 시작 주소를 방문해 세션 쿠키를 받는다(공개 사이트)."""
+    url = _url(base, recipe.get("loginRel") or "/")
+    try:
+        with httpx.Client(follow_redirects=True, timeout=timeout, headers={"User-Agent": VISIT_UA, "Accept-Language": "ko-KR"}) as c:
+            r = c.get(url)
+            cookies = _host_cookies(c, base)
+    except httpx.HTTPError as exc:
+        raise LoginError(f"원본 시스템을 방문하지 못했습니다. ({type(exc).__name__})")
+    if r.status_code >= 400 or not cookies:
+        raise LoginError("원본 시스템을 방문했지만 세션 쿠키를 받지 못했습니다. 시작 주소를 확인해 주세요.")
+    return cookies
+
+
 def login(base: str, cred: dict, *, timeout: float = TIMEOUT) -> Dict[str, str]:
-    """레시피대로 로그인하고 {쿠키 이름: 값} 을 돌려준다."""
+    """레시피대로 로그인하고 {쿠키 이름: 값} 을 돌려준다. 방문 레시피(공개 사이트)면 로그인 없이 방문만 한다."""
     recipe = cred.get("recipe") or {}
+    if recipe.get("visit"):
+        return visit(base, recipe, timeout=timeout)
     if not recipe.get("userField") or not recipe.get("passField"):
         raise LoginError("로그인 방법을 알 수 없습니다. 원본 시스템을 자동 탐색으로 다시 연결해 주세요.")
     login_url, action = _url(base, recipe.get("loginRel", "/login.do")), _url(base, recipe.get("actionRel", "/loginProc.do"))
@@ -106,7 +142,7 @@ def login(base: str, cred: dict, *, timeout: float = TIMEOUT) -> Dict[str, str]:
             data.update({k: v for k, v in parser.fields.items() if k not in (recipe["userField"], recipe["passField"])})
             data[recipe["userField"]], data[recipe["passField"]] = cred.get("username", ""), cred.get("password", "")
             r = c.post(action, json=data) if recipe.get("json") else c.post(action, data=data)
-            cookies = {k: v for k, v in c.cookies.items()}
+            cookies = _host_cookies(c, base)
     except httpx.HTTPError as exc:
         raise LoginError(f"원본 시스템에 로그인하지 못했습니다. ({type(exc).__name__})")
     still_login = 'type="password"' in r.text.lower() or "type='password'" in r.text.lower()

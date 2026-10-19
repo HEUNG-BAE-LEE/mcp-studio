@@ -10,6 +10,7 @@ function openDrawer(html) {
 function closeDrawer() {
   $('#drawer').classList.remove('show'); $('#ov').classList.remove('show'); document.body.classList.remove('d-open');
   if (S.wz) { clearTimeout(S.wz.timer); S.wz = null; }
+  if (typeof onDrawerClosed === 'function') onDrawerClosed();
   lastFocus && lastFocus.focus && lastFocus.focus();
 }
 let modalOk = null;

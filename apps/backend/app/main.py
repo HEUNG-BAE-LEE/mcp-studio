@@ -11,6 +11,7 @@ from app.routers import sessions, analysis, actions, llm, spec
 from app.ieum.console import mount_console
 from app.ieum.routers import router as ieum_router
 from app.ieum.runtime import deployer as ieum_deployer
+from app.ieum.onto import marts as ieum_marts, mcp as ieum_onto_mcp
 from app.routers import sessions, analysis, actions, llm, spec, market, skills, autocrawl
 
 app = FastAPI(title="MCP Studio")
@@ -47,10 +48,14 @@ def _startup() -> None:
     seed_credentials()
     # 이음: 배포 중이던 MCP 서버를 같은 스냅샷으로 다시 띄운다. 기다리지 않고 돌아온다.
     ieum_deployer.restore_all()
+    ieum_onto_mcp.restore()      # 온톨로지 MCP 서버도 같은 스냅샷으로 되살린다
+    # 이음 온톨로지: 마트 갱신 주기와 주기 동기화 연결의 복제를 지키는 스케줄러(서버 안의 스레드 하나)
+    ieum_marts.start_scheduler()
 
 
 @app.on_event("shutdown")
 def _shutdown() -> None:
+    ieum_marts.stop_scheduler()
     # 이음의 MCP 서버 프로세스는 콘솔과 함께 내려간다(남겨 두면 고아가 된다).
     ieum_deployer.shutdown()
 

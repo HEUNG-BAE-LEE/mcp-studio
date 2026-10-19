@@ -49,7 +49,7 @@ class LiveManifest:
         return (st.st_mtime_ns, st.st_size, st.st_ino)      # 바꿔치기(os.replace)하면 inode 가 바뀐다
 
     def _read(self, sig) -> None:
-        self._dep = protocol.Deployment(manifest.load(self.path))
+        self._dep = protocol.load_deployment(manifest.load(self.path))
         self._sig, self.error = sig, None
 
     def current(self) -> protocol.Deployment:

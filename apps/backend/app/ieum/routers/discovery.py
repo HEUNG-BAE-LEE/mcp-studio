@@ -73,9 +73,10 @@ def job_cancel(job_id: str):
 
 
 @router.post("/jobs/{job_id}/rerun/")
-def job_rerun(job_id: str):
+def job_rerun(job_id: str, payload: Optional[dict] = Body(None)):
+    """같은 설정으로 다시 탐색. allowReads 는 이름이 조회처럼 보이는 POST 를 허락하고 다시 하는 것(막았던 기록이 있는 탐색만)."""
     try:
-        return ok(jobs.rerun(job_id).summary(), 201)
+        return ok(jobs.rerun(job_id, allow_reads=bool((payload or {}).get("allowReads"))).summary(), 201)
     except KeyError:
         return fail(404, "탐색 작업을 찾을 수 없습니다.")
     except jobs.JobError as exc:

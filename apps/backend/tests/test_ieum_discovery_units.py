@@ -189,7 +189,7 @@ def test_본문_파라미터는_폼과_JSON_위치를_구분한다():
     form = obs("http://h/po/poSave.do", method="POST", post="vendCd=V1&qty=2", headers={"content-type": "application/x-www-form-urlencoded"}, blocked=True)
     js = obs("http://h/po/a.json", method="POST", post='{"a":1,"nested":{"x":1}}', headers={"content-type": "application/json"}, blocked=True)
     assert {p["o"]: p["loc"] for p in infer.build_params([], [form], Masker()) if p["loc"] != "header"} == {"vendCd": "form", "qty": "form"}
-    assert {p["o"]: p["loc"] for p in infer.build_params([], [js], Masker())} == {"a": "body"}      # 중첩 객체는 평탄화하지 않는다
+    assert {p["o"]: p["loc"] for p in infer.build_params([], [js], Masker())} == {"a": "body", "nested.x": "body"}      # 중첩 객체는 점으로 이은 이름으로 편다
 
 
 def test_응답_매핑은_마스킹한_값으로_규칙을_추정한다():
@@ -541,3 +541,32 @@ def test_소스에_박힌_비밀_리터럴은_스니펫에서_가린다():
     res = build([ep("/a.do", sql="SELECT")], [])
     res_eps = res["apis"][0]["src"]["snippet"]
     assert res_eps == "@RequestMapping\npublic Map fn() {}"                  # 비밀이 없는 스니펫은 그대로다
+
+
+def test_중첩_JSON_본문과_시스템이_정한_헤더로_도구_파라미터를_만든다():
+    """WebSquare 같은 시스템은 {"dlSrch": {...}} 봉투에 검색 조건을 싣고, `menu-info` 처럼 x- 가 아닌 헤더가 없으면 403 을 준다."""
+    post = '{"dlOderReqSrchM":{"srchTy":"0001","bizNm":"","prgrsBgngYmd":"20260912","currentPage":1,"recordCountPerPage":"10","flag":true,"dtl":{"srchTy":"x"}}}'
+    o = obs("https://g.example/pr/selectOderReqList.do", method="POST", post=post,
+            headers={"content-type": "application/json;charset=UTF-8", "accept": "application/json", "menu-info": '{"menuNo":"13713"}', "submissionid": "sm1"})
+    ps = {p["o"]: p for p in infer.build_params([], [o], Masker(), default_loc="body")}
+    assert {k: p["loc"] for k, p in ps.items() if p["loc"] == "body"}.keys() == {"dlOderReqSrchM.srchTy", "dlOderReqSrchM.bizNm", "dlOderReqSrchM.prgrsBgngYmd", "dlOderReqSrchM.currentPage",
+                                                                                 "dlOderReqSrchM.recordCountPerPage", "dlOderReqSrchM.flag", "dlOderReqSrchM.dtl.srchTy"}
+    # AI 에게 보이는 이름은 끝 조각(srch_ty)이고, 끝 조각이 같은 둘은 상위 조각을 붙여 구분한다
+    assert (ps["dlOderReqSrchM.bizNm"]["a"], ps["dlOderReqSrchM.currentPage"]["a"], ps["dlOderReqSrchM.flag"]["a"]) == ("biz_nm", "current_page", "flag")
+    assert {ps["dlOderReqSrchM.srchTy"]["a"], ps["dlOderReqSrchM.dtl.srchTy"]["a"]} == {"dl_oder_req_srch_m_srch_ty", "dtl_srch_ty"}
+    assert len({p["a"] for p in ps.values() if p["a"]}) == len([p for p in ps.values() if p["a"]])                     # 이름이 겹치지 않는다
+    # 타입: 날짜는 날짜 규칙을 유지하고, 숫자와 불리언은 값으로 보낸다
+    assert (ps["dlOderReqSrchM.prgrsBgngYmd"]["rule"], ps["dlOderReqSrchM.currentPage"]["at"], ps["dlOderReqSrchM.flag"]["at"], ps["dlOderReqSrchM.flag"]["ex"]) == ("date", "integer", "boolean", True)
+    assert ps["dlOderReqSrchM.srchTy"]["at"] == "string" and ps["dlOderReqSrchM.srchTy"]["ex"] == "0001"            # 앞이 0 인 코드는 숫자가 아니다
+    # 늘 같은 값으로 보내는 커스텀 헤더는 AI 에게 숨기고 이음이 넣는다. content-type 과 accept 는 엔진이 정한다
+    heads = {p["o"]: p for p in ps.values() if p["loc"] == "header"}
+    assert set(heads) == {"Menu-Info", "Submissionid"} and heads["Menu-Info"]["rule"] == "inject" and heads["Menu-Info"]["v"] == '{"menuNo":"13713"}' and heads["Menu-Info"]["a"] == ""
+
+
+def test_중첩_본문_개수와_깊이에는_상한이_있다():
+    deep = {"a": {"b": {"c": {"d": {"e": {"f": 1}}}, "g": 2}}}
+    wide = {"k%d" % i: i for i in range(300)}
+    d = infer.request_pairs(obs("http://h/x", method="POST", post=json.dumps(deep), headers={"content-type": "application/json"}))
+    w = infer.request_pairs(obs("http://h/x", method="POST", post=json.dumps(wide), headers={"content-type": "application/json"}))
+    assert [k for k, _v, _l in d] == ["a.b.g"]                                                                          # 깊이 4 를 넘는 것은 버린다
+    assert len(w) == infer.MAX_BODY_FIELDS

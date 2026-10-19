@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from app.ieum.discovery import planner
 
 LEVELS = ("ambig", "every", "never")
-KIND_LABEL = {"risky": "위험해 보이는 버튼", "input": "입력값 필요", "perm": "권한 문제", "low": "관련도 낮음", "screen": "새 화면"}
+KIND_LABEL = {"risky": "위험해 보이는 버튼", "input": "입력값 필요", "perm": "권한 문제", "low": "관련도 낮음", "screen": "새 화면", "readpost": "조회용 POST"}
 HOLD_SECONDS = 6.0       # 카드 위에 마우스가 있는 동안 화면이 이만큼 간격으로 알려 온다. 알림이 끊기면 시간이 다시 흐른다
 MAX_VALUE = 60           # 사람이 적는 값(거래처 이름 등)의 길이 상한
 MAX_TYPED = 200          # 직접 조작에서 한 번에 보내는 글자 수 상한
@@ -92,7 +92,8 @@ class Hitl:
         """질문을 남긴다. 같은 열쇠가 이미 결정됐으면 None(호출자가 decided 로 값을 읽는다), 이미 묻는 중이면 그 질문.
 
         spec: key, kind, title, body, pred, opts [[값, 이름, "pri"|""]], input {ph, sugg}, def(시간이 지나면 쓰는 값), defLabel,
-              labels {값: 기록에 남길 말, "*": 입력값 문장 틀 "{v}"}, menu(계획 항목 id), hl(화면 위 강조 상자), task(크롤러가 답대로 처리할 일)
+              labels {값: 기록에 남길 말, "*": 입력값 문장 틀 "{v}"}, menu(계획 항목 id), hl(화면 위 강조 상자), task(크롤러가 답대로 처리할 일),
+              present(사람이 지금 화면 앞에서 직접 조작하는 중이라 "묻지 않고" 설정이어도 묻는다), predLabel(pred 앞에 붙는 말. 기본은 "예상 요청")
         """
         with self.lock:
             key = spec["key"]
@@ -103,7 +104,7 @@ class Hitl:
                     return a
             qid = f"q{len(self.asks) + 1}"
             rec = {"id": qid, "key": key, "kind": spec["kind"], "kindLabel": KIND_LABEL.get(spec["kind"], spec["kind"]), "title": spec["title"],
-                   "body": spec.get("body", ""), "pred": spec.get("pred", ""), "opts": spec["opts"], "input": spec.get("input"), "def": spec["def"],
+                   "body": spec.get("body", ""), "pred": spec.get("pred", ""), "predLabel": spec.get("predLabel", ""), "opts": spec["opts"], "input": spec.get("input"), "def": spec["def"],
                    "defLabel": spec.get("defLabel", ""), "labels": spec.get("labels", {}), "menu": spec.get("menu"), "hl": spec.get("hl"),
                    "st": "wait", "val": None, "who": None, "t": round(self._elapsed(), 1), "total": self.wait, "left": float(self.wait),
                    "shot": 1 if shot else 0, "task": spec.get("task"), "label": ""}
@@ -115,7 +116,7 @@ class Hitl:
                 it = self.item(rec["menu"])
                 if it and it["st"] not in ("done", "run"):
                     it["asking"] = True
-            if self.level == "never":
+            if self.level == "never" and not spec.get("present"):
                 self._resolve(rec, rec["def"], "never")
             return rec
 
@@ -318,6 +319,15 @@ class Hitl:
             it.update(st="skip", why=why or it.get("why", ""))
             it.pop("asking", None)
             self.dec.setdefault(f"low|{mid}", "skip")
+
+    def fail_menu(self, mid: str, why: str) -> None:
+        """눌러서 열려 했는데 열리지 않은 메뉴: 건너뜀으로 두고 이유를 남긴다."""
+        with self.lock:
+            it = self.item(mid)
+            if it is None:
+                return
+            it.update(st="skip", why=why)
+            it.pop("asking", None)
 
     def finish_plan(self) -> None:
         """탐색이 끝났다: 아직 탐색 중으로 남은 메뉴를 완료로 둔다."""

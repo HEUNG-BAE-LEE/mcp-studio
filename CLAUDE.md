@@ -170,8 +170,8 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 보는 화면은 `.../shot` 이 돌려주는 실제 JPEG 이다. 작업은 JSON(`discovery.jobs`)에 남고, 서버가 재시작되면 돌던 작업은
 `interrupted` 가 된다. 시연 대상은 `demo_legacy/`(가짜 구매관리 사이트와 Java 소스 샘플)이며 실제 시스템이 아니다.
 **쓰기를 막는 곳은 클릭 선택이 아니라 네트워크다.** 누르지 않을 단어는 사람이 읽을 이유를 남기려는 1차 장치이고,
-안전을 지키는 것은 `crawler._route_inner` 가 POST/PUT/PATCH/DELETE 를 전부 가로채 운영에 보내지 않는 것이다(로그인과
-사용자가 지정한 조회용 POST 만 예외). 로드 시 XHR 로 부르는 GET 중 이름이 쓰기처럼 보이는 것(`policy.risky_call`)도 가로챈다.
+안전을 지키는 것은 `crawler._route_inner` 가 POST/PUT/PATCH/DELETE 를 전부 가로채 운영에 보내지 않는 것이다(예외: 로그인, 사용자가 지정한 조회용 POST,
+**사람이 허락한 "이름이 조회처럼 보이는 POST"**(`reads.looks_read`, POST 만) — 아래 "자바스크립트로 그리는 사이트" 참고). 로드 시 XHR 로 부르는 GET 중 이름이 쓰기처럼 보이는 것(`policy.risky_call`)도 가로챈다.
 금지어를 비워도 쓰기가 닿지 않는다는 것을 `test_ieum_discovery_e2e.py` 가 서버 데이터로 확인한다. 이 규칙을 느슨하게 하지 않는다.
 **소스 분석은 별도 프로세스에서 돈다**(`scan_proc.py`, 시간 제한 120초). 사용자가 준 저장소의 병적인 파일(열린 괄호 수만 개 등)은
 정규식을 역추적에 빠뜨리는데, 파이썬 정규식은 GIL 을 놓지 않아서 스레드로 돌리면 **서버 전체가 멈춘다**. 프로세스로 돌리면
@@ -198,6 +198,52 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
 - **용도 열쇠(`planner.api_key`)** 는 메서드 + 확장자·쿼리·경로변수 이름을 뗀 경로다. 탐색 중 요청 줄(`api`)과 합쳐진 API(`key`)가 같은 열쇠여야 사람이 기입한 용도(`Hitl.purp`)가 둘 다에 적용된다. 규칙으로 정한 용도·질문 연결은 **추정**이다: 쓰기 API 는 이름이 겹친다고 잇지 않고, 여러 메뉴에서 불린 API 는 메뉴의 질문을 물려받지 않는다.
 - 시험에서는 `llm.provider` 를 None 으로 막는다(`test_ieum_discovery_hitl.py`). 안 막으면 `.env` 의 Azure 설정으로 **진짜 GPT 를 부른다**(스크래치 서버도 마찬가지).
 - 스크래치 스크립트로 서버를 띄울 때는 `if __name__ == "__main__":` 가드를 둔다. 소스 분석은 `multiprocessing` `spawn` 이라 자식이 `__main__` 을 다시 읽어, 가드가 없으면 서버가 또 떠서 "소스 분석 프로세스가 비정상으로 끝났습니다" 가 난다.
+
+**자바스크립트로 그리는 사이트(SPA)와 조회도 POST 인 사이트** (나라장터 WebSquare 가 기준. `crawler.py`, `reads.py`). 일반 사이트 기준으로 만든 탐색이 거기서는 "2개 호출하고 끝" 이거나 "화면은 뜨는데 요청이 전부 차단" 이 된다. 실측으로 확인한 원인과 그 대응:
+- **눌러볼 것이 DOMContentLoaded 5~6초 뒤에야 생긴다.** 그 전에 훑으면 아무것도 못 찾고 끝난다. `_goto` 는 `_ready` 로 기다린다: 눌러볼 것 3개 이상 + `readyState == complete`(또는 한두 개뿐이어도 1.4초 변화 없음), 그리고 DOM 잠잠함(`_quiet`).
+  눌러볼 것의 **수만** 보면 스크립트를 내려받는 동안 건너뛰기 링크 몇 개에 속는다. 처음 여는 화면(`boot=True`)만 14초, 그 밖은 3초.
+- **시작하자마자 모달 팝업 4개가 메뉴를 가린다**(`role=dialog`, z-index 6010). 가려진 단추를 누르면 Playwright 가 30초 기다리다 실패한다. `_dismiss_overlays` 가 가장 위 팝업의 닫기·창닫기·X → 취소 → (단추가 하나뿐인 안내 창의) 확인 순으로 닫는다.
+  눌러서 뜬 "안내 메시지" 창도 같은 방식으로 닫고, 누르기가 가로채여 실패하면 닫은 뒤 한 번 더 누른다. 직접 조작 중(`_taking`)에는 닫지 않는다.
+- **메뉴가 `href="javascript:void(null)"` + 숨은 하위 메뉴.** 링크로 못 간다. `_MENU_LIB_JS` 가 NAV 영역의 `li` 나무를 읽어(숨어 있어도 DOM 에는 있다) 끝 노드를 **메뉴 길**(`Entry.path`, 계획 항목의 `path`·`leaf`)로 만들고, `_run_path` 가 위에서부터 올려 보고(hover) 안 열리면 누른다.
+  주소가 안 바뀌므로 `_open_path` 는 이미 앱이 열려 있으면 다시 불러오지 않는다(화면마다 앱을 띄우면 팝업과 처음 조회가 되풀이된다). 길로 연 화면의 이름은 **끝 메뉴 이름**이다 — 제목에 `" > "` 가 들어가면 `infer.screen_title` 이 헤딩과 동작을 잘못 나눈다.
+  **이미 본 버튼(`_tried`)은 화면 단위다**(주소 + 메뉴 길). 주소로만 세면 두 번째 화면의 "조회" 가 이미 눌렀다며 건너뛰어진다. 계획에 눌러서 여는 메뉴가 있으면 메뉴 영역(`nav` 표지)의 단추는 계획이 맡으므로 일반 훑기에서 뺀다.
+  질문의 `task` 에는 `path` 를 싣는다(눌러서 여는 화면은 주소로 다시 갈 수 없다). 메뉴 이름에 누르지 않을 단어가 있으면 계획에서 `excl` 로 건너뛴다.
+- **화면을 가리는 것은 팝업만이 아니다**(나라장터에서 실측). (1) 마우스를 올리면 펼쳐지는 mega menu 는 말단을 눌러도 마우스가 그 위에 있으면 펼쳐진 채로 화면을 덮는다(`menu-dpt2-show`) → `_park_mouse` 로 마우스를 구석에 치운다(메뉴를 누른 뒤, 화면을 훑기 전, 가려서 실패했을 때).
+  (2) 파일 미리보기 같은 층의 마스크(`#upload_background`)는 Esc 로도 안 닫힐 수 있다 → 그 화면은 그만 누르고(`_masked`) 다음 메뉴는 앱을 다시 열어서 간다(`_dirty`). (3) 같은 팝업이 같은 높이로 4개 겹치면 어느 것이 위인지 모르고, 가려진 팝업의 닫기는 눌러도 닫히지 않는다 → `_OVERLAY_JS` 는 후보를 모두 돌려주고
+  `_dismiss_overlays` 가 차례로 시도하며, 눌러서 안 되면 자바스크립트 `el.click()` 으로 닫는다. **읽기를 허락하기 전에는 이 공지 팝업이 내용 없이 뜨지 않아서**(`{}` 응답) 문제가 안 보이다가, 허락하면 실제 공지로 뜨며 메뉴를 가린다.
+- **눌리지 않는 후보가 시간을 다 쓴다**(실측: 눌러 보기 4초 × 수십 개 → 300초 상한). 후보 JS(`visible`)는 문서 좌표로 화면 왼쪽·위쪽 밖(`left:-9999px` 접근성용 숨김, 넘겨 놓은 슬라이드)과 고정 위치 조상 안의 화면 밖 요소(오른쪽 퀵 메뉴, TOP)를 뺀다(스크롤 상자 안은 Playwright 가 스크롤해서 닿으니 둔다).
+  **못 누른 시도는 `acted`(성공 수)에 안 세어져 `MAX_ACTIONS` 에 안 걸린다** → `MAX_TRIES`(시도 30), `MAX_FAILS`(연속 실패 5)로 따로 막고, 단추별로 못 누른 횟수(`_bad`)가 2번이면 다음 화면에서는 건너뛴다. 누르기 제한 시간은 3초, 가림을 치우고 다시 누를 때는 1.5초다. 못 누른 이유는 Playwright 오류에서 가린 요소까지 뽑아 화면 기록에 남긴다(`_why_click_failed`).
+- **메뉴가 있는 앱의 시작 화면은 안내 화면이다.** 화면은 메뉴 계획이 도니, 시작 화면은 조회·검색 단추만 `MAX_LANDING`(4)번까지 누른다(나라장터에서 통합검색 `srchBidPbanc.do` 가 여기서 잡힌다). 화면 안에서는 주 단추(`검색`, `조회` 글자 그대로)를 먼저, "온라인 매뉴얼 조회" 같은 곁가지는 그 뒤에 누른다.
+  메뉴 이름이 `srch`(검색), `sel` 처럼 약어여도 조회 동사로 본다(`reads.READ_VERBS`). PUT·PATCH·DELETE 는 이름이 어떻든 조회로 허락하지 않는다 — 허락의 대상은 POST 뿐이다.
+- **조회도 전부 POST.** 쓰기를 막는 규칙(`_route_inner`)은 그대로라 화면이 부른 조회가 모조리 `{}` 로 막히고, 화면은 "안내 메시지"/`alert('{}')` 를 띄운다. **막은 POST 의 이름이 조회처럼 보이면**(`reads.looks_read`) 사람에게 보내도 되는지 묻는다.
+  `looks_read` 가 실제 문이다: 마지막 구간이 조회 동사로 시작하거나 목록·검색 낱말로 끝나야 하고, 경로의 **어느 구간이든** 쓰기 낱말(`policy.risky_call`)이나 로그인·비밀번호 낱말이 있으면 아니다(`selectAndUpdateRow.do` 는 걸러진다). 허락은 "조회로 보이는 이름" 뿐이다. 이 규칙을 느슨하게 하지 않는다.
+  - 질문(`readpost`)은 다른 질문과 달리 **답을 기다린다**(`_wait_answer`; 막힌 채로 더 보면 빈 화면만 모인다). 기다린 시간은 시간 상한에 넣지 않는다. 허락하면 이 화면을 `fresh` 로 접고(`_abandon_fresh`) 본 버튼을 비운 뒤 처음부터 다시 연다. "묻지 않고"(`never`)는 묻지 않고 막은 채로 간다.
+  - 직접 조작 중에는 별도 열쇠(`readpost-take|…`)로 `present=True` 질문을 만든다. `never` 설정으로 이미 막기로 정해졌어도 사람이 화면을 보고 있어 비어 보이는 까닭을 알려야 하기 때문이다(`Hitl.ask` 가 `present` 를 보면 자동 처리하지 않는다).
+  - 설정으로 미리 허락하려면 `readAuto`(Policy.read_auto). 허락해서 보낸 요청은 `Observed.read` 로 표시하고 `merge._mode` 가 읽기로 본다(로그인처럼 허용돼 나간 POST 를 읽기로 오해하지 않도록 패턴·표시가 있는 것만).
+  - 막은 채로 끝난 탐색은 `job.d["reads"] = {state: keep, n, paths, groups}` 를 남기고, 결과 화면의 "허락하고 다시 탐색"(`rerun(allow_reads=True)`)은 **그 기록이 있는 탐색에서만** 받는다 — 화면이 아무 탐색에나 허락을 끼워 넣지 못하게.
+- **그렇게 찾은 API 가 도구로 안 돌아가던 이유.** (1) 중첩 JSON 본문(`{"dlSrch": {…}}`)을 버렸다 → `infer._flat` 이 점으로 이어 펴고(`dlSrch.bizNm`, 깊이 4·필드 120개 상한) 파라미터 이름은 `_short_names` 가 줄인다. (2) `menu-info` 처럼 `x-` 로 시작하지 않는 필수 헤더를 버렸다 → `_keep_headers` 는 브라우저 표준 헤더·`sec-*`·비밀·요청마다 바뀌는 값만 빼고
+  다 남기고, 늘 보내는 헤더는 도구에 `inject` 로 넣는다(값이 조금씩 다르면 가장 많이 본 값). (3) 공개 사이트라 로그인 레시피가 없었다 → 로그인 화면이 없으면 `{"visit": True}` 레시피로 **방문만으로 받은 세션 쿠키**를 쓴다(`session_auth.visit`; 나라장터는 `GET /` 만으로 세션을 주고, 쿠키 없이 부르면 403).
+  SSO 를 거치며 다른 서버의 같은 이름 쿠키(JSESSIONID)가 덮어쓰지 않도록 `_host_cookies` 가 이 서버 도메인의 것만 고른다. **점 없는 호스트(localhost)의 쿠키 도메인은 `http.cookiejar` 가 `localhost.local` 로 저장한다** — 이걸 몰라 로컬 시험의 로그인이 통째로 깨졌었다.
+- 시험은 `tests/spa_site.py`(나라장터를 닮은 로컬 사이트: SSO 리다이렉트, 1.8초 뒤 그려지는 화면, 팝업 3개, 숨은 메뉴, 쿠키+`menu-info` 가 필요한 POST 조회, 쓰기 4종)와 `test_ieum_discovery_spa.py`(브라우저), `test_ieum_discovery_reads.py`(브라우저 없음)다.
+  이 사이트의 쓰기 요청이 서버에 한 번이라도 닿으면 시험이 실패한다. 시험 사이트 헤더에 한글을 넣으면 `fetch` 가 스스로 실패해 "안내 메시지" 만 뜬다(시험 사이트 버그를 크롤러 탓으로 오해하지 않는다).
+
+**온톨로지(2차)는 이음의 별개 기능이다** (`app/ieum/onto/`, 라우터 `routers/onto.py`, 화면 `apps/web/ieum/js/menu/onto*.js`). DB 연결마다 온톨로지 하나 — 객체(테이블·뷰·마트에서), 링크, 액션,
+행·속성 권한. 모듈 구성은 `onto/__init__.py`, 사용법과 시연 환경은 `apps/web/ieum/README.md` 의 "온톨로지". 코드를 읽기 전에 알아 둘 것:
+- **연결은 접속만 한다.** 스키마는 `reader`/`scan`/`build` 가 읽는다. 모든 접속은 읽기 전용이다(SQLite 는 `mode=ro` + `query_only`, 쿼리 시간은 progress handler, 행은 `fetchmany`, 동시 4개는 세마포어).
+  연결 엔진이 둘이다: `conn.engine(c)` 는 늘 **원본**(스캔·스키마·마트 빌드), `conn.engine(c, replica=True)` 는 주기 동기화 연결이면 **복제본**(객체 질의). 질의 엔진(`query.py`)만 replica 를 쓴다.
+- **객체 id 는 `<연결 id>.<API 이름>`** 이다(`po.PurchaseOrder`). 화면이 `id.split('.')[0]` 으로 연결을 알아내므로 연결 id 에 점이 들어가면 안 된다(`conn._slug` 는 `[0-9a-z-]` 30자).
+- **질의는 전부 `query.Q` 를 지난다.** 객체 필터(삭제된 행 제외)와 행 권한(`_pol_wheres`/`_pol_joins`)은 사용자가 쌓은 조건(`wheres`/`joins`)과 **따로** 둔다 — `clone()` 이 사용자 조건만 가져가야 한다.
+  `_ensure_policy()` 가 `where_prop` 보다 먼저 불려 조건이 정책 앞뒤로 섞이던 버그가 있었다. 가려지는 속성은 조건·정렬·집계에 못 쓴다(`Denied`). 값은 전부 바인드, 식별자는 객체 정의에서만 온다.
+- **AI 는 공개 스냅샷(`store.versions`)을 본다, 스튜디오(`store.objects`)가 아니다.** `query.Ctx.published()` 와 MCP 서버 스냅샷(`manifest.kind == "onto"`)이 같은 것이다. 스튜디오·미리보기·객체 탐색은 `Ctx.live(admin=True)`(권한 없이 마스킹만).
+  공개한 상태는 `pub` 이고 `aiOff` 가 꺼져 있는 객체, 상태가 `pub` 인 링크만 스냅샷에 들어간다. 링크는 `from` 객체가 있는 온톨로지의 스냅샷에 들어가고, 서버가 다른 온톨로지의 최신 스냅샷을 끌어와 건너편(ext) 객체를 붙인다(`mcp.assemble`).
+- **스캔은 규칙이다(LLM 아님).** 이름은 `dictionary.py` 의 사전, 링크는 FK·뷰 조인·값 일치율. 시연 DB 의 약어에 맞춘 사전이라 다른 DB 에서는 모르는 약어를 그대로 둔다. 뷰가 기본 테이블 키를 보여 주면 뷰가 객체, 기본 테이블은 `covered`.
+- **액션은 DB 에 쓰지 않는다.** 변환 스튜디오 도구(`gateway/runner.run_tool`)를 불러 쓰고, 시연 레거시 사이트의 변경은 `demo_legacy/hooks.py` → `onto/legacy_sync.py` 가 시연 DB(`onto/demo/po.db`)에도 쓴다(그 파일이 있을 때만).
+  쓰기는 `confirmed=True` 없이는 `actions.execute` 가 거절한다. 판정은 객체의 지금 값을 관리자 읽기로 다시 읽어서 한다.
+- **마트 빌드는 새 테이블(`<id>__new`)을 만든 뒤 한 트랜잭션에서 바꿔 끼운다.** 여러 DB 를 섞는 SQL 은 읽는 테이블을 임시 폴더(`ieum-mart-*`)의 SQLite 로 복사해 거기서 돈다(끝나면 지운다). 마트 저장소 연결(`conn.MART_CONN`)은 연결 목록에 없는 내부 연결이다.
+- **온톨로지 MCP 서버는 도구 묶음 서버와 같은 `runtime/` 을 쓴다.** `ts-onto-<연결 id>` 로 `supervisor` 에 올라가고, `protocol.load_deployment` 가 스냅샷 종류를 보고 `OntoDeployment`(`onto/runtime.py`)를 고른다. 키의 `runAs`(직원 사번)가 실행 사용자다.
+  도구 이름에 점을 쓰지 않는다(`purchase_order__vendor`). 포트는 `deployer._other_ports` 가 온톨로지 서버 것까지 뺀다.
+- **테스트의 시연 환경은 세션에서 한 번 만들어 복사한다**(`tests/conftest.py` 의 `onto_template` → `onto` 픽스처). `IEUM_ONTO_AUTOSERVE=0` 이 기본이고, 서버를 띄우는 시험(`test_ieum_onto_mcp.py`)만 켠다.
+  스키마 캐시(`reader.read_cached`)는 상태 폴더까지 키에 넣어야 한다(시험마다 같은 연결 id 가 다른 폴더에 있다).
 
 **이음의 배포는 별도 프로세스다** (`app/ieum/runtime/`). 묶음을 배포하면 그 묶음의 MCP 서버가 이 컴퓨터의 프로세스
 (`python -m app.ieum.runtime.server`, `127.0.0.1:81xx/mcp`)로 뜬다. 콘솔(제어면)이 `deployer`→`supervisor` 로 띄우고
@@ -229,6 +275,9 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
   400 을 낸 원인이 이것이었다. 배포 창은 저장하지 않은 도구를 먼저 저장한 뒤 배포한다.
 - **배포 시험은 진짜 프로세스를 띄운다.** `ieum_state` 픽스처가 끝날 때 `supervisor.shutdown()` 으로 남은 서버를 내린다. `tests/conftest.py` 가
   `IEUM_MCP_AUTORESTORE=0` 을 기본으로 둬서 `app.main` 을 띄우는 다른 시험이 개발자 PC 의 배포를 되살리지 않는다. 복구를 시험할 때만 켠다.
+- **시험은 개발자 PC 의 상태 폴더(`apps/backend/data/ieum`)를 읽지 않는다.** `tests/conftest.py` 가 시험 프로세스의 기본 `IEUM_STATE_DIR` 를 임시 폴더로 돌린다.
+  온톨로지 시연 DB(`onto/demo/po.db`)가 실제 폴더에 있으면 시연 레거시 사이트의 승인·마감이 그 DB 의 상태를 따라 판정돼(`legacy_sync` 후크), 시연을 써 본 PC 에서만 `test_ieum_demo_legacy.py` 가 409 로 깨졌다.
+  깨끗한 체크아웃(CI)에서는 통과해서 늦게 드러난다. 상태 폴더를 직접 다루는 시험은 `ieum_state` 를 쓴다.
 - **배포 프로세스는 부모와 같은 CPU 아키텍처로 뜬다.** Apple 실리콘에서 Rosetta 터미널이 띄운 콘솔은 x86_64 venv 를 쓰고, 자식도 그걸 이어받는다
   (`arch` 로 따로 지정하지 않는다). arm64 셸에서 x86_64 venv 를 그냥 돌리면 콘솔 자체가 `pydantic_core` 에서 죽는다 — 시험은 `arch -x86_64 .venv/bin/pytest`.
 - **Rosetta 로 뜬 Chrome 은 무거운 사이트를 못 연다.** 자식 프로세스는 부모의 CPU 를 이어받아, x86_64 venv 에서 Playwright 가 띄운 Chrome 도 변환되어 뜬다
@@ -240,6 +289,7 @@ LLM 에게 감춘다(`schema_infer.CREDENTIAL_PARAMS`). 실행 직전
   띄우고(변환 엔진이 HTTP 로 `/demo-origin` 을 부른다), `ieum_state` 는 상태 폴더를
   임시로 돌린다.
 
+- **시연 레거시 사이트(`/demo-legacy/po`)는 `X-Requested-With: XMLHttpRequest` 가 없으면 400 이다**(WAF 흉내). 온톨로지 시연이 등록하는 쓰기 도구는 이 헤더를 고정 헤더(`rule: inject`, 이름 없는 파라미터)로 붙인다.
 - **WAF.** 대상 사이트는 `User-Agent`·`Referer`·`X-Requested-With` 가 없으면 400 을
   낸다. 헤더를 골라 저장하는 쪽은 `services/schema_infer.py` 의 `PRESERVED_HEADERS`,
   기본값만 채우는 쪽은 `services/executor.py` 다.

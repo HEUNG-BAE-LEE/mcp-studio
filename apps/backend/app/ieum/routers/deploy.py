@@ -123,13 +123,7 @@ def key_list():
 def key_create(payload: Optional[dict] = Body(None)):
     body = payload or {}
     name = (body.get("name") or "").strip() or "새 액세스 키"
-    secret = "ieum_sk_" + secrets.token_hex(24)
-    row = {"id": "k" + str(int(time.time() * 1000)), "name": name, "key": "ieum_sk_••••••••" + secret[-4:], "hash": repo.hash_key(secret),
-           "created": time.strftime("%Y-%m-%d"), "last": "사용 전", "on": True, "toolsets": list(body.get("toolsets") or [])}
-    with LOCK:      # 배포한 서버가 키 사용 시각을 같은 파일에 쓴다. 겹치지 않게 한 덩어리로 읽고 쓴다
-        rows = repo.keys.load()
-        rows.insert(0, row)
-        repo.keys.save(rows)
+    row, secret = repo.create_key(name, body.get("toolsets"), (body.get("runAs") or "").strip())
     # 전체 키는 발급 응답에서 한 번만 내려 주고, 서버에는 해시만 남긴다.
     return ok(dict(_public(row), secret=secret), 201)
 
