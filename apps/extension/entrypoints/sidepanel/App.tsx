@@ -18,7 +18,7 @@ function safePath(url: string): string {
 const LAST_PROJECT_NAME_KEY = "mcpStudioLastProjectName";
 
 // 데모 전용. background.ts의 API_BASE와 같은 방식으로 상수에 둔다.
-const ADMIN_BASE = "http://localhost:5173";
+const ADMIN_BASE = "http://localhost:15173";
 
 type SpecDetection = {
   supported: boolean;

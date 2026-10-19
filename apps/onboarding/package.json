@@ -1,0 +1,21 @@
+{
+  "name": "@mcp-studio/ieum-onboarding",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "이음 '한 번에 연결' — 엠버링크 온보딩 위자드를 옮긴 React 화면. 이음 콘솔이 iframe 으로 띄운다.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "motion": "^13.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^5.4.21"
+  }
+}

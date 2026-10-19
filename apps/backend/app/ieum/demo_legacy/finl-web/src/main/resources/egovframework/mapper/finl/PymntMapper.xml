@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="egovframework.finl.service.impl.PymntMapper">
+
+    <!-- 대금 지급 상태 조회. 정의서에는 ACNT_DIV_CD(회계구분코드)가 응답 항목으로 있지만 SELECT 에 없다 -->
+    <select id="selectPymntSttus" parameterType="map" resultType="egovMap">
+        SELECT P.PYMNT_REQ_NO
+             , P.REF_NO          AS CNTRCT_NO
+             , P.DMINSTT_CD
+             , P.BIZRNO
+             , P.REQ_YMD
+             , P.REQ_AMT
+             , P.PYMNT_STTS_CD
+             , C.CD_NM           AS PYMNT_STTS_NM
+             , P.PYMNT_YMD
+             , P.BDGT_ACNT_NM
+          FROM TB_PYMNT P
+          LEFT OUTER JOIN TB_CMMN_CD C ON C.CD_ID = 'PYMNT_STTS' AND C.CD = P.PYMNT_STTS_CD
+         WHERE 1 = 1
+        <if test="pymntReqNo != null and pymntReqNo != ''">
+           AND P.PYMNT_REQ_NO = #{pymntReqNo}
+        </if>
+        <if test="refNo != null and refNo != ''">
+           AND P.REF_NO = #{refNo}
+        </if>
+    </select>
+
+    <!-- 수요기관별 대금 청구 목록 -->
+    <select id="selectPymntList" parameterType="map" resultType="egovMap">
+        SELECT P.PYMNT_REQ_NO
+             , P.REF_NO          AS CNTRCT_NO
+             , P.REQ_YMD
+             , P.REQ_AMT
+             , P.PYMNT_STTS_CD
+             , C.CD_NM           AS PYMNT_STTS_NM
+          FROM TB_PYMNT P
+          LEFT OUTER JOIN TB_CMMN_CD C ON C.CD_ID = 'PYMNT_STTS' AND C.CD = P.PYMNT_STTS_CD
+         WHERE 1 = 1
+        <if test="dminsttCd != null and dminsttCd != ''">
+           AND P.DMINSTT_CD = #{dminsttCd}
+        </if>
+        <if test="pymntSttsCd != null and pymntSttsCd != ''">
+           AND P.PYMNT_STTS_CD = #{pymntSttsCd}
+        </if>
+         ORDER BY P.REQ_YMD DESC
+    </select>
+
+    <!-- 대금 청구 등록 -->
+    <insert id="insertPymntReq" parameterType="map">
+        INSERT INTO TB_PYMNT (PYMNT_REQ_NO, REF_SE, REF_NO, REQ_YMD, REQ_AMT, PYMNT_STTS_CD)
+        VALUES (#{pymntReqNo}, 'C', #{refNo}, TO_CHAR(NOW(), 'YYYYMMDD'), #{reqAmt}, '10')
+    </insert>
+
+</mapper>

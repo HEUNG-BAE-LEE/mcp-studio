@@ -1,11 +1,13 @@
 """원본 시스템 메뉴: 시스템 연결(명세 읽기, 도구 후보 생성), 명세 재읽기, 삭제."""
+import json
+import os
 import re
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Body
 
-from app.ieum.gateway import credentials, engine, session_auth, spec
+from app.ieum.gateway import credentials, db, engine, probe, session_auth, spec
 from app.ieum.repositories import sources as repo
 from app.ieum.repositories import studio as tool_repo
 from app.ieum.responses import fail, ok
@@ -14,7 +16,7 @@ from app.ieum.runtime import deployer
 router = APIRouter(prefix="/api/ieum/sources", tags=["ieum-sources"])
 
 MAX_SPEC = 10 * 1024 * 1024
-AUTH_LABEL = {"none": "없음", "key": "API Key", "bearer": "Bearer 토큰", "basic": "HTTP Basic", "oauth": "OAuth 2.0", "wss": "WS-Security", "session": "세션 (서비스 계정)"}
+AUTH_LABEL = {"none": "없음", "key": "API Key", "bearer": "Bearer 토큰", "basic": "HTTP Basic", "oauth": "OAuth 2.0", "wss": "WS-Security", "session": "세션 (서비스 계정)", "db": "DB 계정 (읽기 전용)"}
 
 
 def _slug(name, taken):
@@ -31,7 +33,7 @@ def _clean_cred(auth):
     if t not in AUTH_LABEL:
         raise spec.SpecError("지원하지 않는 인증 방식입니다.")
     cred = {"type": t}
-    for k in ("key", "in", "name", "username", "password", "tokenUrl", "clientId", "clientSecret"):
+    for k in ("key", "in", "name", "username", "password", "tokenUrl", "clientId", "clientSecret", "host", "port", "database", "schema", "driver"):
         if auth.get(k):
             cred[k] = str(auth[k]).strip()
     if t in ("key", "bearer") and not cred.get("key"):
@@ -42,6 +44,13 @@ def _clean_cred(auth):
         raise spec.SpecError("계정을 입력해 주세요.")
     if t == "session" and not cred.get("password"):
         raise spec.SpecError("비밀번호를 입력해 주세요.")
+    if t == "session" and auth.get("loginUrl"):
+        # 자동 탐색 없이 연결할 때는 로그인 주소와 입력 이름을 사람이 알려 준다 (SI 담당자는 보통 안다)
+        url = str(auth["loginUrl"]).strip()
+        cred["recipe"] = {"userField": (auth.get("userField") or "userId").strip(), "passField": (auth.get("passField") or "password").strip(),
+                          "extra": {}, "json": False, "loginRel": url, "actionRel": url}
+    if t == "db" and not (cred.get("host") and cred.get("database") and cred.get("username")):
+        raise spec.SpecError("DB 호스트, 데이터베이스 이름, 계정을 입력해 주세요.")
     if t == "oauth" and not (cred.get("tokenUrl") and cred.get("clientId") and cred.get("clientSecret")):
         raise spec.SpecError("OAuth 토큰 URL, Client ID, Client Secret을 모두 입력해 주세요.")
     return cred
@@ -53,7 +62,8 @@ def _fetch_spec(url, cred):
     headers, query = engine.auth_headers({"id": "_spec"}, cred) if cred.get("type") in ("key", "bearer", "basic") else ({}, {})
     try:
         # 명세 주소는 http -> https, 끝 슬래시 같은 리다이렉트를 자주 낸다. 따라간다.
-        with httpx.stream("GET", url, headers=headers, params=query, timeout=engine.TIMEOUT, follow_redirects=True) as r:
+        # params 를 빈 dict 로 넘기면 httpx 가 주소의 쿼리(?wsdl)를 지운다 — 인증 쿼리가 있을 때만 넘긴다
+        with httpx.stream("GET", url, headers=headers, params=query or None, timeout=engine.TIMEOUT, follow_redirects=True) as r:
             raw = engine.read_capped(r, MAX_SPEC)
             status, encoding = r.status_code, r.encoding
     except (httpx.HTTPError, httpx.InvalidURL) as e:
@@ -74,6 +84,11 @@ def _analyze(body, cred):
             raise spec.SpecError("공공데이터포털은 서비스키가 필요합니다.")
         cred.update({"in": "query", "name": "serviceKey"})
         return meta, tools, None
+    if mode == "db":
+        if cred.get("type") != "db":
+            raise spec.SpecError("DB 연결은 DB 계정이 필요합니다.")
+        meta, tools = db.analyze(cred, (body.get("name") or "").strip())
+        return meta, tools, None
     if mode == "sample":
         meta, tools = spec.parse_sample(body.get("sampleRequest"), body.get("sampleResponse"), base)
         return meta, tools, None
@@ -92,13 +107,31 @@ def _analyze(body, cred):
     raise spec.SpecError("지원하지 않는 연결 방식입니다.")
 
 
+def _demo():
+    """온보딩 '시연용 값 채우기' — 가상조달기관 레거시 주소는 배포 환경마다 달라 환경변수로 바꾼다."""
+    raw = json.dumps(repo.onboarding_demo.load(), ensure_ascii=False)
+    for k, d in (("LEGACY_HOST", "127.0.0.1"), ("DB_HOST", "127.0.0.1"), ("DB_PORT", "55432"), ("DB_USER", "pps"), ("DB_PASSWORD", "pps")):
+        raw = raw.replace("{%s}" % k, os.environ.get("IEUM_DEMO_" + k, d))
+    return json.loads(raw)
+
+
 @router.get("/")
 def source_list():
     return ok({
         "workspace": repo.workspace.load(),
         "sources": repo.list_sources(),
-        "wizard": {"modes": repo.wizard_modes.load(), "banWords": repo.ban_words.load(), "govApis": repo.gov_apis.load()},
+        "wizard": {"modes": repo.wizard_modes.load(), "banWords": repo.ban_words.load(), "govApis": repo.gov_apis.load(),
+                   "locs": repo.onboarding_locs.load(), "demo": _demo()},
     })
+
+
+@router.post("/probe/")
+def source_probe(payload: Optional[dict] = Body(None)):
+    """호스트·포트(+컨텍스트 경로) 목록에서 표준 경로의 명세를 찾는다. 온보딩 바구니가 쓴다."""
+    try:
+        return ok(probe.probe((payload or {}).get("targets")))
+    except spec.SpecError as e:
+        return fail(400, str(e))
 
 
 @router.post("/connect/")
@@ -220,6 +253,7 @@ def source_delete(source_id: str):
     repo.delete_source(source_id)
     tool_repo.delete_source_tools(source_id)
     credentials.delete(source_id)
+    db.forget(source_id)
     session_auth.invalidate(source_id)
     deployer.drop_tools(ids)
     return ok({"deleted": source_id})

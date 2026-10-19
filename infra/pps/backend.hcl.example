@@ -1,0 +1,5 @@
+resource_group_name  = "<tfstate 리소스 그룹>"
+storage_account_name = "sttfstateieumpps"
+container_name       = "tfstate"
+key                  = "pps.tfstate"
+use_azuread_auth     = true

@@ -10,7 +10,7 @@
  */
 
 // 데모 전용. background.ts 의 API_BASE 와 같은 방식으로 상수에 둔다.
-const ADMIN_BASE = "http://localhost:5173";
+const ADMIN_BASE = "http://localhost:15173";
 
 export default function App() {
   async function openSidePanel() {

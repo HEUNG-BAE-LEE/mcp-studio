@@ -1,7 +1,6 @@
-// vite 개발 서버(:5173)에서만 백엔드를 8000 으로 가리킨다. 컨테이너 배포에서는
-// 백엔드가 이 화면까지 함께 서빙하므로 같은 오리진(빈 문자열)이 맞다.
-// ponytail: 포트 판정으로 끝낸다. 오리진이 더 늘면 VITE_API_BASE 빌드 인자로 바꾼다.
-const BASE = window.location.port === "5173" ? "http://localhost:8000" : "";
+// vite 개발 서버에서만 백엔드를 따로 가리킨다(start.sh 가 VITE_API_BASE 를 넘긴다, 기본 :18000).
+// 컨테이너 배포에서는 백엔드가 이 화면까지 함께 서빙하므로 같은 오리진(빈 문자열)이 맞다.
+export const BASE = import.meta.env.DEV ? (import.meta.env.VITE_API_BASE ?? "http://localhost:18000") : "";
 
 /** 서버가 보낸 상태 코드와 한국어 설명을 함께 나르는 오류 */
 export interface ApiError extends Error {

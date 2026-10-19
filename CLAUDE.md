@@ -15,15 +15,15 @@ document(문서 변환, 미구현) 셋이며, RecordingSession.kind 로 갈린�
 ## 명령
 
 ```bash
-# 백엔드 (:8000) — 기동 시 init_db() + seed() 가 자동 실행된다
-cd apps/backend && .venv/bin/uvicorn app.main:app --port 8000
+# 백엔드 (:18000) — 기동 시 init_db() + seed() 가 자동 실행된다
+cd apps/backend && .venv/bin/uvicorn app.main:app --port 18000
 cd apps/backend && .venv/bin/pytest tests/ -v
 cd apps/backend && .venv/bin/pytest tests/test_masking.py -k 마스킹 -v   # 일부만 실행
 cd apps/backend && .venv/bin/pytest tests/test_ieum_gateway.py tests/test_ieum_units.py -v   # 이음
 cd apps/backend && .venv/bin/pytest tests/test_ieum_hitl.py -v   # 사람과 함께 탐색하기의 규칙(브라우저 없음, 1초)
 cd apps/backend && IEUM_SKIP_BROWSER_TESTS=1 .venv/bin/pytest tests/ -q   # 실제 브라우저 시험(탐색 e2e 합쳐 10분 가까이)을 건너뛴다
 
-# 관리자 화면 (:5173)
+# 관리자 화면 (:15173)
 cd apps/admin && npm run dev
 cd apps/admin && npx tsc -b               # --noEmit 은 파일 0개를 검사한다
 
@@ -39,7 +39,7 @@ cd apps/extension && npm run compile    # tsc --noEmit
 타입체크를 통과해 런타임까지 갔다. `apps/extension` 의 `npm run compile` 은
 `.wxt/tsconfig.json` 을 extends 해 소스를 실제로 검사하므로 그대로 쓴다.
 
-백엔드를 재시작할 때는 `lsof -ti tcp:8000 -sTCP:LISTEN | xargs kill` 을 쓴다. `/tmp/backend.pid` 는
+백엔드를 재시작할 때는 `lsof -ti tcp:18000 -sTCP:LISTEN | xargs kill` 을 쓴다. `/tmp/backend.pid` 는
 낡아 있을 수 있고, 그러면 이전 커밋의 코드를 문 uvicorn 이 포트를 계속 쥔 채
 조용히 낡은 라우트를 서빙한다.
 

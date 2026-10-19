@@ -35,6 +35,9 @@ def _to_origin(p, v):
     if rule == "date":
         s = str(v)
         fmt = p.get("ot", "")
+        if fmt == "YYYYMMDDHHMM":       # 조달청 오픈API 조회일시 — 날짜만 오면 시작 0000, 끝 2359 로 채운다
+            d = re.sub(r"\D", "", s)[:12]
+            return d + ("2359" if p.get("end") else "0000") if len(d) == 8 else d
         if fmt == "YYYYMMDD":
             return s[:10].replace("-", "")
         if fmt == "YYYYMM":
@@ -368,6 +371,9 @@ def invoke(source, tool, args, ctx=None):
 
 
 def _invoke_once(source, tool, args, ctx, retry):
+    if source.get("proto") == "db":          # DB 원본은 HTTP 가 아니라 읽기 전용 SQL 로 실행한다
+        from app.ieum.gateway import db
+        return db.invoke(source, tool, args)
     ctx = ctx or {}
     trace = {"args": args}
     t0 = time.time()

@@ -1,7 +1,12 @@
 name: ACA staging 배포
 
-# dev 에 들어온 것을 staging(mcp-studio)으로 배포한다. master 는 prod 워크플로가
-# 맡는다. 수동 실행은 이미지를 다시 밀어야 할 때 쓴다.
+# dev 에 들어온 것을 staging 으로 배포한다. master 는 prod 워크플로가 맡는다. 수동 실행은 이미지를 다시 밀어야 할 때 쓴다.
+#
+# staging = infra/pps 스택(terraform, environment = "staging")
+#   이음 앱 ca-pps-ieum(Container Apps, VNet 연동) + 가상조달기관 레거시 VM · 레거시 DB(사설)
+#   앱 이미지는 이 저장소의 Dockerfile 하나다(관리자 화면 + 백엔드 + 이음 콘솔 + 한 번에 연결 위자드).
+# 이전 staging(mcp-studio 앱)과 그 로그인 앱(fa515508…)은 2026-09-21 정리됐다. 그래서 2026-10-04 부터 이 워크플로가
+# AADSTS700016 으로 실패했다 — 대상을 새 staging 으로 바꾼다.
 on:
   push:
     branches: [dev]
@@ -20,57 +25,65 @@ permissions:
 env:
   RESOURCE_GROUP: azure_test-a89a8649-741-rg001
   ACR_NAME: wtembed10835
-  CONTAINER_APP: mcp-studio
-  IMAGE_REPO: mcp-studio
+  CONTAINER_APP: ca-pps-ieum
+  IMAGE_REPO: ieum-pps
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # environment: 를 달지 않는다 — 달면 OIDC subject 가 environment:<이름> 으로 바뀌어 dev 브랜치 연합 자격 증명과 맞지 않는다
     steps:
       - uses: actions/checkout@v5
 
-      # 저장소 관리자 권한이 없어 시크릿을 넣을 수 없으므로 OIDC 를 쓴다.
-      # 아래 세 값은 비밀이 아니다(식별자). 연합 자격 증명에 master·dev 두
-      # 브랜치의 subject 가 등록되어 있어 dev 에서 온 토큰도 교환된다.
-      # 값의 출처: infra/terraform 의 `terraform output`
+      # 저장소 관리자 권한이 없어 시크릿을 넣을 수 없으므로 OIDC 를 쓴다. 아래 세 값은 비밀이 아니다(식별자).
+      # 연합 자격 증명의 subject 가 repo:HEUNG-BAE-LEE/mcp-studio:ref:refs/heads/dev 로 박혀 있어 dev 에서 온 토큰만 교환된다.
+      # 이 로그인으로 할 수 있는 것: 공유 ACR 에 이미지 올리기, ca-pps-ieum 의 이미지 바꾸기. 그 밖의 리소스는 못 바꾼다.
+      # 값의 출처: infra/pps 의 `terraform output cicd_client_id` · `cicd_tenant_id`
       - uses: azure/login@v2
         with:
-          client-id: fa515508-3e9e-409d-a5dd-744c0196c345
+          client-id: c7743014-f06e-422f-8535-88bb57ab6e36
           tenant-id: 28fad9d9-3a2c-4a2f-b76f-8da5d0da9756
           subscription-id: 3c7b1819-c657-41ca-a22e-b6dc6d34fd98
 
-      # 이미지는 ACR 안에서 빌드한다. 러너에 docker 를 세우지 않아도 되고,
-      # 이 저장소는 로컬 개발에 docker 를 쓰지 않는다는 규칙도 그대로 지켜진다.
-      - name: 이미지 빌드
+      # 이미지는 러너에서 빌드해 올린다. ACR 안 빌드(az acr build)는 레지스트리 전체 권한이 필요해서,
+      # 다른 서비스와 같이 쓰는 ACR 에 그 권한을 주지 않으려고 push 권한만으로 끝나는 쪽을 택했다.
+      - name: 이미지 빌드 · 올리기
         run: |
-          az acr build \
-            --registry "$ACR_NAME" \
-            --image "$IMAGE_REPO:${{ github.sha }}" \
-            --image "$IMAGE_REPO:latest" \
-            .
+          az acr login --name "$ACR_NAME"
+          IMAGE="$ACR_NAME.azurecr.io/$IMAGE_REPO:${{ github.sha }}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
       - name: Container App 이미지 교체
         run: |
-          az containerapp update \
+          az config set extension.use_dynamic_install=yes_without_prompt
+          REV=$(az containerapp update \
             --name "$CONTAINER_APP" \
             --resource-group "$RESOURCE_GROUP" \
-            --image "$ACR_NAME.azurecr.io/$IMAGE_REPO:${{ github.sha }}"
+            --image "$IMAGE" \
+            --query properties.latestRevisionName -o tsv)
+          echo "새 리비전: $REV"
+          echo "REV=$REV" >> "$GITHUB_ENV"
 
-      # 새 리비전이 실제로 200 을 내는지 확인한다. 여기서 실패하면 배포가
-      # 초록으로 끝나는 것보다 낫다.
-      - name: 헬스체크
+      # staging 은 허용 IP 에서만 열린다(콘솔이 인증 없이 열려 있어서다). 러너는 그 대역 밖이라 HTTP 로 두드릴 수 없다.
+      # 대신 Azure 가 보는 리비전 상태(프로브 결과)로 확인한다. 여기서 실패하면 배포가 초록으로 끝나는 것보다 낫다.
+      - name: 리비전 상태 확인
         run: |
-          FQDN=$(az containerapp show --name "$CONTAINER_APP" \
-            --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)
-          echo "https://$FQDN"
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "https://$FQDN/health" || true)
-            if [ "$code" = "200" ]; then
-              echo "정상"
+            read -r HEALTH RUNNING <<<"$(az containerapp revision show \
+              --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" --revision "$REV" \
+              --query '[properties.healthState, properties.runningState]' -o tsv | tr '\n' ' ')"
+            echo "$i 회차: health=$HEALTH running=$RUNNING"
+            if [ "$HEALTH" = "Healthy" ] && { [ "$RUNNING" = "Running" ] || [ "$RUNNING" = "RunningAtMaxScale" ]; }; then
+              FQDN=$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
+                --query properties.configuration.ingress.fqdn -o tsv)
+              echo "정상 — https://$FQDN/ieum/ (허용 IP 에서 열림)"
               exit 0
             fi
-            echo "$i 회차: $code"
+            if [ "$HEALTH" = "Unhealthy" ] || [ "$RUNNING" = "Failed" ]; then break; fi
             sleep 10
           done
-          echo "헬스체크 실패"
+          echo "리비전이 정상 상태가 되지 않았습니다"
+          az containerapp logs show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" --revision "$REV" --tail 50 || true
           exit 1

@@ -1,0 +1,13 @@
+[Unit]
+Description=가상조달기관 레거시 finl (시연용 가상 시스템)
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/legacy-pps
+EnvironmentFile=-/opt/legacy-pps/.env
+ExecStart=/opt/legacy-pps/.venv/bin/uvicorn legacy_pps.finl.main:app --host 0.0.0.0 --port 18003
+Restart=always
+User=legacy
+
+[Install]
+WantedBy=multi-user.target

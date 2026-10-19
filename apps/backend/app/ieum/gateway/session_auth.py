@@ -7,6 +7,7 @@
 로그인이 필요 없는 공개 사이트(나라장터 등)도 첫 방문에서 세션 쿠키를 주고, 그 쿠키 없이는 API 가 403 이다. 이런 곳의 레시피는
 `{"visit": true, "loginRel": 시작 주소}` 다. 로그인하지 않고 그 주소를 방문(리다이렉트 포함)해 받은 쿠키를 쓴다.
 """
+import re
 import threading
 import time
 from html.parser import HTMLParser
@@ -16,6 +17,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 TTL = 20 * 60
+_EXPIRED_TEXT = re.compile(r"세션이\s*만료|다시\s*로그인|재로그인|로그인이\s*필요|session (has )?expired|login required", re.I)
 TIMEOUT = 10
 VISIT_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 _CACHE: Dict[str, tuple] = {}      # 원본 시스템 id -> (쿠키 dict, 만료 시각)
@@ -172,7 +174,11 @@ def expired(status: int, location: Optional[str], content_type: str, text: str) 
         return True
     if 300 <= status < 400:
         return "login" in urlsplit(location or "").path.lower()
-    return "html" in (content_type or "").lower() and ('type="password"' in text.lower() or "type='password'" in text.lower())
+    if "html" not in (content_type or "").lower():
+        return False
+    low = text.lower()
+    # 로그인 폼을 다시 그리는 시스템도, 200 + "세션이 만료되었습니다" 안내 페이지만 주는 2000년대식 시스템도 있다
+    return 'type="password"' in low or "type='password'" in low or bool(_EXPIRED_TEXT.search(text))
 
 
 def _join(cookies: Dict[str, str]) -> str:

@@ -14,13 +14,30 @@ RUN npm ci -w admin --include-workspace-root --ignore-scripts
 COPY apps/admin apps/admin
 RUN npm run build -w admin
 
-# 2) 백엔드(FastAPI) + 1단계 산출물
+# 2) 이음 '한 번에 연결' 화면(엠버링크 온보딩 위자드, React + Vite). 산출물은 web/ieum/onboarding 으로 나온다
+FROM node:24-alpine AS onboarding
+WORKDIR /src
+COPY package.json package-lock.json ./
+COPY apps/onboarding/package.json apps/onboarding/package.json
+RUN npm ci -w apps/onboarding --include-workspace-root --ignore-scripts
+COPY apps/onboarding apps/onboarding
+RUN npm run build -w apps/onboarding
+
+# 3) 백엔드(FastAPI) + 1 · 2단계 산출물
 FROM python:3.10-slim AS runtime
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 COPY apps/backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY apps/backend/app ./app
+# 이음 관리 콘솔(정적 파일). 이 줄이 없으면 /ieum/ 이 컨테이너에서 빈 화면이 된다
+COPY apps/web/ieum ./web/ieum
+COPY --from=onboarding /src/apps/web/ieum/onboarding ./web/ieum/onboarding
+ENV IEUM_WEB_ROOT=/app/web/ieum
+# 한 번에 연결 — 문서 채널 시연 파일(활용가이드 PDF · FINL 인터페이스정의서). 저장소와 같은 상대 경로로 둔다
+COPY examples/documents ./examples/documents
+COPY apps/legacy-pps/assets ./apps/legacy-pps/assets
+ENV IEUM_REPO_ROOT=/app
 # app/main.py 가 /app/static 을 찾는다
 COPY --from=admin /src/apps/admin/dist ./static
 EXPOSE 8000
