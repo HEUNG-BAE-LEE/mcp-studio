@@ -409,10 +409,13 @@ DB는 `apps/backend/data/dev.db` 파일 하나입니다.
 기능이라 데이터도 따로 갑니다(SQLite 가 아니라 JSON 파일).
 
 ```
-apps/backend/app/ieum/   routers/ 메뉴별 API · repositories/ 저장소 · gateway/ 명세 파서·변환 엔진 · runtime/ MCP 서버 배포
+apps/backend/app/ieum/   routers/ 메뉴별 API · repositories/ 저장소 · gateway/ 명세 파서·변환 엔진 · runtime/ MCP 서버 배포 · onto/ 온톨로지(2차)
 apps/web/ieum/           관리 콘솔
 ```
 
 `./start.sh` 로 띄운 뒤 <http://localhost:8000/ieum/> 를 엽니다. 시연용 원본 시스템이
 같은 서버에 들어 있어 바로 연결해 볼 수 있습니다. 묶음을 **배포**하면 그 묶음의 MCP 서버가 이 컴퓨터의 프로세스로 뜹니다(`http://127.0.0.1:81xx/mcp`). 명세가 없는 시스템은 **API 자동 탐색**(헤드리스 브라우저 + Git 소스 분석)으로 API 를 찾습니다. 사용법, 안전 설계, 환경변수, 데이터 위치는
 [`apps/web/ieum/README.md`](apps/web/ieum/README.md) 에 있습니다.
+
+**온톨로지(2차)** 메뉴는 DB 를 연결해 테이블을 객체와 링크로 정리하고(DB 스캔, 마트, 객체 생성), 행·속성 권한을 적용해 AI 가 질문하고 쓰기 액션까지 실행하게 합니다. 공개하면 온톨로지마다 MCP 서버가 뜹니다.
+처음 보려면 메뉴의 **시연 환경 불러오기**를 누르세요(구매관리 DB, 인사 DB, 권한 규칙, 액션이 만들어지고, 회계 ERP DB 는 마법사로 직접 연결해 볼 수 있습니다).

@@ -32,5 +32,19 @@ def touch_key(key_id):
             keys.save(rows)
 
 
+def create_key(name, toolsets=None, run_as=""):
+    """액세스 키를 발급한다. 키 저장소에는 해시만 남기고 평문은 돌려주는 값에만 있다(다시 볼 수 없다).
+    run_as 는 온톨로지 도구가 이 키로 부를 때 실행 사용자로 삼는 직원 사번이다(행·속성 권한이 이 사람 기준으로 적용된다)."""
+    import secrets
+    secret = "ieum_sk_" + secrets.token_hex(24)
+    row = {"id": "k" + str(int(time.time() * 1000)), "name": name, "key": "ieum_sk_••••••••" + secret[-4:], "hash": hash_key(secret),
+           "created": time.strftime("%Y-%m-%d"), "last": "사용 전", "on": True, "toolsets": list(toolsets or []), "runAs": run_as or ""}
+    with LOCK:      # 배포한 서버가 키 사용 시각을 같은 파일에 쓴다. 겹치지 않게 한 덩어리로 읽고 쓴다
+        rows = keys.load()
+        rows.insert(0, row)
+        keys.save(rows)
+    return row, secret
+
+
 def get_toolset(toolset_id=None, slug=None):
     return next((t for t in toolsets.load() if t["id"] == toolset_id or (slug and t["slug"] == slug)), None)

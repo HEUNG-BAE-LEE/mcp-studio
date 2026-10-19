@@ -138,11 +138,13 @@ def parse_command(text: str, plan: List[dict]) -> dict:
     """
     flat = lambda s: re.sub(r"\s+", "", s or "")
     t = flat(text)
-    hit = None
+    hit, best = None, 0
     for it in plan:
-        n = flat(it["name"])
-        if n and n in t and (hit is None or len(n) > len(flat(hit["name"]))):
-            hit = it
+        # 눌러서 여는 메뉴의 이름은 "입찰 > 입찰공고 > 입찰공고목록" 처럼 길이 이어져 있다. 사람은 끝 이름만 말한다("입찰공고목록은 보지 마").
+        for nm in (it["name"], it.get("leaf") or ""):
+            n = flat(nm)
+            if n and n in t and len(n) > best:
+                hit, best = it, len(n)
     if hit is None:
         for it in plan:                                   # "발주 승인은" ↔ 메뉴 "승인" 처럼 이름의 한 낱말만 나온 경우
             words = [w for w in _WORD.findall(it["name"]) if len(w) >= 2 and w not in _STOP]

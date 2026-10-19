@@ -61,7 +61,7 @@ def clean(raw: dict) -> Tuple[dict, dict]:
             "maxPages": _int(raw.get("maxPages"), 50, 1, MAX_PAGES_LIMIT), "maxDepth": _int(raw.get("maxDepth"), 4, 1, 8),
             "delayMs": _int(raw.get("delayMs"), 900, 0, 10_000), "maxSeconds": _int(raw.get("maxSeconds"), 600, 30, 1800),
             "account": (raw.get("account") or "").strip(), "scope": (raw.get("scope") or "").strip(), "exclude": (raw.get("exclude") or "").strip(),
-            "readPost": (raw.get("readPost") or "").strip()}
+            "readPost": (raw.get("readPost") or "").strip(), "readAuto": _bool(raw.get("readAuto"))}
 
     # 탐색 목적: 목적과 질문 예시를 보고 메뉴 순서를 정하고, 찾은 API 의 용도와 도구 설명 초안을 쓴다. 없어도 탐색은 된다.
     opts["purpose"] = (raw.get("purpose") or "").strip()[:200]

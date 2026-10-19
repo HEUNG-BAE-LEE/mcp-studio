@@ -36,8 +36,26 @@ def templatize(path: str) -> str:
 
 # ── 요청 ────────────────────────────────────────────────────────────────────
 
+MAX_BODY_DEPTH = 4         # 요청 본문의 중첩 깊이 상한
+MAX_BODY_FIELDS = 120      # 한 요청에서 도구 파라미터로 만드는 본문 필드 수 상한(WebSquare 검색 조건은 40개를 넘기도 한다)
+
+
+def _flat(prefix: str, v, out: list, depth: int = 0) -> None:
+    """JSON 본문을 (점으로 이은 이름, 값) 으로 편다. 객체 안의 객체까지 보고, 배열은 아직 다루지 않는다."""
+    if len(out) >= MAX_BODY_FIELDS:
+        return
+    if isinstance(v, dict):
+        if depth < MAX_BODY_DEPTH:
+            for k, x in v.items():
+                _flat(f"{prefix}.{k}" if prefix else str(k), x, out, depth + 1)
+    elif isinstance(v, list):
+        return
+    else:
+        out.append((prefix, "" if v is None else "true" if v is True else "false" if v is False else str(v), "body"))
+
+
 def request_pairs(obs) -> List[Tuple[str, str, str]]:
-    """관측한 요청의 (이름, 값, 위치). 위치는 query / form / body."""
+    """관측한 요청의 (이름, 값, 위치). 위치는 query / form / body. 본문이 중첩 JSON 이면 이름이 `상위.하위` 가 된다."""
     pairs = [(k, v, "query") for k, v in parse_qsl(urlsplit(obs.url).query, keep_blank_values=True)]
     if obs.post:
         ctype = (obs.headers or {}).get("content-type", "").lower()
@@ -45,7 +63,9 @@ def request_pairs(obs) -> List[Tuple[str, str, str]]:
             try:
                 data = json.loads(obs.post)
                 if isinstance(data, dict):
-                    pairs += [(str(k), "" if v is None else str(v), "body") for k, v in data.items() if not isinstance(v, (dict, list))]
+                    flat: list = []
+                    _flat("", data, flat)
+                    pairs += flat
             except ValueError:
                 pass
         else:
@@ -62,6 +82,8 @@ _DATE8 = re.compile(r"^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$")
 
 
 def _guess_type(values: List[str]) -> str:
+    if values and all(v in ("true", "false") for v in values):
+        return "boolean"
     if values and all(_DATE8.match(v) for v in values):
         return "string"                      # YYYYMMDD 는 숫자가 아니라 날짜 문자열이다. 날짜 규칙이 붙을 수 있게 둔다
     if values and all(re.fullmatch(r"-?\d+", v) and not (len(v) > 1 and v.startswith("0")) and len(v) < 10 for v in values):
@@ -72,6 +94,8 @@ def _guess_type(values: List[str]) -> str:
 
 
 def _coerce(v: str, t: str):
+    if t == "boolean":
+        return v == "true"
     try:
         return int(v) if t == "integer" else float(v) if t == "number" else v
     except ValueError:
@@ -119,15 +143,40 @@ def build_params(src_params: list, samples: list, masker, *, default_loc: str = 
             p["ex"] = ""                     # 본 값이 없으면 예시를 지어내지 않는다
         out.append(p)
 
-    # 화면이 늘 같은 값으로 보내는 헤더(X-Requested-With 같은)는 AI 에게 보이지 않게 이음이 넣는다.
+    _short_names(out)
+    # 화면이 늘 같은 값으로 보내는 헤더(X-Requested-With, 나라장터의 menu-info 같은)는 AI 에게 보이지 않게 이음이 넣는다.
+    # 이 헤더가 없으면 403 을 주는 시스템이 있다. content-type 과 accept 는 엔진이 요청 모양에 맞춰 정한다.
     if n:
         names = set.intersection(*[set((s.headers or {}).keys()) for s in samples])
         for lk in sorted(names):
-            if lk.startswith("x-") and len({(s.headers or {}).get(lk) for s in samples}) == 1:
-                v = samples[0].headers[lk]
-                out.append({"o": "-".join(w.capitalize() for w in lk.split("-")), "ot": "string", "a": "", "at": "string", "loc": "header",
-                            "rule": "inject", "d": "화면이 항상 같은 값으로 보내는 헤더", "ex": v, "v": v})
+            if lk in ("content-type", "accept"):
+                continue
+            seen_vals = [(s.headers or {}).get(lk) for s in samples]
+            v = max(set(seen_vals), key=seen_vals.count)       # 가장 많이 본 값(같은 값이면 그 값)
+            same = len(set(seen_vals)) == 1
+            out.append({"o": "-".join(w.capitalize() for w in lk.split("-")), "ot": "string", "a": "", "at": "string", "loc": "header",
+                        "rule": "inject", "d": "화면이 항상 같은 값으로 보내는 헤더" if same else "화면마다 값이 조금씩 다른 헤더(가장 많이 본 값을 보냅니다)", "ex": v, "v": v})
     return out
+
+
+def _short_names(params: List[dict]) -> None:
+    """`dlSrch.srchTy` 처럼 점으로 이은 본문 필드의 AI 쪽 이름을 `srch_ty` 로 줄인다. 같은 이름이 둘 이상이면 상위 조각을 붙여 구분한다."""
+    nested = [p for p in params if "." in p["o"]]
+    taken = {p["a"] for p in params if "." not in p["o"]}
+    count: Dict[str, int] = {}
+    for p in nested:
+        count[spec.snake(p["o"].rsplit(".", 1)[-1])] = count.get(spec.snake(p["o"].rsplit(".", 1)[-1]), 0) + 1
+    for p in nested:
+        parts = p["o"].split(".")
+        a = spec.snake(parts[-1])
+        if count[a] > 1 or a in taken:
+            a = spec.snake("_".join(parts[-2:]))
+        while a in taken:
+            a += "_2"
+        taken.add(a)
+        p["a"] = a
+        if p.get("rule") != "date":                       # 날짜 규칙(YYYYMMDD ↔ 2026-09-12)은 이름이 달라져도 그대로 둔다
+            p["rule"] = "name"
 
 
 # ── 응답 ────────────────────────────────────────────────────────────────────

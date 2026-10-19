@@ -32,6 +32,16 @@ def build(toolset: dict, version: str, tools: list, sources: dict) -> dict:
     }
 
 
+def build_onto(ts_id: str, conn_id: str, name: str, version: str, snapshot: dict, tools: list) -> dict:
+    """온톨로지 서버의 스냅샷. snapshot: {objects, links} 공개한 객체와 링크, 다른 온톨로지로 이어지는 링크의 건너편 객체(ext)까지.
+    tools: 이 온톨로지의 객체가 만드는 AI 도구 정의(이름, 설명, 입력 스키마, 실행에 필요한 object/link/action)."""
+    return {
+        "schema": SCHEMA, "kind": "onto", "conn": conn_id,
+        "toolset": {"id": ts_id, "slug": ts_id[3:], "name": name, "version": version},
+        "deployedAt": time.time(), "snapshot": snapshot, "tools": tools, "sources": {},
+    }
+
+
 def without_tools(data: dict, tool_ids) -> dict:
     """도구 몇 개를 뺀 새 스냅샷. 버전과 나머지 정의는 그대로다(원본 시스템을 지웠을 때 쓴다)."""
     gone = set(tool_ids)
@@ -49,6 +59,14 @@ def validate(data) -> dict:
     tools, sources = data.get("tools"), data.get("sources")
     if not isinstance(tools, list) or not isinstance(sources, dict):
         raise ManifestError("배포 스냅샷에 도구 목록이 없습니다.")
+    if data.get("kind") == "onto":
+        snap = data.get("snapshot")
+        if not isinstance(snap, dict) or not isinstance(snap.get("objects"), dict) or not isinstance(snap.get("links"), list):
+            raise ManifestError("온톨로지 스냅샷에 객체와 링크가 없습니다.")
+        for t in tools:
+            if not isinstance(t, dict) or not t.get("name") or t.get("object") not in snap["objects"]:
+                raise ManifestError("온톨로지 도구의 객체를 스냅샷에서 찾을 수 없습니다: %s" % (t.get("name") if isinstance(t, dict) else t))
+        return data
     for t in tools:
         if not isinstance(t, dict) or not t.get("id") or t.get("src") not in sources:
             raise ManifestError("배포 스냅샷의 도구에 원본 시스템 정보가 없습니다: %s" % (t.get("id") if isinstance(t, dict) else t))

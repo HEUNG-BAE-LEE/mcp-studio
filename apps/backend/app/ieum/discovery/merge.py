@@ -15,7 +15,7 @@ import re
 from typing import Dict, List, Optional
 from urllib.parse import parse_qsl, urlsplit
 
-from app.ieum.discovery import infer, masking
+from app.ieum.discovery import infer, masking, reads
 from app.ieum.discovery.policy import Policy
 from app.ieum.gateway import spec
 
@@ -55,7 +55,7 @@ def _req_text(o, masker) -> str:
     query = "&".join(f"{k}={v}" for k, v in masker.pairs(parse_qsl(u.query, keep_blank_values=True)))
     lines = [f"{o.method} {u.path}{'?' + query if query else ''} HTTP/1.1", f"Host: {u.netloc}", "Cookie: ••••••••"]
     for k, v in (o.headers or {}).items():
-        lines.append(f"{'-'.join(w.capitalize() for w in k.split('-'))}: {v}")
+        lines.append(f"{'-'.join(w.capitalize() for w in k.split('-'))}: {masker.text(v)}")
     if o.post:
         ctype = (o.headers or {}).get("content-type", "").lower()
         body = o.post
@@ -222,8 +222,8 @@ def _mode(src, group: Optional[_Group], method: str, policy: Policy) -> str:
         return "write"
     if method == "GET":
         return "read"
-    if group and policy.is_read_post(group.items[0].url):
-        return "read"
+    if group and (policy.is_read_post(group.items[0].url) or any(o.read for o in group.items)):
+        return "read"                                              # 조회용 POST 패턴이거나, 사람이 조회로 허락해서 나간 요청
     return "write"
 
 
@@ -279,6 +279,9 @@ def _recommend(a: dict):
             return "check", f"스테이징 호출이 실패했습니다(HTTP {v.get('code')}). 파라미터와 권한을 확인해 주세요."
         if k == "block" and a.get("human"):
             return "check", "사람이 보여 주거나 허락해서 나간 쓰기 요청입니다. 운영에 보내지 않고 형식만 기록했으니 동작은 검증하지 못했습니다."
+        if k == "block" and a["tr"] and a["tr"]["blocked"] and not a["src"] and reads.looks_read(a["path"]):
+            return "check", ("이름은 조회처럼 보이지만 POST 라 운영에 보내지 않았고, 그래서 응답 형식을 보지 못했습니다. 이 사이트는 조회에도 POST 를 쓰는 것 같아요. "
+                             "'조회로 보이는 POST 를 허락하고 다시 탐색'하면 실제 응답으로 확인합니다.")
         if k == "block" and a["tr"] and a["tr"]["samples"] >= 3 and not a["src"]:
             return "no", "화면이 주기적으로 자동 전송하는 요청으로 보입니다. AI 가 직접 부를 일은 드뭅니다."
         if k == "block":

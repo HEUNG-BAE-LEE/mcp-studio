@@ -107,7 +107,8 @@ class Verifier:
         if risky_call(a["path"]):
             a["verify"] = {"k": "none", "note": "이름이 쓰기처럼 보여 호출하지 않았습니다"}
             return
-        proven = (tr and not tr["blocked"] and a["m"] == "GET") or (src and src["sql"] == "SELECT" and a["m"] == "GET")
+        # 운영으로 나간 POST 는 사람(또는 설정의 "조회용 POST")이 조회로 허락한 것뿐이다. 화면이 부르고 성공한 것은 읽기로 증명된 것과 같다.
+        proven = (tr and not tr["blocked"] and a["m"] in ("GET", "POST")) or (src and src["sql"] == "SELECT" and a["m"] == "GET")
         if not proven:
             a["verify"] = {"k": "none", "note": "읽기라는 근거가 부족해 운영에는 호출하지 않았습니다"}
             return
@@ -128,10 +129,12 @@ class Verifier:
                 return
             url = base + a["path"]
             headers = {"x-requested-with": "XMLHttpRequest"}
-        headers.pop("content-type", None)
+        post = first.post if group and first.method == "POST" else None
+        if post is None:
+            headers.pop("content-type", None)
         headers["cookie"] = _cookie_header(self.cookies, url)
         t0 = time.time()
-        resp = client.get(url, headers=headers)
+        resp = client.post(url, content=(post or "").encode("utf-8"), headers=headers) if group and first.method == "POST" else client.get(url, headers=headers)
         ms = int((time.time() - t0) * 1000)
         a["verify"] = _classify(resp, ms)
         if a["verify"]["k"] == "ok":

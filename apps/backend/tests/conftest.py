@@ -1,5 +1,8 @@
 """이음 테스트 공용 픽스처. 이음 테스트가 요청할 때만 동작한다."""
+import atexit
 import os
+import shutil
+import tempfile
 import threading
 import time
 
@@ -11,6 +14,13 @@ from fastapi import FastAPI
 # `app.main` 을 띄우는 다른 테스트가 개발자 PC 의 배포 기록(apps/backend/data/ieum)을 보고 MCP 서버를 띄우지 않게 한다.
 # 복구를 시험하는 테스트는 deployer.restore_all() 을 직접 부른다.
 os.environ.setdefault("IEUM_MCP_AUTORESTORE", "0")
+
+# 상태 폴더를 쓰는 시험은 대개 ieum_state 로 임시 폴더를 받지만, 레거시 사이트 시험처럼 안 쓰는 쪽은 기본값(apps/backend/data/ieum)을 읽는다.
+# 온톨로지 시연 DB(onto/demo/po.db)가 거기 있으면 레거시 사이트의 승인·마감이 그 DB 의 상태를 따라 판정돼, 시연을 써 본 PC 에서만 시험이 깨졌다.
+# 그래서 시험 프로세스 전체의 기본 상태 폴더를 임시 폴더로 돌린다(끝나면 지운다). 환경변수가 이미 있어도 덮는다 — 시험은 개발자의 상태를 보지 않는다.
+_TEST_STATE = tempfile.mkdtemp(prefix="ieum-test-state-")
+atexit.register(shutil.rmtree, _TEST_STATE, ignore_errors=True)
+os.environ["IEUM_STATE_DIR"] = _TEST_STATE
 
 
 @pytest.fixture
@@ -111,3 +121,43 @@ class Console:
 @pytest.fixture
 def console(ieum_server):
     return Console(ieum_server)
+
+
+# ── 온톨로지(2차) ──────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="session")
+def onto_template(tmp_path_factory):
+    """시연 환경(구매관리·인사 온톨로지, 마트, 공개 버전, 권한 규칙, 액션)을 세션에서 한 번 만들어 두고, 시험마다 복사해 쓴다. 만드는 데 1~2초 걸린다."""
+    path = tmp_path_factory.mktemp("onto-template") / "state"
+    mp = pytest.MonkeyPatch()
+    mp.setenv("IEUM_STATE_DIR", str(path))
+    mp.setenv("IEUM_ONTO_AUTOSERVE", "0")
+    mp.delenv("IEUM_SECRET_KEY", raising=False)
+    for name in ("AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_API_VERSION", "AZURE_OPENAI_DEPLOYMENT"):
+        mp.delenv(name, raising=False)
+    try:
+        from app.ieum.onto import demo_setup
+        demo_setup.load(legacy_base="http://127.0.0.1:1/demo-legacy/po")
+        from app.ieum.onto import conn as dbconn
+        dbconn.dispose_all()
+    finally:
+        mp.undo()
+    return path
+
+
+@pytest.fixture
+def onto(ieum_state, onto_template, monkeypatch):
+    """시연 환경이 들어 있는 상태 폴더. MCP 서버는 띄우지 않는다(띄우는 시험은 IEUM_ONTO_AUTOSERVE 를 직접 켠다)."""
+    import shutil
+
+    from app.ieum.onto import conn as dbconn, marts, reader
+    monkeypatch.setenv("IEUM_ONTO_AUTOSERVE", "0")
+    dbconn.dispose_all()
+    reader.forget_cache()
+    shutil.copytree(onto_template, ieum_state, dirs_exist_ok=True)
+    yield ieum_state
+    dbconn.dispose_all()
+    marts.stop_scheduler()
+    from app.ieum.onto import mcp
+    for cid in list(mcp.deploys.load()):
+        mcp.remove(cid)

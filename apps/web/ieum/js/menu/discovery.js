@@ -6,10 +6,11 @@ let DISC = { capabilities:{}, defaults:{ ban:[], maxPages:50, frameworks:['auto'
 const JOB_ST = { scheduled:['예약됨', 'info'], running:['탐색 중', 'info'], review:['검토 대기', 'warn'], done:['등록 완료', 'ok'], failed:['실패', 'danger'], cancelled:['취소됨', 'mute'], interrupted:['중단됨', 'danger'] };
 const FW_LABEL = { auto:'자동 감지', spring:'Spring MVC, 전자정부, Spring Boot', express:'Express', fastapi:'FastAPI, Flask' };
 const D_TAG = { cap:['캡처', 'info'], allow:['허용 (로그인)', 'ont'], out:['범위 밖', 'mute'], block:['차단', 'danger'], ok:['검증', 'ok'], stg:['스테이징 검증', 'ok'], err:['검증 실패', 'danger'], file:['파일 응답', 'warn'], nf:['없음', 'warn'] };
+const D_TIP = { block:'쓰기 요청이라 운영에 보내지 않고 요청 형식만 기록했습니다', allow:'로그인 요청이라 보냈습니다', out:'이 시스템 밖으로 가는 요청입니다', cap:'운영에서 받은 응답을 캡처했습니다' };
 const D_KIND = { skip:['건너뜀', 'mute', 'alert'], ask:['질문', 'warn', 'msg'], human:['사람', 'ont', 'user'], auto:['자동', 'mute', 'history'] };
 const D_REL = { high:['관련 높음', 'ok'], mid:['관련 중간', 'info'], low:['관련 낮음', 'warn'], excl:['제외 경로', 'mute'] };
 const D_PST = { wait:['예정', 'mute'], run:['탐색 중', 'info'], done:['완료', 'ok'], skip:['건너뜀', 'mute'], ask:['질문 중', 'warn'] };
-const D_HITL = { ambig:['애매할 때만 묻기', '위험해 보이는 버튼, 입력값이 필요한 화면, 관련도가 애매한 메뉴, 권한 오류에서만 묻습니다'],
+const D_HITL = { ambig:['애매할 때만 묻기', '위험해 보이는 버튼, 입력값이 필요한 화면, 관련도가 애매한 메뉴, 권한 오류, 조회로 보이는 POST 에서만 묻습니다'],
   every:['새 화면마다 묻기', '처음 여는 화면마다 계속할지 묻습니다. 시스템을 처음 탐색할 때 권장합니다'],
   never:['묻지 않고 건너뛰기', '애매하면 항상 안전한 쪽으로 처리합니다. 야간 예약 탐색에 권장합니다'] };
 const D_BY = { ai:'AI(GPT)가 정함', rule:'메뉴 이름과 질문의 낱말이 겹치는 정도로 정함', none:'목적이 없어 화면 순서대로' };
@@ -40,7 +41,7 @@ const refreshJobs = () => api.get('/discovery/').then(r => { DISC = r; if (S.vie
 
 /* ---------- 연결 마법사: 탐색 대상, 안전 설정 ---------- */
 const discWzInit = () => ({ name:'', base:'', start:'/login.do', account:'', password:'', git:true, repo:'', branch:'', token:'', framework:'auto',
-  crawl:!!DISC.capabilities.browser, scope:'', exclude:'/logout.do', readPost:'', maxPages:DISC.defaults.maxPages || 50, stg:false, stgUrl:'', mask:true,
+  crawl:!!DISC.capabilities.browser, scope:'', exclude:'/logout.do', readPost:'', maxPages:DISC.defaults.maxPages || 50, stg:false, stgUrl:'', mask:true, readAuto:false,
   when:'now', startTime:'19:00', owner:'', ok:false, purpose:'', ques:['', '', ''], hitl:DISC.defaults.hitl || 'ambig', wait:DISC.defaults.wait || 120 });
 
 function wzDiscBody(w) {
@@ -60,8 +61,9 @@ function wzDiscBody(w) {
     <div class="dz">
       <div class="dz-h"><b>운영 접속 정보</b><small>화면 탐색에 쓰고, Git에서 찾은 읽기 API를 실제로 호출해 검증할 때도 씁니다</small></div>
       ${fld('운영 주소', inp('base', { mono:1, ph:'http://10.20.4.30:8080/po' }))}
-      ${fld('로그인 페이지', inp('start', { mono:1, ph:'/login.do' }))}
+      ${fld('시작 페이지', inp('start', { mono:1, ph:'/login.do (로그인 화면이 없으면 /)' }))}
       ${fld('테스트 계정', `<div class="two">${inp('account', { ph:'아이디', aria:'아이디' })}${inp('password', { type:'password', ph:'비밀번호', aria:'비밀번호' })}</div>`)}
+      <p class="pv-note" style="margin:0 0 4px 106px">로그인 화면이 없는 공개 사이트(예: 나라장터)라면 계정을 비워 두세요. 로그인하지 않고 열어서 탐색하고, 도구도 방문만으로 받은 세션으로 실행합니다.</p>
     </div>
     <div class="dz ${d.git ? '' : 'off'}">
       <label class="dz-h ck2"><span class="sw"><input type="checkbox" data-chg="wzDChk" data-k="git" ${d.git ? 'checked' : ''} aria-label="Git 소스 분석"><span></span></span><b>Git 소스 분석</b><small>컨트롤러와 매퍼를 읽어 화면에 안 나오는 API까지 찾습니다</small></label>
@@ -77,8 +79,10 @@ function wzDiscBody(w) {
       ${d.crawl ? `${fld('탐색 범위', inp('scope', { mono:1, ph:'비우면 운영 주소 아래 전부 (예: /po/*)' }))}
       ${fld('제외 경로', inp('exclude', { mono:1, ph:'/logout.do, /admin/*' }))}
       ${fld('조회용 POST', inp('readPost', { mono:1, ph:'비움 (예: /po/*List.do)' }))}
+      ${fld('조회형 POST', `<label class="ck2b"><input type="checkbox" data-chg="wzDChk" data-k="readAuto" ${d.readAuto ? 'checked' : ''}><span>이름이 조회처럼 보이는 POST 는 묻지 않고 보내기</span></label>`)}
       ${fld('최대 화면 수', inp('maxPages', { type:'number', style:'width:120px' }))}
-      <p class="pv-note" style="margin:0 0 4px 106px">경로는 <span class="inline-code">/po/*</span> 처럼 서버 기준으로도, <span class="inline-code">/logout.do</span> 처럼 운영 주소 기준으로도 쓸 수 있습니다. 조회에 POST 를 쓰는 시스템이면 그 경로만 적어 주세요. 그 경로의 POST 만 운영에 실제로 보냅니다.</p>` : ''}
+      <p class="pv-note" style="margin:0 0 4px 106px">경로는 <span class="inline-code">/po/*</span> 처럼 서버 기준으로도, <span class="inline-code">/logout.do</span> 처럼 운영 주소 기준으로도 쓸 수 있습니다. 조회에 POST 를 쓰는 시스템이면 그 경로만 적어 주세요. 그 경로의 POST 만 운영에 실제로 보냅니다.
+        경로를 모르면 비워 두세요. 탐색 중 이름이 <span class="inline-code">select…</span>, <span class="inline-code">get…</span>, <span class="inline-code">…List</span> 처럼 조회로 보이는 POST 가 막히면 보내도 되는지 물어봅니다. 위의 '조회형 POST' 를 켜면 묻지 않고 보냅니다. 이름에 저장·삭제·수정·승인 같은 낱말이 든 요청은 어느 쪽이든 막습니다.</p>` : ''}
     </div>`;
   return `
     <div class="tg first"><span class="tx"><b>쓰기 요청 차단</b><small>화면 탐색 중 생기는 POST, PUT, DELETE 요청은 가로채서 형식만 기록하고 운영에 보내지 않습니다. 로그인 요청만 예외로 보냅니다.</small></span><span class="sw"><input type="checkbox" checked disabled aria-label="쓰기 요청 차단"><span></span></span></div>
@@ -112,7 +116,6 @@ function discWzCheck(w) {
     if (!d.purpose.trim()) return '탐색 목적을 입력해 주세요. 목적에 맞춰 메뉴 순서를 정하고 API 용도를 연결합니다.';
     if (!d.ques.some(q => q && q.trim())) return '질문 예시를 하나 이상 입력해 주세요. AI 비서가 받을 질문을 알아야 필요한 API 를 찾았는지 확인할 수 있습니다.';
     if ((d.crawl || d.stg) && !/^https?:\/\/\S+/.test(d.base.trim())) return '운영 주소를 http:// 또는 https:// 로 시작하게 입력해 주세요.';
-    if (d.crawl && !d.account.trim()) return '화면 탐색에는 테스트 계정이 필요합니다.';
     if (d.git && !d.repo.trim()) return 'Git 저장소 주소(또는 허용된 폴더 경로)를 입력해 주세요.';
   }
   if (w.step === 3) {
@@ -158,7 +161,7 @@ function discApply(d, e) {
 }
 function discSync(d, r) {
   Object.assign(d, { name:r.name, phase:r.status, opts:r.opts, stage:r.stage, act:r.act, stats:r.stats || {}, t:r.elapsed || 0, error:r.error, notes:r.notes || [], registered:r.registered,
-    browser:r.browser, sourceId:r.sourceId, framework:r.framework, startAt:r.startAt, hitl:r.hitl || d.hitl });
+    browser:r.browser, sourceId:r.sourceId, framework:r.framework, startAt:r.startAt, hitl:r.hitl || d.hitl, reads:r.reads || null });
   d.opts.ques = d.opts.ques || [];
   if (r.shotSeq) d.shot = Math.max(d.shot, r.shotSeq);          // 직접 조작 중에는 이벤트 없이 화면만 바뀐다. 가장 최근 캡처 번호는 응답이 알려 준다
   (r.events || []).forEach(e => discApply(d, e));
@@ -247,7 +250,7 @@ const dTakeHint = h => (h.take && h.take.fresh
 const dShownUrl = d => (d.opts.base || '').replace(/^https?:\/\//, '') + (d.pageUrl && d.pageUrl.startsWith('http') ? '' : d.pageUrl || '');
 function dBrowser(d) {
   if (!d.opts.crawl) return '<div class="empty-s">이번 탐색에서는 화면 탐색을 하지 않았습니다.</div>';
-  return `<div class="bw" id="bw"><div class="take-bar" id="takeBar" hidden></div>
+  return `<div class="bw" id="bw"><div class="take-bar" id="takeBar" hidden></div><div class="take-read" id="takeRead" hidden></div>
     <div class="bw-bar">${svg('lock', 13)}<span id="bwUrl">${esc(dShownUrl(d))}</span><em class="frz" id="bwFrz" hidden>이 화면에서 멈춤</em></div>
     <div class="bw-view sh" id="bwView"><div class="sh-blank" id="bwBlank">${svg('globe', 26)}<br>${d.phase === 'running' ? '브라우저를 띄우는 중' : d.phase === 'scheduled' ? '예약한 시각에 브라우저를 띄웁니다' : '캡처한 화면이 없습니다'}</div>
       <img class="sh-img" id="bwImg" alt="헤드리스 브라우저가 보고 있는 운영 화면" hidden draggable="false"><i class="sh-hl" id="bwHl" hidden></i><div id="qLayer"></div></div>
@@ -264,7 +267,7 @@ function qCardHTML(d, q) {
   return `<div class="dim"></div><div class="qcard" role="dialog" aria-label="크롤러 질문">
     <div class="qc-h"><span class="qk">${svg('msg', 13)}${esc(q.kindLabel)}</span>${more > 0 ? `<span class="qmore">대기 중인 질문 ${more}개 더</span>` : ''}</div>
     <b class="qt">${esc(q.title)}</b><p>${esc(q.body)}</p>
-    ${q.pred ? `<div class="qpred">예상 요청 <code>${esc(q.pred)}</code></div>` : ''}
+    ${q.pred ? `<div class="qpred">${esc(q.predLabel || '예상 요청')} <code>${esc(q.pred)}</code></div>` : ''}
     ${q.input ? `<div class="qin"><input class="inp" id="qVal" maxlength="60" placeholder="${esc(q.input.ph)}" aria-label="${esc(q.input.ph)}" autocomplete="off"><span class="sugg">${(q.input.sugg || []).map(x => `<button class="chip" data-act="qSugg" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</span></div>` : ''}
     <div class="qacts">${q.input ? '<button class="btn sm primary" data-act="qAns" data-v="__in">이 값으로 진행</button>' : ''}${q.opts.map(([v, l, c]) => `<button class="btn sm ${c === 'pri' ? 'primary' : ''}" data-act="qAns" data-v="${esc(v)}">${esc(l)}</button>`).join('')}</div>
     <div class="qfoot">${svg('history', 13)}<span id="qLeft"></span></div>
@@ -282,6 +285,8 @@ function discBrowserPatch(d) {
   bw.classList.toggle('asking', !!q); bw.classList.toggle('take', take);
   $('#bwFrz').hidden = !q; $('#takeBar').hidden = !take; $('#takeIn').hidden = !take;
   dPut('#takeBar', take ? `${svg('hand', 15)}<b>직접 조작 중</b><span>${esc(dTakeHint(h))}</span>` : '');
+  const rq = take ? (h.asks || []).find(x => x.kind === 'readpost' && x.st === 'wait') : null;           // 직접 조작 중 화면이 비어 보이는 까닭: 조회로 보이는 POST 를 막았다
+  const tr = $('#takeRead'); if (tr) { tr.hidden = !rq; dPut('#takeRead', rq ? `${svg('alert', 15)}<span><b>조회 요청을 막고 있어 화면이 비어 보여요.</b> 막은 요청 <code>${esc(rq.pred)}</code> 처럼 이름이 조회로 보이는 요청만 허락하면 실제로 보내요. 허락한 뒤에는 화면의 조회 버튼을 다시 눌러 주세요.</span><button class="btn sm primary" data-act="readAns" data-qid="${rq.id}" data-v="allow">조회로 허락</button><button class="btn sm" data-act="readAns" data-qid="${rq.id}" data-v="keep">계속 막기</button>` : ''); }
   const url = $('#bwUrl'); if (url) url.textContent = dShownUrl(d);
   const src = q && q.shot ? `/api/ieum/discovery/jobs/${d.id}/qshot/${q.id}` : d.shot ? `/api/ieum/discovery/jobs/${d.id}/shot?v=${d.shot}` : '';
   if (src && src !== d.shownSrc) { d.shownSrc = src; img.hidden = false; img.src = src; const b = $('#bwBlank'); if (b) b.hidden = true; }
@@ -295,7 +300,7 @@ function discBrowserPatch(d) {
   if (q) {
     const left = $('#qLeft');
     if (left) left.innerHTML = h.held ? `<b>멈춤</b> 카드에서 마우스를 떼면 다시 흐릅니다. 시간이 지나면 ${esc(q.defLabel)}.` : `<b>${mmss(Math.ceil(q.left || 0))}</b> 뒤 자동으로 ${esc(q.defLabel)}. 카드 위에 마우스를 올리면 시간이 멈춰요.`;
-    dPut('#qBg', `${svg('layers', 13)}${d.act && d.phase === 'running' ? `그동안 다른 탭에서 계속 탐색 중: ${esc(d.act)}` : '그동안 다른 메뉴는 계속 탐색합니다'}`);
+    dPut('#qBg', `${svg('layers', 13)}${q.kind === 'readpost' ? '답을 기다리는 동안 탐색을 멈춰 둡니다(막힌 채로 더 보면 빈 화면만 모이기 때문입니다)' : d.act && d.phase === 'running' ? `그동안 다른 탭에서 계속 탐색 중: ${esc(d.act)}` : '그동안 다른 메뉴는 계속 탐색합니다'}`);
   }
 }
 
@@ -314,10 +319,11 @@ function dLogRow(d, x, last) {
     const [l, c, ic] = x.tagx ? [x.tagx[0], x.tagx[1], 'info'] : D_KIND[x.kind];
     return `<div class="nl note ${x.kind} ${en}"><span class="nt2">${mmss(Math.round(x.t))}</span><span class="nn">${svg(ic, 13)}${esc(x.text)}</span><span class="ntag ${c}">${l}</span></div>`;
   }
-  const tg = D_TAG[x.tag] || ['기록', 'mute'];
+  const tg = x.tag === 'block' && x.rd ? ['차단 (조회형)', 'warn'] : D_TAG[x.tag] || ['기록', 'mute'];
+  const tip = x.tag === 'block' && x.rd ? '이름은 조회처럼 보이지만 POST 라 막았습니다. 허락하면 보낼 수 있습니다' : D_TIP[x.tag] || '';
   const pu = d.hitl && x.api ? d.hitl.purp[x.api] : null;
   const u = x.l === 'web' && x.api && !['out', 'allow'].includes(x.tag) && (pu || x.use) ? (pu || { use:x.use, qa:x.qa || [] }) : null;
-  return `<div class="nl ${en}"><span class="nt2">${mmss(Math.round(x.t))}</span><span class="mth ${x.m === 'GET' ? 'g' : 'p'}">${esc(x.m)}</span><span class="np" title="${esc(x.p)}">${x.env === 'stg' ? '<i>스테이징</i> ' : ''}${x.human ? '<i class="h">사람 조작</i> ' : ''}${esc(x.p)}</span><span class="nc">${x.code ?? '—'}</span><span class="ntag ${tg[1]}">${tg[0]}</span>
+  return `<div class="nl ${en}"><span class="nt2">${mmss(Math.round(x.t))}</span><span class="mth ${x.m === 'GET' ? 'g' : 'p'}">${esc(x.m)}</span><span class="np" title="${esc(x.p)}">${x.env === 'stg' ? '<i>스테이징</i> ' : ''}${x.human ? '<i class="h">사람 조작</i> ' : ''}${esc(x.p)}</span><span class="nc">${x.code ?? '—'}</span><span class="ntag ${tg[1]}" ${tip ? `title="${esc(tip)}"` : ''}>${tg[0]}</span>
     ${u ? `<span class="nu"><span class="ul">용도</span>${esc(u.use)}${pu ? '<span class="hm">사람 기입</span>' : ''}${dQchips(d.opts.ques, u.qa)}<button class="ibtn" data-act="purp" data-key="${esc(x.api)}" data-label="${esc(x.p)}" title="용도 기입" aria-label="${esc(x.p)} 용도 기입">${svg('pencil', 13)}</button></span>` : ''}</div>`;
 }
 function dLogHTML(d) {
@@ -443,6 +449,7 @@ function discResultHTML(d) {
   const answered = d.hitl ? d.hitl.asks.filter(x => x.who === 'human' || x.who === 'pre').length : 0;
   const safe = [
     o.crawl && `<li>${svg('shield', 16)}<span>쓰기 요청 <b>${s.blocked ?? 0}건</b>을 가로채 운영에 보내지 않았습니다</span></li>`,
+    o.crawl && d.reads && d.reads.state === 'allow' && `<li>${svg('check', 16)}<span>이름이 조회처럼 보이는 POST <b>${d.reads.n}건</b>은 ${d.reads.auto ? '설정에 따라' : '허락을 받아'} 운영에 보냈습니다. 저장·삭제 같은 낱말이 든 요청은 보내지 않았습니다</span></li>`,
     o.crawl && `<li>${svg('user', 16)}<span>사람 결정 <b>${s.nHuman ?? 0}건</b>을 반영했습니다 (질문 답변 ${answered}건${s.nTake ? `, 직접 조작 ${s.nTake}회` : ''} 포함)</span></li>`,
     o.crawl && `<li>${svg('alert', 16)}<span>누르지 않을 버튼과 제외 경로 <b>${s.skipped ?? 0}개</b>를 건너뛰었습니다</span></li>`,
     o.crawl && `<li>${svg('history', 16)}<span>답이 없던 질문 <b>${s.nAuto ?? 0}건</b>은 안전한 쪽으로 처리했습니다</span></li>`,
@@ -452,7 +459,10 @@ function discResultHTML(d) {
   const notes = (d.notes || []).length ? `<ul class="vleg" style="margin:12px 0 0;min-width:0">${d.notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '';
   const filters = [['all', '전체', d.apis.length], ['rec', '등록 추천', rec], ['q', '질문과 연결', all.filter(a => (a.qa || []).length).length], ['hum', '사람 확인', all.filter(a => a.human).length],
     ['both', '모두 확인', n('both')], ['src', '소스에만', n('src')], ['tr', '트래픽에만', n('tr')]];
-  return `${dStepper(d)}
+  const rd = d.reads && d.reads.state === 'keep' && d.phase !== 'done' ? `<div class="notice warn" style="margin-top:16px">${svg('shield', 18)}<div class="nt"><b>조회로 보이는 POST ${d.reads.paths.length}종(${d.reads.n}건)을 막았습니다.</b>
+    이 사이트는 조회에도 POST 를 쓰는 것 같아서, 아래 표에서 응답 형식을 확인하지 못한 API 가 있습니다. 막은 요청: <span class="mono">${d.reads.paths.slice(0, 4).map(p => esc(p.split('/').pop())).join(', ')}</span>.
+    허락하고 다시 탐색하면 이름이 조회처럼 보이는 요청만 실제로 보내고, 저장·삭제·수정 같은 낱말이 든 요청은 계속 막습니다.</div><button class="btn sm primary" data-act="discRerunReads">${svg('refresh', 14)}조회로 허락하고 다시 탐색</button></div>` : '';
+  return `${dStepper(d)}${rd}
   ${d.phase === 'done' ? `<div class="notice" style="margin-top:16px">${svg('check', 18)}<div class="nt"><b>도구 후보 ${d.registered}개를 등록했습니다.</b> 변환 스튜디오에서 설명과 매핑을 검토한 뒤 공개하세요.</div><button class="btn sm primary" data-act="goSrc" data-id="${d.sourceId}">변환 스튜디오 열기</button></div>` : ''}
   <div class="dsum">
     <section class="box"><div class="box-h"><h3>찾은 API ${all.length}개<small>원을 누르면 해당 API만 볼 수 있습니다</small></h3></div>
@@ -644,6 +654,8 @@ Object.assign(ACT, {
   },
   discCancel: () => api.post(`/discovery/jobs/${S.disc.id}/cancel/`).then(() => toast('탐색을 멈추는 중입니다.', 'info')).catch(e => toast(e.message, 'warn')),
   discRerun: () => api.post(`/discovery/jobs/${S.disc.id}/rerun/`).then(j => { refreshJobs(); return discOpenJob(j.id); }).catch(e => toast(e.message, 'warn')),
+  discRerunReads: () => api.post(`/discovery/jobs/${S.disc.id}/rerun/`, { allowReads:true }).then(j => { refreshJobs(); return discOpenJob(j.id); }).catch(e => toast(e.message, 'warn')),
+  readAns: a => dTell('answer', { qid:a.dataset.qid, value:a.dataset.v }, r => { S.disc.hitl = r.hitl; discPatch(); toast(a.dataset.v === 'allow' ? '조회로 보이는 요청을 보내도록 했습니다. 화면의 조회 버튼을 다시 눌러 주세요.' : '계속 막습니다.', 'info'); }),
   discEv: a => discEvidenceFor(a.dataset.job || (S.disc && S.disc.id), a.dataset.id),
   dfilter: a => { S.disc.filter = S.disc.filter === a.dataset.v && a.dataset.v !== 'all' ? 'all' : a.dataset.v; render(); },
   dselToggle: a => { const d = S.disc, id = a.dataset.id; d.sel.has(id) ? d.sel.delete(id) : d.sel.add(id); closeDrawer(); render(); },

@@ -8,6 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.ieum.config import BACKEND_DIR, state_dir
 from app.ieum.demo_legacy import data, site
 from app.ieum.routers import demo_legacy
 
@@ -81,6 +82,13 @@ def mgr(client):
 @pytest.fixture
 def mgr_stg(client):
     return Env(client, STG, site.DEMO_APPROVER_ID)
+
+
+# ---------------------------------------------------------------- 시험 환경
+def test_이_파일의_시험은_개발자_PC_의_상태_폴더를_읽지_않는다():
+    """온톨로지 시연 DB(onto/demo/po.db)가 실제 상태 폴더에 있어도 사이트의 승인·마감 판정이 달라지지 않아야 한다.
+    시연을 써 본 PC 에서만 poApprove·prClose 시험이 409 로 깨지던 문제를 conftest 가 막는다."""
+    assert state_dir() != (BACKEND_DIR / "data" / "ieum").resolve()
 
 
 # ---------------------------------------------------------------- 로그인과 세션

@@ -118,7 +118,7 @@ class Job:
             fresh = [e for e in d["events"] if e["seq"] > after]
             evs = fresh[:limit]
             out = {k: d.get(k) for k in ("id", "name", "status", "stage", "act", "opts", "error", "notes", "registered", "sourceId", "browser",
-                                         "framework", "files", "createdAt", "startAt", "startedAt", "finishedAt", "shotSeq", "codeTables")}
+                                         "framework", "files", "createdAt", "startAt", "startedAt", "finishedAt", "shotSeq", "codeTables", "reads")}
             out.update(events=copy.deepcopy(evs), seq=(evs[-1]["seq"] if evs else after), more=len(fresh) > limit, stats=self.stats(), elapsed=self.elapsed(), hitl=hv)
             if d["status"] in ("review", "done"):
                 out["apis"] = with_purpose(copy.deepcopy(d["apis"]), (hv or {}).get("purp") or {})
@@ -245,13 +245,21 @@ def start(raw: dict) -> Job:
     return job
 
 
-def rerun(job_id: str) -> Job:
-    """같은 설정으로 다시 탐색한다. 비밀은 금고에 남아 있어야 한다."""
+def rerun(job_id: str, allow_reads: bool = False) -> Job:
+    """같은 설정으로 다시 탐색한다. 비밀은 금고에 남아 있어야 한다.
+
+    allow_reads: 이름이 조회처럼 보이는 POST 를 미리 허락한다(막았던 조회형 요청이 있던 탐색을 결과 화면에서 다시 돌릴 때).
+    허락할 수 있는 것은 그 탐색이 실제로 막았다고 기록한 경우뿐이다 — 화면이 아무 탐색에나 허락을 끼워 넣지 못하게.
+    """
     old = get(job_id)
     sec = credentials.get(_vk(job_id))
-    if old.d["opts"].get("crawl") and not sec.get("password"):
+    if old.d["opts"].get("crawl") and not sec.get("password") and old.d["opts"].get("account"):
         raise JobError("저장된 계정 정보가 없어 다시 탐색할 수 없습니다. 연결 마법사에서 새로 시작해 주세요.")
     raw = dict(old.d["opts"], password=sec.get("password", ""), token=sec.get("token", ""), name=old.d["name"], when="now")
+    if allow_reads:
+        if ((old.d.get("reads") or {}).get("state")) != "keep":
+            raise JobError("이 탐색은 조회로 보이는 POST 를 막은 기록이 없어 허락할 것이 없습니다.")
+        raw["readAuto"] = True
     return start(raw)
 
 
@@ -333,7 +341,7 @@ def _run(job: Job) -> None:
     d, o = job.d, job.d["opts"]
     sec = credentials.get(_vk(d["id"]))
     masker = Masker(pii=o.get("mask", True))
-    policy = Policy(base=o.get("base", ""), scope=o.get("scope", ""), exclude=o.get("exclude", ""), read_post=o.get("readPost", ""),
+    policy = Policy(base=o.get("base", ""), scope=o.get("scope", ""), exclude=o.get("exclude", ""), read_post=o.get("readPost", ""), read_auto=bool(o.get("readAuto")),
                     ban=o.get("ban", []), max_pages=o["maxPages"], max_depth=o["maxDepth"], max_seconds=o["maxSeconds"], delay_ms=o["delayMs"]) if o.get("base") else None
     out: dict = {}
     try:
@@ -454,6 +462,13 @@ def _crawl(job: Job, o: dict, sec: dict, policy: Policy, out: dict) -> None:
         if res.error:
             out["error"] = f"화면 탐색을 하지 못했습니다. {res.error}"
             job.emit("sys", "note", msg=out["error"])
+        info = crawler.reads_summary()
+        job.d["reads"] = info
+        if info and info["state"] == "keep":
+            job.emit("sys", "note", msg=f"조회로 보이는 POST {len(info['paths'])}종({info['n']}건)을 운영에 보내지 않고 막았습니다. 이 사이트는 조회에도 POST 를 쓰는 것 같습니다. "
+                                        "결과 화면의 '조회로 보이는 POST 를 허락하고 다시 탐색'을 누르면 실제 응답까지 확인합니다")
+        elif info:
+            job.emit("sys", "note", msg=f"조회로 보이는 POST {info['n']}건을 허락을 받아 운영에 보냈습니다. 저장·삭제 같은 낱말이 든 요청은 보내지 않았습니다")
         job.emit("web", "done", cnt=len(res.pages), msg="화면 탐색을 마쳤습니다")
         job.stage(web="done" if res.pages and (res.observed or not res.error) else "fail")
     except BrowserUnavailable as exc:
@@ -468,6 +483,8 @@ def _recipe(crawl_res, policy: Policy, o: dict) -> Optional[dict]:
     if r:
         return {"userField": r["userField"], "passField": r["passField"], "extra": r["extra"], "json": r["json"], "loginRel": _rel(policy, r["loginUrl"]),
                 "actionRel": _rel(policy, r["action"])}
+    if crawl_res and crawl_res.anonymous and o.get("start"):          # 로그인 화면이 없는 공개 사이트: 방문만으로 세션을 받는다
+        return {"visit": True, "loginRel": _rel(policy, o["start"])}
     if o.get("base") and o.get("start"):
         try:
             return session_auth.discover_recipe(o["start"], lambda x: _rel(policy, x))
@@ -567,8 +584,9 @@ def register(job_id: str, api_ids: List[str]) -> dict:
     how = "Git 소스와 운영 트래픽으로 추론" if "both" in evidence or {"src", "tr"} <= evidence else "Git 소스로 추론" if "src" in evidence else "운영 트래픽으로 추론"
     prev = existing or next((x for x in sources if x["id"] == sid), None)
     total = len(current) + len(new)
+    visit = bool((d.get("recipe") or {}).get("visit"))
     src = {"id": sid, "name": prev["name"] if prev else d["name"], "desc": f"자동 탐색으로 찾은 API {total}개", "proto": "disc", "spec": how, "base": o["base"],
-           "auth": "세션 (서비스 계정)", "authType": "session", "sync": "방금", "specUrl": None}
+           "auth": "세션 (방문, 로그인 없음)" if visit else "세션 (서비스 계정)", "authType": "session", "sync": "방금", "specUrl": None}
     sec = credentials.get(_vk(job_id))
     if d.get("recipe"):
         credentials.put(sid, {"type": "session", "username": sec.get("username", ""), "password": sec.get("password", ""), "recipe": d["recipe"]})

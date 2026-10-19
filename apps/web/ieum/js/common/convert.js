@@ -156,7 +156,11 @@ function hlHTTP(s) {
   if (!body) return h;
   return h + '\n\n' + (body.trim().startsWith('<') ? hlXML(body) : hlJSON(body));
 }
-const code = (text, lang = 'json') => `<pre class="code" tabindex="0">${lang === 'json' ? hlJSON(typeof text === 'string' ? text : JSON.stringify(text, null, 2)) : lang === 'xml' ? hlXML(text) : hlHTTP(text)}</pre>`;
+function hlSQL(s) {
+  return esc(s).replace(/(--.*$)|(&#39;.*?&#39;)|(:\w+)|\b(SELECT|FROM|WHERE|JOIN|ON|AND|OR|AS|BETWEEN|COUNT|SUM|AVG|MIN|MAX|IN|ORDER|BY|GROUP|DISTINCT|LIKE|ESCAPE|IS|NOT|NULL|CASE|WHEN|THEN|END|DESC|ASC|UPPER|LEFT|WITH)\b/gm,
+    (m, c, str, bind, kw) => c ? `<span class="c">${c}</span>` : str ? `<span class="s">${str}</span>` : bind ? `<span class="n">${bind}</span>` : `<span class="t">${kw}</span>`);
+}
+const code = (text, lang = 'json') => `<pre class="code" tabindex="0">${lang === 'json' ? hlJSON(typeof text === 'string' ? text : JSON.stringify(text, null, 2)) : lang === 'xml' ? hlXML(text) : lang === 'sql' ? hlSQL(text) : hlHTTP(text)}</pre>`;
 
 /* ---------- 변환 과정(trace) ---------- */
 const httpReq = o => `${o.method} ${o.url} HTTP/1.1\n${Object.entries(o.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n')}${o.body ? `\n\n${o.body}` : ''}`;

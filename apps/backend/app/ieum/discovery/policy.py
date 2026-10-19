@@ -45,6 +45,7 @@ class Policy:
     scope: str = ""                         # 경로 패턴(쉼표 구분). 비면 base 경로 아래 전부
     exclude: str = ""
     read_post: str = ""                     # 조회에 쓰는 POST 경로 패턴 — 이것만 운영에 실제로 보낸다
+    read_auto: bool = False                 # 이름이 조회처럼 보이는 POST(reads.looks_read)도 보내도 된다고 미리 허락했다
     ban: List[str] = field(default_factory=list)
     max_pages: int = 50
     max_depth: int = 4
