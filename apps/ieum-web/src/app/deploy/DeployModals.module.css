@@ -1,0 +1,44 @@
+/* 배포 모달 본문 배치 — 옛 openModal 본문의 인라인 여백(js/menu/deploy.js:149-152,162,172,176-177,181,195-196)과 .newkey(css/console.css:800).
+   모양은 부품(Notice · FailureBlock · CopyField · ScrollList · Checkbox · Field · CodeBlock)이 맡는다 */
+
+/* 확인 문단 — 바깥 여백 없음(옛 <p style="margin:0"> :162,181) */
+.text {
+  margin: 0;
+}
+
+/* 첫 문단 — 위 여백 없음, 아래는 기본 1em = 14(옛 <p style="margin-top:0"> :149,176) */
+.lead {
+  margin: 0 0 var(--s-3-5);
+}
+
+/* 먼저 저장할 도구 알림 아래 10(옛 인라인 :150) */
+.dirty {
+  margin-bottom: var(--s-2-5);
+}
+
+/* 결과 자리(진행 · 실패) 위 10 — 비어 있어도 둔다(옛 #dpMsg :152) */
+.result {
+  margin-top: var(--s-2-5);
+}
+
+/* 발급한 키 줄 위 12 · 아래 4(옛 .newkey css/console.css:800) */
+.secret {
+  margin: var(--s-3) 0 var(--s-1);
+}
+
+/* 키 발급 안내 위 6(옛 인라인 margin:6px 0 0 :172) */
+.hint {
+  margin-top: var(--s-1-5);
+}
+
+/* "포함할 도구" 라벨 위 12 · 아래 6(옛 인라인 :195) */
+.tools-label {
+  margin: var(--s-3) 0 var(--s-1-5);
+}
+
+/* 체크 줄의 도구 id — 옛 `.mono`(자간 0) 인라인 12.5(:196) */
+.tool-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  letter-spacing: var(--tracking-mono);
+}

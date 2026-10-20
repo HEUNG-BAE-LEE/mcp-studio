@@ -1,0 +1,26 @@
+/* LiveIndicator — 이음 .live(css/console.css:961-962) · @keyframes blink(:747). 점 지름 7은 고유 치수(한 변 = 다른 변).
+   점은 --m-blink 한 번씩 반복해 --opacity-blink까지 옅어진다(DESIGN 이식 기간 유지 — 반복 모션). 모션 줄이기면 base.css가 애니메이션을 꺼 멈춘 점이 된다 */
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  color: var(--danger);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  /* check-css-disable-next-line literal-px -- 점 고유 지름 7(한 변 = 다른 변, 이음 .live::before) */
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: blink var(--m-blink) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: var(--opacity-blink);
+  }
+}

@@ -1,0 +1,27 @@
+/* Spinner — 이음 .spin(css/console.css:952) · .an li.run .ic(:842) · @keyframes spin(:846).
+   --primary 테 · 위쪽만 투명 · --m-spin 한 바퀴 반복(DESIGN 이식 기간 유지 — 반복 모션). 모션 줄이기면 base.css가 애니메이션을 꺼 멈춘 원이 된다 */
+.root {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  /* check-css-disable-next-line literal-px -- 원 고유 지름 16(한 변 = 다른 변, 이음 .spin) */
+  height: 16px;
+  border: var(--bw-strong) solid var(--primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin var(--m-spin) linear infinite;
+}
+
+/* lg — 분석 단계 원(.an li .ic 22 · 테 1.5) */
+.root[data-size='lg'] {
+  width: 22px;
+  /* check-css-disable-next-line literal-px -- 원 고유 지름 22(한 변 = 다른 변, 이음 .an li .ic) */
+  height: 22px;
+  border-width: var(--bw-dashed);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

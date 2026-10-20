@@ -1,0 +1,49 @@
+/* TwoColumn — 이음 .dgrid(538) · .td-grid(674) · .dp-grid(798) · .dsum(1019) · .dgrid2(959-960), 접힘(867-869 · 1049 · 1051)
+   칸은 최소 폭 0으로 줄어든다(minmax(0, …)) — 넘치는 내용은 칸 안에서 처리 */
+.root {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+
+.root[data-layout='main-side'] {
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+}
+
+.root[data-layout='main-aside'] {
+  grid-template-columns: minmax(0, 1fr) var(--w-policy-aside);
+  gap: var(--s-7);
+}
+
+.root[data-layout='half'] {
+  gap: var(--s-6);
+}
+
+.root[data-layout='summary'] {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+/* 칸 안 상자(Box)가 칸 높이를 채운다 — 옛 .dgrid2>.box */
+.root[data-layout='live'] {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.root[data-layout='live'] > * {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 1360px) {
+  .root:not([data-layout='live']) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .root[data-layout='live'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

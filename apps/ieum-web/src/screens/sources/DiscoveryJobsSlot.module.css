@@ -1,0 +1,30 @@
+/* 자동 탐색 작업 표 칸 글자(옛 js/menu/discovery.js:21-25 · css/console.css:507-508,601-602)
+   대상: 이름 굵기 500 + 운영 주소(없으면 저장소) 12px 옅은 글(.sname) · 방식 13px(인라인) · 예약 시각 12px 옅은 글(인라인) ·
+   찾은 API 수 굵은 주색 고른 숫자(.num) */
+.name {
+  display: block;
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+}
+
+.target {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+}
+
+.how {
+  font-size: var(--fs-ui-sm);
+}
+
+.starts-at {
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+
+.count {
+  color: var(--primary);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}

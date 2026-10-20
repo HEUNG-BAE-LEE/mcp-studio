@@ -1,0 +1,28 @@
+/* Dock 절 — 미리보기 틀. transform이 새 containing block을 만든다: position: fixed인 도크가 화면이 아니라 이 틀 아래에 붙고,
+   내려가는 모션은 overflow로 틀 안에서 잘린다 */
+.preview,
+.preview-tall {
+  overflow: hidden;
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-md);
+  background: var(--surface-sub);
+  transform: translate(0);
+}
+
+.preview {
+  /* check-css-disable-next-line literal-px -- 미리보기 틀 높이 — 한 줄 도크(안쪽 + --h-md + 아래 여백) 위로 안내 글이 보일 만큼 */
+  min-height: 160px;
+}
+
+.preview-tall {
+  /* check-css-disable-next-line literal-px -- 미리보기 틀 높이 — 좁은 폭에서 접힌 도크(여러 줄)가 들어갈 만큼 */
+  min-height: 300px;
+}
+
+.caption {
+  margin: 0;
+  padding: var(--s-3);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-note);
+}

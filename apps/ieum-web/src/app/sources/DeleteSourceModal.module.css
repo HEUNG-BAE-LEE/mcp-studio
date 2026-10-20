@@ -1,0 +1,4 @@
+/* DeleteSourceModal — 본문 한 문단은 바깥 여백이 없다(옛 <p style="margin:0"> — js/menu/sources.js:144) */
+.text {
+  margin: 0;
+}

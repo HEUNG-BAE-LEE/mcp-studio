@@ -1,0 +1,38 @@
+/* SectionTitle — 이음 .sec-t(section — css/console.css:607-608) · .sec2>h4(sub — :670-673). 위 · 아래 간격은 어느 화면에서나 같다.
+   sub의 위 여백은 옛 .sec2 margin-top(소절 묶음 위)을 제목이 가진다. 아이콘 흐림 · 고정폭 보조 글은 옛 드로어 소절(:1046-1047) */
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2-5);
+  margin: var(--s-8) 0 var(--s-2-5);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+}
+
+/* 위 여백은 :where로 낮춰 section과 같은 무게로 둔다 — 쓰는 곳 className(배치)이 덮을 수 있게 */
+.root:where([data-level='sub']) {
+  margin-top: var(--subsection-top);
+  font-size: var(--fs-subhead);
+}
+
+.icon {
+  color: var(--text-faint);
+}
+
+.description {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+}
+
+/* 고정폭 보조 글 — 자간은 옛처럼 body를 물려받는다(옛 font-family만 바꿈). 긴 파일 경로는 좁은 폭에서 아무 곳에서나 접는다(옛은 넘침) */
+.description[data-mono='true'] {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* 동작 앞 빈칸 — 옛 .sp */
+.spacer {
+  flex: 1;
+}

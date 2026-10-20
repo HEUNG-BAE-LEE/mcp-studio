@@ -1,0 +1,4 @@
+/* DiscoveryZone 절 — 잠긴 사유 안내의 바깥 여백(쓰는 곳 몫 — 옛 인라인 margin:0 0 8px js/menu/discovery.js:60) */
+.reason {
+  margin: 0 0 var(--s-2);
+}

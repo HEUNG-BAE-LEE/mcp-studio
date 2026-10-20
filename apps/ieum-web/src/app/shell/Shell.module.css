@@ -1,0 +1,30 @@
+/* 셸 틀 — 이음 .app · .main · .content(css/console.css:72,80,108,431,461,499). 문서가 스크롤한다(높이 · overflow를 걸지 않는다).
+   본문 아래 여백은 모든 폭에서 80(--content-pad-bottom — 옛 뒤쪽 선언이 이긴 값) */
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.content {
+  flex: 1;
+  padding: var(--content-pad-top) var(--content-pad-x) var(--content-pad-bottom);
+}
+
+@media (max-width: 1680px) {
+  .content {
+    padding: var(--content-pad-x-1680) var(--content-pad-x-1680) var(--content-pad-bottom);
+  }
+}
+
+@media (max-width: 760px) {
+  .content {
+    padding: var(--content-pad-narrow);
+  }
+}

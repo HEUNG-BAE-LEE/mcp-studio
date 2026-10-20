@@ -1,0 +1,91 @@
+/* Notice — 이음 .notice(css/console.css:270-272) + warn · mute · danger(:643-648) · .nt(:649) · .btn(:650).
+   반지름 5px은 --r-md(6)로(이웃 단계로 묶음). 도는 원은 옛 .spin처럼 여백 없이 첫 줄 위에 놓인다(.notice > .spin) */
+.root {
+  display: flex;
+  gap: var(--s-2-5);
+  padding: var(--s-3) var(--s-3-5);
+  border: 1px solid var(--primary-line);
+  border-radius: var(--r-md);
+  background: var(--primary-bg);
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+  line-height: var(--lh-prose);
+}
+
+.root[data-tone='warn'] {
+  border-color: transparent;
+  background: var(--warn-bg);
+}
+
+.root[data-tone='danger'] {
+  border-color: transparent;
+  background: var(--danger-bg);
+}
+
+.root[data-tone='mute'] {
+  border-color: var(--line-divider);
+  background: var(--surface-sub);
+}
+
+/* 아이콘을 첫 줄 글자 가운데에 맞추는 광학 보정(이음 .notice>svg margin-top 2px) */
+.icon {
+  margin-top: var(--s-0-5);
+  color: var(--primary);
+}
+
+.root[data-tone='warn'] .icon {
+  color: var(--warn);
+}
+
+.root[data-tone='danger'] .icon {
+  color: var(--danger);
+}
+
+.root[data-tone='mute'] .icon {
+  color: var(--text-faint);
+}
+
+/* 한 줄 상태 줄(variant line). 옛 .dact(css/console.css:948-951): 가운데 맞춤 · 본문 글자 14 · --text · 안쪽 11 16
+   (위아래 11은 이웃 단계 10으로 묶음). 아이콘 보정 여백은 가운데 맞춤이라 없다 */
+.root[data-variant='line'] {
+  align-items: center;
+  padding: var(--s-2-5) var(--s-4);
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.root[data-variant='line'] .icon {
+  margin-top: 0;
+}
+
+/* 긴 낱말(주소 · 서버 원문)은 상자 안에서 접는다 — 좁은 폭에서 상자를 밀어내지 않게(FailureBlock과 같음) */
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 서버가 준 여러 줄 문장 — 줄바꿈 · 이어진 공백을 지킨다(옛 .nt 인라인 white-space:pre-wrap, js/menu/deploy.js:25) */
+.text[data-preserve-lines] {
+  white-space: pre-wrap;
+}
+
+.text b {
+  color: var(--text);
+}
+
+.action {
+  display: flex;
+  flex: none;
+  align-self: center;
+}
+
+/* 오른쪽 끝 글(경과 시간 등) — 옛 .dact .muted(:951): 13px · 옅은 글자 · 고른 숫자. 문장과 최소 20 떨어진다(옛 .sp 자리 사이 gap 둘) */
+.trailing {
+  flex: none;
+  margin-left: var(--s-2-5);
+  color: var(--text-faint);
+  font-size: var(--fs-ui-sm);
+  font-variant-numeric: tabular-nums;
+}

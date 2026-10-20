@@ -1,0 +1,22 @@
+/* SpecStep — 2단계 명세 불러오기(옛 js/menu/sources.js:65-69)
+   "또는" 구분선: 가운데 글자 양옆으로 남은 폭을 나누는 1px 선, 위아래 14(옛 .or css/console.css:828-829) */
+.or {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+  margin: var(--s-3-5) 0;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+
+.or::before,
+.or::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--line-divider);
+}
+
+/* 서버 주소 칸은 파일 상자 아래 14(옛 인라인 margin-top:14px — js/menu/sources.js:69) */
+.base {
+  margin-top: var(--s-3-5);
+}

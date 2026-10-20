@@ -1,0 +1,18 @@
+/* 카탈로그 TraceView 절 — box 그릇이 놓이는 상자(테스트 실행 결과 상자 자리)와 holdSlot 예시. min-width 0이라 긴 코드가 페이지를 밀지 않는다 */
+.box {
+  min-width: 0;
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-md);
+}
+
+.fit {
+  min-width: 0;
+}
+
+.hold {
+  display: grid;
+  gap: var(--s-2-5);
+  padding: var(--s-3-5);
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-lg);
+}

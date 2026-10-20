@@ -1,0 +1,101 @@
+/* Table — 이음 .twrap(css/console.css:596) · .utbl(css/console.css:199-212,599-606). 가로 넘침은 상자 안 스크롤.
+   최소 폭 820 · 960 · 980 · 1040 · 체크 칸 폭 48은 폭 계열 속성의 리터럴 예외다(간격 단계 밖의 고유 치수) */
+.wrap {
+  border-top: var(--bw-strong) solid var(--line-strong);
+  border-bottom: 1px solid var(--line-divider);
+  background: var(--surface);
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-body);
+}
+
+.table[data-min-width='820'] {
+  min-width: 820px;
+}
+
+.table[data-min-width='960'] {
+  min-width: 960px;
+}
+
+.table[data-min-width='980'] {
+  min-width: 980px;
+}
+
+.table[data-min-width='1040'] {
+  min-width: 1040px;
+}
+
+.head-cell {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: var(--h-th);
+  padding: 0 var(--s-2-5);
+  border-bottom: 1px solid var(--line-control);
+  border-left: 1px solid var(--line-divider);
+  background: var(--surface-sub);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cell {
+  height: var(--h-row);
+  padding: 0 var(--s-3);
+  border-bottom: 1px solid var(--line-divider);
+  border-left: 1px solid var(--line-divider);
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.head-cell:first-child,
+.cell:first-child {
+  border-left: 0;
+}
+
+.head-cell[data-align='start'],
+.cell[data-align='start'] {
+  text-align: left;
+}
+
+/* 선택 상자 칸 — 폭 48(고유 치수). 머리 칸은 비어 있다 */
+.head-cell[data-kind='check'],
+.cell[data-kind='check'] {
+  width: 48px;
+}
+
+.table[data-density='auto'] .cell {
+  height: auto;
+  padding-top: var(--s-2-5);
+  padding-bottom: var(--s-2-5);
+}
+
+/* 행 — 누를 수 있는 행만 손가락 · 포커스. hover 바탕은 모든 행 */
+.row:hover .cell {
+  background: var(--surface-hover);
+}
+
+.row[data-state='selected'] .cell {
+  background: var(--surface-selected);
+}
+
+.row[data-interactive] {
+  cursor: pointer;
+}
+
+/* 포커스 — 칸 바탕이 hover와 같고 안쪽 링을 더한다(전역 링은 지우지 않고 자리만 안쪽으로) */
+.row[data-interactive]:focus-visible {
+  outline-offset: -2px;
+}
+
+.row[data-interactive]:focus-visible .cell {
+  background: var(--surface-hover);
+}

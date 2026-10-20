@@ -1,0 +1,6 @@
+/* Spinner 절 — 글자 곁에 놓인 스피너(옛 .notice · .dact 줄처럼 flex 안) */
+.beside {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2-5);
+}

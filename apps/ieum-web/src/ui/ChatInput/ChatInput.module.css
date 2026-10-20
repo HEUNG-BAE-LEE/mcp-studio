@@ -1,0 +1,25 @@
+/* ChatInput — 이음 .ask(css/console.css:750-752). 대화 상자의 아래 줄이라 안쪽 여백을 줄이 가진다(위 10 · 좌우 · 아래 14).
+   입력칸은 남은 폭을 채우고 보내기(Button xl)와 같은 높이 --h-xl이다 */
+.root {
+  display: flex;
+  gap: var(--s-2);
+  padding: var(--s-2-5) var(--s-3-5) var(--s-3-5);
+}
+
+/* 입력칸 — Input(form)과 같은 면 · 테두리 · 글자(이음 .inp css/console.css:307). 자리표시는 브라우저 기본 색(옛 규칙 없음) */
+.input {
+  flex: 1;
+  min-width: 0;
+  height: var(--h-xl);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-body);
+}
+
+/* 포커스 — 테두리를 --primary로 하고 전역 링은 그대로 둔다(Input과 같다 — 옛 .inp:focus는 링을 지웠다) */
+.input:focus {
+  border-color: var(--primary);
+}

@@ -1,0 +1,79 @@
+/* CompactTable 절 — 쓰는 곳이 토큰으로 주는 칸 글자 흉내(이음 .map .f · .ty · .hid · .req · .dsc · .exv · .old · .ar · .codes css/console.css:681-695) */
+.field {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+
+.type {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-tag);
+}
+
+.required {
+  margin-left: var(--s-0-5);
+  color: var(--danger);
+  font-weight: var(--fw-bold);
+}
+
+.hidden {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+.description {
+  min-width: 130px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.example {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.missing {
+  color: var(--danger);
+}
+
+.old {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.reason {
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+
+/* 화살표 칸 — 폭 28 · 좌우 여백 0 · 가운데 */
+.arrow {
+  width: 28px;
+  padding-right: 0;
+  padding-left: 0;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.tag-gap {
+  margin-left: var(--s-1);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+
+.below {
+  margin-top: var(--s-1);
+}
+
+/* 좁은 폭 — 표가 상자를 넘치면 상자 안에서 스크롤하는 모습 */
+.narrow {
+  max-width: 320px;
+}

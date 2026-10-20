@@ -1,0 +1,32 @@
+/* Box 절 — 예시 본문 자리 */
+.demo {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 640px;
+}
+
+.fill {
+  padding: var(--s-5);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* 대화 상자 예시 — 머리 동작(옛 .ctx css/console.css:737-738) */
+.ctx {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+
+.ctx-icon {
+  color: var(--text-faint);
+}
+
+/* 폼 칸 자리표시 — 폼 칸 윗선은 쓰는 곳 몫(옛 .pg-direct css/console.css:1079 — 머리 아랫선과 겹쳐 2px) */
+.chat-form {
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line-divider);
+  color: var(--text-faint);
+}

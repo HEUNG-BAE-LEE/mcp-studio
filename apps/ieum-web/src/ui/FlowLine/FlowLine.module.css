@@ -1,0 +1,70 @@
+/* FlowLine — 이음 .tp-link i · .plink i(css/console.css:557,561,883-884,894-896). 점선 한 마디(선 6 · 틈 6 = 12)와 두께 2는 고유 치수.
+   흐름은 --m-flow 한 번씩 반복한다(DESIGN 이식 기간 유지 — 반복 모션). 모션 줄이기면 base.css가 애니메이션을 꺼 멈춘 점선이 된다 */
+.root {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  display: block;
+  /* check-css-disable-next-line literal-px -- 흐름 점선 두께 2(고유 치수) */
+  height: 2px;
+  /* check-css-disable-next-line literal-px -- 흐름 점선 위치 오프셋(두께 2의 절반) */
+  margin-top: -1px;
+  /* check-css-disable-next-line literal-px -- 흐름 점선 한 마디(선 6 · 틈 6)는 고유 치수 */
+  background: repeating-linear-gradient(90deg, var(--primary) 0 6px, transparent 6px 12px);
+  /* check-css-disable-next-line literal-px -- 흐름 점선 한 마디 12 × 두께 2 */
+  background-size: 12px 2px;
+  opacity: var(--opacity-flow);
+  animation: flow var(--m-flow) linear infinite;
+}
+
+@keyframes flow {
+  to {
+    /* check-css-disable-next-line literal-px -- 흐름 점선 한 마디(12)만큼 민다 */
+    background-position: 12px 0;
+  }
+}
+
+@keyframes flow-vertical {
+  to {
+    /* check-css-disable-next-line literal-px -- 흐름 점선 한 마디(12)만큼 민다 */
+    background-position: 0 12px;
+  }
+}
+
+/* 세로 점선 — 칸 가운데를 위에서 아래로. 두 폭의 규칙은 같다(구조도 1100 · 파이프라인 760) */
+@media (max-width: 1100px) {
+  .root[data-vertical-at='1100'] {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    height: auto;
+    /* check-css-disable-next-line literal-px -- 흐름 점선 위치 오프셋(두께 2의 절반) */
+    margin: 0 0 0 -1px;
+    /* check-css-disable-next-line literal-px -- 흐름 점선 한 마디(선 6 · 틈 6)는 고유 치수 */
+    background: repeating-linear-gradient(180deg, var(--primary) 0 6px, transparent 6px 12px);
+    /* check-css-disable-next-line literal-px -- 흐름 점선 두께 2 × 한 마디 12 */
+    background-size: 2px 12px;
+    animation-name: flow-vertical;
+  }
+}
+
+@media (max-width: 760px) {
+  .root[data-vertical-at='760'] {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    height: auto;
+    /* check-css-disable-next-line literal-px -- 흐름 점선 위치 오프셋(두께 2의 절반) */
+    margin: 0 0 0 -1px;
+    /* check-css-disable-next-line literal-px -- 흐름 점선 한 마디(선 6 · 틈 6)는 고유 치수 */
+    background: repeating-linear-gradient(180deg, var(--primary) 0 6px, transparent 6px 12px);
+    /* check-css-disable-next-line literal-px -- 흐름 점선 두께 2 × 한 마디 12 */
+    background-size: 2px 12px;
+    animation-name: flow-vertical;
+  }
+}

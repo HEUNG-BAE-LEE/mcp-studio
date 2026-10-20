@@ -1,0 +1,29 @@
+/* Checkbox 절 — 도구 목록 줄의 고정폭 id · 감싼 label 예(승인 상자 안쪽 글자 흉내 — 이음 .own b · small). 화면 조각이라 테두리는 두지 않는다 */
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+}
+
+.list {
+  display: grid;
+  justify-items: start;
+}
+
+.own {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  cursor: pointer;
+}
+
+.ownTitle {
+  display: block;
+  font-size: var(--fs-body);
+}
+
+.ownNote {
+  display: block;
+  margin-top: var(--s-0-5);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}

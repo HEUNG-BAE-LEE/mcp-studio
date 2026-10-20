@@ -1,0 +1,55 @@
+/* ResultTable — 표 위 14(옛 .twrap css/console.css:599) · 칸 글자(옛 .api · .api-s · .tn css/console.css:603,1038-1040 · js/menu/discovery.js:281-286)
+   API: 메서드 + 고정폭 경로 13px / 아래 12px 보조색 제목 + 도구 이름(고정폭 11.5px 옅은 글 · 왼쪽 4)
+   호출된 화면: 13px 보조색 · 줄바꿈 · 최소 150 / 추천: 줄바꿈 · 최소 170, 이유 12px 옅은 글 · 위 3.
+   옛 최소 폭은 칸(td — border-box라 좌우 여백 12 · 왼쪽 선 1 포함)에 걸렸다 — 여기는 칸 안 글 묶음에 걸어 그만큼 뺀 값이다 */
+.table {
+  margin-top: var(--s-3-5);
+}
+
+.api {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1-75);
+}
+
+.path {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-sm);
+}
+
+.api-sub {
+  margin-top: var(--s-0-5);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+
+.tool {
+  margin-left: var(--s-1);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-tag);
+  letter-spacing: var(--tracking-mono);
+}
+
+.screen {
+  min-width: 125px;
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+  white-space: normal;
+}
+
+.faint {
+  color: var(--text-faint);
+}
+
+.recommend {
+  min-width: 145px;
+  white-space: normal;
+}
+
+.rec-note {
+  margin-top: var(--s-0-5);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-body);
+}

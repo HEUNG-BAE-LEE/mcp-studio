@@ -1,0 +1,38 @@
+/* Modal 절 — 입력 모달 예시의 라벨 · 입력 · 메모(입력 부품은 원본 시스템을 옮길 때 만든다 — 첫 포커스 확인용 흉내) */
+.label {
+  display: block;
+  margin-bottom: var(--s-1-5);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.input {
+  height: var(--h-md);
+}
+
+.textarea {
+  padding-block: var(--s-2);
+}
+
+/* 앞 입력 뒤에 이어지는 라벨 */
+.input + .label,
+.textarea + .label {
+  margin-top: var(--s-3);
+}
+
+.hint {
+  margin: var(--s-3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-note);
+}

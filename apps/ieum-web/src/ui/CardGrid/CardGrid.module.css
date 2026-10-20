@@ -1,0 +1,23 @@
+/* CardGrid — 이음 .wz-cards(820,900) · .res-grid(849,900) · .later(609,879)
+   칸은 최소 폭 0으로 줄어든다(minmax(0, 1fr)) — 넘치는 내용은 칸 안에서 처리 */
+.root {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2-5);
+}
+
+.root[data-columns='3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .root[data-collapse-at='1100'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .root[data-collapse-at='760'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

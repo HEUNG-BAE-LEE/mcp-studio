@@ -1,0 +1,17 @@
+/* ModeStep — 1단계 연결 방식(옛 js/menu/sources.js:54-55)
+   안내는 위 여백 없이 아래 12(옛 .tab-hint + 인라인 margin-top:0 — css/console.css:289),
+   묶음 제목은 옛 .wz-g(css/console.css:911-912) — 위 16 · 아래 8, 첫 묶음만 위 4 */
+.hint {
+  margin: 0 0 var(--s-3);
+}
+
+.group {
+  margin: var(--s-4) 0 var(--s-2);
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+}
+
+.group-first {
+  margin-top: var(--s-1);
+}

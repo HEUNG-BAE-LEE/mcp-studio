@@ -1,0 +1,51 @@
+/* FileDrop — 이음 .drop(css/console.css:823-827). 포커스 링은 숨긴 입력(투명)이 아니라 감싼 상자에 그린다(DESIGN 핵심 규칙 12) */
+.root {
+  position: relative;
+  display: block;
+  padding: var(--s-5-5);
+  border: var(--bw-dashed) dashed var(--line-control);
+  border-radius: var(--r-md);
+  background: var(--surface-sub);
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  text-align: center;
+  cursor: pointer;
+}
+
+.root:hover {
+  border-color: var(--primary);
+}
+
+.root:has(.input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: var(--s-0-5);
+}
+
+/* 아이콘 줄 — 옛은 인라인 svg + <br>(js/menu/sources.js:68)이라 아이콘이 글자 기준선에 앉고 그 아래 글자 내림(descent)만큼 줄이 더 높다.
+   flex로 바꾸면 그 몫(13.5px · 행간 1.5에서 4.25px)이 빠지므로, 블록 안 인라인 svg로 같은 줄 상자를 만든다. 가운데는 상자의 text-align */
+.icon {
+  display: block;
+  margin-bottom: var(--s-1);
+  color: var(--primary);
+}
+
+.title {
+  display: block;
+}
+
+.description {
+  display: block;
+  margin-top: var(--s-0-5);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+
+/* 투명한 입력이 상자 전체를 덮는다. 자기 포커스 링은 투명도와 함께 사라지고 상자의 링이 대신한다 */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}

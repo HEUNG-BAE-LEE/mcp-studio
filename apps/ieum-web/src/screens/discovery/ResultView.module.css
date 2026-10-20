@@ -1,0 +1,12 @@
+/* ResultView — 등록 안내 위 16(옛 인라인 margin-top:16px :304) · 요약 두 열 위 20(옛 .dsum css/console.css:1019) · 필터 줄 위 22(옛 .toolbar :596) */
+.done {
+  margin-top: var(--s-4);
+}
+
+.summary {
+  margin-top: var(--s-5);
+}
+
+.toolbar {
+  margin-top: var(--s-5-5);
+}

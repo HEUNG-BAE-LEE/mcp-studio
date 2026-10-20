@@ -1,0 +1,8 @@
+/* 호출 기록 상세 드로어 — 요약 아래 16(옛 .lsum margin-bottom — css/console.css:804), 실패 안내 아래 8(옛 인라인 — js/menu/logs.js:45) */
+.summary {
+  margin-bottom: var(--s-4);
+}
+
+.note {
+  margin-bottom: var(--s-2);
+}

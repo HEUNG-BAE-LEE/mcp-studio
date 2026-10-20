@@ -1,0 +1,30 @@
+/* Table 절 — 칸 글자 흉내(쓰는 곳이 토큰으로 주는 고정폭 id · 흐린 시각 · 굵은 수치 · 두 줄 칸. 이음 .tn · .date · .num · .sname) */
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-sm);
+}
+
+.num {
+  color: var(--primary);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.date {
+  color: var(--text-muted);
+  font-size: var(--fs-ui-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.strong {
+  display: block;
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+}
+
+.sub {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+}

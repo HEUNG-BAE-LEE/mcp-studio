@@ -1,0 +1,9 @@
+/* ScrollList 절 — "포함할 도구" 위 라벨 여백(옛 인라인 위 12 아래 6 — js/menu/deploy.js:195)과 고정폭 도구 id(옛 .mono 12.5px) */
+.label {
+  margin: var(--s-3) 0 var(--s-1-5);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+}

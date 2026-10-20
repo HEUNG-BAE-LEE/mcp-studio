@@ -1,0 +1,41 @@
+/* LaterCards — 이음 .srow.avail(378-379) · .si(611) · .tx(380-382). 점선 카드 + 아이콘 칸 + 제목 · 설명 + 표지 */
+.card {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-3-5);
+  border: 1px dashed var(--line-divider);
+  border-radius: var(--r-md);
+  background: var(--surface-sub);
+}
+
+.icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  box-sizing: border-box;
+  width: 34px;
+  /* check-css-disable-next-line literal-px -- 아이콘 칸 고유 치수(34) */
+  height: 34px;
+  border: 1px solid var(--line-divider);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text-faint);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.description {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}

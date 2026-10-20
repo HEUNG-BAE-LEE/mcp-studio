@@ -1,0 +1,417 @@
+/* 토큰 원본 — 값은 여기에만 둔다. 손으로 고친다. 값의 뜻과 쓰는 곳은 docs/DESIGN.md.
+   값은 이음 원본(apps/web/ieum/css/console.css)을 단계 · 뜻 이름으로 묶은 것이다(묶으며 생긴 값 차이는 DESIGN ## 이식 기간 허용 차이) — 토큰을 더하거나 지우거나 뜻을 바꾸면 DESIGN 해당 절을 같이 고친다(design-change 스킬).
+   다크 값은 아래 두 블록(시스템 다크 · 강제 다크)에 같은 이름 · 같은 값으로 둔다(lint:docs가 대조). 테마를 따르지 않는 고정 색은 라이트 블록에만 둔다 */
+:root {
+  /* ── 색: 면 ── */
+  --bg-page: #ffffff; /* 문서 바탕(body). 라이트는 --surface와 같지만 다크가 달라 따로 둔다 */
+  --surface: #ffffff; /* 카드 · 표 · 층 · 입력 · 버튼 면 */
+  --surface-sub: #f6f7f9; /* 보조 면 — 머리띠 · 발 · 표 머리 · 코드 상자 · 칩 바탕 */
+  --surface-hover: #f3f7fd; /* 행 · 항목 hover */
+  --surface-selected: #e8f2fe; /* 선택된 행 · 항목 */
+
+  /* ── 색: 선 ── */
+  --line-divider: #e3e6eb; /* 행 사이 · 구획 · 셀 세로선 */
+  --line-control: #d2d6dd; /* 입력 · 버튼 · 칩 · 상자 테두리, 꺼진 스위치 */
+  --line-strong: #353b47; /* 표 윗선 */
+
+  /* ── 색: 글자 ── */
+  --text: #1e2229; /* 본문 · 제목 · 표 셀 */
+  --text-muted: #4f5663; /* 설명 · 라벨 · 보조 글자 */
+  --text-faint: #8d939e; /* 힌트 · 단위 · 빈 상태 · 메타 · 자리표시 */
+
+  /* ── 색: 주색 · 정보 ── */
+  --primary: #2f86f6; /* 주 액션 채움 · 링크 · 활성 · 포커스 링 · 진행 */
+  --primary-hover: #1769e0; /* 주 버튼 · 차트 막대 hover */
+  --primary-ink: #1769e0; /* 연한 파랑 면 위 진한 파랑 글자(정보 상태). 라이트만 --primary-hover와 같다 */
+  --primary-bg: #eaf3ff; /* 연한 파랑 면(정보 상태 · 선택 카드) */
+  --primary-line: #bcd7fb; /* 연한 파랑 테두리 */
+
+  /* ── 색: 상태 — 쓰는 곳은 DESIGN 규칙 3 목록 ── */
+  --ok: #17a061; /* 정상 · 성공(자원 상태 칩 · 승인 받음 · 지표 증가) */
+  --ok-bg: #e4f5ec; /* --ok 위 연한 면 */
+  --warn: #d97a06; /* 주의 · 대기 · 변경(승인 대기 · 쓰기 메서드) */
+  --warn-bg: #fdf0de; /* --warn 위 연한 면 */
+  --danger: #e0454b; /* 실패 · 위험 · 차단 · 필수 표시 */
+  --danger-bg: #fdeced; /* --danger 위 연한 면 */
+  --danger-hover-bg: rgba(224,69,75,.15); /* 금지어 칩 빼기 hover(두 테마 같음) */
+
+  /* ── 색: 셸 ── */
+  --brand-band: #4a90f2; /* 파란 띠 — LNB · 모달 머리 · 드로어 윗띠 */
+  --chart-bar: #4a90f2; /* 차트 막대 · 범례. 띠와 값만 같다 — 띠를 바꿔도 따라가지 않게 나눈다 */
+  --rail-bg: #2c3446; /* 레일 바탕 */
+  --rail-icon: #a9b2c3; /* 레일 아이콘 */
+  --rail-active-bg: rgba(74,144,242,.24); /* 레일 현재 버튼 바탕(두 테마 같음) */
+  --scrim: rgba(18,24,36,.45); /* 드로어 · 모달 뒤 가림막 */
+
+  /* ── 색: 연결 흐름 세 쪽(AI ↔ 이음 ↔ 원본)만 뜻한다 ── */
+  --ai: #6f78d6; /* AI(클라이언트 · 모델) 쪽 — 구조도 AI 노드 · 변환 과정 AI 단계 · 모델 안내 */
+  --ai-bg: #eef0fc; /* --ai 위 연한 면 */
+  --tool: #12a594; /* 도구(MCP) 쪽 — 파이프라인 AI 도구 칸 · 도구 비율 막대 · 배포 AI 연결 탭 */
+  --tool-bg: #e3f6f3; /* --tool 위 연한 면 */
+  --source: #d9870f; /* 원본 시스템 쪽 — 구조도 원본 노드 · 파이프라인 원본 칸 · 원본 응답 단계 */
+  --source-bg: #fdf2e1; /* --source 위 연한 면 */
+
+  /* ── 색: 표지 — 자리 하나의 뜻. 값이 위 색과 같아도 별칭(var)으로 두지 않는다 ── */
+  --evidence-code: #d9870f; /* 탐색 근거 "Git 소스" — 벤 왼쪽 원 · 근거 배지 · Git 파일 아이콘 */
+  --evidence-code-bg: #fdf2e1; /* --evidence-code 위 연한 면 */
+  --evidence-traffic: #12a594; /* 탐색 근거 "운영 트래픽" — 벤 오른쪽 원 · 근거 배지 · 캡처 범례 */
+  --evidence-traffic-bg: #e3f6f3; /* --evidence-traffic 위 연한 면 */
+  --rule-inject: #6f78d6; /* 규칙 분류 "인증 정보 주입" 칩 */
+  --rule-inject-bg: #eef0fc; /* --rule-inject 위 연한 면 */
+  --netlog-flag: #6f78d6; /* 탐색 네트워크 기록 표식 — "허용 (로그인)" 태그 · "스테이징" 표식 */
+  --netlog-flag-bg: #eef0fc; /* --netlog-flag 위 연한 면 */
+  --proto-rest: #1769e0; /* 프로토콜 배지 REST 글자 */
+  --proto-rest-bg: #eaf3ff; /* 프로토콜 배지 REST 바탕 */
+  --proto-gov: #17a061; /* 프로토콜 배지 공공데이터 글자 */
+  --proto-gov-bg: #e4f5ec; /* 프로토콜 배지 공공데이터 바탕 */
+  --proto-soap: #d9870f; /* 프로토콜 배지 SOAP 글자 */
+  --proto-soap-bg: #fdf2e1; /* 프로토콜 배지 SOAP 바탕 */
+  --proto-disc: #6f78d6; /* 프로토콜 배지 자동 탐색 글자 */
+  --proto-disc-bg: #eef0fc; /* 프로토콜 배지 자동 탐색 바탕 */
+
+  /* ── 색: 코드 강조 — 문법 색. 연결 흐름 · 상태 색과 값만 같다 ── */
+  --code-key: #6f78d6; /* 키 · 헤더 이름 · 속성 이름 */
+  --code-string: #12a594; /* 문자열 · 속성 값 */
+  --code-number: #d9870f; /* 숫자 */
+  --code-literal: #e0454b; /* true · false · null 같은 예약 값 · HTTP 메서드 */
+  --code-tag: #1769e0; /* XML 태그 · 예약어 */
+  --code-comment: #8d939e; /* 주석 */
+
+  /* ── 색: 어두운 고정 면(도크 · 토스트)과 그 위 색 — 아래는 --inverse-surface 말고 두 테마 같음 ── */
+  --inverse-surface: #252c3a; /* 일괄 작업 도크 면 */
+  --toast-bg: #1f2633; /* 토스트 바탕 — 도크 면과 따로 둔다 */
+  --inverse-primary: #8cc0ff; /* 어두운 면 위 파랑 — 도크 선택 수 · 토스트 정보 아이콘 */
+  --inverse-ok: #5ed39a; /* 토스트 완료 아이콘 */
+  --inverse-warn: #ffb454; /* 토스트 경고 아이콘 */
+  --inverse-danger: #ffa3a7; /* 도크 위험 버튼 글자 */
+  --inverse-danger-line: rgba(255,130,135,.5); /* 도크 위험 버튼 테두리 */
+  --inverse-danger-hover: rgba(255,90,95,.12); /* 도크 위험 버튼 hover 바탕 */
+  --inverse-fill: #2f86f6; /* 도크 주 버튼 — 다크에서도 같은 면이라 고정 */
+  --inverse-fill-hover: #1769e0; /* 도크 주 버튼 hover */
+
+  /* ── 색: 채움(파랑 · 어두움 · 진한 색) 위 흰색 — 두 테마 같음 ── */
+  --on-fill: #ffffff; /* 채움 위 글자 · 점 · 링 */
+  --on-fill-muted: rgba(255,255,255,.82); /* 파란 띠 위 비활성 LNB 메뉴 글자 */
+  --on-fill-soft: rgba(255,255,255,.9); /* 파란 허브 칸 · 허브 목록 글자 */
+  --on-fill-quiet: rgba(255,255,255,.65); /* 도크 링크형 버튼 글자 */
+  --on-fill-line: rgba(255,255,255,.28); /* 허브 목록 윗선 */
+  --on-fill-line-hover: rgba(255,255,255,.55); /* 도크 보조 버튼 hover 테두리 — 지금 쓰는 곳 없음(DESIGN 미정 행) */
+  --on-fill-subtle: rgba(255,255,255,.18); /* 도크 구분선 · 허브 수 칩 */
+  --on-fill-hover: rgba(255,255,255,.08); /* 레일 버튼 hover 바탕 */
+  --on-band-hover: rgba(255,255,255,.15); /* 파란 띠(모달 머리) 위 닫기 hover 바탕 */
+
+  /* ── 색: 테마를 따르지 않는 표지 — 두 테마 같음 ── */
+  --avatar-from: #dbe8ff; /* GNB 아바타 그라데이션 시작 */
+  --avatar-to: #b9d3fb; /* GNB 아바타 그라데이션 끝 */
+  --avatar-ink: #2f5fb3; /* GNB 아바타 글자 */
+  --capture-bg: #eef0f3; /* 탐색 화면 캡처 영역 바탕(늘 밝은 화면) */
+  --capture-text: #6b7280; /* 캡처 영역 빈 안내 글자 */
+  --capture-icon: #9aa2ad; /* 캡처 영역 빈 안내 아이콘 */
+  --capture-hl: #2f86f6; /* 캡처 위 강조 상자 · 라벨 */
+  --capture-hl-block: #e0454b; /* 캡처 위 건너뜀 · 차단 강조 상자 · 라벨 */
+
+  /* ── 글자: 글꼴 ── */
+  --font-sans: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', system-ui, sans-serif; /* 본문 글꼴(body). 웹 폰트 로딩은 index.html */
+  --font-mono: 'JetBrains Mono', 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; /* 고정폭 — 코드 · 경로 · 키 · 식별자 */
+
+  /* ── 글자: 크기 ── */
+  --fs-micro: 11px; /* 추천 · 2차 표식, 차트 축 · 범례, 탐색 표식 */
+  --fs-tag: 11.5px; /* 태그 · 규칙 칩 · 코드값 칩 · 메시지 화자 */
+  --fs-caption: 12px; /* 상태 칩 · 프로토콜 배지 · 인라인 코드 · 보조 줄 */
+  --fs-small: 12.5px; /* 힌트 · 코드 상자 · 매핑 표 머리 · 드로어 머리 보조 · 선택 목록 소제목 */
+  --fs-ui-sm: 13px; /* 작은 버튼 · 칩 · 링크 · 안내 상자 · 표 보조 셀 · 복사 칸 값 */
+  --fs-label: 13.5px; /* 폼 라벨 · 옵션 제목 · 매핑 표 */
+  --fs-body: 14px; /* 본문 · 버튼 · 입력 · 표 · 토스트 */
+  --fs-subhead: 15px; /* 상세 소제목 · 묶음 이름 · 카드 제목 · 밑줄 탭 */
+  --fs-section: 16px; /* 박스 · 영역 제목 · 모달 머리 · LNB 메뉴 */
+  --fs-drawer: 19px; /* 드로어 제목 */
+  --fs-title-sm: 21px; /* 로고 · 도구 상세 제목 · 760 이하 화면 제목 */
+  --fs-title: 22px; /* LNB 제목 · 큰 수치 */
+  --fs-page: 24px; /* 화면 제목 */
+  --fs-figure: 26px; /* KPI · 벤 수치 */
+  --fs-figure-narrow: 23px; /* 1500 이하 KPI 수치 */
+
+  /* ── 글자: 웨이트 · 행간 · 자간 ── */
+  --fw-regular: 400; /* 본문 굵기(small 등을 되돌릴 때) */
+  --fw-medium: 500; /* 기본 강조 */
+  --fw-bold: 700; /* 제목 · 수치 · 활성 항목 · 원 안 번호 */
+  --fw-mono-strong: 600; /* 고정폭 글꼴에서만 쓰는 강조 */
+  --lh-tight: 1.35; /* 수치 · 노드 이름 · 표 보조 줄 */
+  --lh-body: 1.5; /* 본문(body) · 옵션 · 정책 행 */
+  --lh-note: 1.6; /* 안내 · 메모 · 긴 입력 */
+  --lh-prose: 1.65; /* 설명 글 · 코드 상자 · 말풍선 · 모달 본문 */
+  --lh-loose: 1.8; /* 빈 트레이스 · 범위 목록 */
+  --tracking-body: -0.01em; /* 본문(body) · 도구 상세 제목 */
+  --tracking-logo: -0.02em; /* 로고 */
+  --tracking-mono: 0; /* 고정폭 글자 · 로고 옆 라벨 · 메서드 표식 */
+  --tracking-control: normal; /* 옛 <button> 기본 자간 — 링크로 바뀐 컨트롤(LNB 메뉴)이 body 자간을 물려받지 않게 */
+
+  /* ── 간격 단계(4px 단위 + 반 단계) ── */
+  --s-0-5: 2px; /* 아이콘 광학 보정 */
+  --s-1: 4px; /* 촘촘한 gap */
+  --s-1-5: 6px; /* gap · 칩 안쪽 */
+  --s-1-75: 7px; /* 태그 좌우 여백 · 일부 gap */
+  --s-2: 8px; /* gap · 작은 안쪽 */
+  --s-2-5: 10px; /* 가장 흔한 gap · 안쪽 */
+  --s-3: 12px; /* 안쪽 */
+  --s-3-5: 14px; /* 안쪽 · 카드 */
+  --s-4: 16px; /* 안쪽 */
+  --s-4-5: 18px; /* 박스 머리 · 토스트 안쪽 */
+  --s-5: 20px; /* 영역 사이 · KPI 셀 */
+  --s-5-5: 22px; /* 툴바 · 2열 본문 위 */
+  --s-6: 24px; /* 드로어 좌우 · KPI 위 */
+  --s-7: 28px; /* 2열 gap */
+  --s-8: 32px; /* 섹션 제목 위 */
+  --s-10: 40px; /* 빈 상태 안쪽 */
+
+  /* ── 간격: 셸 · 층 · 빈 상태 여백(단계 대신 이름) ── */
+  --content-pad-top: 26px; /* 본문 영역 위 */
+  --content-pad-x: 36px; /* 본문 영역 좌우 */
+  --content-pad-bottom: 80px; /* 본문 영역 아래(모든 폭) */
+  --content-pad-x-1680: 24px; /* 1680 이하 본문 영역 위 · 좌우 */
+  --content-pad-narrow: 18px 14px var(--content-pad-bottom); /* 760 이하 본문 영역 padding(위 · 좌우 · 아래) */
+  --gnb-pad-x: 28px; /* GNB 좌우 */
+  --lnb-pad-x: 30px; /* LNB 좌우 */
+  --drawer-head-pad: 18px 20px 16px 24px; /* 드로어 머리 padding */
+  --drawer-body-pad: 20px 24px 30px; /* 드로어 본문 padding */
+  --drawer-foot-pad: 14px 24px; /* 드로어 발 padding */
+  --modal-pad: 22px; /* 모달 본문 위 · 좌우, 발 좌우 · 아래 */
+  --empty-pad-y: 70px; /* 빈 표 · 빈 트레이스 위아래 */
+  --empty-pad-panel: 34px 16px; /* 점선 빈 상자 padding */
+  --empty-pad-hero: 36px 28px; /* 대시보드 빈 상태 큰 상자 padding */
+  --subsection-top: 26px; /* 상자 · 드로어 안 소절 위 */
+
+  /* ── 크기: 컨트롤 높이(같은 이름 = 같은 높이) ── */
+  --h-xs: 28px; /* 필터 알약 · 금지어 칩 · 작은 입력 */
+  --h-sm: 30px; /* 작은 버튼 · 칩 · 작은 선택 · "1차 개발 범위" */
+  --h-sm-plus: 34px; /* 아이콘 버튼 · 꽉 찬 검색 · 회사 버튼 · 세그먼트 바깥 */
+  --h-md: 36px; /* 기본 버튼 · 입력 */
+  --h-lg: 38px; /* 목록 검색 · 목록 필터 선택 */
+  --h-xl: 40px; /* 대화 입력 · 보내기 */
+
+  /* ── 크기: 셸 · 층 · 표 고정 치수 ── */
+  --w-rail: 64px; /* 레일 폭 */
+  --h-rail-btn: 42px; /* 레일 버튼 한 변 */
+  --h-gnb: 60px; /* GNB 높이 */
+  --h-lnb: 64px; /* LNB 높이 · 메뉴 줄 높이 */
+  --h-lnb-narrow: 46px; /* 760 이하 LNB 메뉴 줄 높이 */
+  --h-th: 50px; /* 표 머리 행 */
+  --h-row: 56px; /* 표 본문 행 */
+  --h-modal-head: 50px; /* 모달 머리(파란 띠) */
+  --w-drawer: 820px; /* 드로어 폭(화면이 좁으면 화면 폭) */
+  --w-modal: 460px; /* 모달 폭 */
+  --w-modal-wide: 660px; /* 넓은 모달 폭 */
+  --w-field-label: 96px; /* 폼 라벨 열 */
+  --w-search: 340px; /* 목록 검색 폭 */
+  --w-list-aside: 290px; /* 스튜디오 · 배포 목록 열 */
+  --w-policy-aside: 300px; /* 스튜디오 정책 열 */
+
+  /* ── 반지름 ── */
+  --r-xs: 2px; /* 범례 사각 점 */
+  --r-sm: 3px; /* 버튼 · 입력 · 태그 · 배지 · 막대 · 복사 칸 */
+  --r-md: 6px; /* 카드 · 모달 · 토스트 · 코드 상자 · 아이콘 버튼 · 담당자 승인 확인 */
+  --r-lg: 8px; /* 레일 버튼 · 실행 전 승인 상자 · 파이프라인 칸 · 캡처 틀 */
+  --r-xl: 10px; /* 도크 · 구조도 허브 */
+  --r-bubble: 12px; /* 대화 말풍선 */
+  --r-pill: 999px; /* 알약 — 칩 · 필터 · 스위치 · 회사 버튼 */
+
+  /* ── 선 두께(1px 테두리는 리터럴) ── */
+  --bw-strong: 2px; /* 표 윗선 · 라디오 원 · 스피너 */
+  --bw-dashed: 1.5px; /* 파일 드롭 점선 · 분석 단계 원 */
+  --bw-tab: 3px; /* 탭 밑줄 */
+  --bw-band: 4px; /* 드로어 윗띠 */
+
+  /* ── 그림자 · 테 ── */
+  --shadow-float: 0 12px 40px rgba(16,24,40,.18); /* 떠 있는 층 — 도크 · 드로어 · 모달 · 토스트 */
+  --shadow-brand: 0 10px 26px rgba(47,134,246,.28); /* 구조도 파란 허브 카드 */
+  --shadow-brand-sm: 0 8px 22px rgba(47,134,246,.25); /* 파이프라인 파란 허브 칸 */
+  --shadow-knob: 0 1px 2px rgba(0,0,0,.25); /* 스위치 점 */
+  --ring-selected: inset 0 0 0 1px var(--primary); /* 선택된 카드 안쪽 테 */
+  --edge-active: inset 3px 0 0 var(--primary); /* 선택된 목록 항목 왼쪽 막대 */
+  --halo-current: 0 0 0 4px var(--primary-bg); /* 진행 중 단계 원 둘레 */
+
+  /* ── 쌓임(z-index) ── */
+  --z-raise: 1; /* 부품 안 쌓임 — 스위치 입력 · 캡처 강조 */
+  --z-sticky: 2; /* 표 머리 고정 */
+  --z-dock: 30; /* 일괄 작업 도크 */
+  --z-drawer-scrim: 40; /* 드로어 가림막 */
+  --z-drawer: 41; /* 드로어 */
+  --z-modal-scrim: 50; /* 모달 가림막 */
+  --z-modal: 51; /* 모달 */
+  --z-toast: 60; /* 토스트 */
+
+  /* ── 모션 — 모션 줄이기에서 --m-*는 0ms(base.css) ── */
+  --m-fast: 120ms; /* 버튼 · 카드 · 스위치 전환 */
+  --m-modal: 160ms; /* 모달 나타남 */
+  --m-fade: 200ms; /* 가림막 · 토스트 · 캡처 강조 이동 */
+  --m-dock: 220ms; /* 도크 올라옴 */
+  --m-drawer: 260ms; /* 드로어 밀려옴 */
+  --m-enter: 300ms; /* 새 항목 나타남 */
+  --m-progress: 400ms; /* 진행 막대 폭 */
+  --ease-out: cubic-bezier(.2,.8,.2,1); /* 도크 · 드로어 곡선 */
+  --m-spin: 800ms; /* 회전(분석 중 원 · 스피너) 한 바퀴 */
+  --m-blink: 1000ms; /* 깜빡임(입력 중 점 · 녹화 중 점) 한 번 */
+  --m-flow: 1100ms; /* 연결선 흐름 점선 한 번 */
+  --m-pulse: 1200ms; /* 캡처 강조 맥박 한 번 */
+  --m-stagger: 200ms; /* 입력 중 점 셋의 시차(×1 · ×2) */
+  --toast-duration: 2800ms; /* 토스트가 떠 있는 시간. 모션이 아니라 모션 줄이기에서도 그대로 */
+
+  /* ── 아이콘(viewBox 24 기준) ── */
+  --icon-xs: 12px; /* 칩 빼기 · 완료 점 */
+  --icon-sm: 14px; /* 작은 버튼 안 · 글 줄 안 보조 */
+  --icon-md-minus: 15px; /* 지금 15px로 그린 자리(버튼 줄 · 상세 머리) */
+  --icon-md: 16px; /* 기본 버튼 안 · 카드 · 검색 버튼 */
+  --icon-lg: 18px; /* 알림 상자 · 토스트 · 2차 목록 · 아이콘 버튼 */
+  --icon-xl: 20px; /* 모달 · 드로어 닫기 */
+  --icon-shell: 22px; /* 레일 · GNB */
+  --icon-hero: 24px; /* 파일 올리기 · 빈 브라우저 */
+  --icon-empty: 40px; /* 빈 트레이스 */
+  --icon-stroke-light: 1.4; /* 40px 빈 상태 선 */
+  --icon-stroke: 1.8; /* 기본 선 */
+  --icon-stroke-bold: 2.4; /* 16px 이하 표시 아이콘(빼기 · 토스트) 선 */
+  --icon-stroke-heavy: 3; /* 작은 완료 점 선 */
+
+  /* ── 투명도 ── */
+  --opacity-disabled: 0.5; /* 비활성 버튼 · 카드 · 옵션 */
+  --opacity-skipped: 0.6; /* 탐색 단계 "안 함" — 비활성과 뜻이 다르다 */
+  --opacity-flow: 0.7; /* 연결선 흐름 점선(구조도 · 파이프라인) — 두 테마 같음 */
+  --opacity-blink: 0.25; /* 깜빡임의 옅은 끝(탐색 중 점 · 입력 중 점) — 두 테마 같음 */
+}
+
+/* 시스템 다크 — 아래 강제 다크와 같은 이름 · 같은 값. 뜻은 라이트 블록 주석 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    /* 면 · 선 · 글자 */
+    --bg-page: #15181e;
+    --surface: #1b1f27;
+    --surface-sub: #222733;
+    --surface-hover: #232b39;
+    --surface-selected: #1c2d46;
+    --line-divider: #2f3542;
+    --line-control: #3d4453;
+    --line-strong: #9aa3b3;
+    --text: #e7eaf0;
+    --text-muted: #b4bac6;
+    --text-faint: #7e8695;
+    /* 주색 · 상태 */
+    --primary: #4c97f8;
+    --primary-hover: #3a86ef;
+    --primary-ink: #8cbcfb;
+    --primary-bg: #1b2c47;
+    --primary-line: #2e4a75;
+    --ok: #43c985;
+    --ok-bg: #16352a;
+    --warn: #f2a444;
+    --warn-bg: #3a2a12;
+    --danger: #f27277;
+    --danger-bg: #3d1c1f;
+    /* 셸 */
+    --brand-band: #2f6fd1;
+    --chart-bar: #2f6fd1;
+    --rail-bg: #11151c;
+    --rail-icon: #8791a3;
+    --scrim: rgba(0,0,0,.55);
+    /* 연결 흐름 */
+    --ai: #9aa2f0;
+    --ai-bg: #262a4a;
+    --tool: #3fd0bd;
+    --tool-bg: #173a36;
+    --source: #f2ae4a;
+    --source-bg: #3b2c14;
+    /* 표지 */
+    --evidence-code: #f2ae4a;
+    --evidence-code-bg: #3b2c14;
+    --evidence-traffic: #3fd0bd;
+    --evidence-traffic-bg: #173a36;
+    --rule-inject: #9aa2f0;
+    --rule-inject-bg: #262a4a;
+    --netlog-flag: #9aa2f0;
+    --netlog-flag-bg: #262a4a;
+    --proto-rest: #8cbcfb;
+    --proto-rest-bg: #1b2c47;
+    --proto-gov: #43c985;
+    --proto-gov-bg: #16352a;
+    --proto-soap: #f2ae4a;
+    --proto-soap-bg: #3b2c14;
+    --proto-disc: #9aa2f0;
+    --proto-disc-bg: #262a4a;
+    /* 코드 강조 */
+    --code-key: #9aa2f0;
+    --code-string: #3fd0bd;
+    --code-number: #f2ae4a;
+    --code-literal: #f27277;
+    --code-tag: #8cbcfb;
+    --code-comment: #7e8695;
+    /* 어두운 고정 면 · 그림자 */
+    --inverse-surface: #2b3445;
+    --shadow-float: 0 12px 40px rgba(0,0,0,.5);
+  }
+}
+
+/* 강제 다크(data-theme="dark") — 위 시스템 다크와 같은 이름 · 같은 값 */
+:root[data-theme='dark'] {
+  /* 면 · 선 · 글자 */
+  --bg-page: #15181e;
+  --surface: #1b1f27;
+  --surface-sub: #222733;
+  --surface-hover: #232b39;
+  --surface-selected: #1c2d46;
+  --line-divider: #2f3542;
+  --line-control: #3d4453;
+  --line-strong: #9aa3b3;
+  --text: #e7eaf0;
+  --text-muted: #b4bac6;
+  --text-faint: #7e8695;
+  /* 주색 · 상태 */
+  --primary: #4c97f8;
+  --primary-hover: #3a86ef;
+  --primary-ink: #8cbcfb;
+  --primary-bg: #1b2c47;
+  --primary-line: #2e4a75;
+  --ok: #43c985;
+  --ok-bg: #16352a;
+  --warn: #f2a444;
+  --warn-bg: #3a2a12;
+  --danger: #f27277;
+  --danger-bg: #3d1c1f;
+  /* 셸 */
+  --brand-band: #2f6fd1;
+  --chart-bar: #2f6fd1;
+  --rail-bg: #11151c;
+  --rail-icon: #8791a3;
+  --scrim: rgba(0,0,0,.55);
+  /* 연결 흐름 */
+  --ai: #9aa2f0;
+  --ai-bg: #262a4a;
+  --tool: #3fd0bd;
+  --tool-bg: #173a36;
+  --source: #f2ae4a;
+  --source-bg: #3b2c14;
+  /* 표지 */
+  --evidence-code: #f2ae4a;
+  --evidence-code-bg: #3b2c14;
+  --evidence-traffic: #3fd0bd;
+  --evidence-traffic-bg: #173a36;
+  --rule-inject: #9aa2f0;
+  --rule-inject-bg: #262a4a;
+  --netlog-flag: #9aa2f0;
+  --netlog-flag-bg: #262a4a;
+  --proto-rest: #8cbcfb;
+  --proto-rest-bg: #1b2c47;
+  --proto-gov: #43c985;
+  --proto-gov-bg: #16352a;
+  --proto-soap: #f2ae4a;
+  --proto-soap-bg: #3b2c14;
+  --proto-disc: #9aa2f0;
+  --proto-disc-bg: #262a4a;
+  /* 코드 강조 */
+  --code-key: #9aa2f0;
+  --code-string: #3fd0bd;
+  --code-number: #f2ae4a;
+  --code-literal: #f27277;
+  --code-tag: #8cbcfb;
+  --code-comment: #7e8695;
+  /* 어두운 고정 면 · 그림자 */
+  --inverse-surface: #2b3445;
+  --shadow-float: 0 12px 40px rgba(0,0,0,.5);
+}

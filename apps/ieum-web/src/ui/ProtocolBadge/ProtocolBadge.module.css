@@ -1,0 +1,48 @@
+/* ProtocolBadge — 이음 .pr(css/console.css:518-522,1045). 모양은 Tag lg · square와 같다(높이 22 · --r-sm).
+   테두리가 있어도 높이가 같게 border-box로 고정한다 */
+.root {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  /* check-css-disable-next-line literal-px -- 배지 고유 높이(Tag lg와 같은 22) */
+  height: 22px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+.root[data-kind='rest'] {
+  background: var(--proto-rest-bg);
+  color: var(--proto-rest);
+}
+
+.root[data-kind='soap'] {
+  background: var(--proto-soap-bg);
+  color: var(--proto-soap);
+}
+
+.root[data-kind='gov'] {
+  background: var(--proto-gov-bg);
+  color: var(--proto-gov);
+}
+
+.root[data-kind='disc'] {
+  background: var(--proto-disc-bg);
+  color: var(--proto-disc);
+}
+
+/* Tag tone="neutral" variant="dashed"와 같은 모양 */
+.root[data-kind='sample'] {
+  border: 1px dashed var(--line-control);
+  background: var(--surface-sub);
+  color: var(--text-muted);
+}
+
+/* Tag tone="mute"와 같은 모양 */
+.root[data-kind='unknown'] {
+  border: 1px solid var(--line-divider);
+  background: var(--surface-sub);
+  color: var(--text-faint);
+}

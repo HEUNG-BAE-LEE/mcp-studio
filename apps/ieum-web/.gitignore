@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+# 전역 설정에 *.json 무시가 있어도 이 파일들은 커밋된다
+!package.json
+!package-lock.json
+!tsconfig.json
+!.oxlintrc.json

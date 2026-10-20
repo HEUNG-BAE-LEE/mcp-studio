@@ -1,0 +1,26 @@
+/* ChatLog — 이음 .msgs(css/console.css:739), 760 :907. 높이 최소 300 · 최대 540(760 이하 420)은 고유 치수이고 넘치면 상자 안 스크롤이다.
+   flex 1 — 세로 flex 상자(Box 대화 변형)의 직계 자식이면 남은 높이를 채운다. 다른 그릇에서는 내용 높이이고 최소 · 최대 사이에 머문다 */
+.root {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-3);
+  /* check-css-disable-next-line literal-px -- 대화 목록 고유 최소 높이(이음 .msgs min-height 300) */
+  min-height: 300px;
+  /* check-css-disable-next-line literal-px -- 대화 목록 고유 최대 높이(이음 .msgs max-height 540) */
+  max-height: 540px;
+  padding: var(--s-4);
+  overflow: auto;
+}
+
+/* 스크롤 상자는 안쪽 링(DESIGN 접근성) — 지우지 않고 자리만 옮긴다 */
+.root:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (max-width: 760px) {
+  .root {
+    /* check-css-disable-next-line literal-px -- 760 이하 대화 목록 고유 최대 높이(이음 css/console.css:907) */
+    max-height: 420px;
+  }
+}
